@@ -140,11 +140,9 @@ pub(crate) fn build_initial_context(
             MarketDatum::RateQuote(_)
             | MarketDatum::CdsQuote(_)
             | MarketDatum::CdsTrancheQuote(_)
-            | MarketDatum::FxQuote(_)
             | MarketDatum::InflationQuote(_)
             | MarketDatum::VolQuote(_)
-            | MarketDatum::XccyQuote(_)
-            | MarketDatum::BondQuote(_) => {}
+            | MarketDatum::XccyQuote(_) => {}
         }
     }
 

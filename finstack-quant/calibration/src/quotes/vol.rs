@@ -10,9 +10,7 @@ use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::types::UnderlyingId;
 use finstack_quant_core::{Error, Result};
 use finstack_quant_valuations::instruments::OptionType;
-use finstack_quant_valuations::market::conventions::ids::{
-    CapFloorConventionId, OptionConventionId, SwaptionConventionId,
-};
+use finstack_quant_valuations::market::conventions::ids::SwaptionConventionId;
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
 
@@ -28,7 +26,6 @@ use ts_rs::TS;
 /// ```rust
 /// use finstack_quant_calibration::quotes::vol::VolQuote;
 /// use finstack_quant_calibration::quotes::ids::QuoteId;
-/// use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
 /// use finstack_quant_valuations::instruments::OptionType;
 /// use finstack_quant_core::dates::Date;
 /// use finstack_quant_core::types::UnderlyingId;
@@ -40,7 +37,6 @@ use ts_rs::TS;
 ///     strike: 4500.0,
 ///     vol: 0.20, // 20% implied volatility
 ///     option_type: OptionType::Call,
-///     convention: OptionConventionId::new("USD-EQUITY"),
 /// };
 /// ```
 ///
@@ -94,9 +90,6 @@ pub enum VolQuote {
         vol: f64,
         /// Option type (Call or Put).
         option_type: OptionType,
-        /// Per-instrument conventions
-        #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        convention: OptionConventionId,
     },
     /// Interest rate swaption implied volatility quote.
     SwaptionVol {
@@ -154,9 +147,6 @@ pub enum VolQuote {
         quote_type: VolQuoteType,
         /// `true` for cap, `false` for floor.
         is_cap: bool,
-        /// Cap/floor market conventions.
-        #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        convention: CapFloorConventionId,
     },
 }
 
@@ -236,7 +226,6 @@ impl VolQuote {
     /// ```rust
     /// use finstack_quant_calibration::quotes::vol::VolQuote;
     /// use finstack_quant_calibration::quotes::ids::QuoteId;
-    /// use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
     /// use finstack_quant_valuations::instruments::OptionType;
     /// use finstack_quant_core::dates::Date;
     /// use finstack_quant_core::types::UnderlyingId;
@@ -248,7 +237,6 @@ impl VolQuote {
     ///     strike: 4500.0,
     ///     vol: 0.20,
     ///     option_type: OptionType::Call,
-    ///     convention: OptionConventionId::new("USD-EQUITY"),
     /// };
     ///
     /// // Bump by 1 vol point
@@ -261,59 +249,12 @@ impl VolQuote {
                 "volatility bump must be finite, got {vol_bump}"
             )));
         }
-        let bumped = match self {
-            Self::OptionVol {
-                id,
-                underlying,
-                expiry,
-                strike,
-                vol,
-                option_type,
-                convention,
-            } => Self::OptionVol {
-                id: id.clone(),
-                underlying: underlying.clone(),
-                expiry: *expiry,
-                strike: *strike,
-                vol: vol + vol_bump,
-                option_type: *option_type,
-                convention: convention.clone(),
-            },
-            Self::SwaptionVol {
-                id,
-                expiry,
-                maturity,
-                strike,
-                vol,
-                quote_type,
-                convention,
-            } => Self::SwaptionVol {
-                id: id.clone(),
-                expiry: *expiry,
-                maturity: *maturity,
-                strike: *strike,
-                vol: vol + vol_bump,
-                quote_type: *quote_type,
-                convention: convention.clone(),
-            },
-            Self::CapFloorVol {
-                id,
-                expiry,
-                strike,
-                vol,
-                quote_type,
-                is_cap,
-                convention,
-            } => Self::CapFloorVol {
-                id: id.clone(),
-                expiry: *expiry,
-                strike: *strike,
-                vol: vol + vol_bump,
-                quote_type: *quote_type,
-                is_cap: *is_cap,
-                convention: convention.clone(),
-            },
-        };
+        let mut bumped = self.clone();
+        match &mut bumped {
+            Self::OptionVol { vol, .. }
+            | Self::SwaptionVol { vol, .. }
+            | Self::CapFloorVol { vol, .. } => *vol += vol_bump,
+        }
         bumped.validate()?;
         Ok(bumped)
     }
@@ -331,7 +272,6 @@ fn validate_volatility(volatility: f64) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_valuations::market::conventions::ids::CapFloorConventionId;
     use time::macros::date;
 
     #[test]
@@ -343,7 +283,6 @@ mod tests {
             vol: 0.0088,
             quote_type: VolQuoteType::Normal,
             is_cap: true,
-            convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         };
 
         let bumped = quote
@@ -365,7 +304,6 @@ mod tests {
             vol: 0.01,
             quote_type: VolQuoteType::Normal,
             is_cap: true,
-            convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         };
         assert!(quote.bump_vol_absolute(-0.02).is_err());
     }

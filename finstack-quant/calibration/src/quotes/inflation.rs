@@ -4,7 +4,9 @@
 //! zero-coupon inflation swaps (ZCIS) and year-on-year (YoY) inflation swaps.
 
 use super::ids::QuoteId;
+use super::validate;
 use finstack_quant_core::dates::{Date, Tenor};
+use finstack_quant_core::Result;
 use finstack_quant_valuations::market::conventions::ids::InflationSwapConventionId;
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
@@ -151,6 +153,15 @@ impl InflationQuote {
         }
     }
 
+    /// Validate that the quoted inflation rate is finite.
+    pub fn validate(&self) -> Result<()> {
+        match self {
+            Self::InflationSwap { rate, .. } | Self::YoYInflationSwap { rate, .. } => {
+                validate::finite(*rate, "rate")
+            }
+        }
+    }
+
     /// Create a new quote with the inflation rate bumped by a decimal amount.
     ///
     /// # Arguments
@@ -181,36 +192,13 @@ impl InflationQuote {
     /// let bumped = quote.bump_rate_decimal(0.0001);
     /// ```
     pub fn bump_rate_decimal(&self, rate_bump: f64) -> Self {
-        match self {
-            InflationQuote::InflationSwap {
-                id,
-                maturity,
-                rate,
-                index,
-                convention,
-            } => InflationQuote::InflationSwap {
-                id: id.clone(),
-                maturity: *maturity,
-                rate: rate + rate_bump,
-                index: index.clone(),
-                convention: convention.clone(),
-            },
-            InflationQuote::YoYInflationSwap {
-                id,
-                maturity,
-                rate,
-                index,
-                frequency,
-                convention,
-            } => InflationQuote::YoYInflationSwap {
-                id: id.clone(),
-                maturity: *maturity,
-                rate: rate + rate_bump,
-                index: index.clone(),
-                frequency: *frequency,
-                convention: convention.clone(),
-            },
+        let mut quote = self.clone();
+        match &mut quote {
+            Self::InflationSwap { rate, .. } | Self::YoYInflationSwap { rate, .. } => {
+                *rate += rate_bump;
+            }
         }
+        quote
     }
 }
 

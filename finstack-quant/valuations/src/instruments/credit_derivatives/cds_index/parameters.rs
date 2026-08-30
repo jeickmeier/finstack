@@ -11,7 +11,7 @@
 //! preset, then chain `with_constituents`, `with_constituents_equal_weight`,
 //! and `with_index_factor` to attach trade state.
 
-use crate::instruments::credit_derivatives::cds::CDSConvention;
+use crate::instruments::credit_derivatives::cds::CdsConvention;
 
 /// Preset metadata for a well-known CDS index series.
 ///
@@ -32,7 +32,7 @@ pub struct CDSIndexParams {
     /// Regional ISDA convention. Bundled into the preset because each
     /// well-known index has a fixed convention (CDX uses `IsdaNa`, iTraxx
     /// uses `IsdaEu`).
-    pub convention: CDSConvention,
+    pub convention: CdsConvention,
     /// Number of reference entities in this series, when known.
     ///
     /// Membership counts vary by series (e.g. iTraxx Crossover has been 75
@@ -66,7 +66,7 @@ impl CDSIndexParams {
         series: u16,
         version: u16,
         fixed_coupon_bp: f64,
-        convention: CDSConvention,
+        convention: CdsConvention,
     ) -> Self {
         Self {
             index_name: index_name.into(),
@@ -103,7 +103,7 @@ impl CDSIndexParams {
             series,
             version,
             fixed_coupon_bp,
-            CDSConvention::IsdaNa,
+            CdsConvention::IsdaNa,
         )
         .with_num_constituents(125)
     }
@@ -125,7 +125,7 @@ impl CDSIndexParams {
             series,
             version,
             fixed_coupon_bp,
-            CDSConvention::IsdaNa,
+            CdsConvention::IsdaNa,
         )
         .with_num_constituents(100)
     }
@@ -146,7 +146,7 @@ impl CDSIndexParams {
             series,
             version,
             fixed_coupon_bp,
-            CDSConvention::IsdaEu,
+            CdsConvention::IsdaEu,
         )
         .with_num_constituents(125)
     }

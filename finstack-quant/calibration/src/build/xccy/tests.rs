@@ -24,7 +24,7 @@ fn test_build_xccy_basis_swap() {
         Date::from_calendar_date(2025, time::Month::January, 10).expect("valid XCCY build date");
     let ctx = xccy_build_ctx(as_of);
 
-    let quote = XccyQuote::BasisSwap {
+    let quote = XccyQuote {
         id: QuoteId::new("EURUSD-XCCY-5Y"),
         convention: XccyConventionId::new("EUR/USD-XCCY"),
         far_pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y XCCY tenor")),
@@ -92,7 +92,7 @@ fn unregistered_forward_override_keeps_contractual_overnight_compounding() {
     curve_ids.insert("foreign_forward".to_string(), "EUR-ESTR-OIS".to_string());
     let ctx = BuildCtx::new(as_of, 10_000_000.0, curve_ids);
 
-    let quote = XccyQuote::BasisSwap {
+    let quote = XccyQuote {
         id: QuoteId::new("EURUSD-XCCY-5Y-ALIAS"),
         convention: XccyConventionId::new("EUR/USD-XCCY"),
         far_pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y XCCY tenor")),
@@ -127,7 +127,7 @@ fn registered_term_forward_override_on_ois_convention_is_rejected() {
     curve_ids.insert("foreign_forward".to_string(), "EUR-ESTR-OIS".to_string());
     let ctx = BuildCtx::new(as_of, 10_000_000.0, curve_ids);
 
-    let quote = XccyQuote::BasisSwap {
+    let quote = XccyQuote {
         id: QuoteId::new("EURUSD-XCCY-5Y-TERM"),
         convention: XccyConventionId::new("EUR/USD-XCCY"),
         far_pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y XCCY tenor")),
@@ -157,7 +157,7 @@ mod mtm_reset_builder_tests {
             Date::from_calendar_date(2025, time::Month::January, 2).expect("valid base date");
         let ctx = xccy_build_ctx(base_date);
 
-        let quote = XccyQuote::BasisSwap {
+        let quote = XccyQuote {
             id: QuoteId::new("EUR/USD-5Y"),
             convention: XccyConventionId::new("EUR/USD-XCCY"),
             far_pillar: Pillar::Tenor("5Y".parse().expect("valid tenor")),

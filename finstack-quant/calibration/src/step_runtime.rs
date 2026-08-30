@@ -599,7 +599,7 @@ mod tests {
         CapFloorHullWhiteStepParams, HullWhiteStepParams, StudentTParams, SviSurfaceParams,
     };
     use crate::hull_white::SwapFrequency;
-    use crate::quotes::cds_tranche::CDSTrancheQuote;
+    use crate::quotes::cds_tranche::CdsTrancheQuote;
     use crate::quotes::ids::QuoteId;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
@@ -612,8 +612,7 @@ mod tests {
     };
     use finstack_quant_valuations::instruments::OptionType;
     use finstack_quant_valuations::market::conventions::ids::{
-        CapFloorConventionId, CdsConventionKey, CdsDocClause, OptionConventionId,
-        SwaptionConventionId,
+        CdsConventionKey, CdsDocClause, SwaptionConventionId,
     };
     use std::sync::Arc;
     use time::Month;
@@ -660,10 +659,10 @@ mod tests {
             .insert_credit_index("CDX.NA.IG", credit_index)
     }
 
-    fn build_student_t_quote(base_date: Date, df: f64, correlation: f64) -> CDSTrancheQuote {
+    fn build_student_t_quote(base_date: Date, df: f64, correlation: f64) -> CdsTrancheQuote {
         let market = build_student_t_market(base_date, correlation);
         let maturity = Date::from_calendar_date(2030, Month::March, 20).expect("valid maturity");
-        let template = CDSTrancheQuote::CDSTranche {
+        let template = CdsTrancheQuote {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX.NA.IG".to_string(),
             series: 42,
@@ -703,7 +702,7 @@ mod tests {
             .expect("upfront")
             / tranche.notional.amount();
 
-        CDSTrancheQuote::CDSTranche {
+        CdsTrancheQuote {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX.NA.IG".to_string(),
             series: 42,
@@ -730,7 +729,7 @@ mod tests {
             df_bounds: (2.5, 12.0),
             correlation: 0.3,
         });
-        let quotes = vec![MarketQuote::CDSTranche(build_student_t_quote(
+        let quotes = vec![MarketQuote::CdsTranche(build_student_t_quote(
             base_date, 6.0, 0.3,
         ))];
         let context = build_student_t_market(base_date, 0.25);
@@ -907,7 +906,6 @@ mod tests {
             vol,
             quote_type: VolQuoteType::Normal,
             is_cap: true,
-            convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         })];
         let context =
             MarketContext::new().insert(build_flat_discount_curve(0.03, base_date, "USD-OIS"));
@@ -961,7 +959,6 @@ mod tests {
             vol,
             quote_type: VolQuoteType::Normal,
             is_cap: true,
-            convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         })];
         let context =
             MarketContext::new().insert(build_flat_discount_curve(0.03, base_date, "USD-OIS"));
@@ -1009,7 +1006,6 @@ mod tests {
                 strike: 80.0,
                 vol: 0.30,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-1-90"),
@@ -1018,7 +1014,6 @@ mod tests {
                 strike: 90.0,
                 vol: 0.24,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-1-100"),
@@ -1027,7 +1022,6 @@ mod tests {
                 strike: 100.0,
                 vol: 0.20,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-1-110"),
@@ -1036,7 +1030,6 @@ mod tests {
                 strike: 110.0,
                 vol: 0.22,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-1-120"),
@@ -1045,7 +1038,6 @@ mod tests {
                 strike: 120.0,
                 vol: 0.27,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2-80"),
@@ -1054,7 +1046,6 @@ mod tests {
                 strike: 80.0,
                 vol: 0.32,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2-90"),
@@ -1063,7 +1054,6 @@ mod tests {
                 strike: 90.0,
                 vol: 0.27,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2-100"),
@@ -1072,7 +1062,6 @@ mod tests {
                 strike: 100.0,
                 vol: 0.23,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2-110"),
@@ -1081,7 +1070,6 @@ mod tests {
                 strike: 110.0,
                 vol: 0.24,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2-120"),
@@ -1090,7 +1078,6 @@ mod tests {
                 strike: 120.0,
                 vol: 0.28,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }),
         ];
 

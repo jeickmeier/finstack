@@ -1,7 +1,4 @@
-finstack-quant-wasm/types/generated/AtmStrikeConvention.ts
 finstack-quant-wasm/types/generated/BaseCorrelationParams.ts
-finstack-quant-wasm/types/generated/BondQuote.ts
-finstack-quant-wasm/types/generated/CDSTrancheQuote.ts
 finstack-quant-wasm/types/generated/CalibrationConfig.ts
 finstack-quant-wasm/types/generated/CalibrationDiagnostics.ts
 finstack-quant-wasm/types/generated/CalibrationEnvelope.ts
@@ -14,6 +11,7 @@ finstack-quant-wasm/types/generated/CalibrationSchema.ts
 finstack-quant-wasm/types/generated/CalibrationStep.ts
 finstack-quant-wasm/types/generated/CapFloorHullWhiteStepParams.ts
 finstack-quant-wasm/types/generated/CdsQuote.ts
+finstack-quant-wasm/types/generated/CdsTrancheQuote.ts
 finstack-quant-wasm/types/generated/CollateralEntry.ts
 finstack-quant-wasm/types/generated/Diagnostic.ts
 finstack-quant-wasm/types/generated/DiscountCurveParams.ts
@@ -21,7 +19,6 @@ finstack-quant-wasm/types/generated/DiscountCurveSolveConfig.ts
 finstack-quant-wasm/types/generated/DividendScheduleDatum.ts
 finstack-quant-wasm/types/generated/ForwardCurveParams.ts
 finstack-quant-wasm/types/generated/ForwardCurveSolveConfig.ts
-finstack-quant-wasm/types/generated/FxQuote.ts
 finstack-quant-wasm/types/generated/FxSpotDatum.ts
 finstack-quant-wasm/types/generated/HazardCurveParams.ts
 finstack-quant-wasm/types/generated/HazardCurveSolveConfig.ts

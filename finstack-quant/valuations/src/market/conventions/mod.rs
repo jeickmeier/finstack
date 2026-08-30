@@ -39,7 +39,8 @@ pub(crate) mod loaders;
 pub(crate) mod registry;
 
 pub use defs::{
-    CdsConventions, InflationSwapConventions, IrFutureConventions, IrFutureReferencePeriod,
-    RateIndexConventions, RateIndexKind, SwaptionConventions, XccyConventions,
+    CdsConvention, CdsConventionSpec, InflationSwapConventions, IrFutureConventions,
+    IrFutureReferencePeriod, RateIndexConventions, RateIndexKind, SwaptionConventions,
+    XccyConventions,
 };
 pub use registry::ConventionRegistry;

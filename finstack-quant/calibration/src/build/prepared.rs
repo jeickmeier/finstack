@@ -139,7 +139,7 @@ pub(crate) fn prepare_xccy_quote(
     ))
 }
 
-/// Resolve the maturity (far) date for an `XccyQuote::BasisSwap`. The cleanest path is
+/// Resolve the maturity (far) date for an `XccyQuote`. The cleanest path is
 /// to call `build_xccy_instrument` (which already does all the date math + convention
 /// resolution) and read `leg1.end` off the constructed swap — both legs share the same
 /// end date by builder construction.

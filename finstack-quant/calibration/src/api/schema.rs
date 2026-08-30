@@ -852,15 +852,11 @@ pub struct HazardCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub par_interp: ParInterp,
 
-    /// Optional CDS doc clause / market convention identifier.
+    /// Optional CDS documentation-clause assertion.
     ///
-    /// This selects the pricing/schedule conventions for the synthetic CDS instruments used
-    /// during calibration. If omitted, the default for the currency is used.
-    ///
-    /// Examples (current built-ins):
-    /// - `"isda_na"` (USD/CAD default)
-    /// - `"isda_eu"` (EUR/GBP/CHF default)
-    /// - `"isda_as"` (JPY/AUD/NZD/HKD/SGD default)
+    /// Hazard schedule conventions come from the quote `CdsConventionKey`. When
+    /// this field is set, it must be consistent with those quote-derived
+    /// conventions (same clause or the matching regional family).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub doc_clause: Option<String>,
     /// Optional CDS valuation convention used by synthetic CDS instruments
@@ -1044,9 +1040,6 @@ pub struct SwaptionVolParams {
     /// Volatility quoting convention (normal or lognormal).
     #[serde(default)]
     pub vol_convention: SwaptionVolConvention,
-    /// ATM strike convention for swaptions.
-    #[serde(default)]
-    pub atm_convention: AtmStrikeConvention,
     /// SABR beta parameter (typically 0.0 for normal, 1.0 for lognormal).
     #[serde(default = "default_sabr_beta")]
     pub sabr_beta: f64,
@@ -1389,21 +1382,6 @@ pub enum SwaptionVolConvention {
         /// Shift amount for negative rate handling
         shift: f64,
     },
-}
-
-/// ATM strike convention for swaptions.
-#[cfg_attr(feature = "ts_export", derive(TS))]
-#[cfg_attr(feature = "ts_export", ts(export))]
-#[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(rename_all = "snake_case")]
-pub enum AtmStrikeConvention {
-    /// ATM = forward swap rate (standard market convention)
-    #[default]
-    SwapRate,
-    /// ATM = par swap rate (same as forward for zero-cost swap)
-    ParRate,
 }
 
 /// Interpolation method for SABR parameters across the expiry–tenor grid.

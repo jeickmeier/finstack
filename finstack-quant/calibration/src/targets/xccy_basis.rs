@@ -97,7 +97,7 @@ impl XccyBasisTarget {
         let rates_quotes: Vec<crate::quotes::rates::RateQuote> = quotes.extract_quotes();
         let has_rates = !rates_quotes.is_empty();
 
-        // XCCY-side preflight: dealer-screen `XccyQuote::BasisSwap` quotes (par-spread on
+        // XCCY-side preflight: dealer-screen `XccyQuote` quotes (par-spread on
         // either fixed-notional or MtM-resetting XCCY swaps per the pair convention).
         let xccy_quotes: Vec<XccyQuote> = quotes.extract_quotes();
         let has_xccy = !xccy_quotes.is_empty();
@@ -143,9 +143,8 @@ impl XccyBasisTarget {
                 xccy_curve_ids,
             );
             for mut q in xccy_quotes {
-                let XccyQuote::BasisSwap { spot_fx, .. } = &mut q;
-                if spot_fx.is_none() {
-                    *spot_fx = Some(schema_params.fx_spot);
+                if q.spot_fx.is_none() {
+                    q.spot_fx = Some(schema_params.fx_spot);
                 }
                 let prepared = crate::build::prepared::prepare_xccy_quote(
                     q,
@@ -370,7 +369,7 @@ mod xccy_quote_calibration_tests {
             .insert_fx(fx)
     }
 
-    /// Drive `XccyBasisTarget::solve` with `XccyQuote::BasisSwap` quotes (the dealer-
+    /// Drive `XccyBasisTarget::solve` with `XccyQuote` quotes (the dealer-
     /// screen format) instead of generic `RateQuote::Swap` quotes. The EUR/USD-XCCY
     /// convention is registered as `MtmResetting { Leg1 }` (Task 3), so this exercises
     /// the full MtM-reset pricing inside the bootstrap residual loop.
@@ -398,7 +397,7 @@ mod xccy_quote_calibration_tests {
             basis_spread_curve_id: None,
         };
 
-        let quote_5y = MarketQuote::Xccy(XccyQuote::BasisSwap {
+        let quote_5y = MarketQuote::Xccy(XccyQuote {
             id: QuoteId::new("EURUSD-XCCY-5Y"),
             convention: XccyConventionId::new("EUR/USD-XCCY"),
             far_pillar: Pillar::Tenor("5Y".parse::<Tenor>().expect("5Y tenor")),
@@ -410,7 +409,7 @@ mod xccy_quote_calibration_tests {
         let result = XccyBasisTarget::solve(&params, &[quote_5y], &ctx, &cfg);
 
         let (new_ctx, report) =
-            result.expect("XccyBasisTarget::solve should accept XccyQuote::BasisSwap quotes");
+            result.expect("XccyBasisTarget::solve should accept XccyQuote quotes");
 
         assert!(
             report.success,

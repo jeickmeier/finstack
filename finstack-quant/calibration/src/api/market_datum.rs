@@ -5,10 +5,8 @@
 //! (quote, scalar, surface, etc.) and is serialized with a `kind` tag so the
 //! envelope can carry a heterogeneous list in JSON/YAML.
 
-use crate::quotes::bond::BondQuote;
 use crate::quotes::cds::CdsQuote;
-use crate::quotes::cds_tranche::CDSTrancheQuote;
-use crate::quotes::fx::FxQuote;
+use crate::quotes::cds_tranche::CdsTrancheQuote;
 use crate::quotes::inflation::InflationQuote;
 use crate::quotes::market_quote::MarketQuote;
 use crate::quotes::rates::RateQuote;
@@ -40,17 +38,13 @@ pub enum MarketDatum {
     /// Single-name credit-default-swap quote.
     CdsQuote(CdsQuote),
     /// CDS index tranche quote.
-    CdsTrancheQuote(CDSTrancheQuote),
-    /// FX quote (forward, swap, ...).
-    FxQuote(FxQuote),
+    CdsTrancheQuote(CdsTrancheQuote),
     /// Inflation quote (zero-coupon swap, year-on-year, ...).
     InflationQuote(InflationQuote),
     /// Volatility quote (cap/floor, swaption, ...).
     VolQuote(VolQuote),
     /// Cross-currency basis-swap quote.
     XccyQuote(XccyQuote),
-    /// Bond quote (price or yield).
-    BondQuote(BondQuote),
     /// FX spot quote.
     FxSpot(FxSpotDatum),
     /// Spot price for a single asset.
@@ -144,11 +138,9 @@ impl MarketDatum {
             MarketDatum::RateQuote(q) => q.id().as_str(),
             MarketDatum::CdsQuote(q) => q.id().as_str(),
             MarketDatum::CdsTrancheQuote(q) => q.id().as_str(),
-            MarketDatum::FxQuote(q) => q.id().as_str(),
             MarketDatum::InflationQuote(q) => q.id().as_str(),
             MarketDatum::VolQuote(q) => q.id().as_str(),
             MarketDatum::XccyQuote(q) => q.id().as_str(),
-            MarketDatum::BondQuote(q) => q.id().as_str(),
             MarketDatum::FxSpot(d) => &d.id,
             MarketDatum::Price(d) => &d.id,
             MarketDatum::DividendSchedule(d) => d.schedule.id.as_str(),
@@ -167,11 +159,9 @@ impl MarketDatum {
             MarketDatum::RateQuote(_) => "rate_quote",
             MarketDatum::CdsQuote(_) => "cds_quote",
             MarketDatum::CdsTrancheQuote(_) => "cds_tranche_quote",
-            MarketDatum::FxQuote(_) => "fx_quote",
             MarketDatum::InflationQuote(_) => "inflation_quote",
             MarketDatum::VolQuote(_) => "vol_quote",
             MarketDatum::XccyQuote(_) => "xccy_quote",
-            MarketDatum::BondQuote(_) => "bond_quote",
             MarketDatum::FxSpot(_) => "fx_spot",
             MarketDatum::Price(_) => "price",
             MarketDatum::DividendSchedule(_) => "dividend_schedule",
@@ -190,12 +180,10 @@ impl MarketDatum {
         match self {
             MarketDatum::RateQuote(q) => Some(MarketQuote::Rates(q.clone())),
             MarketDatum::CdsQuote(q) => Some(MarketQuote::Cds(q.clone())),
-            MarketDatum::CdsTrancheQuote(q) => Some(MarketQuote::CDSTranche(q.clone())),
-            MarketDatum::FxQuote(q) => Some(MarketQuote::Fx(q.clone())),
+            MarketDatum::CdsTrancheQuote(q) => Some(MarketQuote::CdsTranche(q.clone())),
             MarketDatum::InflationQuote(q) => Some(MarketQuote::Inflation(q.clone())),
             MarketDatum::VolQuote(q) => Some(MarketQuote::Vol(q.clone())),
             MarketDatum::XccyQuote(q) => Some(MarketQuote::Xccy(q.clone())),
-            MarketDatum::BondQuote(q) => Some(MarketQuote::Bond(q.clone())),
             _ => None,
         }
     }
@@ -207,11 +195,9 @@ impl MarketDatum {
             Self::RateQuote(_)
                 | Self::CdsQuote(_)
                 | Self::CdsTrancheQuote(_)
-                | Self::FxQuote(_)
                 | Self::InflationQuote(_)
                 | Self::VolQuote(_)
                 | Self::XccyQuote(_)
-                | Self::BondQuote(_)
         )
     }
 }
@@ -224,12 +210,10 @@ impl From<MarketQuote> for MarketDatum {
         match q {
             MarketQuote::Rates(q) => MarketDatum::RateQuote(q),
             MarketQuote::Cds(q) => MarketDatum::CdsQuote(q),
-            MarketQuote::CDSTranche(q) => MarketDatum::CdsTrancheQuote(q),
-            MarketQuote::Fx(q) => MarketDatum::FxQuote(q),
+            MarketQuote::CdsTranche(q) => MarketDatum::CdsTrancheQuote(q),
             MarketQuote::Inflation(q) => MarketDatum::InflationQuote(q),
             MarketQuote::Vol(q) => MarketDatum::VolQuote(q),
             MarketQuote::Xccy(q) => MarketDatum::XccyQuote(q),
-            MarketQuote::Bond(q) => MarketDatum::BondQuote(q),
         }
     }
 }

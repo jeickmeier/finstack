@@ -188,7 +188,6 @@ fn step_params_v2_roundtrip_for_all_variants() {
         forward_id: None,
         currency,
         vol_convention: Default::default(),
-        atm_convention: Default::default(),
         sabr_beta: 0.0,
         target_expiries: vec![1.0, 2.0],
         target_tenors: vec![1.0, 5.0],

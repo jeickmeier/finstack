@@ -271,8 +271,7 @@
         "expiry": "2026-06-17",
         "strike": 0.004,
         "vol": 0.3603,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -283,8 +282,7 @@
         "expiry": "2026-06-17",
         "strike": 0.01,
         "vol": 0.3603,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -295,8 +293,7 @@
         "expiry": "2026-06-17",
         "strike": 0.0125,
         "vol": 0.3603,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -307,8 +304,7 @@
         "expiry": "2026-09-17",
         "strike": 0.004,
         "vol": 0.37,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -319,8 +315,7 @@
         "expiry": "2026-09-17",
         "strike": 0.01,
         "vol": 0.37,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -331,8 +326,7 @@
         "expiry": "2026-09-17",
         "strike": 0.0125,
         "vol": 0.37,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -343,8 +337,7 @@
         "expiry": "2026-12-17",
         "strike": 0.004,
         "vol": 0.38,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -355,8 +348,7 @@
         "expiry": "2026-12-17",
         "strike": 0.01,
         "vol": 0.38,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     },
     {
@@ -367,8 +359,7 @@
         "expiry": "2026-12-17",
         "strike": 0.0125,
         "vol": 0.38,
-        "option_type": "call",
-        "convention": "USD-CDSO"
+        "option_type": "call"
       }
     }
   ],

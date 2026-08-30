@@ -21,7 +21,7 @@ use finstack_quant_core::{
 };
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
-    CDSConvention, CreditDefaultSwap, PayReceive, PremiumLegSpec, ProtectionLegSpec,
+    CdsConvention, CreditDefaultSwap, PayReceive, PremiumLegSpec, ProtectionLegSpec,
 };
 use finstack_quant_valuations::instruments::{
     Attributes, InstrumentPricingOverrides, PricingOptions,
@@ -154,7 +154,7 @@ pub fn cds_buy_protection(
     discount_curve_id: impl Into<CurveId>,
     credit_id: impl Into<CurveId>,
 ) -> finstack_quant_core::Result<CreditDefaultSwap> {
-    let convention = CDSConvention::IsdaNa;
+    let convention = CdsConvention::IsdaNa;
     let day_count = convention.day_count();
     let frequency = convention.frequency();
     let business_day_convention = convention.business_day_convention();
@@ -207,7 +207,7 @@ pub fn cds_sell_protection(
     discount_curve_id: impl Into<CurveId>,
     credit_id: impl Into<CurveId>,
 ) -> finstack_quant_core::Result<CreditDefaultSwap> {
-    let convention = CDSConvention::IsdaNa;
+    let convention = CdsConvention::IsdaNa;
     let day_count = convention.day_count();
     let frequency = convention.frequency();
     let business_day_convention = convention.business_day_convention();

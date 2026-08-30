@@ -19,8 +19,12 @@ use finstack_quant_core::market_data::term_structures::{
 };
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
-use finstack_quant_valuations::instruments::credit_derivatives::cds::CdsConventionResolved;
+use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
+use finstack_quant_valuations::market::conventions::{
+    CdsConvention, CdsConventionSpec, ConventionRegistry,
+};
 use std::cell::RefCell;
+use std::str::FromStr;
 
 /// Bootstrapper for hazard curves from CDS quotes.
 ///
@@ -38,8 +42,8 @@ use std::cell::RefCell;
 pub(crate) struct HazardCurveTarget {
     /// Parameters defining the hazard curve structure and IDs.
     pub(crate) params: HazardCurveParams,
-    /// CDS market conventions resolved from (currency, doc_clause).
-    pub(crate) cds_conventions: &'static CdsConventionResolved,
+    /// CDS market conventions resolved from quote keys (and optional params check).
+    pub(crate) cds_conventions: &'static CdsConventionSpec,
     /// Market context providing discount curves for PV calculations.
     pub(crate) base_context: MarketContext,
     /// Global calibration settings (used for solver controls and weights).
@@ -48,45 +52,128 @@ pub(crate) struct HazardCurveTarget {
     reuse_context: Option<RefCell<MarketContext>>,
 }
 
+fn convention_key_from_params(
+    params: &HazardCurveParams,
+    registry: &ConventionRegistry,
+) -> Result<CdsConventionKey> {
+    let doc_clause = match params.doc_clause.as_deref() {
+        Some(raw) => CdsDocClause::from_str(raw).map_err(finstack_quant_core::Error::Validation)?,
+        None => registry
+            .primary_cds_family(params.currency)
+            .unwrap_or(CdsConvention::IsdaNa)
+            .as_doc_clause(),
+    };
+    Ok(CdsConventionKey {
+        currency: params.currency,
+        doc_clause,
+    })
+}
+
+fn assert_hazard_doc_clause(
+    params: &HazardCurveParams,
+    key: &CdsConventionKey,
+    spec: &CdsConventionSpec,
+) -> Result<()> {
+    let Some(raw) = params.doc_clause.as_deref() else {
+        return Ok(());
+    };
+    let parsed = CdsDocClause::from_str(raw).map_err(finstack_quant_core::Error::Validation)?;
+    if parsed == key.doc_clause
+        || CdsConvention::family_from_doc_clause(parsed) == Some(spec.family)
+    {
+        return Ok(());
+    }
+    Err(finstack_quant_core::Error::Validation(format!(
+        "HazardCurveParams.doc_clause '{raw}' is inconsistent with quote convention {key}"
+    )))
+}
+
+fn resolve_hazard_conventions(
+    params: &HazardCurveParams,
+    quotes: &[&CdsQuote],
+) -> Result<&'static CdsConventionSpec> {
+    let registry = ConventionRegistry::try_global()?;
+    let key = if let Some(first) = quotes.first() {
+        let first_key = first.convention();
+        if first_key.currency != params.currency {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "hazard quote currency {} does not match params.currency {}",
+                first_key.currency, params.currency
+            )));
+        }
+        let first_spec = registry.resolve_cds(first_key)?;
+        for quote in quotes.iter().skip(1) {
+            let quote_key = quote.convention();
+            if quote_key.currency != params.currency {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "hazard quote currency {} does not match params.currency {}",
+                    quote_key.currency, params.currency
+                )));
+            }
+            let spec = registry.resolve_cds(quote_key)?;
+            if spec.family != first_spec.family
+                || spec.day_count != first_spec.day_count
+                || spec.calendar_id != first_spec.calendar_id
+            {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "hazard quotes mix incompatible CDS conventions: {first_key} vs {quote_key}"
+                )));
+            }
+        }
+        first_key.clone()
+    } else {
+        convention_key_from_params(params, registry)?
+    };
+    let spec = registry.resolve_cds(&key)?;
+    assert_hazard_doc_clause(params, &key, spec)?;
+    Ok(spec)
+}
+
 pub(crate) fn validate_hazard_recipe_bindings(
     params: &HazardCurveParams,
     recipe: &HazardCalibrationRecipe,
 ) -> Result<()> {
-    let conventions = finstack_quant_valuations::instruments::credit_derivatives::cds::resolve_market_conventions(
-        params.currency,
-        params.doc_clause.as_deref(),
-    )?;
+    let mut quotes = Vec::new();
+    for (input_kind, inputs) in [
+        ("calibration", recipe.calibration_inputs.as_slice()),
+        ("spread-risk", recipe.spread_risk_inputs.as_slice()),
+    ] {
+        for input in inputs {
+            quotes.push((
+                input_kind,
+                input,
+                serde_json::from_value::<CdsQuote>(input.quote.clone()).map_err(|error| {
+                    finstack_quant_core::Error::Validation(format!(
+                        "hazard {input_kind} replay contains an invalid serialized CDS quote: {error}"
+                    ))
+                })?,
+            ));
+        }
+    }
+    let quote_refs: Vec<&CdsQuote> = quotes.iter().map(|(_, _, quote)| quote).collect();
+    let conventions = resolve_hazard_conventions(params, &quote_refs)?;
     let mut curve_ids = HashMap::default();
     curve_ids.insert("discount".to_string(), params.discount_curve_id.to_string());
     curve_ids.insert("credit".to_string(), params.curve_id.to_string());
     let build_ctx = BuildCtx::new(params.base_date, params.notional, curve_ids)
         .with_cds_valuation_convention(params.cds_valuation_convention);
 
-    for (input_kind, inputs) in [
-        ("calibration", recipe.calibration_inputs.as_slice()),
-        ("spread-risk", recipe.spread_risk_inputs.as_slice()),
-    ] {
-        for input in inputs {
-            let quote: CdsQuote = serde_json::from_value(input.quote.clone()).map_err(|error| {
-                finstack_quant_core::Error::Validation(format!(
-                    "hazard {input_kind} replay contains an invalid serialized CDS quote: {error}"
-                ))
-            })?;
-            let prepared = crate::build::prepared::prepare_cds_quote(
-                quote.clone(),
-                &build_ctx,
-                conventions.day_count,
-                params.base_date,
-            )?;
-            let time_scale = prepared
-                .pillar_time
-                .abs()
-                .max(input.pillar_time.abs())
-                .max(1.0);
-            if prepared.pillar_date != input.pillar_date
-                || (prepared.pillar_time - input.pillar_time).abs() > 1e-12 * time_scale
-            {
-                return Err(finstack_quant_core::Error::Validation(format!(
+    for (input_kind, input, quote) in quotes {
+        let prepared = crate::build::prepared::prepare_cds_quote(
+            quote.clone(),
+            &build_ctx,
+            conventions.day_count,
+            params.base_date,
+        )?;
+        let time_scale = prepared
+            .pillar_time
+            .abs()
+            .max(input.pillar_time.abs())
+            .max(1.0);
+        if prepared.pillar_date != input.pillar_date
+            || (prepared.pillar_time - input.pillar_time).abs() > 1e-12 * time_scale
+        {
+            return Err(finstack_quant_core::Error::Validation(format!(
                     "hazard {input_kind} serialized quote '{}' resolves to pillar date {} and time {}, \
                      not stored pillar date {} and time {}",
                     quote.id(),
@@ -95,7 +182,6 @@ pub(crate) fn validate_hazard_recipe_bindings(
                     input.pillar_date,
                     input.pillar_time
                 )));
-            }
         }
     }
     Ok(())
@@ -224,21 +310,18 @@ impl HazardCurveTarget {
     ///
     /// # Note
     ///
-    /// CDS conventions are automatically derived from the currency:
-    /// - USD/CAD: ISDA North American
-    /// - EUR/GBP/CHF: ISDA European
-    /// - JPY/HKD/SGD/AUD/NZD: ISDA Asian
+    /// CDS conventions are resolved from quote keys via
+    /// [`ConventionRegistry::resolve_cds`]. `HazardCurveParams.doc_clause` is
+    /// an optional consistency check against those quote-derived conventions.
     pub(crate) fn new(
         params: HazardCurveParams,
         base_context: MarketContext,
         config: CalibrationConfig,
+        quotes: &[CdsQuote],
     ) -> Result<Self> {
         Self::validate_hazard_bounds(&params, &config)?;
-        let cds_conventions =
-            finstack_quant_valuations::instruments::credit_derivatives::cds::resolve_market_conventions(
-                params.currency,
-                params.doc_clause.as_deref(),
-            )?;
+        let quote_refs: Vec<&CdsQuote> = quotes.iter().collect();
+        let cds_conventions = resolve_hazard_conventions(&params, &quote_refs)?;
 
         let reuse_context = if matches!(config.calibration_method, CalibrationMethod::Bootstrap)
             || !config.use_parallel
@@ -286,7 +369,8 @@ impl HazardCurveTarget {
             config.validation.max_hazard_rate = config.validation.max_hazard_rate.max(2.0);
         }
         config.calibration_method = params.method.clone();
-        let target = HazardCurveTarget::new(params.clone(), context.clone(), config.clone())?;
+        let target =
+            HazardCurveTarget::new(params.clone(), context.clone(), config.clone(), &cds_quotes)?;
 
         let mut prepared_quotes: Vec<CalibrationQuote> = Vec::with_capacity(cds_quotes.len());
         let mut curve_ids = HashMap::default();
@@ -837,6 +921,7 @@ mod tests {
             base_params(),
             MarketContext::default(),
             CalibrationConfig::default(),
+            &[],
         )
         .expect("target");
         let err = target
@@ -849,7 +934,7 @@ mod tests {
     fn validate_knot_rejects_hazard_above_max() {
         let config = CalibrationConfig::default();
         let hazard_max = config.hazard_curve.hazard_hard_max;
-        let target = HazardCurveTarget::new(base_params(), MarketContext::default(), config)
+        let target = HazardCurveTarget::new(base_params(), MarketContext::default(), config, &[])
             .expect("target");
         let err = target
             .validate_knot(1.0, hazard_max + 1e-6)
@@ -863,7 +948,7 @@ mod tests {
         config.hazard_curve.hazard_hard_min = 0.05;
         config.hazard_curve.hazard_hard_max = 0.01;
 
-        let err = HazardCurveTarget::new(base_params(), MarketContext::default(), config)
+        let err = HazardCurveTarget::new(base_params(), MarketContext::default(), config, &[])
             .err()
             .expect("inverted hazard bounds should be rejected");
         assert!(err.to_string().to_lowercase().contains("hazard"));
@@ -932,9 +1017,13 @@ mod tests {
     fn build_curve_preserves_par_interp_and_monotone_survival() {
         let mut p = base_params();
         p.par_interp = ParInterp::LogLinear;
-        let target =
-            HazardCurveTarget::new(p, MarketContext::default(), CalibrationConfig::default())
-                .expect("target");
+        let target = HazardCurveTarget::new(
+            p,
+            MarketContext::default(),
+            CalibrationConfig::default(),
+            &[],
+        )
+        .expect("target");
 
         let curve = target
             .build_curve(&[(1.0, 0.02), (5.0, 0.03)])

@@ -260,7 +260,6 @@
     },
     {
       "kind": "cds_tranche_quote",
-      "type": "cds_tranche",
       "id": "CDX-IG-46-0-3",
       "index": "CDX-NA-IG-46",
       "series": 46,
@@ -276,7 +275,6 @@
     },
     {
       "kind": "cds_tranche_quote",
-      "type": "cds_tranche",
       "id": "CDX-IG-46-3-7",
       "index": "CDX-NA-IG-46",
       "series": 46,
@@ -292,7 +290,6 @@
     },
     {
       "kind": "cds_tranche_quote",
-      "type": "cds_tranche",
       "id": "CDX-IG-46-7-10",
       "index": "CDX-NA-IG-46",
       "series": 46,
@@ -308,7 +305,6 @@
     },
     {
       "kind": "cds_tranche_quote",
-      "type": "cds_tranche",
       "id": "CDX-IG-46-10-15",
       "index": "CDX-NA-IG-46",
       "series": 46,
@@ -324,7 +320,6 @@
     },
     {
       "kind": "cds_tranche_quote",
-      "type": "cds_tranche",
       "id": "CDX-IG-46-15-30",
       "index": "CDX-NA-IG-46",
       "series": 46,

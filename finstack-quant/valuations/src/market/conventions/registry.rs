@@ -1,13 +1,15 @@
 //! Global registry for market conventions.
 
 use super::defs::{
-    CdsConventions, InflationSwapConventions, IrFutureConventions, RateIndexConventions,
-    SwaptionConventions, XccyConventions,
+    CdsConvention, CdsConventionSpec, InflationSwapConventions, IrFutureConventions,
+    RateIndexConventions, SwaptionConventions, XccyConventions,
 };
 use super::ids::{
-    CdsConventionKey, InflationSwapConventionId, IrFutureContractId, SwaptionConventionId,
-    XccyConventionId,
+    CdsConventionKey, CdsDocClause, InflationSwapConventionId, IrFutureContractId,
+    SwaptionConventionId, XccyConventionId,
 };
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
 use finstack_quant_core::types::IndexId;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::{Error, Result};
@@ -39,8 +41,12 @@ use std::sync::OnceLock;
 pub struct ConventionRegistry {
     /// Registry of Rate Index conventions.
     rate_index: HashMap<IndexId, RateIndexConventions>,
-    /// Registry of CDS conventions.
-    cds: HashMap<CdsConventionKey, CdsConventions>,
+    /// Registry of CDS conventions keyed by currency and documentation clause.
+    cds: HashMap<CdsConventionKey, CdsConventionSpec>,
+    /// Loader-only `ANY` fallback rows keyed by regional family.
+    cds_any: HashMap<CdsConvention, CdsConventionSpec>,
+    /// Explicit regional family for currencies listed in `cds_conventions.json`.
+    cds_primary: HashMap<Currency, CdsConvention>,
     /// Registry of Swaption conventions.
     swaption: HashMap<SwaptionConventionId, SwaptionConventions>,
     /// Registry of Inflation Swap conventions.
@@ -85,9 +91,12 @@ impl ConventionRegistry {
         }
 
         tracing::debug!("initializing ConventionRegistry from embedded JSON");
+        let cds_tables = super::loaders::cds::load_registry()?;
         let built = ConventionRegistry {
             rate_index: super::loaders::rate_index::load_registry()?,
-            cds: super::loaders::cds::load_registry()?,
+            cds: cds_tables.entries,
+            cds_any: cds_tables.any,
+            cds_primary: cds_tables.primary_family,
             swaption: super::loaders::swaption::load_registry()?,
             inflation_swap: super::loaders::inflation_swap::load_registry()?,
             ir_future: super::loaders::ir_future::load_registry()?,
@@ -130,19 +139,21 @@ impl ConventionRegistry {
             .ok_or_else(|| Self::not_found(id.to_string()))
     }
 
-    /// Resolve conventions for a CDS key.
+    /// Resolve CDS schedule conventions for a currency and documentation clause.
+    ///
+    /// Meta clauses map to their regional family (`Au`/`Nz` use Asia). Exact
+    /// restructuring clauses stay on the instrument; the schedule family then
+    /// comes from the currency's explicit registry row, falling back to the
+    /// loader-only `ANY:isda_na` family when the currency has no explicit row.
     ///
     /// # Arguments
     ///
-    /// * `key` - The CDS convention key (currency + doc clause)
-    ///
-    /// # Returns
-    ///
-    /// `Ok(&CdsConventions)` if found, or `Err` with an `InputError::NotFound` if missing.
+    /// * `key` - Currency plus documentation clause from the quote or instrument
     ///
     /// # Errors
     ///
-    /// Returns `InputError::NotFound` if the key is not found in the registry.
+    /// Returns `InputError::NotFound` when neither an explicit currency row nor
+    /// an `ANY` family fallback can be resolved.
     ///
     /// # Examples
     ///
@@ -154,15 +165,65 @@ impl ConventionRegistry {
     /// let registry = ConventionRegistry::try_global()?;
     /// let key = CdsConventionKey {
     ///     currency: Currency::USD,
-    ///     doc_clause: CdsDocClause::IsdaNa,
+    ///     doc_clause: CdsDocClause::Cr14,
     /// };
-    /// let conv = registry.require_cds(&key)?;
+    /// let conv = registry.resolve_cds(&key)?;
+    /// assert_eq!(conv.family.to_string(), "isda_na");
     /// # Ok::<(), finstack_quant_core::Error>(())
     /// ```
-    pub fn require_cds(&self, key: &CdsConventionKey) -> Result<&CdsConventions> {
-        self.cds
-            .get(key)
+    pub fn resolve_cds(&self, key: &CdsConventionKey) -> Result<&CdsConventionSpec> {
+        let schedule_key = self.cds_schedule_key(key);
+        if let Some(spec) = self.cds.get(&schedule_key) {
+            return Ok(spec);
+        }
+        let family = CdsConvention::family_from_doc_clause(schedule_key.doc_clause)
+            .unwrap_or(CdsConvention::IsdaNa);
+        self.cds_any
+            .get(&family)
             .ok_or_else(|| Self::not_found(key.to_string()))
+    }
+
+    /// Resolve CDS conventions, applying the same rules as [`Self::resolve_cds`].
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The CDS convention key (currency + doc clause)
+    ///
+    /// # Errors
+    ///
+    /// Returns `InputError::NotFound` if the key cannot be resolved.
+    pub fn require_cds(&self, key: &CdsConventionKey) -> Result<&CdsConventionSpec> {
+        self.resolve_cds(key)
+    }
+
+    /// Explicit regional family for `currency`, if the JSON lists one.
+    ///
+    /// # Arguments
+    ///
+    /// * `currency` - ISO-4217 currency whose explicit `cds_conventions.json`
+    ///   regional row is returned. Currencies present only via `ANY` expansion
+    ///   yield `None`.
+    #[must_use]
+    pub fn primary_cds_family(&self, currency: Currency) -> Option<CdsConvention> {
+        self.cds_primary.get(&currency).copied()
+    }
+
+    fn cds_schedule_key(&self, key: &CdsConventionKey) -> CdsConventionKey {
+        let doc_clause = match key.doc_clause {
+            CdsDocClause::IsdaAu | CdsDocClause::IsdaNz => CdsDocClause::IsdaAs,
+            CdsDocClause::Cr14 | CdsDocClause::Mr14 | CdsDocClause::Mm14 | CdsDocClause::Xr14 => {
+                self.cds_primary
+                    .get(&key.currency)
+                    .copied()
+                    .unwrap_or(CdsConvention::IsdaNa)
+                    .as_doc_clause()
+            }
+            other => other,
+        };
+        CdsConventionKey {
+            currency: key.currency,
+            doc_clause,
+        }
     }
 
     /// Resolve conventions for a Swaption.
@@ -230,5 +291,131 @@ impl ConventionRegistry {
         self.xccy
             .get(id)
             .ok_or_else(|| Self::not_found(id.to_string()))
+    }
+}
+
+impl CdsConvention {
+    #[allow(clippy::panic, clippy::unwrap_used)]
+    fn family_spec(self) -> &'static CdsConventionSpec {
+        match ConventionRegistry::try_global() {
+            Ok(registry) => registry.cds_any.get(&self),
+            Err(_) => None,
+        }
+        .unwrap_or_else(|| {
+            panic!(
+                "Missing CDS conventions registry entry for '{self}'. \
+                 The embedded cds_conventions.json file is corrupted; \
+                 this is a build/packaging error and cannot be recovered at runtime."
+            )
+        })
+    }
+
+    /// Detect the appropriate CDS convention based on the currency's registry family.
+    ///
+    /// # Arguments
+    ///
+    /// * `currency` - ISO-4217 currency whose explicit CDS registry entry selects
+    ///   the regional family. Currencies without an explicit regional row fall
+    ///   back to North America.
+    #[must_use]
+    pub fn detect_from_currency(currency: Currency) -> Self {
+        ConventionRegistry::try_global()
+            .ok()
+            .and_then(|registry| registry.primary_cds_family(currency))
+            .unwrap_or(Self::IsdaNa)
+    }
+
+    /// Standard premium-leg day count for this regional family.
+    #[must_use]
+    pub fn day_count(self) -> DayCount {
+        self.family_spec().day_count
+    }
+
+    /// Standard premium-leg payment frequency for this regional family.
+    #[must_use]
+    pub fn frequency(self) -> Tenor {
+        self.family_spec().frequency
+    }
+
+    /// Standard business-day convention for this regional family.
+    #[must_use]
+    pub fn business_day_convention(self) -> BusinessDayConvention {
+        self.family_spec().business_day_convention
+    }
+
+    /// Standard premium-schedule stub for this regional family.
+    #[must_use]
+    pub fn stub_convention(self) -> StubKind {
+        self.family_spec().stub
+    }
+
+    /// Standard settlement delay in business days for this regional family.
+    #[must_use]
+    pub fn settlement_delay(self) -> u16 {
+        self.family_spec().settlement_days
+    }
+
+    /// Default holiday calendar identifier for this regional family.
+    #[must_use]
+    pub fn default_calendar(self) -> &'static str {
+        self.family_spec().calendar_id.as_str()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_cds_maps_meta_and_exact_clauses() {
+        let registry = ConventionRegistry::try_global().expect("registry");
+
+        let usd_cr14 = registry
+            .resolve_cds(&CdsConventionKey {
+                currency: Currency::USD,
+                doc_clause: CdsDocClause::Cr14,
+            })
+            .expect("USD CR14");
+        assert_eq!(usd_cr14.family, CdsConvention::IsdaNa);
+        assert_eq!(usd_cr14.calendar_id, "nyse");
+        assert_eq!(usd_cr14.settlement_days, 3);
+        assert_eq!(usd_cr14.stub, StubKind::ShortFront);
+
+        let eur_mm14 = registry
+            .resolve_cds(&CdsConventionKey {
+                currency: Currency::EUR,
+                doc_clause: CdsDocClause::Mm14,
+            })
+            .expect("EUR MM14");
+        assert_eq!(eur_mm14.family, CdsConvention::IsdaEu);
+        assert_eq!(eur_mm14.calendar_id, "target2");
+        assert_eq!(eur_mm14.settlement_days, 1);
+
+        let aud_au = registry
+            .resolve_cds(&CdsConventionKey {
+                currency: Currency::AUD,
+                doc_clause: CdsDocClause::IsdaAu,
+            })
+            .expect("AUD IsdaAu");
+        assert_eq!(aud_au.family, CdsConvention::IsdaAs);
+        assert_eq!(aud_au.calendar_id, "auce");
+
+        let nzd_nz = registry
+            .resolve_cds(&CdsConventionKey {
+                currency: Currency::NZD,
+                doc_clause: CdsDocClause::IsdaNz,
+            })
+            .expect("NZD IsdaNz");
+        assert_eq!(nzd_nz.family, CdsConvention::IsdaAs);
+        assert_eq!(nzd_nz.calendar_id, "nzau");
+
+        let brl_cr14 = registry
+            .resolve_cds(&CdsConventionKey {
+                currency: Currency::BRL,
+                doc_clause: CdsDocClause::Cr14,
+            })
+            .expect("BRL CR14 falls back to ANY NA");
+        assert_eq!(brl_cr14.family, CdsConvention::IsdaNa);
+        assert_eq!(brl_cr14.calendar_id, "nyse");
     }
 }

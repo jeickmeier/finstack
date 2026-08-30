@@ -5,9 +5,9 @@ use pyo3::prelude::*;
 use crate::bindings::core::money::PyMoney;
 use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::InstrumentId;
-use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_index::IndexPricing;
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
+use finstack_quant_valuations::market::conventions::CdsConvention;
 
 use super::super::instruments::{
     enum_from_str, json_field, parse_typed_instrument_json, serialize_typed_instrument_json,
@@ -323,7 +323,7 @@ impl PyCDSIndexBuilder {
     ///     If ``value`` is not a recognized convention.
     #[pyo3(text_signature = "($self, value)")]
     fn convention<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
-        let convention: CDSConvention = enum_from_str(value, "convention")?;
+        let convention: CdsConvention = enum_from_str(value, "convention")?;
         let b = take_cds_index(&mut slf)?;
         slf.inner = Some(b.convention(convention));
         Ok(slf)

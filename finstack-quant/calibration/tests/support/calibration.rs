@@ -33,12 +33,10 @@ pub fn quote_set_ids(quotes: &[MarketQuote]) -> Vec<QuoteId> {
         .map(|q| match q {
             MarketQuote::Rates(q) => q.id().clone(),
             MarketQuote::Cds(q) => q.id().clone(),
-            MarketQuote::CDSTranche(q) => q.id().clone(),
-            MarketQuote::Fx(q) => q.id().clone(),
+            MarketQuote::CdsTranche(q) => q.id().clone(),
             MarketQuote::Inflation(q) => q.id().clone(),
             MarketQuote::Vol(q) => q.id().clone(),
             MarketQuote::Xccy(q) => q.id().clone(),
-            MarketQuote::Bond(q) => q.id().clone(),
         })
         .collect()
 }

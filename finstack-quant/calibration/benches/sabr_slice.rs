@@ -10,7 +10,6 @@ use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_valuations::instruments::OptionType;
-use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
 #[path = "../tests/support/calibration.rs"]
 mod calibration_support;
@@ -32,7 +31,6 @@ fn bench_sabr_slice(c: &mut Criterion) {
             strike: 90.0,
             vol: 0.20,
             option_type: OptionType::Call,
-            convention: OptionConventionId::new("USD-Option"),
         },
         VolQuote::OptionVol {
             id: QuoteId::new("SPY-VOL-30D-100"),
@@ -41,7 +39,6 @@ fn bench_sabr_slice(c: &mut Criterion) {
             strike: 100.0,
             vol: 0.20,
             option_type: OptionType::Call,
-            convention: OptionConventionId::new("USD-Option"),
         },
         VolQuote::OptionVol {
             id: QuoteId::new("SPY-VOL-30D-105"),
@@ -50,7 +47,6 @@ fn bench_sabr_slice(c: &mut Criterion) {
             strike: 110.0,
             vol: 0.20,
             option_type: OptionType::Call,
-            convention: OptionConventionId::new("USD-Option"),
         },
     ];
     let settings = CalibrationConfig {

@@ -13,7 +13,7 @@ use super::test_utils::*;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{DayCount, Tenor};
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::credit_derivatives::cds::{CDSConvention, PayReceive};
+use finstack_quant_valuations::instruments::credit_derivatives::cds::{CdsConvention, PayReceive};
 use finstack_quant_valuations::instruments::credit_derivatives::cds_index::{
     CDSIndex, CDSIndexParams,
 };
@@ -43,7 +43,7 @@ fn test_cdx_na_ig_standard_conventions() {
     )
     .expect("valid test parameters");
 
-    assert_eq!(idx.convention, CDSConvention::IsdaNa);
+    assert_eq!(idx.convention, CdsConvention::IsdaNa);
     assert_eq!(idx.premium.frequency, Tenor::quarterly());
     assert_eq!(idx.premium.day_count, DayCount::Act360);
     assert_eq!(idx.premium.calendar_id.as_deref(), Some("nyse"));
@@ -68,7 +68,7 @@ fn test_cdx_na_hy_standard_conventions() {
     )
     .expect("valid test parameters");
 
-    assert_eq!(idx.convention, CDSConvention::IsdaNa);
+    assert_eq!(idx.convention, CdsConvention::IsdaNa);
     assert_eq!(idx.premium.frequency, Tenor::quarterly());
 }
 
@@ -91,7 +91,7 @@ fn test_itraxx_europe_standard_conventions() {
     )
     .expect("valid test parameters");
 
-    assert_eq!(idx.convention, CDSConvention::IsdaEu);
+    assert_eq!(idx.convention, CdsConvention::IsdaEu);
     assert_eq!(idx.premium.calendar_id.as_deref(), Some("target2"));
 }
 

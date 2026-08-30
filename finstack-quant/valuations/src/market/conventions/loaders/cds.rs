@@ -1,14 +1,25 @@
 //! Loader for CDS conventions embedded in JSON registries.
 
 use super::json::{normalize_registry_id, RegistryFile};
-use crate::market::conventions::defs::CdsConventions;
+use crate::market::conventions::defs::{CdsConvention, CdsConventionSpec};
 use crate::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
+use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
 use finstack_quant_core::Error;
 use finstack_quant_core::HashMap;
 use std::str::FromStr;
 use strum::IntoEnumIterator;
+
+/// Parsed CDS convention tables used to build [`ConventionRegistry`].
+#[derive(Debug)]
+pub(crate) struct CdsRegistryTables {
+    /// Explicit `{currency}:{clause}` rows, plus `ANY` expansions.
+    pub entries: HashMap<CdsConventionKey, CdsConventionSpec>,
+    /// Loader-only `ANY:{family}` fallback rows.
+    pub any: HashMap<CdsConvention, CdsConventionSpec>,
+    /// Explicit regional family per currency (`isda_na` / `isda_eu` / `isda_as`).
+    pub primary_family: HashMap<Currency, CdsConvention>,
+}
 
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,14 +28,19 @@ struct CdsConventionsRecord {
     day_count: DayCount,
     payment_frequency: String,
     business_day_convention: BusinessDayConvention,
-    #[serde(rename = "stub_convention")]
-    _stub_convention: String,
-    settlement_days: i32,
+    stub_convention: StubKind,
+    settlement_days: u16,
     calendar_id: String,
 }
 
 impl CdsConventionsRecord {
-    fn into_conventions(self) -> Result<CdsConventions, Error> {
+    fn into_spec(self) -> Result<CdsConventionSpec, Error> {
+        let family = CdsConvention::family_from_doc_clause(self.doc_clause).ok_or_else(|| {
+            Error::Validation(format!(
+                "CDS convention registry record doc_clause {:?} is not a regional family",
+                self.doc_clause
+            ))
+        })?;
         let payment_frequency = Tenor::parse(&self.payment_frequency).map_err(|e| {
             Error::Validation(format!(
                 "Invalid `payment_frequency` in CDS conventions registry: '{}': {}",
@@ -32,10 +48,12 @@ impl CdsConventionsRecord {
             ))
         })?;
 
-        Ok(CdsConventions {
+        Ok(CdsConventionSpec {
+            family,
             calendar_id: self.calendar_id,
             day_count: self.day_count,
             business_day_convention: self.business_day_convention,
+            stub: self.stub_convention,
             settlement_days: self.settlement_days,
             frequency: payment_frequency,
         })
@@ -50,14 +68,14 @@ fn parse_doc_clause(clause_str: &str) -> Result<CdsDocClause, Error> {
 ///
 /// This loader expands `ANY:<Clause>` IDs across all ISO currencies, allowing the embedded
 /// registry to define catch-all conventions that apply to any currency not explicitly
-/// overridden. Explicit currency IDs (e.g., `USD:IsdaNa`) take precedence over expanded
-/// `ANY` entries.
-pub(crate) fn load_registry() -> Result<HashMap<CdsConventionKey, CdsConventions>, Error> {
+/// overridden. Explicit currency IDs (e.g., `USD:isda_na`) take precedence over expanded
+/// `ANY` entries and become that currency's primary schedule family.
+pub(crate) fn load_registry() -> Result<CdsRegistryTables, Error> {
     let json = include_str!("../../../../data/conventions/cds_conventions.json");
     load_registry_from_str(json)
 }
 
-fn load_registry_from_str(json: &str) -> Result<HashMap<CdsConventionKey, CdsConventions>, Error> {
+fn load_registry_from_str(json: &str) -> Result<CdsRegistryTables, Error> {
     let file: RegistryFile<CdsConventionsRecord> = serde_json::from_str(json).map_err(|e| {
         Error::Validation(format!(
             "Failed to parse embedded CDS conventions registry JSON: {e}"
@@ -65,16 +83,14 @@ fn load_registry_from_str(json: &str) -> Result<HashMap<CdsConventionKey, CdsCon
     })?;
     file.validate_metadata("CDS")?;
 
-    // Two-pass approach:
-    // 1. Collect explicit (Currency, Clause) keys first - these take precedence
-    // 2. Collect ANY:<Clause> entries and expand them to all currencies not already present
-
-    let mut final_map: HashMap<CdsConventionKey, CdsConventions> = HashMap::default();
-    let mut any_clauses: Vec<(CdsDocClause, CdsConventions)> = Vec::new();
+    let mut entries: HashMap<CdsConventionKey, CdsConventionSpec> = HashMap::default();
+    let mut any: HashMap<CdsConvention, CdsConventionSpec> = HashMap::default();
+    let mut primary_family: HashMap<Currency, CdsConvention> = HashMap::default();
+    let mut any_clauses: Vec<(CdsDocClause, CdsConventionSpec)> = Vec::new();
     let mut seen_ids: HashMap<String, ()> = HashMap::default();
 
     for entry in file.entries {
-        let conventions = entry.record.clone().into_conventions()?;
+        let spec = entry.record.clone().into_spec()?;
         for id in entry.ids {
             let key_str = normalize_registry_id(&id);
             if seen_ids.insert(key_str.clone(), ()).is_some() {
@@ -105,7 +121,8 @@ fn load_registry_from_str(json: &str) -> Result<HashMap<CdsConventionKey, CdsCon
                         key_str, entry.record.doc_clause
                     )));
                 }
-                any_clauses.push((clause, conventions.clone()));
+                any.insert(spec.family, spec.clone());
+                any_clauses.push((clause, spec.clone()));
             } else if let Ok(currency) = prefix.parse::<Currency>() {
                 let clause = parse_doc_clause(clause_str)?;
                 if clause != entry.record.doc_clause {
@@ -114,11 +131,14 @@ fn load_registry_from_str(json: &str) -> Result<HashMap<CdsConventionKey, CdsCon
                         key_str, entry.record.doc_clause
                     )));
                 }
+                if spec.family != CdsConvention::Custom {
+                    primary_family.entry(currency).or_insert(spec.family);
+                }
                 let key = CdsConventionKey {
                     currency,
                     doc_clause: clause,
                 };
-                final_map.insert(key, conventions.clone());
+                entries.insert(key, spec.clone());
             } else {
                 return Err(Error::Validation(format!(
                     "Invalid CDS convention registry id '{}': unknown currency or prefix '{}'",
@@ -128,19 +148,21 @@ fn load_registry_from_str(json: &str) -> Result<HashMap<CdsConventionKey, CdsCon
         }
     }
 
-    // Second pass: expand ANY entries to all currencies not already present
-    for (clause, conventions) in any_clauses {
+    for (clause, spec) in any_clauses {
         for currency in Currency::iter() {
             let key = CdsConventionKey {
                 currency,
                 doc_clause: clause,
             };
-            // Only insert if not already present (explicit entries take precedence)
-            final_map.entry(key).or_insert_with(|| conventions.clone());
+            entries.entry(key).or_insert_with(|| spec.clone());
         }
     }
 
-    Ok(final_map)
+    Ok(CdsRegistryTables {
+        entries,
+        any,
+        primary_family,
+    })
 }
 
 #[cfg(test)]
@@ -152,14 +174,18 @@ mod tests {
         let registry = load_registry().expect("cds registry");
 
         let aud = registry
+            .entries
             .get(&CdsConventionKey {
                 currency: Currency::AUD,
                 doc_clause: CdsDocClause::IsdaAs,
             })
             .expect("AUD IsdaAs");
         assert_eq!(aud.calendar_id, "auce");
+        assert_eq!(aud.stub, StubKind::ShortFront);
+        assert_eq!(aud.family, CdsConvention::IsdaAs);
 
         let nzd = registry
+            .entries
             .get(&CdsConventionKey {
                 currency: Currency::NZD,
                 doc_clause: CdsDocClause::IsdaAs,
@@ -168,6 +194,7 @@ mod tests {
         assert_eq!(nzd.calendar_id, "nzau");
 
         let hkd = registry
+            .entries
             .get(&CdsConventionKey {
                 currency: Currency::HKD,
                 doc_clause: CdsDocClause::IsdaAs,
@@ -176,12 +203,22 @@ mod tests {
         assert_eq!(hkd.calendar_id, "hkhk");
 
         let sgd = registry
+            .entries
             .get(&CdsConventionKey {
                 currency: Currency::SGD,
                 doc_clause: CdsDocClause::IsdaAs,
             })
             .expect("SGD IsdaAs");
         assert_eq!(sgd.calendar_id, "sgsi");
+
+        assert_eq!(
+            registry.primary_family.get(&Currency::AUD),
+            Some(&CdsConvention::IsdaAs)
+        );
+        assert_eq!(
+            registry.primary_family.get(&Currency::SEK),
+            Some(&CdsConvention::IsdaEu)
+        );
     }
 
     #[test]

@@ -157,8 +157,7 @@
         "expiry": "2026-08-08",
         "strike": 155.0,
         "vol": 0.28,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -169,8 +168,7 @@
         "expiry": "2026-08-08",
         "strike": 175.0,
         "vol": 0.25,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -181,8 +179,7 @@
         "expiry": "2026-08-08",
         "strike": 195.0,
         "vol": 0.22,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -193,8 +190,7 @@
         "expiry": "2026-11-08",
         "strike": 155.0,
         "vol": 0.27,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -205,8 +201,7 @@
         "expiry": "2026-11-08",
         "strike": 175.0,
         "vol": 0.24,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -217,8 +212,7 @@
         "expiry": "2026-11-08",
         "strike": 195.0,
         "vol": 0.21,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -229,8 +223,7 @@
         "expiry": "2027-05-08",
         "strike": 155.0,
         "vol": 0.26,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -241,8 +234,7 @@
         "expiry": "2027-05-08",
         "strike": 175.0,
         "vol": 0.23,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {
@@ -253,8 +245,7 @@
         "expiry": "2027-05-08",
         "strike": 195.0,
         "vol": 0.2,
-        "option_type": "call",
-        "convention": "USD-Option"
+        "option_type": "call"
       }
     },
     {

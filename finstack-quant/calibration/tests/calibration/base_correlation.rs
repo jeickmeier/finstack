@@ -22,7 +22,7 @@ use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 
 use crate::calibration_support as cal_utils;
-use finstack_quant_calibration::quotes::cds_tranche::CDSTrancheQuote;
+use finstack_quant_calibration::quotes::cds_tranche::CdsTrancheQuote;
 use finstack_quant_calibration::quotes::ids::QuoteId;
 use finstack_quant_calibration::quotes::market_quote::MarketQuote;
 use finstack_quant_core::HashMap;
@@ -33,7 +33,7 @@ use time::Month;
 use super::tolerances;
 
 // Fixture upfronts (decimal fraction of tranche notional, matching the
-// `CDSTrancheQuote::upfront_pct` schema: -0.025 means -2.5%) generated from a
+// `CdsTrancheQuote::upfront_pct` schema: -0.025 means -2.5%) generated from a
 // frozen market snapshot. To regenerate after a pricing model change:
 // FINSTACK_REGEN_BASE_CORR_FIXTURES=1 cargo test -p finstack-quant-valuations base_correlation_step_builds_curve_and_updates_credit_index_data -- --nocapture
 const UPFRONT_0_3_FRAC: f64 = 0.039_857_737_7;
@@ -204,7 +204,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
 
     // Use fraction attachment/detachment in the quote to validate unit normalization.
     let quotes = vec![
-        MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+        MarketQuote::CdsTranche(CdsTrancheQuote {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX".to_string(),
             series: 40,
@@ -218,7 +218,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
                 doc_clause: CdsDocClause::IsdaNa,
             },
         }),
-        MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+        MarketQuote::CdsTranche(CdsTrancheQuote {
             id: QuoteId::new("TRANCHE-2"),
             index: "CDX".to_string(),
             series: 40,

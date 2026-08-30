@@ -176,7 +176,7 @@ pub struct CDSOption {
     /// risky annuity for the option's underlying.
     #[serde(default)]
     #[builder(default)]
-    pub underlying_convention: crate::instruments::credit_derivatives::cds::CDSConvention,
+    pub underlying_convention: crate::instruments::credit_derivatives::cds::CdsConvention,
     /// Instrument-owned pricing overrides (including implied volatility).
     #[builder(default)]
     #[serde(
@@ -513,7 +513,7 @@ impl CDSOption {
             credit_curve_id: credit_params.credit_curve_id.to_owned(),
             vol_surface_id: vol_surface_id.into(),
             underlying_convention:
-                crate::instruments::credit_derivatives::cds::CDSConvention::default(),
+                crate::instruments::credit_derivatives::cds::CdsConvention::default(),
             instrument_pricing_overrides: Default::default(),
             metric_pricing_overrides: Default::default(),
             scenario_pricing_overrides: Default::default(),

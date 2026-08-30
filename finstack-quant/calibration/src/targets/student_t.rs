@@ -140,7 +140,7 @@ impl StudentTTarget {
         let tranche_quote = quotes
             .iter()
             .find_map(|quote| match quote {
-                MarketQuote::CDSTranche(tranche_quote)
+                MarketQuote::CdsTranche(tranche_quote)
                     if tranche_quote.id().as_str() == params.tranche_instrument_id =>
                 {
                     Some(tranche_quote.clone())
@@ -153,15 +153,10 @@ impl StudentTTarget {
                 })
             })?;
 
-        let (index_id, attachment, detachment, upfront_pct) = match &tranche_quote {
-            crate::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
-                index,
-                attachment,
-                detachment,
-                upfront_pct,
-                ..
-            } => (index.clone(), *attachment, *detachment, *upfront_pct),
-        };
+        let index_id = tranche_quote.index.clone();
+        let attachment = tranche_quote.attachment;
+        let detachment = tranche_quote.detachment;
+        let upfront_pct = tranche_quote.upfront_pct;
 
         let base_correlation_curve =
             context.get_base_correlation(&params.base_correlation_curve_id)?;
@@ -193,29 +188,8 @@ impl StudentTTarget {
                 "Student-t calibration tranche width must be positive; attachment={attachment}, detachment={detachment}"
             )));
         }
-        let pricing_quote = match &tranche_quote {
-            crate::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
-                id,
-                index,
-                series,
-                attachment,
-                detachment,
-                maturity,
-                running_spread_bp,
-                convention,
-                ..
-            } => crate::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
-                id: id.clone(),
-                index: index.clone(),
-                series: *series,
-                attachment: *attachment,
-                detachment: *detachment,
-                maturity: *maturity,
-                upfront_pct: 0.0,
-                running_spread_bp: *running_spread_bp,
-                convention: convention.clone(),
-            },
-        };
+        let mut pricing_quote = tranche_quote;
+        pricing_quote.upfront_pct = 0.0;
         let mut curve_ids = finstack_quant_core::HashMap::default();
         curve_ids.insert("discount".to_string(), discount_curve_id.to_string());
         curve_ids.insert("credit".to_string(), index_id);

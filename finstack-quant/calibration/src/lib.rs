@@ -40,10 +40,9 @@
 //!   `svi_surface`, `xccy_basis`, `parametric`.
 //! - **Track B — snapshot data (`market_data` entries).** FX matrices, bond prices, equity
 //!   spot prices, and dividend schedules are not bootstrapped today — they are supplied
-//!   as materialized state. The `MarketQuote` enum has `Fx` and `Bond` variants for
-//!   documentation/persistence purposes, but no calibration step consumes them; pass
-//!   them as `fx_spot`, `price`, and `dividend_schedule` entries in `market_data`
-//!   (with pre-built calibrated objects optionally supplied via `prior_market`).
+//!   as materialized state via `fx_spot`, `price`, and `dividend_schedule` entries in
+//!   `market_data` (with pre-built calibrated objects optionally supplied via
+//!   `prior_market`).
 //!
 //! Both tracks are valid in the same envelope; the engine merges `market_data` and
 //! `prior_market` into the working context before running steps.

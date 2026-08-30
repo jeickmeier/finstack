@@ -10,7 +10,7 @@
 
 use crate::api::schema::{CalibrationStep, StepParams};
 use crate::config::CalibrationConfig;
-use crate::quotes::cds_tranche::CDSTrancheQuote;
+use crate::quotes::cds_tranche::CdsTrancheQuote;
 use crate::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use crate::targets::util::curve_day_count_from_quotes;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -77,7 +77,7 @@ fn validate_student_t_step(
         )));
     }
 
-    let tranche_quotes: Vec<CDSTrancheQuote> = quotes.extract_quotes();
+    let tranche_quotes: Vec<CdsTrancheQuote> = quotes.extract_quotes();
     let tranche_quote = tranche_quotes
         .iter()
         .find(|quote| quote.id().as_str() == p.tranche_instrument_id)
@@ -87,9 +87,7 @@ fn validate_student_t_step(
             })
         })?;
 
-    let index_id = match tranche_quote {
-        CDSTrancheQuote::CDSTranche { index, .. } => index,
-    };
+    let index_id = &tranche_quote.index;
 
     let _ = context.get_base_correlation(&p.base_correlation_curve_id)?;
     let _ = context.get_credit_index(index_id)?;
@@ -229,53 +227,20 @@ fn validate_hazard_step(
     }
 
     for q in &cds_quotes {
-        q.validate_market_conventions()?;
+        q.validate()?;
         match q {
             crate::quotes::cds::CdsQuote::CdsParSpread {
                 entity,
                 recovery_rate,
                 convention,
-                spread_bp,
                 ..
-            } => {
-                if *spread_bp <= 0.0 {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "CDS spread_bp must be positive; got {}",
-                        spread_bp
-                    )));
-                }
-                if entity != &p.entity {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Hazard step entity mismatch: params.entity='{}' but quote.entity='{}'",
-                        p.entity, entity
-                    )));
-                }
-                if convention.currency != p.currency {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Hazard step currency mismatch: params.currency='{}' but quote.convention.currency='{}'",
-                        p.currency, convention.currency
-                    )));
-                }
-                if (recovery_rate - p.recovery_rate).abs() > recovery_rate_abs_tolerance {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Hazard step recovery mismatch: params.recovery_rate={} but quote.recovery_rate={}",
-                        p.recovery_rate, recovery_rate
-                    )));
-                }
             }
-            crate::quotes::cds::CdsQuote::CdsUpfront {
+            | crate::quotes::cds::CdsQuote::CdsUpfront {
                 entity,
                 recovery_rate,
                 convention,
-                running_spread_bp,
                 ..
             } => {
-                if *running_spread_bp <= 0.0 {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "CDS running_spread_bp must be positive; got {}",
-                        running_spread_bp
-                    )));
-                }
                 if entity != &p.entity {
                     return Err(finstack_quant_core::Error::Validation(format!(
                         "Hazard step entity mismatch: params.entity='{}' but quote.entity='{}'",
@@ -458,7 +423,7 @@ fn validate_base_correlation_step(
 
     context.get_credit_index(&p.index_id)?;
 
-    let tranche_quotes: Vec<crate::quotes::cds_tranche::CDSTrancheQuote> = quotes.extract_quotes();
+    let tranche_quotes: Vec<crate::quotes::cds_tranche::CdsTrancheQuote> = quotes.extract_quotes();
     if tranche_quotes.is_empty() {
         return Err(finstack_quant_core::Error::Input(
             finstack_quant_core::InputError::TooFewPoints,
@@ -466,46 +431,16 @@ fn validate_base_correlation_step(
     }
 
     for q in &tranche_quotes {
-        match q {
-            crate::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
-                index,
-                attachment,
-                detachment,
-                convention,
-                ..
-            } => {
-                if index != &p.index_id {
-                    continue;
-                }
+        q.validate()?;
+        if q.index != p.index_id {
+            continue;
+        }
 
-                if convention.currency != p.currency {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Base correlation tranche currency mismatch: params.currency='{}' but quote.convention.currency='{}'",
-                        p.currency, convention.currency
-                    )));
-                }
-
-                let normalize_pct = |value: f64| {
-                    if (0.0..=1.0).contains(&value) {
-                        value * 100.0
-                    } else {
-                        value
-                    }
-                };
-                let attach_pct = normalize_pct(*attachment);
-                let detach_pct = normalize_pct(*detachment);
-                if !attach_pct.is_finite()
-                    || !detach_pct.is_finite()
-                    || attach_pct < 0.0
-                    || !(0.0..=100.0).contains(&detach_pct)
-                    || attach_pct >= detach_pct
-                {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Invalid tranche attachment/detachment: attachment={}, detachment={} (expect 0 <= attachment < detachment <= 100, percent or fraction)",
-                        attachment, detachment
-                    )));
-                }
-            }
+        if q.convention.currency != p.currency {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Base correlation tranche currency mismatch: params.currency='{}' but quote.convention.currency='{}'",
+                p.currency, q.convention.currency
+            )));
         }
     }
 
@@ -517,7 +452,7 @@ mod tests {
     use super::*;
     use crate::api::schema::{DiscountCurveParams, StepParams, StudentTParams, SviSurfaceParams};
     use crate::config::CalibrationMethod;
-    use crate::quotes::cds_tranche::CDSTrancheQuote;
+    use crate::quotes::cds_tranche::CdsTrancheQuote;
     use crate::quotes::ids::{Pillar, QuoteId};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, Tenor, TenorUnit};
@@ -639,7 +574,7 @@ mod tests {
             .insert(hazard)
             .insert(base_corr)
             .insert_credit_index("CDX.NA.IG", credit_index);
-        let quotes = vec![MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+        let quotes = vec![MarketQuote::CdsTranche(CdsTrancheQuote {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX.NA.IG".to_string(),
             series: 1,
@@ -698,7 +633,7 @@ mod tests {
             .insert(hazard)
             .insert(base_corr)
             .insert_credit_index("CDX.NA.IG", credit_index);
-        let quotes = vec![MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+        let quotes = vec![MarketQuote::CdsTranche(CdsTrancheQuote {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX.NA.IG".to_string(),
             series: 1,

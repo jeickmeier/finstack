@@ -6,19 +6,17 @@ use crate::quotes::cds::CdsQuote;
 use crate::quotes::ids::Pillar;
 use finstack_quant_core::dates::{
     next_cds_date, next_semiannual_cds_maturity, prev_cds_semiannual_roll, BusinessDayConvention,
-    Date, DateExt, StubKind,
+    Date, DateExt,
 };
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Result;
-use finstack_quant_valuations::instruments::credit_derivatives::cds::{
-    CDSConvention, CreditDefaultSwap,
-};
+use finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use finstack_quant_valuations::instruments::{
     Attributes, Instrument, PayReceive, PremiumLegSpec, ProtectionLegSpec,
 };
 use finstack_quant_valuations::market::conventions::ids::CdsConventionKey;
-use finstack_quant_valuations::market::conventions::{CdsConventions, ConventionRegistry};
+use finstack_quant_valuations::market::conventions::{CdsConventionSpec, ConventionRegistry};
 use rust_decimal::Decimal;
 
 /// Resolved CDS dates used by both builders and calibration prepared quotes.
@@ -36,7 +34,7 @@ pub(crate) fn resolve_cds_quote_dates(
 ) -> Result<CdsResolvedDates> {
     let (convention_key, pillar) = cds_quote_convention_and_pillar(quote);
     let registry = ConventionRegistry::try_global()?;
-    let conv = registry.require_cds(convention_key)?;
+    let conv = registry.resolve_cds(convention_key)?;
     resolve_cds_dates(ctx, conv, pillar)
 }
 
@@ -53,13 +51,13 @@ fn cds_quote_convention_and_pillar(quote: &CdsQuote) -> (&CdsConventionKey, &Pil
 
 fn resolve_cds_dates(
     ctx: &BuildCtx,
-    conv: &CdsConventions,
+    conv: &CdsConventionSpec,
     pillar: &Pillar,
 ) -> Result<CdsResolvedDates> {
     let spot = resolve_spot_date(
         ctx.as_of(),
         &conv.calendar_id,
-        conv.settlement_days,
+        i32::from(conv.settlement_days),
         conv.business_day_convention,
     )?;
     // CDS Start: Market standard is the prior CDS roll (20th of Mar/Jun/Sep/Dec).
@@ -196,7 +194,7 @@ fn resolve_cds_dates(
 /// - [`BuildCtx`] for build context configuration
 pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn Instrument>> {
     tracing::debug!(quote_id = %quote.id(), "building CDS instrument");
-    quote.validate_market_conventions()?;
+    quote.validate()?;
     let registry = ConventionRegistry::try_global()?;
 
     // Normalize both quote styles onto a shared running-coupon path before building.
@@ -231,7 +229,7 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
 
     ProtectionLegSpec::validate_recovery_rate(recovery_rate)?;
 
-    let conv = registry.require_cds(convention_key)?;
+    let conv = registry.resolve_cds(convention_key)?;
     let dates = resolve_cds_dates(ctx, conv, pillar)?;
 
     let discount_id = ctx.require_curve_id("discount")?.to_string();
@@ -247,19 +245,17 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
         )
     });
 
-    let convention_enum = CDSConvention::detect_from_currency(convention_key.currency);
-
     let cds = CreditDefaultSwap {
         id: InstrumentId::new(id.as_str()),
         notional: Money::new(ctx.notional(), convention_key.currency),
         // Calibration instruments buy protection and pay premium.
         side: PayReceive::Pay,
-        convention: convention_enum,
+        convention: conv.family,
         premium: PremiumLegSpec {
             start: dates.start,
             end: dates.maturity,
             frequency: conv.frequency,
-            stub: StubKind::None, // Default to None or derive?
+            stub: conv.stub,
             business_day_convention: conv.business_day_convention,
             calendar_id: Some(conv.calendar_id.clone()),
             day_count: conv.day_count,
@@ -274,7 +270,7 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
         protection: ProtectionLegSpec {
             credit_curve_id: CurveId::new(credit_id),
             recovery_rate,
-            settlement_delay: conv.settlement_days as u16,
+            settlement_delay: conv.settlement_days,
         },
         instrument_pricing_overrides: Default::default(),
         metric_pricing_overrides: Default::default(),

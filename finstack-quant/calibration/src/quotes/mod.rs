@@ -39,14 +39,10 @@
 //! - [`crate::quotes::ids::QuoteId`] for quote identifiers
 //! - [`crate::quotes::ids::Pillar`] for maturity pillars
 
-/// Bond quotes.
-pub mod bond;
 /// Credit quotes (CDS).
 pub mod cds;
 /// CDS tranche quotes.
 pub mod cds_tranche;
-/// FX quotes.
-pub mod fx;
 /// Stable identifiers (QuoteId, Pillar).
 pub mod ids;
 /// Inflation quotes.
@@ -55,6 +51,8 @@ pub mod inflation;
 pub mod market_quote;
 /// Interest rate quotes (Deposit, FRA, Futures, Swap).
 pub mod rates;
+/// Shared numeric quote validation.
+pub(crate) mod validate;
 /// Volatility quotes.
 pub mod vol;
 /// Cross-currency swap quotes.

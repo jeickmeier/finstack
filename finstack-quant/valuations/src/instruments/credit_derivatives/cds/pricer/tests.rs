@@ -29,7 +29,7 @@ fn create_test_cds(
         finstack_quant_core::types::InstrumentId::new(id),
         Money::new(10_000_000.0, Currency::USD),
         PayReceive::Pay,
-        crate::instruments::credit_derivatives::cds::CDSConvention::IsdaNa,
+        crate::instruments::credit_derivatives::cds::CdsConvention::IsdaNa,
         Decimal::try_from(spread_bp).expect("valid spread_bp"),
         start_date,
         end_date,
@@ -313,7 +313,7 @@ fn test_doc_clause_default_when_omitted() {
         .id(finstack_quant_core::types::InstrumentId::new("CDS-BUILDER"))
         .notional(Money::new(10_000_000.0, Currency::USD))
         .side(PayReceive::Pay)
-        .convention(crate::instruments::credit_derivatives::cds::CDSConvention::IsdaNa)
+        .convention(crate::instruments::credit_derivatives::cds::CdsConvention::IsdaNa)
         .premium(
             crate::instruments::common_impl::parameters::legs::PremiumLegSpec {
                 start: as_of,

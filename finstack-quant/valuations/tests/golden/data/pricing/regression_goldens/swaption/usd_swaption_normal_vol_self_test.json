@@ -115,7 +115,6 @@
             "forward_id": "USD-SOFR-3M",
             "currency": "USD",
             "vol_convention": "normal",
-            "atm_convention": "swap_rate",
             "sabr_beta": 0.0,
             "target_expiries": [
               1.0,

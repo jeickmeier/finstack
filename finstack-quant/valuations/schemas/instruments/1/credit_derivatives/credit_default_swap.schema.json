@@ -1,26 +1,26 @@
 {
   "$defs": {
-    "CDSConvention": {
-      "description": "ISDA CDS conventions",
+    "CdsConvention": {
+      "description": "Regional ISDA CDS schedule family.\n\nExact documentation clauses stay on the instrument or quote. This enum\nidentifies the regional schedule family used to resolve calendars,\nday-count, frequency, stub, and settlement from the convention registry.",
       "oneOf": [
         {
           "const": "isda_na",
-          "description": "Standard North American convention (quarterly, Act/360)",
+          "description": "Standard North American convention (quarterly, Act/360).",
           "type": "string"
         },
         {
           "const": "isda_eu",
-          "description": "Standard European convention (quarterly, Act/360)",
+          "description": "Standard European convention (quarterly, Act/360).",
           "type": "string"
         },
         {
           "const": "isda_as",
-          "description": "Standard Asian convention (quarterly, Act/365)",
+          "description": "Standard Asian convention (quarterly, Act/365F).",
           "type": "string"
         },
         {
           "const": "custom",
-          "description": "Custom convention",
+          "description": "Custom convention.",
           "type": "string"
         }
       ]
@@ -250,7 +250,7 @@
           "description": "Additional attributes"
         },
         "convention": {
-          "$ref": "#/$defs/CDSConvention",
+          "$ref": "#/$defs/CdsConvention",
           "description": "ISDA convention"
         },
         "doc_clause": {

@@ -6,18 +6,15 @@ use finstack_quant_calibration::api::market_datum::{
 };
 use finstack_quant_calibration::api::prior_market::PriorMarketObject;
 use finstack_quant_calibration::api::schema::{
-    AtmStrikeConvention, BaseCorrelationParams, CalibrationEnvelope, CalibrationPlan,
-    CalibrationResult, CalibrationResultEnvelope, CalibrationSchema, CalibrationStep,
-    CapFloorHullWhiteStepParams, DiscountCurveParams, ForwardCurveParams, HazardCurveParams,
-    HullWhiteStepParams, HullWhiteVolatilityMode, InflationCurveParams, ParametricCurveParams,
-    SabrInterpolationMethod, SeasonalFactors, StepParams, StudentTParams,
-    SurfaceExtrapolationPolicy, SviSurfaceParams, SwaptionVolConvention, SwaptionVolParams,
-    VolSurfaceModel, VolSurfaceParams, XccyBasisParams,
+    BaseCorrelationParams, CalibrationEnvelope, CalibrationPlan, CalibrationResult,
+    CalibrationResultEnvelope, CalibrationSchema, CalibrationStep, CapFloorHullWhiteStepParams,
+    DiscountCurveParams, ForwardCurveParams, HazardCurveParams, HullWhiteStepParams,
+    HullWhiteVolatilityMode, InflationCurveParams, ParametricCurveParams, SabrInterpolationMethod,
+    SeasonalFactors, StepParams, StudentTParams, SurfaceExtrapolationPolicy, SviSurfaceParams,
+    SwaptionVolConvention, SwaptionVolParams, VolSurfaceModel, VolSurfaceParams, XccyBasisParams,
 };
-use finstack_quant_calibration::quotes::bond::BondQuote;
 use finstack_quant_calibration::quotes::cds::CdsQuote;
-use finstack_quant_calibration::quotes::cds_tranche::CDSTrancheQuote;
-use finstack_quant_calibration::quotes::fx::FxQuote;
+use finstack_quant_calibration::quotes::cds_tranche::CdsTrancheQuote;
 use finstack_quant_calibration::quotes::inflation::InflationQuote;
 use finstack_quant_calibration::quotes::market_quote::MarketQuote;
 use finstack_quant_calibration::quotes::rates::RateQuote as RatesQuote;
@@ -99,11 +96,9 @@ fn export_calibration_types() {
     RateBounds::export(cfg).expect("export RateBounds");
     ValidationMode::export(cfg).expect("export ValidationMode");
 
-    BondQuote::export(cfg).expect("export BondQuote");
     RatesQuote::export(cfg).expect("export RatesQuote");
     CdsQuote::export(cfg).expect("export CdsQuote");
-    CDSTrancheQuote::export(cfg).expect("export CDSTrancheQuote");
-    FxQuote::export(cfg).expect("export FxQuote");
+    CdsTrancheQuote::export(cfg).expect("export CdsTrancheQuote");
     VolQuote::export(cfg).expect("export VolQuote");
     OptionType::export(cfg).expect("export OptionType");
     InflationQuote::export(cfg).expect("export InflationQuote");
@@ -152,7 +147,6 @@ fn export_calibration_envelope_types() {
     SurfaceExtrapolationPolicy::export(cfg).expect("export SurfaceExtrapolationPolicy");
     VolSurfaceModel::export(cfg).expect("export VolSurfaceModel");
     SwaptionVolConvention::export(cfg).expect("export SwaptionVolConvention");
-    AtmStrikeConvention::export(cfg).expect("export AtmStrikeConvention");
     SabrInterpolationMethod::export(cfg).expect("export SabrInterpolationMethod");
 
     // Result envelope types

@@ -426,7 +426,6 @@ mod tests {
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_models::SabrParameters;
     use finstack_quant_valuations::instruments::OptionType;
-    use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
     use time::Month;
 
     fn params(alpha: f64, beta: f64, nu: f64, rho: f64, shift: f64) -> SabrParameters {
@@ -676,8 +675,6 @@ mod tests {
                 strike: 90.0,
                 vol: 0.20,
                 option_type: OptionType::Call,
-
-                convention: OptionConventionId::new("USD-Option"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-1Y-100"),
@@ -686,8 +683,6 @@ mod tests {
                 strike: 100.0,
                 vol: 0.19,
                 option_type: OptionType::Call,
-
-                convention: OptionConventionId::new("USD-Option"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-1Y-110"),
@@ -697,7 +692,6 @@ mod tests {
 
                 vol: 0.18,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-Option"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2Y-0"),
@@ -706,8 +700,6 @@ mod tests {
                 strike: 0.0,
                 vol: 0.20,
                 option_type: OptionType::Call,
-
-                convention: OptionConventionId::new("USD-Option"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2Y-100"),
@@ -716,8 +708,6 @@ mod tests {
                 strike: 100.0,
                 vol: 0.19,
                 option_type: OptionType::Call,
-
-                convention: OptionConventionId::new("USD-Option"),
             }),
             MarketQuote::Vol(VolQuote::OptionVol {
                 id: QuoteId::new("SPX-VOL-2Y-110"),
@@ -726,8 +716,6 @@ mod tests {
                 strike: 110.0,
                 vol: 0.18,
                 option_type: OptionType::Call,
-
-                convention: OptionConventionId::new("USD-Option"),
             }),
         ];
 

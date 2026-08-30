@@ -7,7 +7,7 @@ use crate::test_support::credit as test_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::credit_derivatives::cds::{CDSConvention, PayReceive};
+use finstack_quant_valuations::instruments::credit_derivatives::cds::{CdsConvention, PayReceive};
 use rust_decimal::Decimal;
 use time::Month;
 
@@ -38,7 +38,7 @@ fn test_buy_protection_constructor() {
     assert_eq!(cds.notional.currency(), Currency::USD);
     assert_eq!(cds.side, PayReceive::Pay);
     assert_eq!(cds.premium.spread_bp, Decimal::from(100));
-    assert_eq!(cds.convention, CDSConvention::IsdaNa);
+    assert_eq!(cds.convention, CdsConvention::IsdaNa);
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn test_sell_protection_constructor() {
 
 #[test]
 fn test_convention_na_mappings() {
-    let conv = CDSConvention::IsdaNa;
+    let conv = CdsConvention::IsdaNa;
     assert_eq!(conv.day_count(), DayCount::Act360);
     assert_eq!(conv.frequency(), Tenor::quarterly());
     assert_eq!(conv.settlement_delay(), 3);
@@ -73,7 +73,7 @@ fn test_convention_na_mappings() {
 
 #[test]
 fn test_convention_eu_mappings() {
-    let conv = CDSConvention::IsdaEu;
+    let conv = CdsConvention::IsdaEu;
     assert_eq!(conv.day_count(), DayCount::Act360);
     assert_eq!(conv.frequency(), Tenor::quarterly());
     // EU settlement changed from T+3 to T+1 on June 20, 2009 (ISDA Big Bang)
@@ -82,7 +82,7 @@ fn test_convention_eu_mappings() {
 
 #[test]
 fn test_convention_as_mappings() {
-    let conv = CDSConvention::IsdaAs;
+    let conv = CdsConvention::IsdaAs;
     assert_eq!(conv.day_count(), DayCount::Act365F);
     assert_eq!(conv.frequency(), Tenor::quarterly());
     assert_eq!(conv.settlement_delay(), 3);
@@ -90,7 +90,7 @@ fn test_convention_as_mappings() {
 
 #[test]
 fn test_convention_custom_defaults() {
-    let conv = CDSConvention::Custom;
+    let conv = CdsConvention::Custom;
     assert_eq!(conv.day_count(), DayCount::Act360);
     assert_eq!(conv.frequency(), Tenor::quarterly());
     assert_eq!(conv.settlement_delay(), 3);
@@ -107,7 +107,7 @@ fn test_builder_pattern() {
 
     let start = test_date(2025, Month::January, 1);
     let end = test_date(2030, Month::January, 1);
-    let convention = CDSConvention::IsdaNa;
+    let convention = CdsConvention::IsdaNa;
 
     let cds = CreditDefaultSwap::builder()
         .id("BUILDER_TEST".into())

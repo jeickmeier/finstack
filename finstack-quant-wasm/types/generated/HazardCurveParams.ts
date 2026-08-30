@@ -60,15 +60,11 @@ interpolation: string,
  */
 par_interp: string,
 /**
- * Optional CDS doc clause / market convention identifier.
+ * Optional CDS documentation-clause assertion.
  *
- * This selects the pricing/schedule conventions for the synthetic CDS instruments used
- * during calibration. If omitted, the default for the currency is used.
- *
- * Examples (current built-ins):
- * - `"isda_na"` (USD/CAD default)
- * - `"isda_eu"` (EUR/GBP/CHF default)
- * - `"isda_as"` (JPY/AUD/NZD/HKD/SGD default)
+ * Hazard schedule conventions come from the quote `CdsConventionKey`. When
+ * this field is set, it must be consistent with those quote-derived
+ * conventions (same clause or the matching regional family).
  */
 doc_clause?: string | null,
 /**

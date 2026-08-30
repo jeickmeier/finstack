@@ -42,24 +42,11 @@ define_convention_id!(
 );
 
 define_convention_id!(
-    /// Identifier for Option market conventions (Equity/FX/Commodity).
-    ///
-    /// Tags an option implied-volatility quote with the market convention it
-    /// was quoted under, so calibration does not blend venues.
-    OptionConventionId
-);
-
-define_convention_id!(
     /// Identifier for Swaption market conventions (e.g., "USD", "EUR").
     ///
     /// Used to look up [`SwaptionConventions`](crate::market::conventions::defs::SwaptionConventions)
     /// from the convention registry.
     SwaptionConventionId
-);
-
-define_convention_id!(
-    /// Identifier for cap/floor market conventions (e.g., "USD-SOFR-CAP").
-    CapFloorConventionId
 );
 
 define_convention_id!(
@@ -71,23 +58,8 @@ define_convention_id!(
 );
 
 define_convention_id!(
-    /// Identifier for FX pair market conventions (e.g., "EUR/USD", "USD/CAD").
-    FxConventionId
-);
-
-define_convention_id!(
-    /// Identifier for bond market conventions (e.g., "USD-UST", "USD-CORP").
-    BondConventionId
-);
-
-define_convention_id!(
     /// Identifier for cross-currency swap market conventions (e.g., "EUR/USD-XCCY").
     XccyConventionId
-);
-
-define_convention_id!(
-    /// Identifier for FX option market conventions (e.g., "EUR/USD-VANILLA").
-    FxOptionConventionId
 );
 
 /// CDS market standard documentation clauses.
@@ -152,7 +124,7 @@ impl std::str::FromStr for CdsDocClause {
 /// Key to look up CDS conventions (Currency + DocClause).
 ///
 /// CDS conventions are identified by both currency and documentation clause, as different
-/// clauses have different market conventions. Used to look up [`CdsConventions`](crate::market::conventions::defs::CdsConventions)
+/// clauses have different market conventions. Used to look up [`CdsConventionSpec`](crate::market::conventions::defs::CdsConventionSpec)
 /// from the convention registry.
 ///
 /// # Examples

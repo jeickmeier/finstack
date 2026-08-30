@@ -6,7 +6,7 @@ use crate::build::context::BuildCtx;
 use crate::build::prepared::PreparedQuote;
 use crate::config::CalibrationConfig;
 use crate::prepared::{CDSTrancheCalibrationQuote, CalibrationQuote};
-use crate::quotes::cds_tranche::CDSTrancheQuote;
+use crate::quotes::cds_tranche::CdsTrancheQuote;
 use crate::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use crate::solver::bootstrap::SequentialBootstrapper;
 use crate::solver::traits::BootstrapTarget;
@@ -34,26 +34,15 @@ struct TrancheQuoteFields<'a> {
 }
 
 impl<'a> TrancheQuoteFields<'a> {
-    fn extract(quote: &'a CDSTrancheQuote) -> Self {
-        match quote {
-            CDSTrancheQuote::CDSTranche {
-                index,
-                series,
-                attachment,
-                detachment,
-                maturity,
-                upfront_pct,
-                convention,
-                ..
-            } => Self {
-                index: index.as_str(),
-                series: *series,
-                attachment: *attachment,
-                detachment: *detachment,
-                maturity: *maturity,
-                upfront_pct: *upfront_pct,
-                convention,
-            },
+    fn extract(quote: &'a CdsTrancheQuote) -> Self {
+        Self {
+            index: quote.index.as_str(),
+            series: quote.series,
+            attachment: quote.attachment,
+            detachment: quote.detachment,
+            maturity: quote.maturity,
+            upfront_pct: quote.upfront_pct,
+            convention: &quote.convention,
         }
     }
 }
@@ -130,30 +119,10 @@ fn validate_all_detachments_seen(expected: &[f64], seen: &[f64]) -> Result<()> {
 }
 
 /// Create a pricing quote with zero upfront (for model-implied upfront calculation).
-fn create_pricing_quote(quote: &CDSTrancheQuote) -> CDSTrancheQuote {
-    match quote {
-        CDSTrancheQuote::CDSTranche {
-            id,
-            index,
-            series,
-            attachment,
-            detachment,
-            maturity,
-            running_spread_bp,
-            convention,
-            ..
-        } => CDSTrancheQuote::CDSTranche {
-            id: id.clone(),
-            index: index.clone(),
-            series: *series,
-            attachment: *attachment,
-            detachment: *detachment,
-            maturity: *maturity,
-            upfront_pct: 0.0,
-            running_spread_bp: *running_spread_bp,
-            convention: convention.clone(),
-        },
-    }
+fn create_pricing_quote(quote: &CdsTrancheQuote) -> CdsTrancheQuote {
+    let mut pricing = quote.clone();
+    pricing.upfront_pct = 0.0;
+    pricing
 }
 
 /// Compute the upfront money amount from quote fields.
@@ -258,7 +227,7 @@ impl BaseCorrelationTarget {
     /// Build a single calibration quote from a tranche quote.
     fn build_calibration_quote(
         &self,
-        quote: &CDSTrancheQuote,
+        quote: &CdsTrancheQuote,
         build_ctx: &BuildCtx,
         overrides: &CDSTrancheBuildOverrides,
         time_day_count: DayCount,
@@ -303,7 +272,7 @@ impl BaseCorrelationTarget {
         }))
     }
 
-    fn prepare_quotes(&self, quotes: Vec<CDSTrancheQuote>) -> Result<Vec<CalibrationQuote>> {
+    fn prepare_quotes(&self, quotes: Vec<CdsTrancheQuote>) -> Result<Vec<CalibrationQuote>> {
         if !self.params.detachment_points.is_empty() {
             validate_detachment_points(&self.params.detachment_points)?;
         }
@@ -359,7 +328,7 @@ impl BaseCorrelationTarget {
         context: &MarketContext,
         global_config: &CalibrationConfig,
     ) -> Result<(MarketContext, CalibrationReport)> {
-        let tranche_quotes: Vec<CDSTrancheQuote> = quotes.extract_quotes();
+        let tranche_quotes: Vec<CdsTrancheQuote> = quotes.extract_quotes();
         if tranche_quotes.is_empty() {
             return Err(finstack_quant_core::Error::Input(
                 finstack_quant_core::InputError::TooFewPoints,

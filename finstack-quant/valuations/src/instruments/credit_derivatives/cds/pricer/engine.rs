@@ -609,7 +609,7 @@ mod cds_hazard_reprice_cache_tests {
     use crate::constants::ONE_BASIS_POINT;
     use crate::instruments::common_impl::traits::Instrument;
     use crate::instruments::credit_derivatives::cds::{
-        CDSConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive,
+        CdsConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive,
     };
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
@@ -627,7 +627,7 @@ mod cds_hazard_reprice_cache_tests {
             InstrumentId::new("CACHE-TEST-CDS"),
             Money::new(10_000_000.0, Currency::USD),
             PayReceive::Pay,
-            CDSConvention::IsdaNa,
+            CdsConvention::IsdaNa,
             Decimal::new(10_000, 2),
             date!(2024 - 12 - 20),
             date!(2030 - 03 - 20),

@@ -2,10 +2,10 @@
 
 use crate::build::helpers::{resolve_calendar, resolve_spot_date};
 use crate::build::BuildCtx;
-use crate::quotes::cds_tranche::CDSTrancheQuote;
+use crate::quotes::cds_tranche::CdsTrancheQuote;
 use finstack_quant_cashflows::builder::ScheduleParams;
 use finstack_quant_core::dates::{
-    adjust, next_cds_date, BusinessDayConvention, DateExt, DayCount, StubKind, Tenor,
+    adjust, next_cds_date, BusinessDayConvention, DateExt, DayCount, Tenor,
 };
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -67,7 +67,7 @@ impl Default for CDSTrancheBuildOverrides {
     }
 }
 
-/// Build a CDS Tranche instrument from a [`CDSTrancheQuote`].
+/// Build a CDS Tranche instrument from a [`CdsTrancheQuote`].
 ///
 /// This function resolves CDS conventions, calculates tranche notional based on attachment
 /// and detachment points, and constructs a CDS tranche instrument with upfront and running
@@ -106,7 +106,7 @@ impl Default for CDSTrancheBuildOverrides {
 /// ```text
 /// use finstack_quant_calibration::build::BuildCtx;
 /// use finstack_quant_calibration::build::cds_tranche::{build_cds_tranche_instrument, CDSTrancheBuildOverrides};
-/// use finstack_quant_calibration::quotes::cds_tranche::CDSTrancheQuote;
+/// use finstack_quant_calibration::quotes::cds_tranche::CdsTrancheQuote;
 /// use finstack_quant_calibration::quotes::ids::QuoteId;
 /// use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 /// use finstack_quant_core::dates::Date;
@@ -120,7 +120,7 @@ impl Default for CDSTrancheBuildOverrides {
 ///     HashMap::default(),
 /// );
 ///
-/// let quote = CDSTrancheQuote::CDSTranche {
+/// let quote = CdsTrancheQuote {
 ///     id: QuoteId::new("CDX-IG-3-7"),
 ///     index: "CDX.NA.IG".to_string(),
 ///     series: 46,
@@ -143,56 +143,33 @@ impl Default for CDSTrancheBuildOverrides {
 ///
 /// # See Also
 ///
-/// - [`CDSTrancheQuote`] for quote structure
+/// - [`CdsTrancheQuote`] for quote structure
 /// - [`BuildCtx`] for build context configuration
 /// - [`CDSTrancheBuildOverrides`] for override options
 pub fn build_cds_tranche_instrument(
-    quote: &CDSTrancheQuote,
+    quote: &CdsTrancheQuote,
     ctx: &BuildCtx,
     overrides: &CDSTrancheBuildOverrides,
 ) -> Result<Box<dyn Instrument>> {
     tracing::debug!(quote_id = %quote.id(), "building CDS tranche instrument");
+    quote.validate()?;
     let registry = ConventionRegistry::try_global()?;
 
-    let (
-        id,
-        convention_key,
-        index,
-        series,
-        attachment,
-        detachment,
-        maturity,
-        running_spread_bp,
-        upfront_pct,
-    ) = match quote {
-        CDSTrancheQuote::CDSTranche {
-            id,
-            index,
-            series,
-            attachment,
-            detachment,
-            maturity,
-            running_spread_bp,
-            upfront_pct,
-            convention,
-        } => (
-            id,
-            convention,
-            index,
-            *series,
-            *attachment,
-            *detachment,
-            *maturity,
-            *running_spread_bp,
-            *upfront_pct,
-        ),
-    };
+    let id = &quote.id;
+    let convention_key = &quote.convention;
+    let index = &quote.index;
+    let series = quote.series;
+    let attachment = quote.attachment;
+    let detachment = quote.detachment;
+    let maturity = quote.maturity;
+    let running_spread_bp = quote.running_spread_bp;
+    let upfront_pct = quote.upfront_pct;
 
-    let conv = registry.require_cds(convention_key)?;
+    let conv = registry.resolve_cds(convention_key)?;
     let spot = resolve_spot_date(
         ctx.as_of(),
         &conv.calendar_id,
-        conv.settlement_days,
+        i32::from(conv.settlement_days),
         conv.business_day_convention,
     )?;
 
@@ -264,7 +241,7 @@ pub fn build_cds_tranche_instrument(
             .calendar_id
             .clone()
             .unwrap_or_else(|| conv.calendar_id.clone()),
-        stub: StubKind::ShortFront,
+        stub: conv.stub,
         end_of_month: false,
         payment_lag_days: 0,
         adjust_accrual_dates: false,
@@ -293,7 +270,7 @@ pub fn build_cds_tranche_instrument(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quotes::cds_tranche::CDSTrancheQuote;
+    use crate::quotes::cds_tranche::CdsTrancheQuote;
     use crate::quotes::ids::QuoteId;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{adjust, Date};
@@ -315,7 +292,7 @@ mod tests {
         };
         let maturity = Date::from_calendar_date(2029, Month::January, 15).expect("valid date");
 
-        let quote = CDSTrancheQuote::CDSTranche {
+        let quote = CdsTrancheQuote {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
             series: 1,
@@ -348,7 +325,7 @@ mod tests {
         let spot = resolve_spot_date(
             as_of,
             &conv.calendar_id,
-            conv.settlement_days,
+            i32::from(conv.settlement_days),
             conv.business_day_convention,
         )
         .expect("spot date");
@@ -377,7 +354,7 @@ mod tests {
         };
         let maturity = Date::from_calendar_date(2029, Month::June, 20).expect("valid date");
 
-        let quote = CDSTrancheQuote::CDSTranche {
+        let quote = CdsTrancheQuote {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
             series: 1,
@@ -432,7 +409,7 @@ mod tests {
         let maturity = Date::from_calendar_date(2029, Month::June, 20).expect("valid date");
 
         // Use old percentage-point notation (-2.5 instead of -0.025)
-        let quote = CDSTrancheQuote::CDSTranche {
+        let quote = CdsTrancheQuote {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
             series: 1,
@@ -472,7 +449,7 @@ mod tests {
         };
         let maturity = Date::from_calendar_date(2029, Month::June, 20).expect("valid date");
 
-        let quote = CDSTrancheQuote::CDSTranche {
+        let quote = CdsTrancheQuote {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
             series: 1,

@@ -29,14 +29,14 @@ process-wide singleton loaded from JSON embedded at compile time from
 | Cross-currency | `xccy_conventions.json` | `conventions::ids::XccyConventionId` |
 
 Lookups are strict. `require_rate_index` and its siblings return
-`InputError::NotFound` when an ID is absent. Calibration builders depend on
-these valuation-owned conventions and do not silently fall back to unrelated
-currency defaults.
+`InputError::NotFound` when an ID is absent. CDS schedule lookup goes through
+`resolve_cds`: meta clauses map to their regional family (`Au`/`Nz` use Asia),
+exact restructuring clauses stay on the instrument, and `ANY` rows are
+loader-only fallbacks behind explicit currency entries. Calibration builders
+depend on these valuation-owned conventions.
 
 `conventions::ids` also defines typed identifiers referenced by instruments
-and calibration quotes, including `OptionConventionId`,
-`CapFloorConventionId`, `FxConventionId`, `BondConventionId`, and
-`FxOptionConventionId`.
+and calibration quotes, including `SwaptionConventionId`.
 
 ## Credit option volatility
 

@@ -14,7 +14,7 @@ use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
+use finstack_quant_valuations::instruments::credit_derivatives::cds::CdsConvention;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
@@ -57,21 +57,21 @@ fn test_regional_cds_lifecycle_fixtures_na_eu_asia() {
     let fixtures = [
         (
             Currency::USD,
-            CDSConvention::IsdaNa,
+            CdsConvention::IsdaNa,
             DayCount::Act360,
             "nyse",
             3_u16,
         ),
         (
             Currency::EUR,
-            CDSConvention::IsdaEu,
+            CdsConvention::IsdaEu,
             DayCount::Act360,
             "target2",
             1_u16,
         ),
         (
             Currency::JPY,
-            CDSConvention::IsdaAs,
+            CdsConvention::IsdaAs,
             DayCount::Act365F,
             "jpto",
             3_u16,
@@ -86,7 +86,7 @@ fn test_regional_cds_lifecycle_fixtures_na_eu_asia() {
         expected_settlement,
     ) in fixtures
     {
-        let detected = CDSConvention::detect_from_currency(currency);
+        let detected = CdsConvention::detect_from_currency(currency);
         assert_eq!(detected, expected_convention);
         assert_eq!(detected.day_count(), expected_day_count);
         assert_eq!(detected.default_calendar(), expected_calendar);

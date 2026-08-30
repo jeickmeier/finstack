@@ -1105,7 +1105,6 @@ mod tests {
             forward_id: None,
             currency: Currency::USD,
             vol_convention: SwaptionVolConvention::Lognormal,
-            atm_convention: crate::api::schema::AtmStrikeConvention::SwapRate,
             sabr_beta: 0.5,
             target_expiries: vec![1.0, 2.0],
             target_tenors: vec![5.0, 10.0],

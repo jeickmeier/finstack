@@ -1,24 +1,5 @@
 {
   "$defs": {
-    "AtmStrikeConvention": {
-      "description": "ATM strike convention for swaptions.",
-      "oneOf": [
-        {
-          "const": "swap_rate",
-          "description": "ATM = forward swap rate (standard market convention)",
-          "type": "string"
-        },
-        {
-          "const": "par_rate",
-          "description": "ATM = par swap rate (same as forward for zero-cost swap)",
-          "type": "string"
-        }
-      ]
-    },
-    "BondConventionId": {
-      "description": "Identifier for bond market conventions (e.g., \"USD-UST\", \"USD-CORP\").",
-      "type": "string"
-    },
     "BrentSolver": {
       "additionalProperties": false,
       "description": "Brent's method solver (bracketing required).\n\nImplements Brent's root-finding algorithm, which combines bisection,\nsecant method, and inverse quadratic interpolation.\n\n# Algorithm\n\nBrent's method maintains a bracketing interval [a, b] where f(a) and f(b)\nhave opposite signs. At each iteration, it chooses between:\n1. **Inverse quadratic interpolation**: Fast when applicable\n2. **Secant method**: Reliable fallback\n3. **Bisection**: bracket-preserving progress\n\nThe algorithm selects the step type from the current bracket and convergence\ncriteria.\n\n# Convergence\n\n- **Rate**: Superlinear (order ≈ 1.618)\n- **Bracket condition**: Requires a finite sign-changing bracket\n- **Derivative-free**: Does not require smooth derivatives\n\n# Use Cases\n\nUse instead of Newton-Raphson when:\n- Function has discontinuous derivatives (e.g., piecewise functions)\n- Initial guess quality is uncertain\n- A sign-changing bracket is available\n- Function evaluation is cheap relative to derivative computation\n\nCommon applications:\n- Bond yield-to-maturity (when price/yield curve is complex)\n- Option implied volatility with exotic payoffs\n- Credit curve calibration\n\n# Examples\n\n```rust\nuse finstack_quant_core::math::solver::{BrentSolver, Solver};\n\nlet solver = BrentSolver::new();\n\n// Solve x^3 - 2x - 5 = 0\nlet f = |x: f64| x.powi(3) - 2.0 * x - 5.0;\nlet root = solver.solve(f, 2.0).expect(\"Root finding should succeed\");\n\nassert!((f(root)).abs() < 1e-10);\nassert!((root - 2.0946).abs() < 1e-4);\n```\n\n# References\n\n- Brent, R. P. (1973). *Algorithms for Minimization without Derivatives*.\n  Prentice-Hall. Chapter 4. `docs/REFERENCES.md#brent-1973`\n- Press, W. H., et al. (2007). *Numerical Recipes: The Art of Scientific Computing*\n  (3rd ed.). Cambridge University Press. Section 9.3. `docs/REFERENCES.md#press-numerical-recipes`\n- Forsythe, G. E., Malcolm, M. A., & Moler, C. B. (1977). *Computer Methods\n  for Mathematical Computations*. Prentice-Hall.",
@@ -558,7 +539,7 @@
               "description": "Identifier for the discount curve to use."
             },
             "doc_clause": {
-              "description": "Optional CDS doc clause / market convention identifier.\n\nThis selects the pricing/schedule conventions for the synthetic CDS instruments used\nduring calibration. If omitted, the default for the currency is used.\n\nExamples (current built-ins):\n- `\"isda_na\"` (USD/CAD default)\n- `\"isda_eu\"` (EUR/GBP/CHF default)\n- `\"isda_as\"` (JPY/AUD/NZD/HKD/SGD default)",
+              "description": "Optional CDS documentation-clause assertion.\n\nHazard schedule conventions come from the quote `CdsConventionKey`. When\nthis field is set, it must be consistent with those quote-derived\nconventions (same clause or the matching regional family).",
               "type": [
                 "string",
                 "null"
@@ -790,11 +771,6 @@
               "default": false,
               "description": "Allow deterministic fallbacks when SABR grid corners are missing during interpolation.\n\nIf `false` (default), missing corner buckets are treated as an error instead of\nsilently substituting a nearby bucket.",
               "type": "boolean"
-            },
-            "atm_convention": {
-              "$ref": "#/$defs/AtmStrikeConvention",
-              "default": "swap_rate",
-              "description": "ATM strike convention for swaptions."
             },
             "base_date": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -1436,12 +1412,8 @@
       ],
       "type": "object"
     },
-    "CapFloorConventionId": {
-      "description": "Identifier for cap/floor market conventions (e.g., \"USD-SOFR-CAP\").",
-      "type": "string"
-    },
     "CdsConventionKey": {
-      "description": "Key to look up CDS conventions (Currency + DocClause).\n\nCDS conventions are identified by both currency and documentation clause, as different\nclauses have different market conventions. Used to look up [`CdsConventions`](crate::market::conventions::defs::CdsConventions)\nfrom the convention registry.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};\nuse finstack_quant_core::currency::Currency;\n\nlet key = CdsConventionKey {\n    currency: Currency::USD,\n    doc_clause: CdsDocClause::Cr14,\n};\n```",
+      "description": "Key to look up CDS conventions (Currency + DocClause).\n\nCDS conventions are identified by both currency and documentation clause, as different\nclauses have different market conventions. Used to look up [`CdsConventionSpec`](crate::market::conventions::defs::CdsConventionSpec)\nfrom the convention registry.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};\nuse finstack_quant_core::currency::Currency;\n\nlet key = CdsConventionKey {\n    currency: Currency::USD,\n    doc_clause: CdsDocClause::Cr14,\n};\n```",
       "properties": {
         "currency": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
@@ -1882,14 +1854,6 @@
         }
       },
       "type": "object"
-    },
-    "FxConventionId": {
-      "description": "Identifier for FX pair market conventions (e.g., \"EUR/USD\", \"USD/CAD\").",
-      "type": "string"
-    },
-    "FxOptionConventionId": {
-      "description": "Identifier for FX option market conventions (e.g., \"EUR/USD-VANILLA\").",
-      "type": "string"
     },
     "HazardCalibrationInput": {
       "additionalProperties": false,
@@ -2447,215 +2411,68 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "CDS index tranche quote.",
-          "oneOf": [
-            {
-              "description": "CDS Index Tranche.",
-              "properties": {
-                "attachment": {
-                  "description": "Attachment point (decimal, e.g. 0.03).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "convention": {
-                  "$ref": "#/$defs/CdsConventionKey",
-                  "description": "Convention key (currency + doc clause)."
-                },
-                "detachment": {
-                  "description": "Detachment point (decimal, e.g. 0.07).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier."
-                },
-                "index": {
-                  "description": "Index identifier (e.g. CDX.NA.HY).",
-                  "type": "string"
-                },
-                "maturity": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Maturity date."
-                },
-                "running_spread_bp": {
-                  "description": "Running spread (bp).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "series": {
-                  "description": "CDS index series number.",
-                  "format": "uint16",
-                  "maximum": 65535,
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "type": {
-                  "const": "cds_tranche",
-                  "type": "string"
-                },
-                "upfront_pct": {
-                  "description": "Upfront payment as a decimal fraction of tranche notional (e.g., -0.025 for -2.5%).",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "index",
-                "series",
-                "attachment",
-                "detachment",
-                "maturity",
-                "upfront_pct",
-                "running_spread_bp",
-                "convention"
-              ],
-              "type": "object"
-            }
-          ],
           "properties": {
+            "attachment": {
+              "description": "Attachment point (decimal, e.g. 0.03).",
+              "format": "double",
+              "type": "number"
+            },
+            "convention": {
+              "$ref": "#/$defs/CdsConventionKey",
+              "description": "Convention key (currency + doc clause)."
+            },
+            "detachment": {
+              "description": "Detachment point (decimal, e.g. 0.07).",
+              "format": "double",
+              "type": "number"
+            },
+            "id": {
+              "$ref": "#/$defs/QuoteId",
+              "description": "Unique identifier."
+            },
+            "index": {
+              "description": "Index identifier (e.g. CDX.NA.HY).",
+              "type": "string"
+            },
             "kind": {
               "const": "cds_tranche_quote",
               "type": "string"
+            },
+            "maturity": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Maturity date."
+            },
+            "running_spread_bp": {
+              "description": "Running spread (bp).",
+              "format": "double",
+              "type": "number"
+            },
+            "series": {
+              "description": "CDS index series number.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "upfront_pct": {
+              "description": "Upfront payment as a decimal fraction of tranche notional (e.g., -0.025 for -2.5%).",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "kind"
-          ],
-          "type": "object"
-        },
-        {
-          "description": "FX quote (forward, swap, ...).",
-          "oneOf": [
-            {
-              "description": "Outright FX forward quote quoted as quote-currency per base-currency.",
-              "properties": {
-                "convention": {
-                  "$ref": "#/$defs/FxConventionId",
-                  "description": "FX pair convention identifier (e.g., `EUR/USD`)."
-                },
-                "forward_rate": {
-                  "description": "Forward outright quoted as quote-currency per base-currency.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "pillar": {
-                  "$ref": "#/$defs/Pillar",
-                  "description": "Maturity pillar for the forward settlement date."
-                },
-                "type": {
-                  "const": "forward_outright",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "convention",
-                "pillar",
-                "forward_rate"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "Spot-start FX swap quote with explicit near and far outright rates.",
-              "properties": {
-                "convention": {
-                  "$ref": "#/$defs/FxConventionId",
-                  "description": "FX pair convention identifier (e.g., `EUR/USD`)."
-                },
-                "far_pillar": {
-                  "$ref": "#/$defs/Pillar",
-                  "description": "Far-leg maturity pillar; near leg is the convention spot date."
-                },
-                "far_rate": {
-                  "description": "Far-leg outright rate quoted as quote-currency per base-currency.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "near_rate": {
-                  "description": "Near-leg outright rate quoted as quote-currency per base-currency.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "type": {
-                  "const": "swap_outright",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "convention",
-                "far_pillar",
-                "near_rate",
-                "far_rate"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "European vanilla FX option quote with explicit strike and volatility surface.",
-              "properties": {
-                "convention": {
-                  "$ref": "#/$defs/FxOptionConventionId",
-                  "description": "FX option convention identifier (e.g., `EUR/USD-VANILLA`)."
-                },
-                "expiry": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Option expiry date."
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "option_type": {
-                  "$ref": "#/$defs/OptionType",
-                  "description": "Call or put on the base currency."
-                },
-                "strike": {
-                  "description": "Strike exchange rate quoted as quote-currency per base-currency.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "type": {
-                  "const": "option_vanilla",
-                  "type": "string"
-                },
-                "vol_surface_id": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-                  "description": "Volatility surface identifier used for pricing."
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "convention",
-                "expiry",
-                "strike",
-                "option_type",
-                "vol_surface_id"
-              ],
-              "type": "object"
-            }
-          ],
-          "properties": {
-            "kind": {
-              "const": "fx_quote",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind"
+            "kind",
+            "id",
+            "index",
+            "series",
+            "attachment",
+            "detachment",
+            "maturity",
+            "upfront_pct",
+            "running_spread_bp",
+            "convention"
           ],
           "type": "object"
         },
@@ -2774,10 +2591,6 @@
                 "option_vol": {
                   "additionalProperties": false,
                   "properties": {
-                    "convention": {
-                      "$ref": "#/$defs/OptionConventionId",
-                      "description": "Per-instrument conventions"
-                    },
                     "expiry": {
                       "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
                       "description": "Option expiry"
@@ -2811,8 +2624,7 @@
                     "expiry",
                     "strike",
                     "vol",
-                    "option_type",
-                    "convention"
+                    "option_type"
                   ],
                   "type": "object"
                 }
@@ -2882,10 +2694,6 @@
                 "cap_floor_vol": {
                   "additionalProperties": false,
                   "properties": {
-                    "convention": {
-                      "$ref": "#/$defs/CapFloorConventionId",
-                      "description": "Cap/floor market conventions."
-                    },
                     "expiry": {
                       "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
                       "description": "Cap/floor maturity or caplet expiry."
@@ -2919,8 +2727,7 @@
                     "strike",
                     "vol",
                     "quote_type",
-                    "is_cap",
-                    "convention"
+                    "is_cap"
                   ],
                   "type": "object"
                 }
@@ -2943,274 +2750,45 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Cross-currency basis-swap quote.",
-          "oneOf": [
-            {
-              "description": "Cross-currency basis swap quoted as a spread on the base-currency leg.",
-              "properties": {
-                "basis_spread_bp": {
-                  "description": "Basis spread in basis points on the base-currency leg.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "convention": {
-                  "$ref": "#/$defs/XccyConventionId",
-                  "description": "XCCY pair convention identifier (e.g., `EUR/USD-XCCY`)."
-                },
-                "far_pillar": {
-                  "$ref": "#/$defs/Pillar",
-                  "description": "Far-leg maturity pillar; near leg is the convention spot date."
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "spot_fx": {
-                  "description": "Optional spot FX quote (quote currency per 1 unit of base currency).\n\nUsed to derive FX-equivalent leg notionals when the build context\nprovides only a single standard notional.",
-                  "format": "double",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "type": {
-                  "const": "basis_swap",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "convention",
-                "far_pillar",
-                "basis_spread_bp"
-              ],
-              "type": "object"
-            }
-          ],
           "properties": {
+            "basis_spread_bp": {
+              "description": "Basis spread in basis points on the base-currency leg.",
+              "format": "double",
+              "type": "number"
+            },
+            "convention": {
+              "$ref": "#/$defs/XccyConventionId",
+              "description": "XCCY pair convention identifier (e.g., `EUR/USD-XCCY`)."
+            },
+            "far_pillar": {
+              "$ref": "#/$defs/Pillar",
+              "description": "Far-leg maturity pillar; near leg is the convention spot date."
+            },
+            "id": {
+              "$ref": "#/$defs/QuoteId",
+              "description": "Unique identifier for the quote."
+            },
             "kind": {
               "const": "xccy_quote",
               "type": "string"
+            },
+            "spot_fx": {
+              "description": "Optional spot FX quote (quote currency per 1 unit of base currency).",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
             }
           },
           "required": [
-            "kind"
-          ],
-          "type": "object"
-        },
-        {
-          "description": "Bond quote (price or yield).",
-          "oneOf": [
-            {
-              "description": "Fixed-rate bullet bond quoted in clean price (% of par).",
-              "properties": {
-                "clean_price_pct": {
-                  "description": "Quoted clean price as percent of par.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "convention": {
-                  "$ref": "#/$defs/BondConventionId",
-                  "description": "Bond convention identifier."
-                },
-                "coupon_rate": {
-                  "description": "Annual coupon rate in decimal form.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "currency": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-                  "description": "Settlement / pricing currency of the bond."
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "issue_date": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond issue date."
-                },
-                "maturity": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond maturity date."
-                },
-                "type": {
-                  "const": "fixed_rate_bullet_clean_price",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "currency",
-                "issue_date",
-                "maturity",
-                "coupon_rate",
-                "convention",
-                "clean_price_pct"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "Fixed-rate bullet bond quoted in Z-spread over a discount curve (decimal).",
-              "properties": {
-                "convention": {
-                  "$ref": "#/$defs/BondConventionId",
-                  "description": "Bond convention identifier."
-                },
-                "coupon_rate": {
-                  "description": "Annual coupon rate in decimal form.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "currency": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-                  "description": "Settlement / pricing currency of the bond."
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "issue_date": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond issue date."
-                },
-                "maturity": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond maturity date."
-                },
-                "type": {
-                  "const": "fixed_rate_bullet_z_spread",
-                  "type": "string"
-                },
-                "z_spread": {
-                  "description": "Z-spread in decimal form (e.g. 0.01 = 100bp).",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "currency",
-                "issue_date",
-                "maturity",
-                "coupon_rate",
-                "convention",
-                "z_spread"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "Fixed-rate bullet bond quoted in OAS (decimal).",
-              "properties": {
-                "convention": {
-                  "$ref": "#/$defs/BondConventionId",
-                  "description": "Bond convention identifier."
-                },
-                "coupon_rate": {
-                  "description": "Annual coupon rate in decimal form.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "currency": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-                  "description": "Settlement / pricing currency of the bond."
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "issue_date": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond issue date."
-                },
-                "maturity": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond maturity date."
-                },
-                "oas": {
-                  "description": "Option-adjusted spread in decimal form (e.g. 0.005 = 50bp).",
-                  "format": "double",
-                  "type": "number"
-                },
-                "type": {
-                  "const": "fixed_rate_bullet_oas",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "currency",
-                "issue_date",
-                "maturity",
-                "coupon_rate",
-                "convention",
-                "oas"
-              ],
-              "type": "object"
-            },
-            {
-              "description": "Fixed-rate bullet bond quoted in yield-to-maturity (decimal).",
-              "properties": {
-                "convention": {
-                  "$ref": "#/$defs/BondConventionId",
-                  "description": "Bond convention identifier."
-                },
-                "coupon_rate": {
-                  "description": "Annual coupon rate in decimal form.",
-                  "format": "double",
-                  "type": "number"
-                },
-                "currency": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-                  "description": "Settlement / pricing currency of the bond."
-                },
-                "id": {
-                  "$ref": "#/$defs/QuoteId",
-                  "description": "Unique identifier for the quote."
-                },
-                "issue_date": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond issue date."
-                },
-                "maturity": {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-                  "description": "Bond maturity date."
-                },
-                "type": {
-                  "const": "fixed_rate_bullet_ytm",
-                  "type": "string"
-                },
-                "ytm": {
-                  "description": "Yield to maturity in decimal form.",
-                  "format": "double",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "type",
-                "id",
-                "currency",
-                "issue_date",
-                "maturity",
-                "coupon_rate",
-                "convention",
-                "ytm"
-              ],
-              "type": "object"
-            }
-          ],
-          "properties": {
-            "kind": {
-              "const": "bond_quote",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind"
+            "kind",
+            "id",
+            "convention",
+            "far_pillar",
+            "basis_spread_bp"
           ],
           "type": "object"
         },
@@ -3834,10 +3412,6 @@
           "type": "string"
         }
       ]
-    },
-    "OptionConventionId": {
-      "description": "Identifier for Option market conventions (Equity/FX/Commodity).\n\nTags an option implied-volatility quote with the market convention it\nwas quoted under, so calibration does not blend venues.",
-      "type": "string"
     },
     "OptionType": {
       "description": "Option payoff direction used by analytical and numerical model engines.",

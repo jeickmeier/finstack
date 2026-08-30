@@ -4,7 +4,7 @@
 
 use crate::build::prepared::PreparedQuote;
 use crate::quotes::cds::CdsQuote;
-use crate::quotes::cds_tranche::CDSTrancheQuote;
+use crate::quotes::cds_tranche::CdsTrancheQuote;
 use crate::quotes::inflation::InflationQuote;
 use crate::quotes::rates::RateQuote;
 use crate::quotes::xccy::XccyQuote;
@@ -18,7 +18,7 @@ use finstack_quant_valuations::instruments::Instrument;
 #[derive(Debug, Clone)]
 pub(crate) struct CDSTrancheCalibrationQuote {
     /// Prepared quote with constructed instrument and pillar timing.
-    pub(crate) prepared: PreparedQuote<CDSTrancheQuote>,
+    pub(crate) prepared: PreparedQuote<CdsTrancheQuote>,
     /// Optional upfront cashflow from the market quote.
     pub(crate) upfront: Option<Money>,
     /// Detachment point in percentage terms (e.g. 3.0 for 3%).

@@ -19,7 +19,7 @@ use time::macros::date;
 
 // Reuse CDS components for conventions and legs
 use crate::instruments::credit_derivatives::cds::{
-    CDSConvention, CreditDefaultSwap, PayReceive, PremiumLegSpec, ProtectionLegSpec,
+    CdsConvention, CreditDefaultSwap, PayReceive, PremiumLegSpec, ProtectionLegSpec,
 };
 
 use super::parameters::CDSIndexParams;
@@ -158,7 +158,7 @@ pub struct CDSIndex {
     /// Protection buyer/seller perspective
     pub side: PayReceive,
     /// Regional ISDA convention
-    pub convention: CDSConvention,
+    pub convention: CdsConvention,
     /// Premium leg specification (coupon schedule and discounting)
     pub premium: PremiumLegSpec,
     /// Protection leg specification (credit curve and settlement)
@@ -237,7 +237,7 @@ impl CDSIndex {
     ///
     /// Returns a CDX.NA.IG series 42 index with standard conventions.
     pub fn example() -> Self {
-        let convention = CDSConvention::IsdaNa;
+        let convention = CdsConvention::IsdaNa;
         let day_count = convention.day_count();
         let frequency = convention.frequency();
         let business_day_convention = convention.business_day_convention();

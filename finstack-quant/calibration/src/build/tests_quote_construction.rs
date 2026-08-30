@@ -6,7 +6,7 @@ use crate::build::cds_tranche::{build_cds_tranche_instrument, CDSTrancheBuildOve
 use crate::build::rates::build_rate_instrument;
 use crate::build::BuildCtx;
 use crate::quotes::cds::CdsQuote;
-use crate::quotes::cds_tranche::CDSTrancheQuote;
+use crate::quotes::cds_tranche::CdsTrancheQuote;
 use crate::quotes::ids::{Pillar, QuoteId};
 use crate::quotes::inflation::InflationQuote;
 use crate::quotes::market_quote::MarketQuote;
@@ -120,7 +120,7 @@ fn test_all_quote_types_instrument_construction() {
 
     // 5. Base Correlation Quotes (Tranches)
     let correlation_quotes = vec![
-        MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+        MarketQuote::CdsTranche(CdsTrancheQuote {
             id: QuoteId::new(format!("TR-0-3-{:?}", base_date.add_months(60))),
             index: "NA-HY".to_string(),
             series: 40,
@@ -134,7 +134,7 @@ fn test_all_quote_types_instrument_construction() {
                 doc_clause: CdsDocClause::IsdaNa,
             },
         }),
-        MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+        MarketQuote::CdsTranche(CdsTrancheQuote {
             id: QuoteId::new(format!("TR-3-7-{:?}", base_date.add_months(60))),
             index: "NA-HY".to_string(),
             series: 40,
@@ -202,7 +202,7 @@ fn test_all_quote_types_instrument_construction() {
     }
 
     for q in &correlation_quotes {
-        if let MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+        if let MarketQuote::CdsTranche(CdsTrancheQuote {
             attachment,
             detachment,
             ..
@@ -211,7 +211,7 @@ fn test_all_quote_types_instrument_construction() {
             assert!(detachment > attachment, "detachment must exceed attachment");
             assert!(*detachment <= 1.0, "detachment should be capped at 100%");
         }
-        if let MarketQuote::CDSTranche(tranche) = q {
+        if let MarketQuote::CdsTranche(tranche) = q {
             let overrides = CDSTrancheBuildOverrides::default();
             build_cds_tranche_instrument(tranche, &build_ctx, &overrides)
                 .expect("cds tranche instrument build");

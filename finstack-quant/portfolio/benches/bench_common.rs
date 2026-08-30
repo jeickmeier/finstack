@@ -25,7 +25,7 @@ use finstack_quant_portfolio::position::{Position, PositionUnit};
 use finstack_quant_portfolio::types::Entity;
 use finstack_quant_portfolio::{Portfolio, PortfolioBuilder};
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
-    CDSConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive, PremiumLegSpec,
+    CdsConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive, PremiumLegSpec,
     ProtectionLegSpec,
 };
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
@@ -605,7 +605,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
     // 6. Credit Default Swaps
     for i in 0..positions_per_common {
         let cds_id = format!("CDS_{}", i);
-        let convention = CDSConvention::IsdaNa;
+        let convention = CdsConvention::IsdaNa;
         let premium = PremiumLegSpec {
             start: base,
             end: maturity_5y(),

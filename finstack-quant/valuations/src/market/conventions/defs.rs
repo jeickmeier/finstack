@@ -6,8 +6,9 @@
 //! and pricing.
 
 use crate::instruments::rates::irs::FloatingLegCompounding;
+use crate::market::conventions::ids::CdsDocClause;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
+use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
 use finstack_quant_core::types::IndexId;
 use serde::{Deserialize, Serialize};
 
@@ -85,31 +86,108 @@ pub struct RateIndexConventions {
     pub default_fixed_leg_frequency: Tenor,
 }
 
-/// Conventions for Credit Default Swaps.
+/// Regional ISDA CDS schedule family.
 ///
-/// Defines market-standard parameters for CDS instruments, including payment frequencies,
-/// day count conventions, business day adjustments, and settlement lags. Used by CDS builders
-/// to construct instruments with correct market conventions.
+/// Exact documentation clauses stay on the instrument or quote. This enum
+/// identifies the regional schedule family used to resolve calendars,
+/// day-count, frequency, stub, and settlement from the convention registry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+#[derive(Default)]
+pub enum CdsConvention {
+    /// Standard North American convention (quarterly, Act/360).
+    #[default]
+    IsdaNa,
+    /// Standard European convention (quarterly, Act/360).
+    IsdaEu,
+    /// Standard Asian convention (quarterly, Act/365F).
+    IsdaAs,
+    /// Custom convention.
+    Custom,
+}
+
+impl CdsConvention {
+    /// Documentation-clause tag that identifies this regional family in the registry.
+    #[must_use]
+    pub fn as_doc_clause(self) -> CdsDocClause {
+        match self {
+            Self::IsdaNa => CdsDocClause::IsdaNa,
+            Self::IsdaEu => CdsDocClause::IsdaEu,
+            Self::IsdaAs => CdsDocClause::IsdaAs,
+            Self::Custom => CdsDocClause::Custom,
+        }
+    }
+
+    /// Map a documentation clause to its regional schedule family.
+    ///
+    /// Meta `Au`/`Nz` clauses use the Asia family. Exact restructuring clauses
+    /// have no family of their own; schedule family then comes from currency.
+    ///
+    /// # Arguments
+    ///
+    /// * `clause` - Quote or instrument documentation clause to classify
+    #[must_use]
+    pub fn family_from_doc_clause(clause: CdsDocClause) -> Option<Self> {
+        match clause {
+            CdsDocClause::IsdaNa => Some(Self::IsdaNa),
+            CdsDocClause::IsdaEu => Some(Self::IsdaEu),
+            CdsDocClause::IsdaAs | CdsDocClause::IsdaAu | CdsDocClause::IsdaNz => {
+                Some(Self::IsdaAs)
+            }
+            CdsDocClause::Custom => Some(Self::Custom),
+            CdsDocClause::Cr14 | CdsDocClause::Mr14 | CdsDocClause::Mm14 | CdsDocClause::Xr14 => {
+                None
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for CdsConvention {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::IsdaNa => write!(f, "isda_na"),
+            Self::IsdaEu => write!(f, "isda_eu"),
+            Self::IsdaAs => write!(f, "isda_as"),
+            Self::Custom => write!(f, "custom"),
+        }
+    }
+}
+
+impl std::str::FromStr for CdsConvention {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "isda_na" => Ok(Self::IsdaNa),
+            "isda_eu" => Ok(Self::IsdaEu),
+            "isda_as" => Ok(Self::IsdaAs),
+            "custom" => Ok(Self::Custom),
+            _ => Err(format!(
+                "Unknown CDS convention: '{s}'. Expected one of: isda_na, isda_eu, isda_as, custom"
+            )),
+        }
+    }
+}
+
+/// Resolved CDS schedule and settlement settings from the convention registry.
 ///
-/// # Examples
-///
-/// ```rust
-/// use finstack_quant_valuations::market::conventions::CdsConventions;
-/// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
-///
-/// // In practice, conventions are loaded from the registry
-/// // let conv = registry.require_cds(&CdsConventionKey { ... })?;
-/// ```
+/// Exact documentation clauses remain on the instrument or quote. `family`
+/// is the regional schedule family used to select these settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CdsConventions {
+pub struct CdsConventionSpec {
+    /// Regional schedule family represented by this registry row.
+    pub family: CdsConvention,
     /// The calendar used for business day adjustments.
     pub calendar_id: String,
     /// The day count convention for the premium leg.
     pub day_count: DayCount,
     /// The business day convention.
     pub business_day_convention: BusinessDayConvention,
+    /// Stub convention used when constructing the premium schedule.
+    pub stub: StubKind,
     /// The number of business days for settlement.
-    pub settlement_days: i32,
+    pub settlement_days: u16,
     /// The payment frequency of the premium leg.
     pub frequency: Tenor,
 }

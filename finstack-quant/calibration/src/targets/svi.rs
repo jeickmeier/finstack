@@ -462,7 +462,6 @@ mod tests {
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::types::UnderlyingId;
     use finstack_quant_valuations::instruments::OptionType;
-    use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
     use time::Month;
 
     fn base_date() -> Date {
@@ -521,7 +520,6 @@ mod tests {
                 strike,
                 vol,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             })
         })
         .collect()
@@ -537,7 +535,6 @@ mod tests {
             strike: 0.0,
             vol: 0.30,
             option_type: OptionType::Call,
-            convention: OptionConventionId::new("USD-EQ"),
         });
 
         let err = SviSurfaceTarget::solve(
@@ -791,7 +788,6 @@ mod tests {
                 strike,
                 vol,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }));
         }
         for (strike, vol) in smile_long {
@@ -802,7 +798,6 @@ mod tests {
                 strike,
                 vol,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }));
         }
 

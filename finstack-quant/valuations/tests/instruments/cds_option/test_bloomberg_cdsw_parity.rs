@@ -21,7 +21,7 @@ use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCur
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
-    CDSConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive,
+    CdsConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive,
 };
 use finstack_quant_valuations::prelude::Instrument as _;
 use rust_decimal::Decimal;
@@ -125,7 +125,7 @@ fn build_spot_cds(_as_of: Date) -> CreditDefaultSwap {
     .expect("spot CDS");
     cds.protection.recovery_rate = 0.4;
     cds.valuation_convention = CdsValuationConvention::BloombergCdswClean;
-    let _ = (PayReceive::Pay, CDSConvention::IsdaNa, Decimal::ZERO);
+    let _ = (PayReceive::Pay, CdsConvention::IsdaNa, Decimal::ZERO);
     cds
 }
 

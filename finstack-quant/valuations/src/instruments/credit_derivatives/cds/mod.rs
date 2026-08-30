@@ -130,7 +130,7 @@
 //! # See Also
 //!
 //! - `CreditDefaultSwap` for single-name CDS struct
-//! - `CDSConvention` for regional standard conventions
+//! - `CdsConvention` for regional standard conventions
 //! - `PremiumLegSpec` for premium leg configuration
 //! - `ProtectionLegSpec` for protection leg configuration
 //! - CDS metrics module for CDS risk metrics (CS01, DV01, recovery sensitivity)
@@ -140,12 +140,10 @@ pub(crate) mod pricer;
 mod types;
 
 pub use crate::market::conventions::ids::CdsDocClause;
-pub use types::CDSConvention;
+pub use crate::market::conventions::CdsConvention;
 pub use types::CdsValuationConvention;
 pub use types::CreditDefaultSwap;
 pub use types::CreditDefaultSwapBuilder;
 pub use types::PayReceive;
 pub use types::PremiumLegSpec;
 pub use types::ProtectionLegSpec;
-
-pub use types::{resolve_market_conventions, CdsConventionResolved};

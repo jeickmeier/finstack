@@ -14,7 +14,6 @@ import type { OptionType } from "./OptionType";
  * ```rust
  * use finstack_quant_calibration::quotes::vol::VolQuote;
  * use finstack_quant_calibration::quotes::ids::QuoteId;
- * use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
  * use finstack_quant_valuations::instruments::OptionType;
  * use finstack_quant_core::dates::Date;
  * use finstack_quant_core::types::UnderlyingId;
@@ -26,7 +25,6 @@ import type { OptionType } from "./OptionType";
  *     strike: 4500.0,
  *     vol: 0.20, // 20% implied volatility
  *     option_type: OptionType::Call,
- *     convention: OptionConventionId::new("USD-EQUITY"),
  * };
  * ```
  *
@@ -73,11 +71,7 @@ vol: number,
 /**
  * Option type (Call or Put).
  */
-option_type: OptionType,
-/**
- * Per-instrument conventions
- */
-convention: string, } } | { "swaption_vol": {
+option_type: OptionType, } } | { "swaption_vol": {
 /**
  * Unique identifier for the quote.
  */
@@ -131,8 +125,4 @@ quote_type: string,
 /**
  * `true` for cap, `false` for floor.
  */
-is_cap: boolean,
-/**
- * Cap/floor market conventions.
- */
-convention: string, } };
+is_cap: boolean, } };

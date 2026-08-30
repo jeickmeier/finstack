@@ -4,13 +4,13 @@ use crate::calibration_support as cal_utils;
 use crate::common::fixtures;
 use finstack_quant_calibration::api::engine;
 use finstack_quant_calibration::api::schema::{
-    AtmStrikeConvention, BaseCorrelationParams, CalibrationEnvelope, CalibrationPlan,
-    CalibrationStep, ForwardCurveParams, HazardCurveParams, InflationCurveParams,
-    SabrInterpolationMethod, StepParams, SurfaceExtrapolationPolicy, SwaptionVolConvention,
-    SwaptionVolParams, VolSurfaceModel, VolSurfaceParams,
+    BaseCorrelationParams, CalibrationEnvelope, CalibrationPlan, CalibrationStep,
+    ForwardCurveParams, HazardCurveParams, InflationCurveParams, SabrInterpolationMethod,
+    StepParams, SurfaceExtrapolationPolicy, SwaptionVolConvention, SwaptionVolParams,
+    VolSurfaceModel, VolSurfaceParams,
 };
 use finstack_quant_calibration::quotes::cds::CdsQuote;
-use finstack_quant_calibration::quotes::cds_tranche::CDSTrancheQuote;
+use finstack_quant_calibration::quotes::cds_tranche::CdsTrancheQuote;
 use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
 use finstack_quant_calibration::quotes::inflation::InflationQuote;
 use finstack_quant_calibration::quotes::market_quote::MarketQuote;
@@ -214,7 +214,6 @@ fn swaption_vol_preflight_rejects_invalid_shift() {
             forward_id: None,
             currency: Currency::USD,
             vol_convention: SwaptionVolConvention::ShiftedLognormal { shift: 0.0 },
-            atm_convention: AtmStrikeConvention::default(),
             sabr_beta: 0.5,
             target_expiries: Vec::new(),
             target_tenors: Vec::new(),
@@ -265,7 +264,7 @@ fn base_correlation_preflight_rejects_invalid_attachment_detachment() {
         .insert(base_corr.as_ref().clone())
         .insert_credit_index("CDX.NA.IG", index_data);
 
-    let tranche_quote = MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+    let tranche_quote = MarketQuote::CdsTranche(CdsTrancheQuote {
         id: QuoteId::new("CDX-IG-7-3"),
         index: "CDX.NA.IG".to_string(),
         series: 1,
@@ -315,7 +314,7 @@ fn base_correlation_preflight_requires_credit_index_data() {
     let discount = usd_discount_curve(base_date);
     let source_market = MarketContext::new().insert(discount);
 
-    let tranche_quote = MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+    let tranche_quote = MarketQuote::CdsTranche(CdsTrancheQuote {
         id: QuoteId::new("CDX-IG-0-3"),
         index: "CDX.NA.IG".to_string(),
         series: 1,
@@ -392,7 +391,7 @@ fn base_correlation_preflight_rejects_non_monotone_tranche_points() {
         .insert(base_corr_clone)
         .insert_credit_index("CDX.NA.IG", index_data);
 
-    let tranche_quote = MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
+    let tranche_quote = MarketQuote::CdsTranche(CdsTrancheQuote {
         id: QuoteId::new("CDX-IG-7-3"),
         index: "CDX.NA.IG".to_string(),
         series: 1,

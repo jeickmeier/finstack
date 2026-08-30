@@ -1,6 +1,7 @@
 //! CDS market quote schema.
 
 use super::ids::{Pillar, QuoteId};
+use super::validate;
 use finstack_quant_core::{Error, Result};
 use finstack_quant_valuations::market::conventions::ids::CdsConventionKey;
 use serde::{Deserialize, Serialize};
@@ -210,39 +211,47 @@ impl CdsQuote {
 
     /// Bump by spread in basis points (e.g., `1.0` = 1bp).
     pub fn bump_spread_bp(&self, bump_bp: f64) -> Self {
+        let mut quote = self.clone();
+        match &mut quote {
+            Self::CdsParSpread { spread_bp, .. } => *spread_bp += bump_bp,
+            Self::CdsUpfront {
+                running_spread_bp, ..
+            } => *running_spread_bp += bump_bp,
+        }
+        quote
+    }
+
+    /// Validate spreads, recovery, upfront amount, and market-standard running coupons.
+    pub fn validate(&self) -> Result<()> {
         match self {
-            CdsQuote::CdsParSpread {
-                id,
-                entity,
-                convention,
-                pillar,
+            Self::CdsParSpread {
                 spread_bp,
                 recovery_rate,
-            } => CdsQuote::CdsParSpread {
-                id: id.clone(),
-                entity: entity.clone(),
-                convention: convention.clone(),
-                pillar: pillar.clone(),
-                spread_bp: spread_bp + bump_bp,
-                recovery_rate: *recovery_rate,
-            },
-            CdsQuote::CdsUpfront {
-                id,
-                entity,
-                convention,
-                pillar,
+                ..
+            } => {
+                validate::positive(*spread_bp, "spread_bp")?;
+                validate::unit_interval(*recovery_rate, "recovery_rate")?;
+            }
+            Self::CdsUpfront {
                 running_spread_bp,
                 upfront_pct,
                 recovery_rate,
-            } => CdsQuote::CdsUpfront {
-                id: id.clone(),
-                entity: entity.clone(),
-                convention: convention.clone(),
-                pillar: pillar.clone(),
-                running_spread_bp: running_spread_bp + bump_bp,
-                upfront_pct: *upfront_pct,
-                recovery_rate: *recovery_rate,
-            },
+                ..
+            } => {
+                validate::positive(*running_spread_bp, "running_spread_bp")?;
+                validate::finite(*upfront_pct, "upfront_pct")?;
+                validate::unit_interval(*recovery_rate, "recovery_rate")?;
+            }
+        }
+        self.validate_market_conventions()
+    }
+
+    /// Convention key carried by the quote.
+    pub fn convention(&self) -> &CdsConventionKey {
+        match self {
+            Self::CdsParSpread { convention, .. } | Self::CdsUpfront { convention, .. } => {
+                convention
+            }
         }
     }
 

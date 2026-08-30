@@ -10,8 +10,8 @@
 //! - Bloomberg and Markit pricing tools which default to NA conventions
 //! - The dominance of US credit markets in global CDS trading volume
 //!
-//! For European or Asian CDS, explicitly specify `CDSConvention::IsdaEu` or
-//! `CDSConvention::IsdaAs` respectively. Use [`CDSConvention::detect_from_currency`]
+//! For European or Asian CDS, explicitly specify `CdsConvention::IsdaEu` or
+//! `CdsConvention::IsdaAs` respectively. Use [`CdsConvention::detect_from_currency`]
 //! for automatic detection based on currency.
 //!
 //! ## Regional Convention Summary
@@ -29,22 +29,22 @@
 //!
 //! ```
 //! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
+//! use finstack_quant_valuations::market::conventions::CdsConvention;
 //!
 //! // Detect from currency (recommended for cross-regional portfolios).
 //! assert_eq!(
-//!     CDSConvention::detect_from_currency(Currency::EUR),
-//!     CDSConvention::IsdaEu
+//!     CdsConvention::detect_from_currency(Currency::EUR),
+//!     CdsConvention::IsdaEu
 //! );
 //! assert_eq!(
-//!     CDSConvention::detect_from_currency(Currency::JPY),
-//!     CDSConvention::IsdaAs
+//!     CdsConvention::detect_from_currency(Currency::JPY),
+//!     CdsConvention::IsdaAs
 //! );
 //!
 //! // Anything else falls back to the most liquid market, North America.
 //! assert_eq!(
-//!     CDSConvention::detect_from_currency(Currency::USD),
-//!     CDSConvention::IsdaNa
+//!     CdsConvention::detect_from_currency(Currency::USD),
+//!     CdsConvention::IsdaNa
 //! );
 //! ```
 
@@ -52,8 +52,9 @@ use crate::constants::isda::STANDARD_RECOVERY_SENIOR;
 use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::common_impl::validation;
 use crate::market::conventions::ids::CdsDocClause;
+use crate::market::conventions::CdsConvention;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
+use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::InstrumentId;
@@ -64,24 +65,8 @@ use time::macros::date;
 
 use crate::impl_instrument_base;
 use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
-use std::sync::OnceLock;
 
 pub use crate::instruments::common_impl::parameters::legs::PayReceive;
-
-/// ISDA CDS conventions
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(rename_all = "snake_case")]
-pub enum CDSConvention {
-    /// Standard North American convention (quarterly, Act/360)
-    IsdaNa,
-    /// Standard European convention (quarterly, Act/360)
-    IsdaEu,
-    /// Standard Asian convention (quarterly, Act/365)
-    IsdaAs,
-    /// Custom convention
-    Custom,
-}
 
 /// Valuation presentation and pricing policy for CDS marks.
 ///
@@ -195,312 +180,6 @@ impl CdsValuationConvention {
     }
 }
 
-impl CDSConvention {
-    fn registry_id(&self) -> &'static str {
-        match self {
-            CDSConvention::IsdaNa => "ANY:isda_na",
-            CDSConvention::IsdaEu => "ANY:isda_eu",
-            CDSConvention::IsdaAs => "ANY:isda_as",
-            CDSConvention::Custom => "ANY:custom",
-        }
-    }
-
-    /// Look up resolved conventions from the embedded registry.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the embedded registry is missing the canonical entry for this
-    /// convention. The four enum variants are mirrored 1:1 in
-    /// `cds_conventions.json` (`ANY:isda_na`, `ANY:isda_eu`, `ANY:isda_as`,
-    /// `ANY:custom`); a missing entry indicates a corrupted build artifact and
-    /// must fail loudly rather than silently returning North American defaults.
-    #[allow(clippy::panic)] // Build-artifact corruption is unrecoverable
-    fn registry(&self) -> &'static CdsConventionResolved {
-        let id = self.registry_id();
-        cds_conventions_registry().get(id).unwrap_or_else(|| {
-            panic!(
-                "Missing CDS conventions registry entry for '{id}'. \
-                 The embedded cds_conventions.json file is corrupted; \
-                 this is a build/packaging error and cannot be recovered at runtime."
-            )
-        })
-    }
-
-    /// Get the standard day count convention.
-    ///
-    /// Per ISDA standards:
-    /// - North America/Europe: ACT/360
-    /// - Asia: ACT/365F
-    #[must_use]
-    pub fn day_count(&self) -> DayCount {
-        self.registry().day_count
-    }
-
-    /// Get the standard payment frequency (quarterly for all conventions).
-    #[must_use]
-    pub fn frequency(&self) -> Tenor {
-        self.registry().frequency
-    }
-
-    /// Get the standard business day convention.
-    ///
-    /// Per ISDA 2014 Credit Derivatives Definitions Section 4.12, CDS payment
-    /// dates use **Modified Following** to prevent dates from rolling into
-    /// the next month.
-    #[must_use]
-    pub fn business_day_convention(&self) -> BusinessDayConvention {
-        self.registry().business_day_convention
-    }
-
-    /// Get the standard stub convention.
-    #[must_use]
-    pub fn stub_convention(&self) -> StubKind {
-        self.registry().stub_convention
-    }
-
-    /// Get the standard settlement delay in business days.
-    ///
-    /// Returns the number of business days between trade date and settlement
-    /// for standard CDS conventions by region.
-    #[must_use]
-    pub fn settlement_delay(&self) -> u16 {
-        self.registry().settlement_delay_days
-    }
-
-    /// Get the default holiday calendar identifier for this convention.
-    ///
-    /// Returns the standard calendar for business day adjustments:
-    /// - North America: `nyse` (New York Stock Exchange)
-    /// - Europe: `target2` (TARGET2 / ECB)
-    /// - Asia: `jpto` (Tokyo Stock Exchange)
-    #[must_use]
-    pub fn default_calendar(&self) -> &'static str {
-        self.registry().default_calendar_id.as_str()
-    }
-
-    /// Detect the appropriate CDS convention based on currency.
-    ///
-    /// This helper automatically selects the regional convention based on the
-    /// currency of the CDS notional. Useful for cross-regional portfolios
-    /// where convention should match the underlying credit market.
-    ///
-    /// # Currency Mapping
-    ///
-    /// - **USD, CAD**: North American (`IsdaNa`) - T+3, ACT/360, NYSE calendar
-    /// - **EUR, GBP, CHF**: European (`IsdaEu`) - T+1, ACT/360, TARGET2 calendar (post-2009 Big Bang)
-    /// - **JPY, AUD, HKD, SGD**: Asian (`IsdaAs`) - T+3, ACT/365F, Tokyo calendar
-    /// - **Other**: North American (default)
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
-    ///
-    /// let na = CDSConvention::detect_from_currency(Currency::USD);
-    /// assert_eq!(na, CDSConvention::IsdaNa);
-    ///
-    /// let eu = CDSConvention::detect_from_currency(Currency::EUR);
-    /// assert_eq!(eu, CDSConvention::IsdaEu);
-    ///
-    /// let asia = CDSConvention::detect_from_currency(Currency::JPY);
-    /// assert_eq!(asia, CDSConvention::IsdaAs);
-    /// ```
-    ///
-    /// # Arguments
-    ///
-    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
-    #[must_use]
-    pub fn detect_from_currency(currency: Currency) -> Self {
-        match currency {
-            // European currencies
-            Currency::EUR | Currency::GBP | Currency::CHF => Self::IsdaEu,
-            // Asian/Pacific currencies
-            Currency::JPY | Currency::AUD | Currency::HKD | Currency::SGD => Self::IsdaAs,
-            // Default to North American for others (most liquid CDS market)
-            _ => Self::IsdaNa,
-        }
-    }
-}
-
-impl Default for CDSConvention {
-    /// Returns the default CDS convention.
-    ///
-    /// # Warning
-    ///
-    /// The default convention is **ISDA North American (IsdaNa)**. For non-US
-    /// credits, consider using [`CDSConvention::detect_from_currency`] or
-    /// explicitly specifying the convention.
-    ///
-    /// See module-level documentation for convention selection guidance.
-    fn default() -> Self {
-        Self::IsdaNa
-    }
-}
-
-impl std::fmt::Display for CDSConvention {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::IsdaNa => write!(f, "isda_na"),
-            Self::IsdaEu => write!(f, "isda_eu"),
-            Self::IsdaAs => write!(f, "isda_as"),
-            Self::Custom => write!(f, "custom"),
-        }
-    }
-}
-
-impl std::str::FromStr for CDSConvention {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "isda_na" => Ok(Self::IsdaNa),
-            "isda_eu" => Ok(Self::IsdaEu),
-            "isda_as" => Ok(Self::IsdaAs),
-            "custom" => Ok(Self::Custom),
-            _ => Err(format!(
-                "Unknown CDS convention: '{}'. Expected one of: isda_na, isda_eu, isda_as, custom",
-                s
-            )),
-        }
-    }
-}
-
-/// Resolve the CDS schedule and settlement conventions for calibration and pricing.
-///
-/// # Arguments
-///
-/// * `currency` - Contract currency used to select the convention registry entry.
-/// * `doc_clause` - Optional exact ISDA document-clause identifier. When omitted,
-///   the currency default is selected; an explicitly unknown clause is rejected.
-pub fn resolve_market_conventions(
-    currency: Currency,
-    doc_clause: Option<&str>,
-) -> finstack_quant_core::Result<&'static CdsConventionResolved> {
-    let ccy = currency.to_string();
-
-    let key = if let Some(clause) = doc_clause {
-        format!("{ccy}:{clause}")
-    } else {
-        format!("{ccy}:DEFAULT")
-    };
-
-    // If caller specified a doc clause, do not silently change it. Fall back only for the
-    // "no clause provided" case, or for missing currency defaults.
-    if let Some(found) = cds_conventions_registry().get(&key) {
-        return Ok(found);
-    }
-
-    if doc_clause.is_some() {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "Unknown CDS market conventions key '{}'. Add it to finstack-quant/valuations/data/conventions/cds_conventions.json",
-            key
-        )));
-    }
-
-    // Currency default missing: fall back to the canonical North American default.
-    cds_conventions_registry()
-        .get("ANY:isda_na")
-        .ok_or_else(|| {
-            finstack_quant_core::Error::Validation(
-                "Missing CDS market conventions entry 'ANY:isda_na'".to_string(),
-            )
-        })
-}
-
-/// Fully resolved market conventions shared by CDS builders and calibration targets.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CdsConventionResolved {
-    /// Standard CDS convention family represented by the document clause.
-    pub doc_clause: CDSConvention,
-    /// Accrual day-count convention for premium payments.
-    pub day_count: DayCount,
-    /// Contractual premium-payment frequency.
-    pub frequency: Tenor,
-    /// Business-day adjustment applied to scheduled payment dates.
-    pub business_day_convention: BusinessDayConvention,
-    /// Stub convention used when constructing the premium schedule.
-    pub stub_convention: StubKind,
-    /// Cash-settlement delay in business days after the trade date.
-    pub settlement_delay_days: u16,
-    /// Calendar identifier used when no contract-specific calendar is supplied.
-    pub default_calendar_id: String,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CdsConventionRecord {
-    doc_clause: CDSConvention,
-    day_count: DayCount,
-    payment_frequency: String,
-    business_day_convention: BusinessDayConvention,
-    stub_convention: StubKind,
-    settlement_days: u16,
-    calendar_id: String,
-}
-
-impl CdsConventionRecord {
-    fn try_into_resolved(self) -> finstack_quant_core::Result<CdsConventionResolved> {
-        let frequency = Tenor::parse(&self.payment_frequency).map_err(|e| {
-            finstack_quant_core::Error::Validation(format!(
-                "Invalid `payment_frequency` in CDS conventions registry: '{}': {}",
-                self.payment_frequency, e
-            ))
-        })?;
-        Ok(CdsConventionResolved {
-            doc_clause: self.doc_clause,
-            day_count: self.day_count,
-            frequency,
-            business_day_convention: self.business_day_convention,
-            stub_convention: self.stub_convention,
-            settlement_delay_days: self.settlement_days,
-            default_calendar_id: self.calendar_id,
-        })
-    }
-}
-
-fn normalize_cds_key(id: &str) -> String {
-    id.trim().to_string()
-}
-
-/// Returns the global CDS conventions registry, lazily initialized from embedded JSON.
-///
-/// # Panics
-///
-/// Panics if the embedded `cds_conventions.json` file is corrupted or malformed.
-/// This is intentional: corrupted embedded data represents a build/packaging error
-/// that cannot be recovered at runtime and should fail fast during startup.
-#[allow(clippy::expect_used)]
-fn cds_conventions_registry() -> &'static finstack_quant_core::HashMap<String, CdsConventionResolved>
-{
-    static REGISTRY: OnceLock<finstack_quant_core::HashMap<String, CdsConventionResolved>> =
-        OnceLock::new();
-    REGISTRY.get_or_init(|| {
-        let json = include_str!("../../../../data/conventions/cds_conventions.json");
-        let file: crate::market::conventions::loaders::json::RegistryFile<CdsConventionRecord> =
-            serde_json::from_str(json)
-                .expect("Failed to parse embedded CDS conventions registry JSON");
-
-        // Build the registry, converting each record to resolved form
-        let mut map = finstack_quant_core::HashMap::default();
-        for entry in file.entries {
-            // Each entry can have multiple alias IDs
-            match entry.record.clone().try_into_resolved() {
-                Ok(resolved) => {
-                    for id in &entry.ids {
-                        let key = normalize_cds_key(id);
-                        map.insert(key, resolved.clone());
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(ids = ?entry.ids, error = %e, "Failed to load CDS convention");
-                }
-            }
-        }
-        map
-    })
-}
-
 pub use crate::instruments::common_impl::parameters::legs::{PremiumLegSpec, ProtectionLegSpec};
 
 /// Resolve a meta documentation clause (e.g., `IsdaNa`, `IsdaEu`) to its
@@ -573,7 +252,7 @@ pub struct CreditDefaultSwap {
     /// Buyer/seller perspective
     pub side: PayReceive,
     /// ISDA convention
-    pub convention: CDSConvention,
+    pub convention: CdsConvention,
     /// Premium leg specification
     pub premium: PremiumLegSpec,
     /// Protection leg specification
@@ -702,7 +381,7 @@ impl CreditDefaultSwap {
     /// Returns a 5-year investment-grade CDS with standard ISDA conventions.
     #[allow(clippy::expect_used)] // Example uses hardcoded valid values
     pub fn example() -> Self {
-        let convention = CDSConvention::IsdaNa;
+        let convention = CdsConvention::IsdaNa;
         let day_count = convention.day_count();
         let frequency = convention.frequency();
         let business_day_convention = convention.business_day_convention();
@@ -750,7 +429,7 @@ impl CreditDefaultSwap {
     /// after premium start), and a 2% upfront payment.
     #[allow(clippy::expect_used)] // Example uses hardcoded valid values
     pub fn example_forward_start() -> Self {
-        let convention = CDSConvention::IsdaEu;
+        let convention = CdsConvention::IsdaEu;
         let day_count = convention.day_count();
         let frequency = convention.frequency();
         let business_day_convention = convention.business_day_convention();
@@ -818,7 +497,7 @@ impl CreditDefaultSwap {
         id: impl Into<InstrumentId>,
         notional: Money,
         side: PayReceive,
-        convention: CDSConvention,
+        convention: CdsConvention,
         spread_bp: Decimal,
         start: finstack_quant_core::dates::Date,
         end: finstack_quant_core::dates::Date,
@@ -887,7 +566,7 @@ impl CreditDefaultSwap {
     /// use finstack_quant_core::money::Money;
     /// use finstack_quant_core::types::CurveId;
     /// use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
-    /// use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
+    /// use finstack_quant_valuations::instruments::credit_derivatives::cds::CdsConvention;
     /// use finstack_quant_valuations::instruments::{
     ///     Attributes, CreditDefaultSwap, InstrumentPricingOverrides, PayReceive, PremiumLegSpec,
     ///     ProtectionLegSpec,
@@ -900,22 +579,22 @@ impl CreditDefaultSwap {
     ///     .id("CDS-EXAMPLE".into())
     ///     .notional(Money::new(10_000_000.0, Currency::USD))
     ///     .side(PayReceive::Pay)
-    ///     .convention(CDSConvention::IsdaNa)
+    ///     .convention(CdsConvention::IsdaNa)
     ///     .premium(PremiumLegSpec {
     ///         start: date!(2024 - 03 - 20),
     ///         end: date!(2029 - 03 - 20),
-    ///         frequency: CDSConvention::IsdaNa.frequency(),
-    ///         stub: CDSConvention::IsdaNa.stub_convention(),
-    ///         business_day_convention: CDSConvention::IsdaNa.business_day_convention(),
-    ///         calendar_id: Some(CDSConvention::IsdaNa.default_calendar().to_string()),
-    ///         day_count: CDSConvention::IsdaNa.day_count(),
+    ///         frequency: CdsConvention::IsdaNa.frequency(),
+    ///         stub: CdsConvention::IsdaNa.stub_convention(),
+    ///         business_day_convention: CdsConvention::IsdaNa.business_day_convention(),
+    ///         calendar_id: Some(CdsConvention::IsdaNa.default_calendar().to_string()),
+    ///         day_count: CdsConvention::IsdaNa.day_count(),
     ///         spread_bp: Decimal::try_from(100.0).expect("valid bp"),
     ///         discount_curve_id: CurveId::new("USD-OIS"),
     ///     })
     ///     .protection(ProtectionLegSpec {
     ///         credit_curve_id: CurveId::new("CORP-HAZARD"),
     ///         recovery_rate: STANDARD_RECOVERY_SENIOR,
-    ///         settlement_delay: CDSConvention::IsdaNa.settlement_delay(),
+    ///         settlement_delay: CdsConvention::IsdaNa.settlement_delay(),
     ///     })
     ///     .instrument_pricing_overrides(InstrumentPricingOverrides::default())
     ///     .attributes(Attributes::new())
@@ -1005,10 +684,10 @@ impl CreditDefaultSwap {
         match self.doc_clause {
             Some(clause) => resolve_doc_clause(clause),
             None => match self.convention {
-                CDSConvention::IsdaNa | CDSConvention::IsdaAs | CDSConvention::Custom => {
+                CdsConvention::IsdaNa | CdsConvention::IsdaAs | CdsConvention::Custom => {
                     CdsDocClause::Xr14
                 }
-                CDSConvention::IsdaEu => CdsDocClause::Mm14,
+                CdsConvention::IsdaEu => CdsDocClause::Mm14,
             },
         }
     }
@@ -1234,7 +913,7 @@ mod tests {
             InstrumentId::new("CDS-CORP-5Y"),
             Money::new(10_000_000.0, Currency::USD),
             PayReceive::Pay,
-            CDSConvention::IsdaNa,
+            CdsConvention::IsdaNa,
             Decimal::try_from(100.0).expect("valid spread_bp"),
             date!(2025 - 03 - 20),
             date!(2030 - 03 - 20),
@@ -1247,18 +926,18 @@ mod tests {
         assert_eq!(cds.id, InstrumentId::new("CDS-CORP-5Y"));
         assert_eq!(cds.notional, Money::new(10_000_000.0, Currency::USD));
         assert_eq!(cds.side, PayReceive::Pay);
-        assert_eq!(cds.convention, CDSConvention::IsdaNa);
+        assert_eq!(cds.convention, CdsConvention::IsdaNa);
         assert_eq!(cds.premium.start, date!(2025 - 03 - 20));
         assert_eq!(cds.premium.end, date!(2030 - 03 - 20));
-        assert_eq!(cds.premium.day_count, CDSConvention::IsdaNa.day_count());
-        assert_eq!(cds.premium.frequency, CDSConvention::IsdaNa.frequency());
+        assert_eq!(cds.premium.day_count, CdsConvention::IsdaNa.day_count());
+        assert_eq!(cds.premium.frequency, CdsConvention::IsdaNa.frequency());
         assert_eq!(
             cds.premium.business_day_convention,
-            CDSConvention::IsdaNa.business_day_convention()
+            CdsConvention::IsdaNa.business_day_convention()
         );
         assert_eq!(
             cds.premium.calendar_id.as_deref(),
-            Some(CDSConvention::IsdaNa.default_calendar())
+            Some(CdsConvention::IsdaNa.default_calendar())
         );
         assert_eq!(cds.premium.spread_bp.to_f64(), Some(100.0));
         assert_eq!(cds.premium.discount_curve_id, CurveId::new("USD-OIS"));
@@ -1266,18 +945,8 @@ mod tests {
         assert_eq!(cds.protection.recovery_rate, 0.40);
         assert_eq!(
             cds.protection.settlement_delay,
-            CDSConvention::IsdaNa.settlement_delay()
+            CdsConvention::IsdaNa.settlement_delay()
         );
-    }
-
-    #[test]
-    fn missing_currency_default_falls_back_to_isda_na_alias() {
-        let conv = resolve_market_conventions(Currency::BRL, None)
-            .expect("missing currency default should fall back");
-
-        let isda_na = CDSConvention::IsdaNa.registry();
-
-        assert_eq!(conv, isda_na);
     }
 
     #[test]

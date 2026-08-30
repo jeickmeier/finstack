@@ -40,7 +40,6 @@ use finstack_quant_core::types::UnderlyingId;
 use finstack_quant_core::HashMap;
 use finstack_quant_models::volatility::svi::SviParams;
 use finstack_quant_valuations::instruments::OptionType;
-use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
 use time::Month;
 
 use crate::calibration_support as cal_utils;
@@ -143,7 +142,6 @@ fn svi_option_quotes(base_date: Date) -> Vec<MarketQuote> {
                 strike,
                 vol,
                 option_type: OptionType::Call,
-                convention: OptionConventionId::new("USD-EQ"),
             }));
         }
     }

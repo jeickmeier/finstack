@@ -1,8 +1,10 @@
 //! Interest rate market quote schema.
 
 use super::ids::{Pillar, QuoteId};
+use super::validate;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IndexId;
+use finstack_quant_core::Result;
 use finstack_quant_valuations::market::conventions::ids::IrFutureContractId;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
@@ -211,6 +213,23 @@ impl RateQuote {
         }
     }
 
+    /// Validate that every quoted rate or futures price field is finite.
+    pub fn validate(&self) -> Result<()> {
+        match self {
+            Self::Deposit { rate, .. } | Self::Fra { rate, .. } | Self::Swap { rate, .. } => {
+                validate::finite(*rate, "rate")
+            }
+            Self::Futures {
+                price,
+                convexity_adjustment,
+                ..
+            } => {
+                validate::finite(*price, "price")?;
+                validate::finite(*convexity_adjustment, "convexity_adjustment")
+            }
+        }
+    }
+
     /// Create a new quote with the underlying *rate* bumped by `rate_bump`.
     ///
     /// For rates (deposit, FRA, swap), `rate_bump` is added to the rate (in decimal
@@ -249,59 +268,17 @@ impl RateQuote {
     /// # }
     /// ```
     pub fn bump_rate_decimal(&self, rate_bump: f64) -> Self {
-        match self {
-            RateQuote::Deposit {
-                id,
-                index,
-                pillar,
-                rate,
-            } => RateQuote::Deposit {
-                id: id.clone(),
-                index: index.clone(),
-                pillar: pillar.clone(),
-                rate: rate + rate_bump,
-            },
-            RateQuote::Fra {
-                id,
-                index,
-                start,
-                end,
-                rate,
-            } => RateQuote::Fra {
-                id: id.clone(),
-                index: index.clone(),
-                start: start.clone(),
-                end: end.clone(),
-                rate: rate + rate_bump,
-            },
-            RateQuote::Futures {
-                id,
-                contract,
-                expiry,
-                price,
-                convexity_adjustment,
-            } => RateQuote::Futures {
-                id: id.clone(),
-                contract: contract.clone(),
-                expiry: *expiry,
+        let mut quote = self.clone();
+        match &mut quote {
+            Self::Deposit { rate, .. } | Self::Fra { rate, .. } | Self::Swap { rate, .. } => {
+                *rate += rate_bump;
+            }
+            Self::Futures { price, .. } => {
                 // price = 100·(1 − rate): a +rate bump lowers the price 100×.
-                price: price - rate_bump * 100.0,
-                convexity_adjustment: *convexity_adjustment,
-            },
-            RateQuote::Swap {
-                id,
-                index,
-                pillar,
-                rate,
-                spread_decimal,
-            } => RateQuote::Swap {
-                id: id.clone(),
-                index: index.clone(),
-                pillar: pillar.clone(),
-                rate: rate + rate_bump,
-                spread_decimal: *spread_decimal,
-            },
+                *price -= rate_bump * 100.0;
+            }
         }
+        quote
     }
 
     /// Bump the quote by basis-point units (e.g., `1.0` = 1bp).
@@ -366,7 +343,7 @@ mod tests {
             "spread": 0.0010
         }"#;
 
-        let result: Result<RateQuote, _> = serde_json::from_str(json);
+        let result: std::result::Result<RateQuote, _> = serde_json::from_str(json);
         assert!(result.is_err(), "Legacy 'spread' field should be rejected");
     }
 

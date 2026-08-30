@@ -1,30 +1,5 @@
 {
   "$defs": {
-    "CDSConvention": {
-      "description": "ISDA CDS conventions",
-      "oneOf": [
-        {
-          "const": "isda_na",
-          "description": "Standard North American convention (quarterly, Act/360)",
-          "type": "string"
-        },
-        {
-          "const": "isda_eu",
-          "description": "Standard European convention (quarterly, Act/360)",
-          "type": "string"
-        },
-        {
-          "const": "isda_as",
-          "description": "Standard Asian convention (quarterly, Act/365)",
-          "type": "string"
-        },
-        {
-          "const": "custom",
-          "description": "Custom convention",
-          "type": "string"
-        }
-      ]
-    },
     "CDSOption": {
       "additionalProperties": false,
       "description": "Credit option instrument (option on CDS spread or clean index price)\n\nThe public pricing surface supports European options with cash or\nphysical settlement. Before expiry, cash- and physical-settled options\ncarry the same cash-equivalent model NPV and route through the same\nquadrature; the clean payoff excludes accrued because the same underlying\naccrued appears on both sides before exercise and cancels. A physical\nexercise cashflow at settlement is dirty (includes accrued at exercise\nsettlement), and this pricer does not create or deliver a live underlying\nCDS position — valuation at or after a physical exercise boundary fails\nexplicitly. Non-European exercise is rejected at pricing time so\ndeserialized instruments cannot silently fall through to an unsupported\nengine.",
@@ -160,7 +135,7 @@
           "description": "Contractual coupon `c` of the underlying CDS, expressed as a decimal\nrate (e.g., 0.01 for the 100 bp standard CDX coupon, 0.05 for the\n500 bp standard CDX.HY coupon). When `None`, the synthetic underlying\nCDS uses `strike` as its running coupon — the appropriate single-name\nSNAC default where the trade is struck at the par spread. For CDS\nindex options where the index has a fixed standard coupon different\nfrom the option strike, set this explicitly so the strike-adjustment\nterm `H(K) = ξN(c − K)A(K)` (DOCS 2055833 Eq. 2.4) is populated."
         },
         "underlying_convention": {
-          "$ref": "#/$defs/CDSConvention",
+          "$ref": "#/$defs/CdsConvention",
           "default": "isda_na",
           "description": "Convention used by the underlying CDS contract.\n\nThis controls the CDS schedule, settlement lag, business day convention,\nand other market-standard mechanics used when deriving forward spread and\nrisky annuity for the option's underlying."
         },
@@ -229,6 +204,31 @@
             "clean_price_pct"
           ],
           "type": "object"
+        }
+      ]
+    },
+    "CdsConvention": {
+      "description": "Regional ISDA CDS schedule family.\n\nExact documentation clauses stay on the instrument or quote. This enum\nidentifies the regional schedule family used to resolve calendars,\nday-count, frequency, stub, and settlement from the convention registry.",
+      "oneOf": [
+        {
+          "const": "isda_na",
+          "description": "Standard North American convention (quarterly, Act/360).",
+          "type": "string"
+        },
+        {
+          "const": "isda_eu",
+          "description": "Standard European convention (quarterly, Act/360).",
+          "type": "string"
+        },
+        {
+          "const": "isda_as",
+          "description": "Standard Asian convention (quarterly, Act/365F).",
+          "type": "string"
+        },
+        {
+          "const": "custom",
+          "description": "Custom convention.",
+          "type": "string"
         }
       ]
     },

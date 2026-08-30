@@ -7,10 +7,8 @@
 //! - `market/quotes/vol.rs`
 
 use crate::common::tolerances;
-use finstack_quant_calibration::quotes::bond::BondQuote;
 use finstack_quant_calibration::quotes::cds::CdsQuote;
-use finstack_quant_calibration::quotes::cds_tranche::CDSTrancheQuote;
-use finstack_quant_calibration::quotes::fx::FxQuote;
+use finstack_quant_calibration::quotes::cds_tranche::CdsTrancheQuote;
 use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
 use finstack_quant_calibration::quotes::inflation::InflationQuote;
 use finstack_quant_calibration::quotes::rates::RateQuote;
@@ -21,8 +19,7 @@ use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_core::types::UnderlyingId;
 use finstack_quant_valuations::instruments::OptionType;
 use finstack_quant_valuations::market::conventions::ids::{
-    BondConventionId, CdsConventionKey, CdsDocClause, FxConventionId, FxOptionConventionId,
-    InflationSwapConventionId, OptionConventionId, XccyConventionId,
+    CdsConventionKey, CdsDocClause, InflationSwapConventionId, XccyConventionId,
 };
 use std::str::FromStr;
 
@@ -91,7 +88,7 @@ fn cds_quote_id_and_bump_semantics() {
 
 #[test]
 fn cds_tranche_quote_id_and_bump_semantics() {
-    let q = CDSTrancheQuote::CDSTranche {
+    let q = CdsTrancheQuote {
         id: QuoteId::new("CDX-IG-3-7"),
         index: "CDX.NA.IG".to_string(),
         series: 1,
@@ -108,22 +105,16 @@ fn cds_tranche_quote_id_and_bump_semantics() {
     assert_eq!(q.id().as_str(), "CDX-IG-3-7");
 
     let bumped = q.bump_spread_decimal(0.0001);
-    match bumped {
-        CDSTrancheQuote::CDSTranche {
-            running_spread_bp,
-            upfront_pct,
-            ..
-        } => {
-            assert!(
-                (running_spread_bp - 501.0).abs() < tolerances::TIGHT,
-                "running spread mismatch: expected 501.0, got {running_spread_bp}"
-            );
-            assert!(
-                (upfront_pct + 2.5).abs() < tolerances::TIGHT,
-                "upfront pct should be unchanged: expected -2.5, got {upfront_pct}"
-            );
-        }
-    }
+    assert!(
+        (bumped.running_spread_bp - 501.0).abs() < tolerances::TIGHT,
+        "running spread mismatch: expected 501.0, got {}",
+        bumped.running_spread_bp
+    );
+    assert!(
+        (bumped.upfront_pct + 2.5).abs() < tolerances::TIGHT,
+        "upfront pct should be unchanged: expected -2.5, got {}",
+        bumped.upfront_pct
+    );
 }
 
 #[test]
@@ -154,7 +145,7 @@ fn spread_bump_bp_decimal_parity_for_cds_and_tranche() {
         other => panic!("expected CdsParSpread bumps, got {:?}", other),
     }
 
-    let tranche = CDSTrancheQuote::CDSTranche {
+    let tranche = CdsTrancheQuote {
         id: QuoteId::new("CDX-IG-7-10"),
         index: "CDX.NA.IG".to_string(),
         series: 1,
@@ -171,11 +162,11 @@ fn spread_bump_bp_decimal_parity_for_cds_and_tranche() {
     let tranche_decimal = tranche.bump_spread_decimal(0.0001);
     let tranche_bp = tranche.bump_spread_bp(1.0);
     let (
-        CDSTrancheQuote::CDSTranche {
+        CdsTrancheQuote {
             running_spread_bp: dec,
             ..
         },
-        CDSTrancheQuote::CDSTranche {
+        CdsTrancheQuote {
             running_spread_bp: bp,
             ..
         },
@@ -248,7 +239,6 @@ fn vol_quote_bump_and_swaption_maturity_contract() {
         strike: 4500.0,
         vol: 0.20,
         option_type: OptionType::Call,
-        convention: OptionConventionId::new("USD-EQUITY"),
     };
     let bumped = opt.bump_vol_absolute(0.01).expect("valid volatility bump");
     match bumped {
@@ -325,7 +315,7 @@ fn quote_serialization_roundtrip() {
         other @ CdsQuote::CdsUpfront { .. } => panic!("expected CdsParSpread, got {:?}", other),
     }
 
-    let tranche = CDSTrancheQuote::CDSTranche {
+    let tranche = CdsTrancheQuote {
         id: QuoteId::new("CDX-IG-3-7"),
         index: "CDX.NA.IG".to_string(),
         series: 1,
@@ -340,9 +330,9 @@ fn quote_serialization_roundtrip() {
         },
     };
     let tranche_json = serde_json::to_string(&tranche).expect("serialize tranche");
-    let tranche_parsed: CDSTrancheQuote =
+    let tranche_parsed: CdsTrancheQuote =
         serde_json::from_str(&tranche_json).expect("deserialize tranche");
-    let CDSTrancheQuote::CDSTranche {
+    let CdsTrancheQuote {
         running_spread_bp,
         upfront_pct,
         ..
@@ -385,7 +375,6 @@ fn quote_serialization_roundtrip() {
         strike: 4500.0,
         vol: 0.20,
         option_type: OptionType::Call,
-        convention: OptionConventionId::new("USD-EQUITY"),
     };
     let vol_json = serde_json::to_string(&vol).expect("serialize vol");
     let vol_parsed: VolQuote = serde_json::from_str(&vol_json).expect("deserialize vol");
@@ -397,172 +386,6 @@ fn quote_serialization_roundtrip() {
             );
         }
         other => panic!("expected OptionVol, got {:?}", other),
-    }
-
-    let fx = FxQuote::ForwardOutright {
-        id: QuoteId::new("EURUSD-FWD-3M"),
-        convention: FxConventionId::new("EUR/USD"),
-        pillar: Pillar::Tenor("3M".parse().unwrap()),
-        forward_rate: 1.1050,
-    };
-    let fx_json = serde_json::to_string(&fx).expect("serialize fx");
-    let fx_parsed: FxQuote = serde_json::from_str(&fx_json).expect("deserialize fx");
-    match fx_parsed {
-        FxQuote::ForwardOutright { forward_rate, .. } => {
-            assert!(
-                (forward_rate - 1.1050).abs() < tolerances::TIGHT,
-                "fx forward roundtrip mismatch: expected 1.1050, got {forward_rate}"
-            );
-        }
-        other => panic!("expected ForwardOutright, got {:?}", other),
-    }
-
-    let fx_swap = FxQuote::SwapOutright {
-        id: QuoteId::new("EURUSD-SWAP-3M"),
-        convention: FxConventionId::new("EUR/USD"),
-        far_pillar: Pillar::Tenor("3M".parse().unwrap()),
-        near_rate: 1.1000,
-        far_rate: 1.1055,
-    };
-    let fx_swap_json = serde_json::to_string(&fx_swap).expect("serialize fx swap");
-    let fx_swap_parsed: FxQuote = serde_json::from_str(&fx_swap_json).expect("deserialize fx swap");
-    match fx_swap_parsed {
-        FxQuote::SwapOutright {
-            near_rate,
-            far_rate,
-            ..
-        } => {
-            assert!(
-                (near_rate - 1.1000).abs() < tolerances::TIGHT,
-                "fx swap near rate mismatch: expected 1.1000, got {near_rate}"
-            );
-            assert!(
-                (far_rate - 1.1055).abs() < tolerances::TIGHT,
-                "fx swap far rate mismatch: expected 1.1055, got {far_rate}"
-            );
-        }
-        other => panic!("expected SwapOutright, got {:?}", other),
-    }
-
-    let bond = BondQuote::FixedRateBulletCleanPrice {
-        id: QuoteId::new("BOND-UST-5Y"),
-        currency: Currency::USD,
-        issue_date: d(2025, time::Month::January, 15),
-        maturity: d(2030, time::Month::January, 15),
-        coupon_rate: 0.045,
-        convention: BondConventionId::new("USD-UST"),
-        clean_price_pct: 99.25,
-    };
-    let bond_json = serde_json::to_string(&bond).expect("serialize bond");
-    let bond_parsed: BondQuote = serde_json::from_str(&bond_json).expect("deserialize bond");
-    match bond_parsed {
-        BondQuote::FixedRateBulletCleanPrice {
-            clean_price_pct,
-            coupon_rate,
-            ..
-        } => {
-            assert!(
-                (clean_price_pct - 99.25).abs() < tolerances::TIGHT,
-                "bond clean price mismatch: expected 99.25, got {clean_price_pct}"
-            );
-            assert!(
-                (coupon_rate - 0.045).abs() < tolerances::TIGHT,
-                "bond coupon mismatch: expected 0.045, got {coupon_rate}"
-            );
-        }
-        other => panic!("expected FixedRateBulletCleanPrice, got {:?}", other),
-    }
-
-    let bond_ytm = BondQuote::FixedRateBulletYtm {
-        id: QuoteId::new("BOND-CORP-5Y-YTM"),
-        currency: Currency::USD,
-        issue_date: d(2025, time::Month::January, 15),
-        maturity: d(2030, time::Month::January, 15),
-        coupon_rate: 0.045,
-        convention: BondConventionId::new("USD-CORP"),
-        ytm: 0.0475,
-    };
-    let bond_ytm_json = serde_json::to_string(&bond_ytm).expect("serialize bond ytm");
-    let bond_ytm_parsed: BondQuote =
-        serde_json::from_str(&bond_ytm_json).expect("deserialize bond ytm");
-    match bond_ytm_parsed {
-        BondQuote::FixedRateBulletYtm {
-            ytm, coupon_rate, ..
-        } => {
-            assert!(
-                (ytm - 0.0475).abs() < tolerances::TIGHT,
-                "bond ytm mismatch: expected 0.0475, got {ytm}"
-            );
-            assert!(
-                (coupon_rate - 0.045).abs() < tolerances::TIGHT,
-                "bond coupon mismatch: expected 0.045, got {coupon_rate}"
-            );
-        }
-        other => panic!("expected FixedRateBulletYtm, got {:?}", other),
-    }
-
-    let bond_zspread = BondQuote::FixedRateBulletZSpread {
-        id: QuoteId::new("BOND-CORP-5Y-Z"),
-        currency: Currency::USD,
-        issue_date: d(2025, time::Month::January, 15),
-        maturity: d(2030, time::Month::January, 15),
-        coupon_rate: 0.045,
-        convention: BondConventionId::new("USD-CORP"),
-        z_spread: 0.0120,
-    };
-    let bond_z_json = serde_json::to_string(&bond_zspread).expect("serialize bond zspread");
-    let bond_z_parsed: BondQuote =
-        serde_json::from_str(&bond_z_json).expect("deserialize bond zspread");
-    match bond_z_parsed {
-        BondQuote::FixedRateBulletZSpread { z_spread, .. } => {
-            assert!((z_spread - 0.0120).abs() < tolerances::TIGHT);
-        }
-        other => panic!("expected FixedRateBulletZSpread, got {:?}", other),
-    }
-
-    let bond_oas = BondQuote::FixedRateBulletOas {
-        id: QuoteId::new("BOND-CORP-5Y-OAS"),
-        currency: Currency::USD,
-        issue_date: d(2025, time::Month::January, 15),
-        maturity: d(2030, time::Month::January, 15),
-        coupon_rate: 0.045,
-        convention: BondConventionId::new("USD-CORP"),
-        oas: 0.0080,
-    };
-    let bond_oas_json = serde_json::to_string(&bond_oas).expect("serialize bond oas");
-    let bond_oas_parsed: BondQuote =
-        serde_json::from_str(&bond_oas_json).expect("deserialize bond oas");
-    match bond_oas_parsed {
-        BondQuote::FixedRateBulletOas { oas, .. } => {
-            assert!((oas - 0.0080).abs() < tolerances::TIGHT);
-        }
-        other => panic!("expected FixedRateBulletOas, got {:?}", other),
-    }
-
-    let fx_option = FxQuote::OptionVanilla {
-        id: QuoteId::new("EURUSD-CALL-6M"),
-        convention: FxOptionConventionId::new("EUR/USD-VANILLA"),
-        expiry: d(2025, time::Month::July, 10),
-        strike: 1.12,
-        option_type: OptionType::Call,
-        vol_surface_id: "EURUSD-VOL".into(),
-    };
-    let fx_option_json = serde_json::to_string(&fx_option).expect("serialize fx option");
-    let fx_option_parsed: FxQuote =
-        serde_json::from_str(&fx_option_json).expect("deserialize fx option");
-    match fx_option_parsed {
-        FxQuote::OptionVanilla {
-            strike,
-            option_type,
-            ..
-        } => {
-            assert!(
-                (strike - 1.12).abs() < tolerances::TIGHT,
-                "fx option strike mismatch: expected 1.12, got {strike}"
-            );
-            assert_eq!(option_type, OptionType::Call);
-        }
-        other => panic!("expected OptionVanilla, got {:?}", other),
     }
 }
 
@@ -642,7 +465,7 @@ fn quote_denies_unknown_fields() {
       "convention": { "currency": "USD", "doc_clause": "cr14" },
       "extra": "nope"
     }"#;
-    assert!(serde_json::from_str::<CDSTrancheQuote>(tranche_bad).is_err());
+    assert!(serde_json::from_str::<CdsTrancheQuote>(tranche_bad).is_err());
 
     let infl_bad = r#"
     {
@@ -672,47 +495,8 @@ fn quote_denies_unknown_fields() {
 }
 
 #[test]
-fn bond_fx_and_xccy_quote_helpers_preserve_ids_and_bumps() {
-    let bond = BondQuote::FixedRateBulletCleanPrice {
-        id: QuoteId::new("BOND-HELPER"),
-        currency: Currency::USD,
-        issue_date: d(2025, time::Month::January, 15),
-        maturity: d(2030, time::Month::January, 15),
-        coupon_rate: 0.045,
-        convention: BondConventionId::new("USD-UST"),
-        clean_price_pct: 99.25,
-    };
-    assert_eq!(bond.id().as_str(), "BOND-HELPER");
-    assert!((bond.value() - 99.25).abs() < tolerances::TIGHT);
-    match bond.bump_value_bp(10.0) {
-        BondQuote::FixedRateBulletCleanPrice {
-            clean_price_pct, ..
-        } => assert!((clean_price_pct - 99.251).abs() < tolerances::TIGHT),
-        other => panic!("expected clean-price bond quote, got {other:?}"),
-    }
-
-    let fx = FxQuote::SwapOutright {
-        id: QuoteId::new("EURUSD-SWAP"),
-        convention: FxConventionId::new("EUR/USD"),
-        far_pillar: Pillar::Tenor("3M".parse().expect("valid tenor")),
-        near_rate: 1.10,
-        far_rate: 1.105,
-    };
-    assert_eq!(fx.id().as_str(), "EURUSD-SWAP");
-    assert!((fx.value() - 1.105).abs() < tolerances::TIGHT);
-    match fx.bump_rate_decimal(0.0025) {
-        FxQuote::SwapOutright {
-            near_rate,
-            far_rate,
-            ..
-        } => {
-            assert!((near_rate - 1.1025).abs() < tolerances::TIGHT);
-            assert!((far_rate - 1.1075).abs() < tolerances::TIGHT);
-        }
-        other => panic!("expected FX swap quote, got {other:?}"),
-    }
-
-    let xccy = XccyQuote::BasisSwap {
+fn xccy_quote_helpers_preserve_ids_and_bumps() {
+    let xccy = XccyQuote {
         id: QuoteId::new("EURUSD-XCCY-5Y"),
         convention: XccyConventionId::new("EUR/USD-XCCY"),
         far_pillar: Pillar::Tenor("5Y".parse().expect("valid tenor")),
@@ -721,27 +505,15 @@ fn bond_fx_and_xccy_quote_helpers_preserve_ids_and_bumps() {
     };
     assert_eq!(xccy.id().as_str(), "EURUSD-XCCY-5Y");
     assert!((xccy.value() - 12.5).abs() < tolerances::TIGHT);
-    match xccy.bump_spread_decimal(0.0002) {
-        XccyQuote::BasisSwap {
-            basis_spread_bp,
-            spot_fx,
-            ..
-        } => {
-            assert!((basis_spread_bp - 14.5).abs() < tolerances::TIGHT);
-            assert_eq!(spot_fx, Some(1.08));
-        }
-    }
+    let bumped = xccy.bump_spread_decimal(0.0002);
+    assert!((bumped.basis_spread_bp - 14.5).abs() < tolerances::TIGHT);
+    assert_eq!(bumped.spot_fx, Some(1.08));
 }
 
 #[test]
 fn convention_ids_and_doc_clause_names_roundtrip() {
-    let bond = BondConventionId::from("USD-CORP");
-    let fx = FxConventionId::new("EUR/USD");
     let xccy = XccyConventionId::new("EUR/USD-XCCY");
 
-    assert_eq!(bond.as_str(), "USD-CORP");
-    assert_eq!(bond.to_string(), "USD-CORP");
-    assert_eq!(fx.as_str(), "EUR/USD");
     assert_eq!(xccy.to_string(), "EUR/USD-XCCY");
 
     let clause = CdsDocClause::from_str("isda_na").expect("canonical name should parse");
