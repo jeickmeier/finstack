@@ -1205,8 +1205,7 @@ impl CashFlowSchedule {
         }
     }
 
-    /// Periodized PVs from a market context, using
-    /// [`crate::aggregation::DateContext::with_default_context`].
+    /// Periodized PVs from a market context using the default day-count context.
     ///
     /// When `day_count` is omitted, discount times use Act/365F.
     ///
@@ -1239,9 +1238,10 @@ impl CashFlowSchedule {
                 disc_curve_id,
                 hazard_curve_id,
             },
-            crate::aggregation::DateContext::with_default_context(
+            crate::aggregation::DateContext::new(
                 base,
                 day_count.unwrap_or(DayCount::Act365F),
+                DayCountContext::default(),
             ),
         )
     }

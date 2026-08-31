@@ -487,19 +487,6 @@ impl<'a> DateContext<'a> {
     }
 }
 
-impl DateContext<'static> {
-    /// Date context using [`DayCountContext::default`].
-    ///
-    /// # Arguments
-    ///
-    /// * `base` - Valuation or anchor date used for year-fraction calculations.
-    /// * `day_count` - Day-count convention used to map dates into year fractions.
-    #[must_use]
-    pub fn with_default_context(base: Date, day_count: DayCount) -> Self {
-        Self::new(base, day_count, DayCountContext::default())
-    }
-}
-
 /// Calendar-year non-principal / principal / PV totals for one reporting year.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CalendarYearLadderRow {
