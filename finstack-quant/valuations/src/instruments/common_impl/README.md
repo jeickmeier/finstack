@@ -44,12 +44,14 @@ numeric-serde helpers that keep instrument invariants uniform.
 | `legs.rs` | `PayReceive`, `ParRateMethod`, `FixedLegSpec`, `FloatLegSpec`, `BasisSwapLeg`, `PremiumLegSpec`, `ProtectionLegSpec`, `FinancingLegSpec`, `FinancingRateCompounding`, `TotalReturnLegSpec` |
 | `underlying.rs` | `FxUnderlyingParams`, `EquityUnderlyingParams`, `CommodityUnderlyingParams`, `IndexUnderlyingParams` |
 | `market.rs` | `OptionType`, `ExerciseStyle`, `SettlementType`, `CreditParams` |
-| `option_market.rs` | `OptionMarketParams` |
 | `conventions.rs` | `BondConvention`, `IRSConvention`, `CommodityConvention` |
 | `contract.rs` | `ContractSpec`, `ScheduleSpec` |
 | `quanto.rs` | `QuantoSpec` (validated correlation in `[-1, 1]`) |
 | `trs_common.rs` | `TrsSide`, `TrsScheduleSpec` — shared by equity and fixed-income TRS |
 | `volatility.rs` | `VolatilityModel` plus a re-export of `crate::models::volatility::SABRParameters` |
+
+`OptionMarketParams` is re-exported directly from `finstack-quant-models`, its
+canonical owner.
 
 ### `pricing/`
 

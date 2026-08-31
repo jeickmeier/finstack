@@ -11,7 +11,6 @@ pub mod contract;
 pub mod conventions;
 pub mod legs;
 pub mod market;
-pub mod option_market;
 pub mod quanto;
 pub mod trs_common;
 pub mod underlying;
@@ -19,12 +18,12 @@ pub mod volatility;
 
 pub use contract::{ContractSpec, ScheduleSpec};
 pub use conventions::{BondConvention, CommodityConvention, IRSConvention};
+pub use finstack_quant_models::types::OptionMarketParams;
 pub use legs::{
     BasisSwapLeg, FinancingLegSpec, FinancingRateCompounding, FixedLegSpec, FloatLegSpec,
     ParRateMethod, PayReceive, PremiumLegSpec, ProtectionLegSpec, TotalReturnLegSpec,
 };
 pub use market::{CreditParams, ExerciseStyle, OptionType, SettlementType};
-pub use option_market::OptionMarketParams;
 pub use quanto::QuantoSpec;
 pub use underlying::{
     CommodityUnderlyingParams, EquityUnderlyingParams, FxUnderlyingParams, IndexUnderlyingParams,
