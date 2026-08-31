@@ -2115,6 +2115,7 @@ mod per_name_copula_tests {
     /// `N → ∞`. This both validates the per-name engine and shows the LHP
     /// fast-path is the genuine large-pool limit.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn large_granular_pool_per_name_converges_to_lhp() {
         let market = MarketContext::new().insert((*discount_curve()).clone());
         // 600 names ⇒ granular: per-name realized fraction ≈ LHP conditional.
@@ -2357,6 +2358,7 @@ mod per_name_copula_tests {
     /// Under the canonical single-factor copula one systematic draw governs the
     /// horizon, so defaults cluster; independent monthly factors dilute that.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn persistent_systematic_factor_widens_the_loss_distribution() {
         let market = MarketContext::new().insert((*discount_curve()).clone());
         let deal = clo_deal(60);
@@ -2388,6 +2390,7 @@ mod per_name_copula_tests {
 
     /// Explicit deal `CorrelationStructure` override moves unexpected loss.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn explicit_correlation_structure_changes_the_price() {
         let market = MarketContext::new().insert((*discount_curve()).clone());
         let deal = clo_deal(60);
@@ -2695,6 +2698,7 @@ mod per_name_copula_tests {
     /// granular pools under per-name simulation: with fewer names, the same
     /// correlation, name-level lumpiness fattens the loss tail.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn concentration_increases_loss_dispersion() {
         let market = MarketContext::new().insert((*discount_curve()).clone());
 
@@ -2906,6 +2910,7 @@ mod per_name_copula_tests {
     /// draws a shared mixing `W` per period from the seeded per-path stream,
     /// so repeated runs must stay bit-identical.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn student_t_lhp_pricing_is_deterministic() {
         let market = MarketContext::new().insert((*discount_curve()).clone());
         let deal = clo_deal(600);

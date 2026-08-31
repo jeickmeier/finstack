@@ -1081,6 +1081,7 @@ mod tests {
     /// starting parameters must fail rather than return a silently-wrong
     /// price. Opting out is explicit.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn cheyette_rough_pricer_enforces_calibration_by_default() {
         let as_of = Date::from_calendar_date(2025, Month::January, 17).expect("date");
         let market = build_cheyette_market(as_of);

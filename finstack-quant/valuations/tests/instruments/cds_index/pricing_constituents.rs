@@ -422,6 +422,7 @@ fn test_constituents_large_basket() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn test_constituents_detailed_additive_metrics() {
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);

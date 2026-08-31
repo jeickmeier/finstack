@@ -165,8 +165,9 @@ cargo nextest run -p finstack-quant-valuations --test instruments registry_cover
 
 Long-running cases carry `#[ignore = "slow: covered by mise rust-test-slow"]`
 and are skipped by default. They currently live in `cds`, `cds_index`,
-`cds_option`, `cds_tranche`, `equity_option`, `exotic_harness`, and
-`structured_credit`. Mark a test slow when it is a large property run, a
+`cds_option`, `cds_tranche`, `equity_option`, `exotic_harness`,
+`structured_credit`, and rates swaption/cap-floor Monte Carlo paths.
+Mark a test slow when it is a large property run, a
 multi-scenario loop, a Monte Carlo convergence check, or a calibration
 round-trip.
 

@@ -406,6 +406,7 @@ fn deal_quote_cs_gamma_is_centered_on_override_quote_set() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn bucketed_cs01_quote_uses_each_off_grid_replay_pillar_once() {
     let as_of = date!(2024 - 01 - 01);
     let maturity = date!(2030 - 01 - 01);
