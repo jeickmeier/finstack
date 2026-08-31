@@ -9,6 +9,7 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::{MarketContext, MarketContextState};
 use finstack_quant_core::money::Money;
+use finstack_quant_core::types::Rate;
 use finstack_quant_wasm::api::attribution::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -21,7 +22,7 @@ fn bond_json() -> String {
     let bond = Bond::fixed(
         "WASM-ATTR-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        Rate::from_decimal(0.05),
         date!(2024 - 01 - 15),
         date!(2029 - 01 - 15),
         finstack_quant_core::dates::StubKind::ShortFront,

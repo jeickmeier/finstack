@@ -134,11 +134,8 @@ impl PyRate {
     }
 
     /// Unary negation.
-    fn __neg__(&self) -> PyResult<Self> {
-        self.inner
-            .checked_neg()
-            .map(Self::from_inner)
-            .map_err(core_to_py)
+    fn __neg__(&self) -> Self {
+        Self::from_inner(-self.inner)
     }
 }
 

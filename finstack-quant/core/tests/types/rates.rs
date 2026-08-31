@@ -297,7 +297,7 @@ fn checked_rate_arithmetic_rejects_non_finite_results() {
             .abs()
             < 1e-12
     );
-    assert_eq!(rate.checked_neg().unwrap().as_percent(), -3.0);
+    assert_eq!((-rate).as_percent(), -3.0);
 }
 
 #[test]

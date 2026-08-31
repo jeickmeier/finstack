@@ -227,15 +227,6 @@ impl Rate {
         }
         Self::try_from_decimal(self.0 / rhs)
     }
-
-    /// Negate the decimal rate and reject a non-finite result.
-    ///
-    /// # Errors
-    ///
-    /// Returns NonFiniteValue if the stored value is non-finite.
-    pub fn checked_neg(self) -> Result<Self> {
-        Self::try_from_decimal(-self.0)
-    }
 }
 
 impl fmt::Display for Rate {
