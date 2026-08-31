@@ -56,7 +56,7 @@ exclusive end date.
 | `forecast` | Deterministic and statistical projection methods driven by `ForecastSpec` |
 | `registry` | `Registry`, `MetricRegistry`, `MetricDefinition`, `UnitType` — the `fin.*` built-in catalog and user namespaces |
 | `capital_structure` | `WaterfallSpec`, `EcfSweepSpec`, `PikToggleSpec`, `CapitalStructureCashflows`, `CashflowBreakdown`, `execute_waterfall`, `calculate_period_flows` |
-| `checks` | `CheckSuite`, `CheckSuiteSpec`, `Check`, `CheckReport`, `FormulaCheck`, and the `builtins` implementations |
+| `checks` | `CheckSuite`, `CheckSuiteSpec`, `Check`, `CheckReport`, `FormulaCheckSpec`, and the `builtins` implementations |
 | `adjustments` | `engine::NormalizationEngine`; `types::NormalizationConfig`/`Adjustment`/`AdjustmentValue`/`AdjustmentCap`. This module has no root re-exports — name the submodule |
 | `formula` | `extract_all_identifiers` — the curated helper boundary shared with the analytics crate |
 | `schema` | `financial_model_spec_schema`, `statement_result_schema`, `normalization_config_schema` |
@@ -201,7 +201,7 @@ serializable `CheckSuiteSpec` via `CheckSuiteSpec::resolve()`.
 
 Built-ins: `BalanceSheetArticulation`, `RetainedEarningsReconciliation`,
 `CashReconciliation`, `MissingValueCheck`, `NonFiniteCheck`,
-`SignConventionCheck`. `FormulaCheck` evaluates an arbitrary DSL predicate per
+`SignConventionCheck`. `FormulaCheckSpec` evaluates an arbitrary DSL predicate per
 period. Findings carry `Severity`, `CheckCategory`, `PeriodScope`, and a
 `Materiality` tolerance.
 

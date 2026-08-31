@@ -447,7 +447,7 @@ impl BuiltinCheckSpec {
     }
 }
 
-/// Serializable descriptor for a user-defined formula check.
+/// Serializable, runnable user-defined formula-check specification.
 ///
 /// Full suite definitions (built-in + formula) can be stored as a single JSON
 /// document and resolved directly with [`CheckSuiteSpec::resolve`].
@@ -473,12 +473,3 @@ pub struct FormulaCheckSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<f64>,
 }
-
-/// Runnable user-defined statement formula check.
-///
-/// This alias preserves the concise construction name while the serialized
-/// suite field continues to use [`FormulaCheckSpec`]. Evaluation uses the
-/// canonical statements DSL compiler and evaluator. A non-zero finite result
-/// passes; zero and non-finite results produce a finding, while parse, lookup,
-/// and evaluation failures are returned explicitly.
-pub type FormulaCheck = FormulaCheckSpec;

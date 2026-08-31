@@ -6,7 +6,7 @@
 //!
 //! Higher-level conveniences:
 //!
-//! - [`FormulaCheck`] — user-defined expression checks evaluated per period
+//! - [`FormulaCheckSpec`] — user-defined expression checks evaluated per period
 //! - [`CreditMapping`] and [`ThreeStatementMapping`] — typed node-id mappings for common model patterns
 //! - [`three_statement_checks`], [`credit_underwriting_checks`], and [`lbo_model_checks`] — pre-built check suites
 //! - [`CheckReportRenderer`] — render [`finstack_quant_statements::checks::CheckReport`] as
@@ -29,7 +29,7 @@ pub use reconciliation::{
     InterestExpenseReconciliation,
 };
 
-pub use finstack_quant_statements::checks::FormulaCheck;
+pub use finstack_quant_statements::checks::FormulaCheckSpec;
 pub use mappings::{CreditMapping, ThreeStatementMapping};
 pub use renderer::CheckReportRenderer;
 pub use suites::{credit_underwriting_checks, lbo_model_checks, three_statement_checks};

@@ -8,7 +8,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_statements::builder::ModelBuilder;
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
 use finstack_quant_statements::checks::{
-    Check, CheckCategory, CheckContext, FormulaCheck, Severity,
+    Check, CheckCategory, CheckContext, FormulaCheckSpec, Severity,
 };
 use finstack_quant_statements::evaluator::Evaluator;
 use finstack_quant_statements::types::AmountOrScalar;
@@ -35,7 +35,7 @@ fn revenue_positive_passes() {
     let mut ev = Evaluator::new();
     let results = ev.evaluate(&model).unwrap();
 
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "revenue_positive".into(),
         name: "Revenue must be positive".into(),
         category: CheckCategory::InternalConsistency,
@@ -66,7 +66,7 @@ fn failing_formula_produces_finding() {
     let mut ev = Evaluator::new();
     let results = ev.evaluate(&model).unwrap();
 
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "revenue_positive".into(),
         name: "Revenue must be positive".into(),
         category: CheckCategory::InternalConsistency,
@@ -100,7 +100,7 @@ fn warning_severity_does_not_fail() {
     let mut ev = Evaluator::new();
     let results = ev.evaluate(&model).unwrap();
 
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "margin_nonzero".into(),
         name: "Margin should not be zero".into(),
         category: CheckCategory::InternalConsistency,
@@ -134,7 +134,7 @@ fn arithmetic_formula_evaluates() {
     let results = ev.evaluate(&model).unwrap();
 
     // assets - liabilities = 40 > 0  → result is 1.0 (truthy), passes.
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "equity_positive".into(),
         name: "Equity positive".into(),
         category: CheckCategory::AccountingIdentity,
@@ -165,7 +165,7 @@ fn json_deserialization_works() {
         "tolerance": 0.01
     }"#;
 
-    let check: FormulaCheck = serde_json::from_str(json).unwrap();
+    let check: FormulaCheckSpec = serde_json::from_str(json).unwrap();
 
     assert_eq!(check.id, "test_check");
     assert_eq!(check.category, CheckCategory::DataQuality);
@@ -186,7 +186,7 @@ fn missing_node_returns_error() {
     let mut ev = Evaluator::new();
     let results = ev.evaluate(&model).unwrap();
 
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "check_missing".into(),
         name: "Missing node".into(),
         category: CheckCategory::DataQuality,
@@ -218,7 +218,7 @@ fn nested_expression_gross_margin() {
     let results = ev.evaluate(&model).unwrap();
 
     // (1000 - 700) / 1000 = 0.30 >= 0.20 → pass
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "gross_margin_floor".into(),
         name: "Gross margin >= 20%".into(),
         category: CheckCategory::InternalConsistency,
@@ -249,7 +249,7 @@ fn nested_expression_gross_margin_fails() {
     let results = ev.evaluate(&model).unwrap();
 
     // (1000 - 850) / 1000 = 0.15 < 0.20 → fail
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "gross_margin_floor".into(),
         name: "Gross margin >= 20%".into(),
         category: CheckCategory::InternalConsistency,
@@ -283,7 +283,7 @@ fn abs_function_in_formula() {
     let results = ev.evaluate(&model).unwrap();
 
     // abs(1000 - 600 - 400) = 0.0 < 0.01 → 1.0 (truthy) → pass
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "bs_identity".into(),
         name: "BS identity via abs".into(),
         category: CheckCategory::AccountingIdentity,
@@ -314,7 +314,7 @@ fn abs_function_detects_imbalance() {
     let results = ev.evaluate(&model).unwrap();
 
     // abs(1000 - 600 - 300) = 100.0, NOT < 0.01 → 0.0 (falsy) → fail
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "bs_identity".into(),
         name: "BS identity via abs".into(),
         category: CheckCategory::AccountingIdentity,
@@ -349,7 +349,7 @@ fn multi_operator_addition() {
     let results = ev.evaluate(&model).unwrap();
 
     // a + b + c == total → 60 == 60 → 1.0 → pass
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "sum_check".into(),
         name: "Sum matches total".into(),
         category: CheckCategory::AccountingIdentity,
@@ -381,7 +381,7 @@ fn max_min_functions() {
     let results = ev.evaluate(&model).unwrap();
 
     // max(5, 10) == 10 → pass
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "max_check".into(),
         name: "Max check".into(),
         category: CheckCategory::DataQuality,
@@ -396,7 +396,7 @@ fn max_min_functions() {
     assert!(result.passed);
 
     // min(5, 10) == 5 → pass
-    let check_min = FormulaCheck {
+    let check_min = FormulaCheckSpec {
         id: "min_check".into(),
         name: "Min check".into(),
         category: CheckCategory::DataQuality,
@@ -425,7 +425,7 @@ fn if_conditional_formula() {
     let results = ev.evaluate(&model).unwrap();
 
     // if(revenue > 500, 1, 0) → 1.0 → pass
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "cond_check".into(),
         name: "Conditional check".into(),
         category: CheckCategory::InternalConsistency,
@@ -450,7 +450,7 @@ fn canonical_variadic_function_is_supported() {
         .build()
         .unwrap();
     let results = Evaluator::new().evaluate(&model).unwrap();
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "sum_check".into(),
         name: "Canonical sum".into(),
         category: CheckCategory::InternalConsistency,
@@ -474,7 +474,7 @@ fn canonical_time_series_function_uses_evaluated_history() {
         .build()
         .unwrap();
     let results = Evaluator::new().evaluate(&model).unwrap();
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "lag_check".into(),
         name: "Canonical lag".into(),
         category: CheckCategory::InternalConsistency,
@@ -504,7 +504,7 @@ fn capital_structure_reference_uses_result_cashflows() {
     cashflows.reporting_currency = Some(Currency::USD);
     results.cs_cashflows = Some(cashflows);
 
-    let check = FormulaCheck {
+    let check = FormulaCheckSpec {
         id: "interest_check".into(),
         name: "Canonical capital structure reference".into(),
         category: CheckCategory::InternalConsistency,

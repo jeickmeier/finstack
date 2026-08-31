@@ -77,7 +77,7 @@ pub use valuation::{
 
 pub use checks::{
     credit_underwriting_checks, lbo_model_checks, three_statement_checks, CheckReportRenderer,
-    CreditMapping, FormulaCheck, ThreeStatementMapping, TrendDirection,
+    CreditMapping, FormulaCheckSpec, ThreeStatementMapping, TrendDirection,
 };
 
 pub use ecl::{
