@@ -54,9 +54,6 @@ Everything lives under `finstack_quant_test_utils::golden`, except the
 | `load_suite_from_str` | Parse a fixture from an in-memory JSON string |
 | `golden_path` | `(manifest_dir, relative)` → `<crate>/tests/golden/<relative>` |
 | `golden_path!` | Macro wrapper that supplies `env!("CARGO_MANIFEST_DIR")` |
-| `assert_expected_f64` | Compare an `f64` against an `Expectation` |
-| `assert_within_tolerance` | Compare against a value + explicit `Tolerance` |
-| `assert_abs` | Compare against a value + absolute tolerance |
 | `GoldenAssert` | Assertion context bound to a `SuiteMeta` and case id |
 
 All fallible helpers return `Result<T, finstack_quant_test_utils::Error>`, where

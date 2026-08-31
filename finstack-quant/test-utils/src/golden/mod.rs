@@ -44,8 +44,8 @@
 //! [`ReferenceSource`], [`GeneratedInfo`], [`ValidatedInfo`], [`Expectation`],
 //! and [`Tolerance`]. [`load_suite_from_path`] and [`load_suite_from_str`] load
 //! the envelope; [`golden_path`] and `golden_path!` resolve crate-local fixture
-//! paths. [`assert_abs`], [`assert_expected_f64`],
-//! [`assert_within_tolerance`], and [`GoldenAssert`] compare results.
+//! paths. [`GoldenAssert`] compares results while retaining suite and case
+//! context for diagnostics.
 //!
 //! # Example
 //!
@@ -87,4 +87,4 @@ pub use types::{
 
 pub use loader::{golden_path, load_suite_from_path, load_suite_from_str};
 
-pub use compare::{assert_abs, assert_expected_f64, assert_within_tolerance, GoldenAssert};
+pub use compare::GoldenAssert;
