@@ -15,7 +15,7 @@ use crate::bindings::core::money::PyMoney;
 use crate::bindings::core::types::{PyBps, PyRate};
 use crate::bindings::valuations::merton_mc::{PyMertonMcConfig, PyMertonMcResult};
 use crate::errors::{core_to_py, serde_json_to_py};
-use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope, InstrumentJson};
+use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 
 /// Parse a canonical typed-instrument envelope through the shared Rust path.
 pub(crate) fn parse_typed_instrument_json(json: &str) -> PyResult<InstrumentJson> {
@@ -290,10 +290,7 @@ impl PyBond {
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
-            InstrumentJson::Bond(inner) => {
-                inner.validate_for_pricing().map_err(core_to_py)?;
-                Ok(Self { inner })
-            }
+            InstrumentJson::Bond(inner) => Ok(Self { inner }),
             _ => Err(crate::errors::value_error(
                 "expected instrument type \"bond\", got a different instrument type",
             )),
@@ -422,10 +419,7 @@ impl PyTermLoan {
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
-            InstrumentJson::TermLoan(inner) => {
-                inner.validate_for_pricing().map_err(core_to_py)?;
-                Ok(Self { inner })
-            }
+            InstrumentJson::TermLoan(inner) => Ok(Self { inner }),
             _ => Err(crate::errors::value_error(
                 "expected instrument type \"term_loan\", got a different instrument type",
             )),

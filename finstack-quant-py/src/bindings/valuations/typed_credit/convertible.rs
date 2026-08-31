@@ -104,10 +104,7 @@ impl PyConvertibleBond {
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         match parse_typed_instrument_json(json)? {
-            InstrumentJson::ConvertibleBond(inner) => {
-                inner.validate_for_pricing().map_err(core_to_py)?;
-                Ok(Self { inner })
-            }
+            InstrumentJson::ConvertibleBond(inner) => Ok(Self { inner }),
             _ => Err(value_error(
                 "expected instrument type \"convertible_bond\", got a different instrument type",
             )),

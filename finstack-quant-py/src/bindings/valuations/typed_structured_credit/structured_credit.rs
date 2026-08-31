@@ -284,7 +284,6 @@ impl PyStructuredCredit {
         match parse_typed_instrument_json(json)? {
             InstrumentJson::StructuredCredit(inner) => {
                 let inner = *inner;
-                inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
             }
             _ => Err(value_error(
