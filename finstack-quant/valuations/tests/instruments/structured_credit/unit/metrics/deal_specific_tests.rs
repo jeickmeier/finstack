@@ -3,7 +3,7 @@
 //! Tests cover:
 //! - ABS speed, delinquency, charge-off, excess spread
 //! - CMBS LTV, DSCR
-//! - RMBS LTV, FICO, WAL adjustments
+//! - RMBS WAL sensitivity to PSA speed
 
 // Deal-specific metrics are best tested in integration context
 // where we can construct full instruments with realistic data
@@ -11,14 +11,16 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     AbsChargeOffCalculator, AbsCreditEnhancementCalculator, AssetPool, CmbsDscrCalculator,
-    DealType, PoolAsset, RmbsWalCalculator, StructuredCredit, Tranche, TrancheCoupon,
-    TrancheSeniority, TrancheStructure,
+    DealType, PoolAsset, StructuredCredit, Tranche, TrancheCoupon, TrancheSeniority,
+    TrancheStructure,
 };
-use finstack_quant_valuations::metrics::{MetricCalculator, MetricContext};
+use finstack_quant_valuations::instruments::{Instrument, PricingOptions};
+use finstack_quant_valuations::metrics::{MetricCalculator, MetricContext, MetricId};
 use std::sync::Arc;
 use time::Month;
 
@@ -42,17 +44,28 @@ fn rmbs_instrument() -> StructuredCredit {
         Date::from_calendar_date(2030, Month::January, 1).unwrap(),
     )
     .unwrap();
-    let tranches = TrancheStructure::new(vec![tranche]).unwrap();
 
     StructuredCredit::new_rmbs(
         "RMBS-TEST",
         pool,
-        tranches,
+        TrancheStructure::new(vec![tranche]).unwrap(),
         Date::from_calendar_date(2025, Month::January, 1).unwrap(),
         Date::from_calendar_date(2030, Month::January, 1).unwrap(),
         "USD-OIS",
     )
     .with_payment_calendar("nyse")
+}
+
+fn flat_discount_curve(base: Date) -> DiscountCurve {
+    DiscountCurve::builder("USD-OIS")
+        .base_date(base)
+        .knots(vec![
+            (0.0, 1.0),
+            (1.0, (-0.04_f64).exp()),
+            (5.0, (-0.2_f64).exp()),
+        ])
+        .build()
+        .unwrap()
 }
 
 fn cmbs_instrument() -> StructuredCredit {
@@ -246,18 +259,17 @@ fn test_cmbs_dscr_requires_typed_inputs_and_matching_currency() {
 #[test]
 fn test_rmbs_wal_adjusts_with_psa_speed() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
+    let market = MarketContext::new().insert(flat_discount_curve(as_of));
 
-    let mut base = rmbs_instrument();
-    base.behavior_overrides.psa_speed_multiplier = Some(1.0);
-    let wal_base = RmbsWalCalculator
-        .calculate(&mut metric_context(base, as_of))
-        .unwrap();
+    let wal = |speed| {
+        let mut rmbs = rmbs_instrument();
+        rmbs.behavior_overrides.psa_speed_multiplier = Some(speed);
+        rmbs.price_with_metrics(&market, as_of, &[MetricId::WAL], PricingOptions::default())
+            .unwrap()
+            .measures["wal"]
+    };
 
-    let mut fast = rmbs_instrument();
-    fast.behavior_overrides.psa_speed_multiplier = Some(2.0);
-    let wal_fast = RmbsWalCalculator
-        .calculate(&mut metric_context(fast, as_of))
-        .unwrap();
-
+    let wal_base = wal(1.0);
+    let wal_fast = wal(2.0);
     assert!(wal_fast < wal_base, "Higher PSA speeds should shorten WAL");
 }

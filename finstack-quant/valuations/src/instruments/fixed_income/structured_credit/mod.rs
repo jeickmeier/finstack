@@ -104,7 +104,6 @@ pub use metrics::{
     ModifiedDurationCalculator,
     OasConfig,
     OasResult,
-    RmbsWalCalculator,
     ScenarioCell,
     ScenarioGrid,
     ScenarioTable,

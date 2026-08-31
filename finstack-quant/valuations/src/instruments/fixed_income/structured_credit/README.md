@@ -63,7 +63,7 @@ structured_credit/
 │   ├── pricing/       # clean/dirty price, accrued, WAL
 │   ├── risk/          # duration, convexity, YTM, z-spread, OAS, CS01, breakeven CDR, *01 sensitivities
 │   ├── pool/          # WAM, CPR, CDR, WARF, WAS
-│   ├── deal_specific/ # ABS charge-off & credit enhancement, CMBS DSCR, RMBS WAL
+│   ├── deal_specific/ # ABS charge-off & credit enhancement, CMBS DSCR
 │   ├── scenario.rs    # scenario_table
 │   └── summary.rs     # calculate_tranche_metrics
 └── utils/             # rate conversions, floating-rate helpers, recovery queue, validation
@@ -76,7 +76,7 @@ structured_credit/
 | `DealType::Abs` | Auto loans, credit cards | `abs_auto_standard` | `AbsChargeOff`, `AbsCreditEnhancement` |
 | `DealType::Clo` | Leveraged loans | `clo_standard` | `CloWarf`, `CloWas` |
 | `DealType::Cmbs` | Commercial mortgages | `cmbs_standard` | `CmbsDscr` |
-| `DealType::Rmbs` | Residential mortgages | `rmbs_standard` | — (`RmbsWalCalculator` exists but is not registered; use `WAL`) |
+| `DealType::Rmbs` | Residential mortgages | `rmbs_standard` | — (use `WAL`) |
 
 `new_*` constructors pull their `DealConfig` and `DefaultAssumptions` from the
 embedded registry in

@@ -44,7 +44,7 @@ pub(crate) mod summary;
 mod tranche_analytics;
 
 pub use deal_specific::{
-    AbsChargeOffCalculator, AbsCreditEnhancementCalculator, CmbsDscrCalculator, RmbsWalCalculator,
+    AbsChargeOffCalculator, AbsCreditEnhancementCalculator, CmbsDscrCalculator,
 };
 pub use pool::{CdrCalculator, CloWarfCalculator, CloWasCalculator, CprCalculator, WamCalculator};
 pub use pricing::{
