@@ -1,16 +1,14 @@
 //! Credit factor hierarchy detail for metrics-based and Taylor attribution.
 //!
-//! Five focused tests:
+//! Three focused tests:
 //!  1. `metrics_based_no_model_matches_existing_credit_total`
-//!  2. `metrics_based_credit_detail_reconciles_to_credit_curves_pnl`
-//!  3. `taylor_credit_detail_reconciles_to_credit_curves_pnl`
-//!  4. `per_issuer_adder_is_omitted_by_default`
-//!  5. `per_bucket_breakdown_can_be_disabled`
+//!  2. `taylor_credit_detail_reconciles_to_credit_curves_pnl`
+//!  3. `twisted_hazard_curve_does_not_omit_or_explode_credit_detail`
 
 use crate::attribution_support::calibrated_hazard_curve;
 use finstack_quant_attribution::{
-    compute_credit_factor_attribution, AttributionEnvelope, AttributionMethod, AttributionSpec,
-    CreditAttributionInput, CreditFactorDetailOptions, PnlAttribution,
+    AttributionEnvelope, AttributionMethod, AttributionSpec, CreditFactorDetailOptions,
+    PnlAttribution,
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{create_date, DayCount};
@@ -19,9 +17,6 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IssuerId};
-use finstack_quant_models::factor::credit::decomposition::{
-    decompose_levels, decompose_period, PeriodDecomposition,
-};
 use finstack_quant_models::factor::credit::hierarchy::{
     AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditHierarchySpec, DateRange,
     FactorCorrelationMatrix, GenericFactorSpec, HierarchyDimension, IssuerBetaMode,
@@ -120,71 +115,6 @@ fn make_model() -> CreditFactorModel {
     }
 }
 
-fn make_period(model: &CreditFactorModel) -> (PeriodDecomposition, BTreeMap<IssuerId, f64>) {
-    let mut s_t0 = BTreeMap::new();
-    s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
-    s_t0.insert(IssuerId::new("ISSUER-B"), 0.0110);
-    s_t0.insert(IssuerId::new("ISSUER-C"), 0.0350);
-    let mut s_t1 = BTreeMap::new();
-    s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
-    s_t1.insert(IssuerId::new("ISSUER-B"), 0.0118);
-    s_t1.insert(IssuerId::new("ISSUER-C"), 0.0360);
-    let from = decompose_levels(
-        model,
-        &s_t0,
-        0.0080,
-        create_date(2025, Month::January, 1).unwrap(),
-        None,
-    )
-    .unwrap();
-    let to = decompose_levels(
-        model,
-        &s_t1,
-        0.0085,
-        create_date(2025, Month::January, 31).unwrap(),
-        None,
-    )
-    .unwrap();
-    let period = decompose_period(&from, &to).unwrap();
-
-    // Return ΔS map for sanity checks.
-    let mut ds = BTreeMap::new();
-    for (k, v0) in &s_t0 {
-        ds.insert(k.clone(), s_t1[k] - v0);
-    }
-    (period, ds)
-}
-
-fn positions() -> Vec<CreditAttributionInput> {
-    vec![
-        CreditAttributionInput {
-            position_id: "P-A".into(),
-            issuer_id: IssuerId::new("ISSUER-A"),
-            cs01: Money::new(-1500.0, Currency::USD),
-        },
-        CreditAttributionInput {
-            position_id: "P-B".into(),
-            issuer_id: IssuerId::new("ISSUER-B"),
-            cs01: Money::new(-2000.0, Currency::USD),
-        },
-        CreditAttributionInput {
-            position_id: "P-C".into(),
-            issuer_id: IssuerId::new("ISSUER-C"),
-            cs01: Money::new(-500.0, Currency::USD),
-        },
-    ]
-}
-
-/// Expected linear credit P&L `Σ CS01_i × ΔS_i` with the canonical signed
-/// CS01 (∂PV/∂s, negative for long credit): a long-credit book shows a loss
-/// when spreads widen.
-fn synthetic_credit_pnl(positions: &[CreditAttributionInput], ds: &BTreeMap<IssuerId, f64>) -> f64 {
-    positions
-        .iter()
-        .map(|p| p.cs01.amount() * ds[&p.issuer_id] * 10_000.0)
-        .sum()
-}
-
 // ─────────────────────────── Tests ───────────────────────────
 
 /// When no credit factor model is supplied, the canonical optional detail is
@@ -203,29 +133,6 @@ fn metrics_based_no_model_matches_existing_credit_total() {
     let parsed: PnlAttribution = serde_json::from_str(&json).expect("deserialize attribution");
     assert!(parsed.credit_factor_detail.is_none());
     assert!((parsed.credit_curves_pnl.amount() - (-250.5)).abs() < 1e-12);
-}
-
-/// PR-7 named test 2: reconciliation invariant for the metrics-based wire.
-/// The shared linear helper drives both metrics_based and Taylor; it produces
-/// the same numbers in both paths. We verify the invariant at 1e-8.
-#[test]
-fn metrics_based_credit_detail_reconciles_to_credit_curves_pnl() {
-    let model = make_model();
-    let (period, ds) = make_period(&model);
-    let positions = positions();
-    let opts = CreditFactorDetailOptions::default();
-
-    let detail = compute_credit_factor_attribution(&model, &opts, &positions, &period).expect("ok");
-    let attributed = detail.generic_pnl.amount()
-        + detail.levels.iter().map(|l| l.total.amount()).sum::<f64>()
-        + detail.adder_pnl_total.amount();
-    let expected = synthetic_credit_pnl(&positions, &ds);
-    assert!(
-        (attributed - expected).abs() < 1e-8,
-        "metrics_based reconciliation: attributed={}, expected={}",
-        attributed,
-        expected
-    );
 }
 
 /// PR-7 named test 3: end-to-end Taylor dispatch through `AttributionSpec`.
@@ -565,37 +472,4 @@ fn twisted_hazard_curve_does_not_omit_or_explode_credit_detail() {
             && detail.generic_pnl.amount().is_finite(),
         "all credit-detail numbers must remain finite"
     );
-}
-
-/// PR-7 named test 4: per-issuer adder map is `None` by default.
-#[test]
-fn per_issuer_adder_is_omitted_by_default() {
-    let model = make_model();
-    let (period, _ds) = make_period(&model);
-    let opts = CreditFactorDetailOptions::default();
-    assert!(!opts.include_per_issuer_adder);
-
-    let detail =
-        compute_credit_factor_attribution(&model, &opts, &positions(), &period).expect("ok");
-    assert!(detail.adder_pnl_by_issuer.is_none());
-}
-
-/// PR-7 named test 5: per-bucket breakdown can be turned off.
-#[test]
-fn per_bucket_breakdown_can_be_disabled() {
-    let model = make_model();
-    let (period, _ds) = make_period(&model);
-    let opts = CreditFactorDetailOptions {
-        include_per_issuer_adder: false,
-        include_per_bucket_breakdown: false,
-    };
-    let detail =
-        compute_credit_factor_attribution(&model, &opts, &positions(), &period).expect("ok");
-    for level in &detail.levels {
-        assert!(
-            level.by_bucket.is_empty(),
-            "level {} should have no by_bucket map when disabled",
-            level.level_name
-        );
-    }
 }

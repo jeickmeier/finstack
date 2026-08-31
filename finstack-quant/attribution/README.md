@@ -76,7 +76,7 @@ attribution/src/
 ├── metrics_based/          # attribute_pnl_metrics_based (linear from metrics)
 ├── taylor.rs               # attribute_pnl_taylor, TaylorAttributionConfig
 ├── model_params.rs         # extract/replace model params, measure_*_shift
-├── credit_factor.rs        # compute_credit_factor_attribution, model wiring
+├── credit_factor.rs        # Credit-factor detail options and model identifiers
 ├── credit_cascade.rs       # Waterfall credit-factor cascade
 ├── credit_decomposition.rs # Generic / per-level / adder decomposition
 ├── execution.rs            # AttributionSpec::execute dispatcher
@@ -164,7 +164,7 @@ Two schema artifacts are checked in under
 | `translate_to_target_currency`                                                         | `target_currency`     | Post-hoc translation of a native-currency `PnlAttribution` into a reporting currency, adding `fx_translation_pnl` |
 | `AttributionJsonInputs` | `spec` | Binding-friendly JSON fragments for `AttributionSpec::from_json_inputs` |
 | `pnl_attribution_wide_row`, `PnlAttributionWideRow` | `long_rows` | Single-row aggregate projection used by Python `to_dataframe` |
-| `compute_credit_factor_attribution`, `CreditAttributionInput`, `CreditFactorDetailOptions`, `credit_factor_model_id` | `credit_factor` | Calibrated credit-factor decomposition of `credit_curves_pnl`; the model type is `finstack_quant_models::factor::credit::hierarchy::CreditFactorModel` |
+| `CreditFactorDetailOptions` | `credit_factor` | Controls optional per-issuer and per-bucket detail emitted by the canonical attribution methods |
 | `AttributionEnvelope`, `AttributionSpec`, `AttributionJsonInputs`, `AttributionSchema`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA`, `default_attribution_metrics`, `validate_attribution_json` | `spec` | JSON contract |
 | `attribute_return_contribution`, `attribute_return_contribution_json`, `validate_return_contribution_json`, `ReturnContributionSpec`, `ReturnContributionResult`, `ReturnContributionPosition`, `ReturnContributionFactor`, `ReturnContributionWeighting`, `InstrumentContribution`, `GroupContribution`, `FactorContribution`, `BenchmarkRelativeContribution` | `return_contribution` | Single-period weight × return contribution |
 | `pnl_attribution_long_rows`, `pnl_attribution_carry_rows`, `pnl_attribution_credit_factor_rows`, `LongDetailRow` | `long_rows` | Long-format projection of a `PnlAttribution`, consumed by the Python DataFrame exports |

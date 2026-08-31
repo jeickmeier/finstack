@@ -268,6 +268,17 @@ fn waterfall_credit_factor_detail_reconciles_to_credit_curves_pnl() {
         "a flat hazard move must leave curve_shape ~0, got {}",
         detail.curve_shape_pnl.amount()
     );
+    assert!(
+        detail.adder_pnl_by_issuer.is_none(),
+        "default detail must omit the per-issuer adder breakdown"
+    );
+    assert!(
+        detail
+            .levels
+            .iter()
+            .any(|level| !level.by_bucket.is_empty()),
+        "default detail must include the per-bucket level breakdown"
+    );
 }
 
 /// Audit item #1: a NON-PARALLEL (twisted) hazard-curve move must be
@@ -304,7 +315,10 @@ fn waterfall_twisted_hazard_attributes_curve_shape_not_adder() {
         method: AttributionMethod::Waterfall(default_waterfall_order()),
         model_params_t0: None,
         credit_factor_model: Some(Box::new(model)),
-        credit_factor_detail_options: CreditFactorDetailOptions::default(),
+        credit_factor_detail_options: CreditFactorDetailOptions {
+            include_per_issuer_adder: true,
+            ..CreditFactorDetailOptions::default()
+        },
         config: None,
         full_cross_attribution: false,
     };
@@ -317,6 +331,13 @@ fn waterfall_twisted_hazard_attributes_curve_shape_not_adder() {
         .credit_factor_detail
         .as_ref()
         .expect("credit_factor_detail must be Some for waterfall + model");
+    assert!(
+        detail
+            .adder_pnl_by_issuer
+            .as_ref()
+            .is_some_and(|by_issuer| by_issuer.contains_key(&IssuerId::new("ISSUER-A"))),
+        "enabled per-issuer detail must contain the attributed issuer"
+    );
 
     // Reconciliation still closes with the curve-shape component included.
     let attributed = detail.generic_pnl.amount()
@@ -375,7 +396,10 @@ fn parallel_credit_detail_plus_cross_effects_preserves_total() {
         method: AttributionMethod::Parallel,
         model_params_t0: None,
         credit_factor_model: Some(Box::new(model)),
-        credit_factor_detail_options: CreditFactorDetailOptions::default(),
+        credit_factor_detail_options: CreditFactorDetailOptions {
+            include_per_bucket_breakdown: false,
+            ..CreditFactorDetailOptions::default()
+        },
         config: None,
         full_cross_attribution: false,
     };
@@ -389,6 +413,10 @@ fn parallel_credit_detail_plus_cross_effects_preserves_total() {
         .credit_factor_detail
         .as_ref()
         .expect("credit_factor_detail must be Some for parallel + model");
+    assert!(
+        detail.levels.iter().all(|level| level.by_bucket.is_empty()),
+        "disabled per-bucket detail must omit every bucket breakdown"
+    );
 
     // Audit item #1: the parallel path now back-solves the non-parallel
     // hazard residual into the `curve_shape_pnl` cascade component, so

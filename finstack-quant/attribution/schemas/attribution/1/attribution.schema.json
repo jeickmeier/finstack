@@ -7983,7 +7983,7 @@
     },
     "CreditFactorDetailOptions": {
       "additionalProperties": false,
-      "description": "Options controlling the level of detail emitted by\n[`compute_credit_factor_attribution`].\n\nDefaults: per-issuer adder breakdown OFF (large-portfolio payload control);\nper-bucket breakdown ON.",
+      "description": "Options controlling the credit-factor detail emitted by attribution.\n\nDefaults: per-issuer adder breakdown OFF (large-portfolio payload control);\nper-bucket breakdown ON.",
       "properties": {
         "include_per_bucket_breakdown": {
           "default": true,

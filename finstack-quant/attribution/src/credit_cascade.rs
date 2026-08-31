@@ -24,7 +24,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::diff::{measure_par_spread_shift, TenorSamplingMethod};
@@ -147,21 +146,6 @@ pub(crate) fn hierarchy_level_names(model: &CreditFactorModel) -> Vec<String> {
         .collect()
 }
 
-/// Convert accumulated bucket amounts into an optional `Money` bucket map.
-pub(crate) fn bucket_amounts_to_money(
-    bucket_amounts: &BTreeMap<String, f64>,
-    ccy: Currency,
-    include: bool,
-) -> BTreeMap<String, Money> {
-    if !include {
-        return BTreeMap::new();
-    }
-    bucket_amounts
-        .iter()
-        .map(|(bucket, amount)| (bucket.clone(), Money::new(*amount, ccy)))
-        .collect()
-}
-
 /// Single-instrument bucket map for one issuer/level.
 pub(crate) fn single_issuer_by_bucket(
     model: &CreditFactorModel,
@@ -187,20 +171,6 @@ pub(crate) fn optional_single_issuer_adder(
     include: bool,
 ) -> Option<BTreeMap<IssuerId, Money>> {
     include.then(|| BTreeMap::from([(issuer_id.clone(), adder)]))
-}
-
-/// Optional multi-issuer adder map used by portfolio/linear detail paths.
-pub(crate) fn optional_adder_amounts_by_issuer(
-    amounts: BTreeMap<IssuerId, f64>,
-    ccy: Currency,
-    include: bool,
-) -> Option<BTreeMap<IssuerId, Money>> {
-    include.then(|| {
-        amounts
-            .into_iter()
-            .map(|(issuer_id, amount)| (issuer_id, Money::new(amount, ccy)))
-            .collect()
-    })
 }
 
 /// Fill the `CurveShape` step with the residual needed for exact reconciliation.

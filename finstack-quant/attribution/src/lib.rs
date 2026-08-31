@@ -139,10 +139,7 @@ pub(crate) mod taylor;
 pub(crate) mod types;
 pub(crate) mod waterfall;
 
-pub use credit_factor::{
-    compute_credit_factor_attribution, credit_factor_model_id, CreditAttributionInput,
-    CreditFactorDetailOptions,
-};
+pub use credit_factor::CreditFactorDetailOptions;
 pub use types::detail::{
     CarryDetail, CorrelationsAttribution, CreditCarryByLevel, CreditCarryDecomposition,
     CreditCurvesAttribution, CreditFactorAttribution, CrossFactorDetail, FxAttribution,
