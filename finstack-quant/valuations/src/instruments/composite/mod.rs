@@ -1,7 +1,7 @@
 //! Generic cross-asset composite and synthetic instruments.
 //!
 //! A composite stores self-contained
-//! [`InstrumentJson`][crate::instruments::InstrumentJson] legs and an
+//! [`InstrumentJson`] legs and an
 //! immutable resolved-quantity state. Pricing, risk, scenarios, and history
 //! use those quantities exactly as stored. Only
 //! [`CompositeSpec::initialize`], [`CompositeSpec::initialize_fixed`], or
