@@ -244,12 +244,12 @@ impl fmt::Display for Rate {
     }
 }
 
-impl From<f64> for Rate {
-    /// Prefer the fallible [`Rate::try_from_decimal`] for untrusted inputs; this
-    /// panics on non-finite values and is retained only for backward compatibility
-    /// with `rate.into()` call sites.
-    fn from(decimal: f64) -> Self {
-        Self::from_decimal(decimal)
+impl TryFrom<f64> for Rate {
+    type Error = Error;
+
+    /// Fallible conversion from a decimal rate, where `0.05` represents 5%.
+    fn try_from(decimal: f64) -> Result<Self> {
+        Self::try_from_decimal(decimal)
     }
 }
 

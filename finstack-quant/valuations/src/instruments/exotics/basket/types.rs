@@ -266,7 +266,7 @@ impl Basket {
         let bond = crate::instruments::fixed_income::bond::Bond::fixed(
             "CORP-BOND-001",
             Money::new(1000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2024 - 01 - 01),
             date!(2034 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,

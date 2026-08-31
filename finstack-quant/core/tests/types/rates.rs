@@ -86,8 +86,8 @@ fn rate_display_formatting() {
 }
 
 #[test]
-fn rate_from_f64_conversion() {
-    let r: Rate = 0.035.into();
+fn rate_f64_conversions() {
+    let r = Rate::try_from(0.035).expect("finite decimal rate");
     assert!((r.as_decimal() - 0.035).abs() < 1e-10);
 
     let f: f64 = r.into();
@@ -259,10 +259,7 @@ fn non_finite_constructors_reject_input() {
     assert!(catch_unwind(|| Rate::from_decimal(f64::NAN)).is_err());
     assert!(catch_unwind(|| Rate::from_percent(f64::INFINITY)).is_err());
     assert!(Percentage::new(f64::NEG_INFINITY).is_err());
-    assert!(catch_unwind(|| {
-        let _: Rate = f64::NAN.into();
-    })
-    .is_err());
+    assert!(Rate::try_from(f64::NAN).is_err());
 }
 
 #[test]

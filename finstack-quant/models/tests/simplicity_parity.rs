@@ -283,12 +283,12 @@ fn value_checked_matches_value_clamped_on_interior() {
 // Rate / Percentage / Bps: fallible-construction parity and NaN rejection
 
 #[test]
-fn rate_try_from_decimal_matches_from_decimal_for_valid_inputs() {
+fn rate_try_from_f64_matches_try_from_decimal_for_valid_inputs() {
     for &x in &[0.0, 0.05, -0.001, 1.5, -0.999_5] {
-        let via_try = Rate::try_from_decimal(x).unwrap();
-        let via_from = Rate::from(x);
+        let via_constructor = Rate::try_from_decimal(x).unwrap();
+        let via_conversion = Rate::try_from(x).unwrap();
         assert!(
-            (via_try.as_decimal() - via_from.as_decimal()).abs() < 1e-15,
+            (via_constructor.as_decimal() - via_conversion.as_decimal()).abs() < 1e-15,
             "Rate parity mismatch at {x}",
         );
     }
