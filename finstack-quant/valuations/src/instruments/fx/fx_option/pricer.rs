@@ -261,7 +261,6 @@ pub(crate) fn compute_greeks(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-#[allow(dead_code)]
 pub(crate) struct FxOptionGreeks {
     /// Garman–Kohlhagen **spot delta** `e^{-r_f·T}·N(d1)` (premium-unadjusted).
     ///

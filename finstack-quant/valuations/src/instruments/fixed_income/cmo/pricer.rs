@@ -23,7 +23,7 @@ use finstack_quant_core::Result;
 
 /// Tranche cashflow for a single period.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // `principal` and `ending_balance` support invariant tests.
 pub(crate) struct TrancheCashflow {
     /// Payment date
     pub(crate) payment_date: Date,
