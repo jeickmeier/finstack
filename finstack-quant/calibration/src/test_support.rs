@@ -1,14 +1,11 @@
 //! Helpers shared by crate-private calibration unit tests.
 
-use crate::api::engine;
 use crate::api::market_datum::{
     CollateralEntry, DividendScheduleDatum, FxSpotDatum, MarketDatum, PriceDatum,
 };
 use crate::api::prior_market::PriorMarketObject;
-use crate::api::schema::{CalibrationEnvelope, CalibrationPlan, CalibrationStep, StepParams};
 use crate::quotes::ids::QuoteId;
 use crate::quotes::market_quote::MarketQuote;
-use crate::{CalibrationConfig, CalibrationReport};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::{CurveState, MarketContext, MarketContextState};
 use finstack_quant_core::Result;
@@ -120,39 +117,4 @@ pub(crate) fn split_market_context(
 ) -> (Vec<PriorMarketObject>, Vec<MarketDatum>) {
     split_market_context_state(MarketContextState::from(ctx))
         .expect("valid market context snapshot")
-}
-
-#[allow(dead_code)]
-pub(crate) fn execute_step(
-    params: &StepParams,
-    quotes: &[MarketQuote],
-    context: &MarketContext,
-    global_config: &CalibrationConfig,
-) -> Result<(MarketContext, CalibrationReport)> {
-    let (prior, mut data) = split_market_context_state(MarketContextState::from(context))?;
-    let ids = quote_set_ids(quotes);
-    extend_market_data(&mut data, quotes);
-    let mut quote_sets = finstack_quant_core::HashMap::default();
-    quote_sets.insert("default".to_string(), ids);
-    let plan = CalibrationPlan {
-        id: "test-plan".to_string(),
-        description: None,
-        quote_sets: quote_sets.into_iter().collect(),
-        steps: vec![CalibrationStep {
-            id: "step-0".to_string(),
-            quote_set: "default".to_string(),
-            params: params.clone(),
-        }],
-        settings: global_config.clone(),
-    };
-    let envelope = CalibrationEnvelope {
-        schema_url: None,
-        schema: crate::api::schema::CalibrationSchema::CURRENT,
-        plan,
-        market_data: data,
-        prior_market: prior,
-    };
-    let result = engine::execute(&envelope)?;
-    let market = MarketContext::try_from(result.result.final_market)?;
-    Ok((market, result.result.report))
 }
