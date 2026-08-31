@@ -36,7 +36,8 @@
 
 pub(crate) mod metrics;
 pub(crate) mod pricer;
-pub(crate) mod traits;
 pub(crate) mod types;
 
 pub use types::{LookbackOption, LookbackOptionBuilder, LookbackType};
+
+crate::impl_equity_exotic_traits!(LookbackOption);

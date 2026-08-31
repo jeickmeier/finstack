@@ -36,9 +36,10 @@
 pub(crate) mod metrics;
 pub(crate) mod pde_pricer;
 pub(crate) mod pricer;
-pub(crate) mod traits;
 pub(crate) mod types;
 
 pub(crate) mod heston_mc_pricer;
 
 pub use types::{BarrierOption, BarrierOptionBuilder};
+
+crate::impl_equity_exotic_traits!(BarrierOption);
