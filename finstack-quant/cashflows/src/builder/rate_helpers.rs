@@ -73,7 +73,7 @@ impl ResolvedFloatingRateFallback {
     pub fn fallback_rate(&self, params: &FloatingRateParams) -> Option<f64> {
         match self {
             Self::Error => None,
-            Self::SpreadOnly => Some(project_fallback_rate(params)),
+            Self::SpreadOnly => Some(calculate_floating_rate(0.0, params)),
             Self::FixedRate(index_rate) => Some(calculate_floating_rate(*index_rate, params)),
         }
     }
@@ -328,22 +328,6 @@ pub fn calculate_floating_rate(index_rate: f64, params: &FloatingRateParams) -> 
     }
 
     rate
-}
-
-/// Calculate fallback rate assuming index is 0.0 (e.g., when curve is missing).
-///
-/// This is a convenience wrapper for scenarios where no forward curve is available.
-/// The result is typically just the spread (with floor/cap applied).
-///
-/// # Arguments
-///
-/// * `params` - Floating rate parameters
-///
-/// # Returns
-///
-/// The all-in rate assuming a zero index rate.
-pub(crate) fn project_fallback_rate(params: &FloatingRateParams) -> f64 {
-    calculate_floating_rate(0.0, params)
 }
 
 /// Project floating rate using a resolved forward curve and full parameter set.
