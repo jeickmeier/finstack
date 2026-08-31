@@ -613,10 +613,10 @@ this work removes, so they are listed as paired follow-ups in
   `reference_price` and returns price-space lambda. The working `*_with_mid`
   implementations now own the canonical `KyleLambdaModel::lambda_from_series`
   and `from_amihud` names; the legacy fail-closed signatures were deleted.
-- **Breaking (Rust):** `almgren_chriss_uniform_impact` now returns the canonical
+- **Breaking (Rust, Python, WASM):** `almgren_chriss_uniform_impact` now returns the canonical
   `ImpactEstimate`; the duplicate `AlmgrenChrissImpactView` was removed.
-  Python and WASM retain the established four-key host payload, mapping
-  `total_cost` to `total_impact` and `cost_bp` to `expected_cost_bp`.
+  Python and WASM now return the same five canonical fields, including
+  `total_cost`, `cost_bp`, and `execution_risk`.
 - **Breaking (Rust):** Removed the no-op `JumpEuler::with_max_jumps`
   constructor. Use `JumpEuler::new`; the aggregate jump sampler remains
   uncapped.

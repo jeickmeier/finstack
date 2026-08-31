@@ -61,10 +61,10 @@ test('models.liquidity preserves estimator and risk results', () => {
     'almgrenChrissImpact result'
   );
   assert.deepEqual(Object.keys(impact).sort(), [
+    'cost_bp',
     'execution_risk',
-    'expected_cost_bp',
     'permanent_impact',
     'temporary_impact',
-    'total_impact',
+    'total_cost',
   ]);
 });

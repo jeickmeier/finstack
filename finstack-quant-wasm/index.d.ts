@@ -7461,7 +7461,7 @@ export interface LiquidityNamespace {
    * @param permanentImpactCoef - Non-negative finite multiplier on permanent impact.
    * @param temporaryImpactCoef - Positive finite multiplier on temporary impact.
    * @param referencePrice - Optional positive finite price for notional and basis-point scaling.
-   * @returns Permanent, temporary, total, basis-point, and execution-risk impact fields.
+   * @returns The canonical `ImpactEstimate` fields.
    * @throws Error - Throws a JavaScript exception if an input violates the stated finiteness, sign, or range contract, calculation fails, or conversion fails.
    */
   almgrenChrissImpact(
@@ -7472,7 +7472,7 @@ export interface LiquidityNamespace {
     permanentImpactCoef: number,
     temporaryImpactCoef: number,
     referencePrice?: number | null
-  ): AlmgrenChrissImpactResult;
+  ): ImpactEstimate;
   /**
    * Estimate price-space Kyle lambda using an Amihud-ratio proxy.
    * @param volumesJson - JSON array of positive volume observations.
@@ -9506,7 +9506,7 @@ export interface LvarBangiaResult {
  *
  * Field-for-field identical to the Python binding's dict.
  */
-export interface AlmgrenChrissImpactResult {
+export interface ImpactEstimate {
   /**
    * Permanent market impact in model cost units.
    */
@@ -9518,11 +9518,11 @@ export interface AlmgrenChrissImpactResult {
   /**
    * Total expected execution cost.
    */
-  total_impact: number;
+  total_cost: number;
   /**
    * Expected cost in basis points.
    */
-  expected_cost_bp: number;
+  cost_bp: number;
   /**
    * Timing-risk standard deviation of execution cost, in cost units.
    */

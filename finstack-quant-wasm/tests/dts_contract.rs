@@ -663,8 +663,25 @@ fn campisi_dts_declarations_pin_their_argument_lists() {
 fn models_liquidity_dts_exposes_reference_price_for_almgren_chriss() {
     let dts = index_dts();
     let liquidity = interface_block(&dts, "LiquidityNamespace");
+    let impact = interface_block(&dts, "ImpactEstimate");
 
     assert!(liquidity.contains("referencePrice?: number | null"));
+    assert!(liquidity.contains("): ImpactEstimate;"));
+    for field in [
+        "permanent_impact: number;",
+        "temporary_impact: number;",
+        "total_cost: number;",
+        "cost_bp: number;",
+        "execution_risk: number;",
+    ] {
+        assert!(
+            impact.contains(field),
+            "missing ImpactEstimate field {field}"
+        );
+    }
+    assert!(!dts.contains("AlmgrenChrissImpactResult"));
+    assert!(!dts.contains("total_impact: number;"));
+    assert!(!dts.contains("expected_cost_bp: number;"));
     assert!(!interface_block(&dts, "PortfolioNamespace").contains("almgrenChrissImpact("));
 }
 

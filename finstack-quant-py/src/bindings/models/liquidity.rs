@@ -210,13 +210,13 @@ fn lvar_bangia<'py>(
 /// Returns
 /// -------
 /// dict
-///     ``{permanent_impact, temporary_impact, total_impact, expected_cost_bp,
+///     ``{permanent_impact, temporary_impact, total_cost, cost_bp,
 ///     execution_risk}`` where impacts are expressed in model cost units,
-///     ``expected_cost_bp`` is scaled by ``abs(position_size) *
+///     ``cost_bp`` is scaled by ``abs(position_size) *
 ///     reference_price`` when a reference price is supplied, and
 ///     ``execution_risk`` is the timing-risk standard deviation of execution
-///     cost in the same cost units. The keys come from the canonical Rust
-///     ``AlmgrenChrissImpactView``, shared with the WASM binding.
+///     cost in the same cost units. The keys come directly from the canonical
+///     Rust ``ImpactEstimate`` shared with the WASM binding.
 ///
 /// Sources
 /// -------
@@ -253,7 +253,7 @@ fn almgren_chriss_impact<'py>(
     )
     .map_err(core_to_py)?;
 
-    crate::bindings::pandas_utils::serde_to_py(py, &liquidity::almgren_chriss_impact_view(&est))
+    crate::bindings::pandas_utils::serde_to_py(py, &est)
 }
 
 // Kyle's lambda

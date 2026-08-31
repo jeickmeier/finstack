@@ -65,17 +65,17 @@ fn almgren_chriss_impact_preserves_fields_and_price_scaling() {
     for key in [
         "permanent_impact",
         "temporary_impact",
-        "total_impact",
-        "expected_cost_bp",
+        "total_cost",
+        "cost_bp",
         "execution_risk",
     ] {
         assert!(object.get(key).is_some(), "missing key {key}");
     }
 
-    let unit_bp = get_f64(&unit, "expected_cost_bp");
-    let priced_bp = get_f64(&priced, "expected_cost_bp");
+    let unit_bp = get_f64(&unit, "cost_bp");
+    let priced_bp = get_f64(&priced, "cost_bp");
     assert!((priced_bp - unit_bp).abs() < 1e-12 * unit_bp.abs().max(1.0));
-    let unit_cost = get_f64(&unit, "total_impact");
-    let priced_cost = get_f64(&priced, "total_impact");
+    let unit_cost = get_f64(&unit, "total_cost");
+    let priced_cost = get_f64(&priced, "total_cost");
     assert!((priced_cost - 100.0 * unit_cost).abs() < 1e-9 * priced_cost.abs().max(1.0));
 }

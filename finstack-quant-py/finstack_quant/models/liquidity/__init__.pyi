@@ -208,8 +208,9 @@ def almgren_chriss_impact(
     Returns
     -------
     dict[str, float]
-        Permanent, temporary, and total impact, expected basis-point cost,
-        and execution-risk values.
+        Canonical ``ImpactEstimate`` fields: ``permanent_impact``,
+        ``temporary_impact``, ``total_cost``, ``cost_bp``, and
+        ``execution_risk``.
 
     Raises
     ------
@@ -220,7 +221,7 @@ def almgren_chriss_impact(
     --------
     >>> from finstack_quant.models.liquidity import almgren_chriss_impact
     >>> result = almgren_chriss_impact(100_000, 1_000_000, 0.20, 5.0, 0.10, 0.20)
-    >>> round(result["expected_cost_bp"], 2)
+    >>> round(result["cost_bp"], 2)
     56.62
     """
     ...

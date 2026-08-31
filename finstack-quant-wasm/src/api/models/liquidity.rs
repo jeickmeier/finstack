@@ -116,7 +116,7 @@ pub fn almgren_chriss_impact(
         reference_price,
     )
     .map_err(to_js_err)?;
-    to_js_value(&liquidity::almgren_chriss_impact_view(&estimate))
+    to_js_value(&estimate)
 }
 
 /// Estimate price-space Kyle lambda using an Amihud-ratio proxy.
