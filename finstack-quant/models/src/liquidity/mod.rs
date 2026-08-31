@@ -60,7 +60,7 @@ fn invalid_input(message: impl Into<String>) -> Error {
 
 pub use types::{
     classify_tier, days_to_liquidate, LiquidityConfig, LiquidityProfile, LiquidityTier,
-    SpreadVolatilityKind, TierAllocation,
+    SpreadVolatilityKind,
 };
 
 pub use estimators::{amihud_illiquidity, roll_effective_spread};

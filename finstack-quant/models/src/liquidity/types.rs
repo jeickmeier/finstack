@@ -1,8 +1,8 @@
 //! Core data types for liquidity risk modeling.
 //!
 //! This module defines the per-instrument liquidity profile, liquidity tier
-//! classification, configuration parameters, and tier allocation types used
-//! throughout the liquidity submodule.
+//! classification, and configuration parameters used throughout the liquidity
+//! submodule.
 
 use finstack_quant_core::Result;
 
@@ -323,21 +323,6 @@ impl Default for LiquidityConfig {
             .default_config
             .clone()
     }
-}
-
-/// Percentage of portfolio NAV by liquidity tier.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct TierAllocation {
-    /// Fraction of NAV in Tier 1 (highly liquid).
-    pub tier1_pct: f64,
-    /// Fraction of NAV in Tier 2.
-    pub tier2_pct: f64,
-    /// Fraction of NAV in Tier 3.
-    pub tier3_pct: f64,
-    /// Fraction of NAV in Tier 4.
-    pub tier4_pct: f64,
-    /// Fraction of NAV in Tier 5 (illiquid).
-    pub tier5_pct: f64,
 }
 
 /// Classify a position into a liquidity tier based on days-to-liquidate.
