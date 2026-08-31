@@ -27,13 +27,14 @@
 //! use finstack_quant_valuations::instruments::fixed_income::Bond;
 //! use finstack_quant_core::currency::Currency;
 //! use finstack_quant_core::money::Money;
+//! use finstack_quant_core::types::Rate;
 //! use time::macros::date;
 //!
 //! // Create a 5-year USD Treasury bond
 //! let bond = Bond::fixed(
 //!     "UST-5Y",
 //!     Money::new(1_000_000.0, Currency::USD),
-//!     0.045, // 4.5% coupon
+//!     Rate::from_percent(4.5),
 //!     date!(2025-01-15),
 //!     date!(2030-01-15),
 //!     finstack_quant_core::dates::StubKind::None,

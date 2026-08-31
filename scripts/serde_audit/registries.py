@@ -313,7 +313,7 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
 RESULT_ALIAS_EXCEPTIONS = tuple(
     entry
     for crate, path in (
-        ("analytics", "src/correlation/error.rs"),
+        ("analytics", "src/correlation/mod.rs"),
         ("core", "src/error/mod.rs"),
         ("models", "src/correlation/error.rs"),
         ("portfolio", "src/error.rs"),

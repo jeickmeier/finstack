@@ -262,13 +262,14 @@ pub enum ProtectionWindow {
 /// };
 /// use finstack_quant_core::currency::Currency;
 /// use finstack_quant_core::money::Money;
+/// use finstack_quant_core::types::Rate;
 /// use time::macros::date;
 ///
 /// // 5-year loan with 1.25× MOIC floor active after a 2-year no-call period.
 /// let loan = Bond::fixed(
 ///     "LOAN-001",
 ///     Money::new(1_000_000.0, Currency::USD),
-///     0.10,
+///     Rate::from_percent(10.0),
 ///     date!(2025 - 01 - 01),
 ///     date!(2030 - 01 - 01),
 ///     finstack_quant_core::dates::StubKind::None,
