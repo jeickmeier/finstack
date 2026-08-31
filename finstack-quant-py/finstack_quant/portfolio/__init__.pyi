@@ -58,7 +58,6 @@ __all__ = [
     "MissingContractVersionError",
     "MissingMetricPolicy",
     "Objective",
-    "OptimizationError",
     "OptimizationStatus",
     "PerPositionMetric",
     "Portfolio",
@@ -201,17 +200,6 @@ class FxError(PortfolioError):
     >>> from finstack_quant.portfolio import FxError
     >>> str(FxError("missing FX rate"))
     'missing FX rate'
-    """
-
-class OptimizationError(PortfolioError):
-    """
-    Portfolio optimization failure.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import OptimizationError
-    >>> str(OptimizationError("infeasible"))
-    'infeasible'
     """
 
 class ContractValidationError(FinstackError):
@@ -11300,13 +11288,12 @@ def optimize_portfolio(
     ValueError
         If supplied market JSON is malformed or schema-incompatible.
     PortfolioError
-        If the embedded portfolio specification cannot be constructed.
+        If the embedded portfolio specification cannot be constructed or an
+        operational optimization failure occurs before a result is available.
     ValuationError
         If a required position metric cannot be valued.
     FxError
         If a required base-currency conversion is unavailable.
-    OptimizationError
-        If the optimization problem or solver fails.
 
     Examples
     --------

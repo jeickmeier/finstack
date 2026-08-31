@@ -37,28 +37,6 @@ impl ScenarioGrid {
 
     /// Create a grid centered on zero, e.g. `5 -> [-2, -1, 0, 1, 2]`.
     ///
-    /// # Panics
-    ///
-    /// Panics when `n_points` is invalid. Use [`Self::try_new`] when the value
-    /// comes from a user-controlled boundary.
-    #[must_use]
-    pub fn new(n_points: usize) -> Self {
-        assert!(
-            n_points >= Self::MIN_POINTS,
-            "ScenarioGrid requires at least {} points for central-difference delta extraction, got {n_points}",
-            Self::MIN_POINTS,
-        );
-        assert!(
-            !n_points.is_multiple_of(2),
-            "ScenarioGrid requires an odd number of points for a symmetric grid, got {n_points}"
-        );
-        let half = (n_points / 2) as f64;
-        let shifts = (0..n_points).map(|idx| idx as f64 - half).collect();
-        Self { shifts }
-    }
-
-    /// Try to create a symmetric grid centered on zero.
-    ///
     /// # Errors
     ///
     /// Returns a validation error when `n_points < 3` or when `n_points` is
@@ -67,8 +45,9 @@ impl ScenarioGrid {
     ///
     /// # Arguments
     ///
-    /// * `n_points` - N points supplied by the caller for this operation
-    pub fn try_new(n_points: usize) -> Result<Self> {
+    /// * `n_points` - Odd number of grid points, including the unshocked center;
+    ///   must be at least three.
+    pub fn new(n_points: usize) -> Result<Self> {
         if n_points < Self::MIN_POINTS {
             return Err(Error::Validation(format!(
                 "ScenarioGrid requires at least {} points for central-difference delta extraction, got {n_points}",
@@ -101,24 +80,22 @@ pub struct FullRepricingEngine {
 
 impl FullRepricingEngine {
     /// Create a repricing engine using `n_scenario_points` around the base market.
-    #[must_use]
-    pub fn new(bump_config: BumpSizeConfig, n_scenario_points: usize) -> Self {
-        Self {
-            bump_config,
-            scenario_grid: ScenarioGrid::new(n_scenario_points),
-        }
-    }
-
-    /// Try to create a repricing engine using `n_scenario_points` around the base market.
     ///
     /// # Errors
     ///
     /// Returns a validation error when the scenario grid cannot support
     /// central-difference delta extraction.
-    pub fn try_new(bump_config: BumpSizeConfig, n_scenario_points: usize) -> Result<Self> {
+    ///
+    /// # Arguments
+    ///
+    /// * `bump_config` - Factor-specific bump sizes and units used for each
+    ///   repricing scenario.
+    /// * `n_scenario_points` - Odd number of grid points, including the base
+    ///   market; must be at least three.
+    pub fn new(bump_config: BumpSizeConfig, n_scenario_points: usize) -> Result<Self> {
         Ok(Self {
             bump_config,
-            scenario_grid: ScenarioGrid::try_new(n_scenario_points)?,
+            scenario_grid: ScenarioGrid::new(n_scenario_points)?,
         })
     }
 
@@ -523,26 +500,25 @@ mod tests {
 
     #[test]
     fn test_scenario_grid_construction() {
-        let grid = ScenarioGrid::new(5);
+        let grid = ScenarioGrid::new(5).expect("five points form a valid symmetric grid");
         assert_eq!(grid.shifts().len(), 5);
         assert!((grid.shifts()[2]).abs() < 1e-12);
     }
 
     #[test]
     fn test_scenario_grid_minimum_points() {
-        let grid = ScenarioGrid::new(3);
+        let grid = ScenarioGrid::new(3).expect("three points form the minimum valid grid");
         assert_eq!(grid.shifts(), &[-1.0, 0.0, 1.0]);
     }
 
     #[test]
-    #[should_panic(expected = "ScenarioGrid requires at least 3 points")]
     fn test_scenario_grid_rejects_too_few_points() {
-        let _ = ScenarioGrid::new(2);
+        assert!(ScenarioGrid::new(2).is_err());
     }
 
     #[test]
-    fn scenario_grid_try_new_rejects_even_point_counts() {
-        let result = ScenarioGrid::try_new(4);
+    fn scenario_grid_rejects_even_point_counts() {
+        let result = ScenarioGrid::new(4);
         assert!(
             result.is_err(),
             "scenario grid must reject even point counts"
@@ -550,8 +526,8 @@ mod tests {
     }
 
     #[test]
-    fn full_repricing_try_new_rejects_too_few_points() {
-        let result = FullRepricingEngine::try_new(BumpSizeConfig::default(), 2);
+    fn full_repricing_rejects_too_few_points() {
+        let result = FullRepricingEngine::new(BumpSizeConfig::default(), 2);
         assert!(
             result.is_err(),
             "full repricing engine must return a validation error instead of panicking"
@@ -574,7 +550,7 @@ mod tests {
             description: None,
         }];
 
-        let engine = FullRepricingEngine::new(BumpSizeConfig::default(), 5);
+        let engine = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?;
         let matrix =
             engine.compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)?;
 
@@ -597,13 +573,8 @@ mod tests {
             description: None,
         }];
 
-        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
-            &positions,
-            &factors,
-            &market,
-            as_of,
-            Currency::USD,
-        )?;
+        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
+            .compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)?;
 
         assert!(
             matrix.delta(0, 0).abs() > 1e-12,
@@ -631,7 +602,7 @@ mod tests {
 
         let mut bump_config = BumpSizeConfig::default();
         bump_config.overrides.insert(factor_id, 5.0);
-        let matrix = FullRepricingEngine::new(bump_config, 5).compute_sensitivities(
+        let matrix = FullRepricingEngine::new(bump_config, 5)?.compute_sensitivities(
             &positions,
             &factors,
             &market,
@@ -665,7 +636,7 @@ mod tests {
 
         let mut bump_config = BumpSizeConfig::default();
         bump_config.overrides.insert(factor_id, 0.0);
-        let result = FullRepricingEngine::new(bump_config, 5).compute_sensitivities(
+        let result = FullRepricingEngine::new(bump_config, 5)?.compute_sensitivities(
             &positions,
             &factors,
             &market,
@@ -712,7 +683,7 @@ mod tests {
         bump_config.overrides.insert(first_id, 0.0);
         bump_config.overrides.insert(second_id, 0.0);
 
-        let error = FullRepricingEngine::new(bump_config, 5)
+        let error = FullRepricingEngine::new(bump_config, 5)?
             .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)
             .expect_err("both factors are invalid");
         let message = error.to_string();
@@ -743,7 +714,7 @@ mod tests {
             description: None,
         }];
 
-        let err = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
+        let err = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
             .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)
             .expect_err("minor 15: non-finite base PV must fail fast");
         assert!(
@@ -769,7 +740,7 @@ mod tests {
             description: None,
         }];
 
-        let profiles = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
+        let profiles = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
             .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)?;
 
         assert_eq!(profiles.len(), 1);
@@ -799,7 +770,7 @@ mod tests {
             description: None,
         }];
 
-        let profiles = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
+        let profiles = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
             .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)?;
 
         assert_eq!(profiles[0].position_pnls[2], vec![0.0]);
@@ -837,7 +808,7 @@ mod tests {
             description: None,
         }];
 
-        let error = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
+        let error = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
             .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)
             .expect_err("cross-currency conversion without FX must fail");
         let message = error.to_string();
@@ -876,17 +847,12 @@ mod tests {
             description: None,
         }];
 
-        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
-            &positions,
-            &factors,
-            &market,
-            as_of,
-            Currency::USD,
-        )?;
+        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
+            .compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)?;
         let reference = MockInstrument::new("reference", "USD-OIS", 5.0, 10_000.0);
         let reference_positions =
             vec![("reference".to_string(), &reference as &dyn Instrument, 1.0)];
-        let reference_matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
+        let reference_matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
             .compute_sensitivities(
                 &reference_positions,
                 &factors,
@@ -933,13 +899,8 @@ mod tests {
             description: None,
         }];
 
-        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
-            &positions,
-            &factors,
-            &market,
-            as_of,
-            Currency::USD,
-        )?;
+        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?
+            .compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)?;
 
         assert_eq!(matrix.delta(0, 0), 0.0);
         assert_eq!(
@@ -968,7 +929,7 @@ mod tests {
             description: None,
         }];
 
-        FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
+        FullRepricingEngine::new(BumpSizeConfig::default(), 5)?.compute_sensitivities(
             &positions,
             &factors,
             &market,

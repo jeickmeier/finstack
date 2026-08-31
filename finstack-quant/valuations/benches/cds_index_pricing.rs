@@ -10,6 +10,7 @@
 //! Market Standards Review (Week 5)
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -185,6 +186,7 @@ fn bench_cds_index_par_spread(c: &mut Criterion) {
 fn bench_cds_index_cs01(c: &mut Criterion) {
     let mut group = c.benchmark_group("cds_index_cs01");
     let market = create_market_single_curve();
+    let recalibration_provider = CachedRecalibrationProvider::new();
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
 
     for tenor in [1, 3, 5, 10].iter() {
@@ -193,7 +195,13 @@ fn bench_cds_index_cs01(c: &mut Criterion) {
             BenchmarkId::from_parameter(format!("{}Y", tenor)),
             tenor,
             |b, _| {
-                b.iter(|| index.cs01(black_box(&market), black_box(as_of)));
+                b.iter(|| {
+                    index.cs01(
+                        black_box(&market),
+                        black_box(as_of),
+                        black_box(&recalibration_provider),
+                    )
+                });
             },
         );
     }

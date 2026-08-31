@@ -62,7 +62,7 @@ impl MetricCalculator for CarryDecompositionCalculator {
             collect_cashflows_in_period_cached(context, start_date, rolled_date, base_currency)?;
 
         let curved_pv = context
-            .instrument_value_with_scenario(context.curves.as_ref(), rolled_date)?
+            .reprice_money(context.curves.as_ref(), rolled_date)?
             .amount();
         let total_pv_change = curved_pv - base_pv;
 

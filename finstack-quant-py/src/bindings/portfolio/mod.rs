@@ -53,10 +53,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.add("FxError", py.get_type::<crate::errors::FxError>())?;
     m.add(
-        "OptimizationError",
-        py.get_type::<crate::errors::OptimizationError>(),
-    )?;
-    m.add(
         "ContractValidationError",
         py.get_type::<crate::errors::ContractValidationError>(),
     )?;
@@ -99,7 +95,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "PortfolioError",
         "ValuationError",
         "FxError",
-        "OptimizationError",
         "ContractValidationError",
         "UnsupportedContractVersionError",
         "MissingContractVersionError",

@@ -18,8 +18,7 @@
 //!     ├── CholeskyError
 //!     ├── PortfolioError
 //!     │   ├── ValuationError
-//!     │   ├── FxError
-//!     │   └── OptimizationError
+//!     │   └── FxError
 //!     └── ContractValidationError
 //!         ├── UnsupportedContractVersionError
 //!         ├── MissingContractVersionError
@@ -84,13 +83,6 @@ pyo3::create_exception!(
     FxError,
     PortfolioError,
     "Portfolio FX conversion or market-data failure (inherits PortfolioError)."
-);
-
-pyo3::create_exception!(
-    finstack_quant.portfolio,
-    OptimizationError,
-    PortfolioError,
-    "Portfolio optimization failure (inherits PortfolioError)."
 );
 
 pyo3::create_exception!(
@@ -247,7 +239,7 @@ pub fn analytics_to_py(e: finstack_quant_core::Error) -> PyErr {
 ///
 /// The named subclasses preserve compatibility with callers catching
 /// `ValueError` or `PortfolioError`, while letting portfolio users distinguish
-/// valuation, FX/market-data, and optimization failures.
+/// valuation and FX/market-data failures.
 pub fn portfolio_to_py(e: finstack_quant_portfolio::Error) -> PyErr {
     match e {
         finstack_quant_portfolio::Error::Core(core) => core_to_py(core),
@@ -257,9 +249,6 @@ pub fn portfolio_to_py(e: finstack_quant_portfolio::Error) -> PyErr {
         err @ (finstack_quant_portfolio::Error::FxConversionFailed { .. }
         | finstack_quant_portfolio::Error::MissingMarketData(_)) => {
             FxError::new_err(format_chain(&err))
-        }
-        err @ finstack_quant_portfolio::Error::OptimizationError(_) => {
-            OptimizationError::new_err(format_chain(&err))
         }
         err => PortfolioError::new_err(format_chain(&err)),
     }

@@ -18,7 +18,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::summation::NeumaierAccumulator;
-use finstack_quant_core::money::{fx::FxQuery, Money};
+use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::{CompositeInstrument, Instrument, PricingOptions};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -987,30 +987,11 @@ fn aggregate_position_attributions(
         acc.add_converted(&pos_attr, &convert)?;
 
         if inst_currency != base_currency {
-            let fx_t0 = market_t0.fx().ok_or_else(|| {
-                Error::MissingMarketData("FX matrix at T0 not available".to_string())
-            })?;
-            let fx_t1 = market_t1.fx().ok_or_else(|| {
-                Error::MissingMarketData("FX matrix at T1 not available".to_string())
-            })?;
-
-            let query_t0 = FxQuery::new(inst_currency, base_currency, as_of_t0);
-            let rate_t0 = fx_t0
-                .rate(query_t0)
-                .map_err(|_| Error::FxConversionFailed {
-                    from: inst_currency,
-                    to: base_currency,
-                })?;
-
-            let query_t1 = FxQuery::new(inst_currency, base_currency, as_of_t1);
-            let rate_t1 = fx_t1
-                .rate(query_t1)
-                .map_err(|_| Error::FxConversionFailed {
-                    from: inst_currency,
-                    to: base_currency,
-                })?;
-
-            let principal_translation = val_t0_native.amount() * (rate_t1.rate - rate_t0.rate);
+            let rate_t0 =
+                crate::fx::spot_rate_to_base(inst_currency, as_of_t0, market_t0, base_currency)?;
+            let rate_t1 =
+                crate::fx::spot_rate_to_base(inst_currency, as_of_t1, market_t1, base_currency)?;
+            let principal_translation = val_t0_native.amount() * (rate_t1 - rate_t0);
             acc.add_fx_translation(principal_translation);
         }
 

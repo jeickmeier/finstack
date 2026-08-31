@@ -216,7 +216,7 @@ pub fn compute_pnl_profiles_from_json(
     let positions = pricing_positions(&parsed_positions);
     let factors = parse_factor_definitions_json(factors_json)?;
     let bump_config = parse_bump_config_json(bump_config_json)?;
-    let engine = FullRepricingEngine::try_new(bump_config, n_scenario_points)?;
+    let engine = FullRepricingEngine::new(bump_config, n_scenario_points)?;
     let base_currency = json_reporting_currency(&positions, market, as_of)?;
     engine.compute_pnl_profiles(&positions, &factors, market, as_of, base_currency)
 }

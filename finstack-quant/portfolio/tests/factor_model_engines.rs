@@ -135,7 +135,7 @@ fn full_repricing_engine_matches_bond_dv01_metric() -> Result<()> {
 
     let positions = vec![("bond-pos".to_string(), &bond as &dyn Instrument, 1.0)];
     let factors = vec![rates_factor()];
-    let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
+    let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?.compute_sensitivities(
         &positions,
         &factors,
         &market,
@@ -243,7 +243,7 @@ fn full_repricing_engine_eur_in_usd_book_has_nonzero_fx_factor() -> Result<()> {
     let positions = vec![("eur-pos".to_string(), &eur_bond as &dyn Instrument, 1.0)];
     let factors = vec![fx_factor()];
 
-    let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
+    let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)?.compute_sensitivities(
         &positions,
         &factors,
         &market,

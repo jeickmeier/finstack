@@ -80,7 +80,7 @@ impl MetricCalculator for ImpliedVolCalculator {
         // (computed at `as_of`) is forward-valued to settlement before comparison
         // — identical to the OAS objective. With the default
         // `settlement_days = None`, settle == as_of and this factor is 1.0.
-        let settle = settlement_date(bond, as_of);
+        let settle = settlement_date(bond, as_of)?;
         let settle_df = if settle > as_of {
             base_market
                 .get_discount(bond.discount_curve_id.as_str())?
@@ -313,7 +313,7 @@ mod tests {
 
         // Round-trip: reprice at the solved vol, forward-value to settlement,
         // and compare against the dirty target implied by the quote.
-        let settle = settlement_date(&bond, as_of);
+        let settle = settlement_date(&bond, as_of).expect("settlement date should resolve");
         assert!(settle > as_of, "T+2 settlement must roll forward");
         let settle_df = market
             .get_discount("USD-OIS")

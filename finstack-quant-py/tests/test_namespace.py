@@ -309,7 +309,6 @@ class TestPortfolioNamespace:
             FactorPnlProfile,
             FactorRiskDecomposition,
             FxError,
-            OptimizationError,
             Portfolio,
             PortfolioError,
             PortfolioResult,

@@ -17,6 +17,7 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::{
 };
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
+use std::sync::Arc;
 
 // ==================== CS01 Tests ====================
 
@@ -158,6 +159,63 @@ fn test_standard_cs01_is_normalized_across_bump_sizes() {
         cs01_2bp,
         0.01,
         "CS01 must be normalized to one basis point independently of finite-difference bump size",
+    );
+}
+
+#[test]
+fn test_direct_and_registered_cs01_share_quote_replay_convention() {
+    let mut market = replayable_market_context();
+    let as_of = base_date();
+    let tranche = mezzanine_tranche();
+
+    // Exercise the index-recovery preservation path rather than relying only
+    // on the calibration recipe's 40% recovery assumption.
+    let original = market
+        .get_credit_index(&tranche.credit_index_id)
+        .expect("replayable index should exist");
+    let index = finstack_quant_core::market_data::term_structures::CreditIndexData::builder()
+        .num_constituents(original.num_constituents)
+        .recovery_rate(0.35)
+        .index_credit_curve(Arc::clone(&original.index_credit_curve))
+        .base_correlation_curve(Arc::clone(&original.base_correlation_curve))
+        .build()
+        .expect("comparison index should build");
+    market = market.insert_credit_index(&tranche.credit_index_id, index);
+
+    let bump_bp = 2.0;
+    let mut pricer_config = CDSTranchePricerConfig::default();
+    pricer_config.cs01_bump_size = bump_bp;
+    let pricer = CDSTranchePricer::with_params(pricer_config).expect("valid tranche pricer config");
+    let provider =
+        Arc::new(finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new());
+    let direct = pricer
+        .calculate_cs01(&tranche, &market, as_of, provider.as_ref())
+        .expect("direct replay-backed CS01 should calculate");
+
+    let mut config = finstack_quant_core::config::FinstackConfig::default();
+    config
+        .extensions
+        .insert(
+            "valuations.sensitivities.v1",
+            serde_json::json!({"credit_spread_bump_bp": bump_bp}),
+        )
+        .expect("valid sensitivity configuration");
+    let registered = tranche
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01],
+            finstack_quant_valuations::instruments::PricingOptions::default()
+                .with_config(&config)
+                .with_recalibration_provider(provider),
+        )
+        .expect("registered replay-backed CS01 should calculate")
+        .measures["cs01"];
+
+    let tolerance = 1e-8_f64.max(1e-10 * direct.abs());
+    assert!(
+        (direct - registered).abs() <= tolerance,
+        "direct and registered CS01 must share hazard replay, recovery preservation, and bump normalization: direct={direct}, registered={registered}, tolerance={tolerance}"
     );
 }
 

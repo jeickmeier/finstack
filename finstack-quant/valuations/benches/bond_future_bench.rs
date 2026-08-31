@@ -67,7 +67,7 @@ fn create_ust_10y_future() -> BondFuture {
         .ctd_bond_id(InstrumentId::from("US912828XG33")) // CTD bond
         .discount_curve_id(CurveId::from("USD-TREASURY"))
         .attributes(Attributes::new())
-        .build_validated()
+        .build()
         .unwrap()
 }
 

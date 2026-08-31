@@ -1086,7 +1086,7 @@ fn simm_cq_validation_sectors() -> [SimmCreditSector; 13] {
     ]
 }
 
-fn validate_simm_params(p: &SimmParams) -> Result<()> {
+pub(crate) fn validate_simm_params(p: &SimmParams) -> Result<()> {
     if p.mpor_days == 0 {
         return Err(Error::Validation(
             "simm mpor_days must be greater than zero".to_string(),
@@ -1094,6 +1094,30 @@ fn validate_simm_params(p: &SimmParams) -> Result<()> {
     }
     for (k, v) in &p.ir_delta_weights {
         validate_non_negative(&format!("simm.ir_delta_weights[{k}]"), *v)?;
+    }
+    let tenors: Vec<&String> = p.ir_delta_weights.keys().collect();
+    let mut missing_pairs = Vec::new();
+    for (i, tenor_i) in tenors.iter().enumerate() {
+        for tenor_j in tenors.iter().skip(i + 1) {
+            let key = ordered_tenor_pair(tenor_i, tenor_j);
+            if !p.ir_tenor_correlations.contains_key(&key) {
+                missing_pairs.push(key);
+            }
+        }
+    }
+    if !missing_pairs.is_empty() {
+        let sample = missing_pairs
+            .iter()
+            .take(5)
+            .map(|(a, b)| format!("({a},{b})"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(Error::Validation(format!(
+            "SIMM registry {:?}: ir_tenor_correlations missing {} tenor pair(s) (showing up to 5: {})",
+            p.version,
+            missing_pairs.len(),
+            sample
+        )));
     }
     for (k, v) in &p.commodity_bucket_weights {
         validate_non_negative(&format!("simm.commodity_bucket_weights[{k}]"), *v)?;
@@ -1213,10 +1237,9 @@ fn validate_simm_correlations_psd(p: &SimmParams) -> Result<()> {
         },
     )?;
 
-    // 2. IR tenor correlations — all pairs guaranteed present by the earlier
-    //    completeness check in `simm.rs::validate_simm_params`, but we re-assert
-    //    here via the same fallback path (1.0) so the registry-level check is
-    //    self-contained.
+    // 2. IR tenor correlations — all pairs are guaranteed present by
+    //    `validate_simm_params`; the fallback keeps this lower-level matrix
+    //    validator independently total.
     let tenors: Vec<&str> = p
         .ir_delta_weights
         .keys()

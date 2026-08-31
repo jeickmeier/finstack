@@ -42,7 +42,10 @@
 //! - BCBS-IOSCO uncleared margin framework: `docs/REFERENCES.md#bcbs-iosco-uncleared-margin`
 
 use crate::calculators::traits::{ImCalculator, ImResult};
-use crate::registry::{embedded_registry, margin_registry_from_config, MarginRegistry, SimmParams};
+use crate::registry::{
+    embedded_registry, margin_registry_from_config, validate_simm_params, MarginRegistry,
+    SimmParams,
+};
 use crate::traits::Marginable;
 use crate::types::ImMethodology;
 use crate::types::{
@@ -211,93 +214,6 @@ fn resolve_simm_params(
         version,
         available.join(", ")
     )))
-}
-
-/// Validate SIMM parameter completeness before constructing a calculator.
-///
-/// ISDA SIMM specifies risk weights, correlations, and concentration thresholds
-/// exhaustively for each version. A missing key indicates incomplete registry
-/// data (bad config overlay, truncated JSON, corrupted embed). Catching it at
-/// construction time prevents silent regulatory miscalculation in hot paths.
-///
-/// Checked invariants:
-///
-/// * Every `(tenor_i, tenor_j)` pair from `ir_delta_weights` must have a
-///   corresponding entry in `ir_tenor_correlations` (ordered pair form).
-/// * SIMM v2.6 must include explicit CQ bucket weights, inter-bucket
-///   correlations, and per-bucket concentration thresholds.
-fn validate_simm_params(params: &SimmParams) -> finstack_quant_core::Result<()> {
-    let tenors: Vec<&String> = params.ir_delta_weights.keys().collect();
-    let mut missing_pairs: Vec<(String, String)> = Vec::new();
-    for (i, tenor_i) in tenors.iter().enumerate() {
-        for tenor_j in tenors.iter().skip(i + 1) {
-            let key = ordered_tenor_pair(tenor_i, tenor_j);
-            if !params.ir_tenor_correlations.contains_key(&key) {
-                missing_pairs.push(key);
-            }
-        }
-    }
-    if !missing_pairs.is_empty() {
-        // Keep the error bounded — show up to 5 missing pairs.
-        let sample = missing_pairs
-            .iter()
-            .take(5)
-            .map(|(a, b)| format!("({a},{b})"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "SIMM registry {:?}: ir_tenor_correlations missing {} tenor pair(s) (showing up to 5: {})",
-            params.version,
-            missing_pairs.len(),
-            sample
-        )));
-    }
-
-    if params.version == SimmVersion::V2_6 {
-        use SimmCreditSector::*;
-        let sectors = [
-            Sovereign,
-            Financial,
-            BasicMaterials,
-            ConsumerGoods,
-            TechnologyMedia,
-            HealthCare,
-            HighYieldSovereign,
-            HighYieldFinancial,
-            HighYieldBasicMaterials,
-            HighYieldConsumerGoods,
-            HighYieldTechnologyMedia,
-            HighYieldHealthCare,
-            Residual,
-        ];
-        for sector in sectors {
-            if !params.cq_bucket_weights.contains_key(&sector) {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "SIMM registry {:?}: cq_bucket_weights missing {sector:?}",
-                    params.version
-                )));
-            }
-            if !params.cq_concentration_thresholds.contains_key(&sector) {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "SIMM registry {:?}: cq_concentration_thresholds missing {sector:?}",
-                    params.version
-                )));
-            }
-        }
-        for (i, &a) in sectors.iter().enumerate() {
-            for &b in sectors.iter().skip(i + 1) {
-                let key = ordered_credit_sector_pair(a, b);
-                if !params.cq_inter_bucket_correlations.contains_key(&key) {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "SIMM registry {:?}: cq_inter_bucket_correlations missing ({a:?},{b:?})",
-                        params.version
-                    )));
-                }
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// One-sided 99.5% standard-normal quantile `Φ⁻¹(0.995)`, used in the ISDA

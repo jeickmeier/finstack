@@ -40,7 +40,6 @@ from finstack_quant.portfolio import (
     FxError,
     MalformedContractSchemaError,
     MissingContractVersionError,
-    OptimizationError,
     Portfolio,
     PortfolioError,
     PortfolioResult,
@@ -56,7 +55,6 @@ REPARENTED_ERRORS = [
     PortfolioError,
     ValuationError,
     FxError,
-    OptimizationError,
     ContractValidationError,
     UnsupportedContractVersionError,
     MissingContractVersionError,
@@ -337,7 +335,6 @@ class TestBackwardCompatibility:
         for error_type in (
             ValuationError,
             FxError,
-            OptimizationError,
         ):
             assert issubclass(error_type, PortfolioError)
 

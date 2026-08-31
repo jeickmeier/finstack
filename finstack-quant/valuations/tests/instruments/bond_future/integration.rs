@@ -208,7 +208,7 @@ fn create_ust_10y_future(config: TestBondFutureConfig) -> BondFuture {
         .ctd_bond_id(InstrumentId::new(config.ctd_bond_id))
         .discount_curve_id(CurveId::new(config.discount_curve_id))
         .attributes(Attributes::new())
-        .build_validated()
+        .build()
         .expect("Future construction should succeed")
 }
 
@@ -228,7 +228,7 @@ fn create_ust_10y_future_with_ctd(config: TestBondFutureConfig, ctd_bond: Bond) 
         .ctd_bond(ctd_bond)
         .discount_curve_id(CurveId::new(config.discount_curve_id))
         .attributes(Attributes::new())
-        .build_validated()
+        .build()
         .expect("Future construction should succeed")
 }
 
@@ -249,7 +249,7 @@ fn try_create_ust_10y_future(
         .ctd_bond_id(InstrumentId::new(config.ctd_bond_id))
         .discount_curve_id(CurveId::new(config.discount_curve_id))
         .attributes(Attributes::new())
-        .build_validated()
+        .build()
 }
 
 // Integration Tests

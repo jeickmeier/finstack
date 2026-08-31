@@ -996,7 +996,7 @@ mod tests {
             Arc::new(registry),
         ));
         let metric_reprice = metric_context
-            .instrument_value_with_scenario(&market, requested_as_of)
+            .reprice_money(&market, requested_as_of)
             .expect("metric scenario lifecycle");
 
         assert_eq!(base_raw, raw_value);

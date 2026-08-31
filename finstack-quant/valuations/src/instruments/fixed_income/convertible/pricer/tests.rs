@@ -1,7 +1,7 @@
 use super::{
     calculate_accrued_interest, calculate_convertible_greeks, calculate_parity,
-    compute_conversion_value, prepare_for_pricing, price_convertible_bond, ConvertibleBondValuator,
-    ConvertibleTreeType,
+    compute_conversion_value, prepare_for_pricing, price_convertible_bond, settlement_date,
+    ConvertibleBondValuator, ConvertibleTreeType,
 };
 use crate::cashflow::builder::specs::{CouponType, FixedCouponSpec};
 use crate::instruments::fixed_income::convertible::ConvertibleBond;
@@ -394,8 +394,33 @@ fn test_accrued_interest() {
     // Mid-period: ~3 months into a 6-month coupon period
     let mid = Date::from_calendar_date(2025, Month::April, 1).expect("valid date");
     let accrued = calculate_accrued_interest(&bond, mid).expect("should compute");
-    // ~half of semi-annual coupon (5%/2 * 1000 = 25, half ~ 12.5)
-    assert!(accrued > 5.0 && accrued < 20.0, "accrued = {}", accrued);
+    // The canonical schedule-driven linear engine gives N × r × elapsed year
+    // fraction: 1000 × 5% × 90/365 from Jan 1 through Apr 1.
+    let expected = 1_000.0 * 0.05 * 90.0 / 365.0;
+    assert!(
+        (accrued - expected).abs() < 1e-10,
+        "accrued={accrued}, expected={expected}"
+    );
+}
+
+#[test]
+fn settlement_date_uses_coupon_holiday_calendar() {
+    let mut bond = create_test_bond();
+    bond.settlement_days = Some(1);
+    bond.fixed_coupon
+        .as_mut()
+        .expect("test bond has fixed coupon")
+        .schedule
+        .calendar_id = "usny".to_string();
+
+    // Thursday July 3, 2025 + one USNY business day skips Independence Day
+    // and the weekend, settling Monday July 7.
+    let trade = Date::from_calendar_date(2025, Month::July, 3).expect("valid date");
+    let expected = Date::from_calendar_date(2025, Month::July, 7).expect("valid date");
+    assert_eq!(
+        settlement_date(&bond, trade).expect("USNY settlement should resolve"),
+        expected
+    );
 }
 
 #[test]

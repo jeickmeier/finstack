@@ -119,6 +119,24 @@ pub fn extract_all_identifiers(formula: &str) -> crate::error::Result<IndexSet<S
     Ok(identifiers)
 }
 
+/// Return whether a formula contains a parsed capital-structure reference.
+///
+/// This distinguishes the dedicated `cs.<component>.<instrument-or-total>` AST
+/// node from ordinary identifiers that merely contain the characters `cs.`.
+///
+/// # Arguments
+///
+/// * `formula` - Complete Statements DSL expression to parse and inspect.
+///
+/// # Errors
+///
+/// Returns a formula-parse error when `formula` is not a valid expression.
+pub(crate) fn contains_capital_structure_reference(formula: &str) -> crate::error::Result<bool> {
+    Ok(extract_all_identifiers(formula)?
+        .iter()
+        .any(|identifier| identifier.starts_with("cs.")))
+}
+
 /// Extract direct dependencies (ignoring lagged references) from a formula.
 ///
 /// This parses the formula AST and collects identifiers, but skips traversal
@@ -335,6 +353,18 @@ mod tests {
         assert_eq!(deps.len(), 1);
         assert!(deps.contains("revenue"));
         assert!(!deps.contains("interest_expense")); // Should be excluded (part of cs.*)
+    }
+
+    #[test]
+    fn capital_structure_detection_uses_parsed_reference_kind() {
+        assert!(
+            contains_capital_structure_reference("revenue - cs.interest_expense.total")
+                .expect("capital-structure formula should parse")
+        );
+        assert!(
+            !contains_capital_structure_reference("economics.sales + cs_value.total")
+                .expect("ordinary qualified identifiers should parse")
+        );
     }
 
     #[test]

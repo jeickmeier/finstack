@@ -1,6 +1,6 @@
 //! Convertible pricing pipeline and public pricing helpers.
 
-use finstack_quant_core::dates::{Date, DateExt, DayCount};
+use finstack_quant_core::dates::{adjust, BusinessDayConvention, Date, DateExt, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::Money;
@@ -622,19 +622,54 @@ pub fn calculate_conversion_premium(
 
 /// Compute the settlement date for a convertible bond.
 ///
-/// If `settlement_days` is set, adds that many weekdays to `as_of`.
-/// Otherwise returns `as_of` unchanged.
+/// If `settlement_days` is set, advances on the coupon schedule's holiday
+/// calendar and applies its business-day convention. Zero-coupon bonds use the
+/// canonical weekends-only calendar with Following adjustment. Otherwise
+/// returns `as_of` unchanged.
 ///
 /// # Arguments
 ///
 /// * `bond` - Convertible bond whose optional business-day settlement lag is
 ///   applied.
 /// * `as_of` - Trade or valuation date from which settlement is rolled.
-pub fn settlement_date(bond: &ConvertibleBond, as_of: Date) -> Date {
-    match bond.settlement_days {
-        Some(days) if days > 0 => as_of.add_weekdays(days as i32),
-        _ => as_of,
-    }
+///
+/// # Errors
+///
+/// Returns an error if `settlement_days` exceeds the supported signed range,
+/// the configured calendar is unknown, or business-day adjustment fails.
+pub fn settlement_date(bond: &ConvertibleBond, as_of: Date) -> Result<Date> {
+    let Some(days) = bond.settlement_days.filter(|days| *days > 0) else {
+        return Ok(as_of);
+    };
+    let days = i32::try_from(days).map_err(|_| {
+        Error::Validation(format!(
+            "convertible settlement_days {days} exceeds the supported range"
+        ))
+    })?;
+    let (calendar_id, convention) = bond
+        .fixed_coupon
+        .as_ref()
+        .map(|coupon| {
+            (
+                coupon.schedule.calendar_id.as_str(),
+                coupon.schedule.business_day_convention,
+            )
+        })
+        .or_else(|| {
+            bond.floating_coupon.as_ref().map(|coupon| {
+                (
+                    coupon.schedule.calendar_id.as_str(),
+                    coupon.schedule.business_day_convention,
+                )
+            })
+        })
+        .unwrap_or((
+            crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
+            BusinessDayConvention::Following,
+        ));
+    let calendar = crate::cashflow::builder::calendar::resolve_calendar_strict(calendar_id)?;
+    let advanced = as_of.add_business_days(days, calendar)?;
+    adjust(advanced, convention, calendar)
 }
 
 /// Calculate accrued interest for a convertible bond.
@@ -661,53 +696,24 @@ pub fn calculate_accrued_interest(bond: &ConvertibleBond, as_of: Date) -> Result
         return Ok(0.0); // Zero-coupon
     }
 
-    let settle = settlement_date(bond, as_of);
+    let settle = settlement_date(bond, as_of)?;
 
     let schedule = build_convertible_schedule(bond)?;
-    let coupons: Vec<_> = schedule.coupons().collect();
-
-    if coupons.is_empty() {
-        return Ok(0.0);
-    }
-
-    // ACT/ACT (ISMA) requires the coupon frequency and reference period; without
-    // them year_fraction errors (MissingFrequencyForActActIsma). Propagate that
-    // error rather than silently treating accrued as zero — which would corrupt
-    // the dirty/clean price and the OAS target for ISMA-day-count convertibles.
     let frequency = bond
         .fixed_coupon
         .as_ref()
         .map(|c| c.schedule.frequency)
         .or_else(|| bond.floating_coupon.as_ref().map(|c| c.schedule.frequency));
-
-    let mut period_start = bond.issue_date;
-    for cf in &coupons {
-        let period_end = cf.date;
-        if settle >= period_start && settle < period_end {
-            let dc_ctx = finstack_quant_core::dates::DayCountContext {
-                frequency,
-                coupon_period: Some((period_start, period_end)),
-                ..Default::default()
-            };
-            let period_yf =
-                schedule
-                    .get_day_count()
-                    .year_fraction(period_start, period_end, dc_ctx)?;
-            let accrued_yf =
-                schedule
-                    .get_day_count()
-                    .year_fraction(period_start, settle, dc_ctx)?;
-
-            if period_yf > 0.0 {
-                let fraction = accrued_yf / period_yf;
-                return Ok(cf.amount.amount() * fraction);
-            }
-            return Ok(0.0);
-        }
-        period_start = period_end;
-    }
-
-    Ok(0.0)
+    crate::cashflow::accrual::accrued_interest_amount(
+        &schedule,
+        settle,
+        &crate::cashflow::accrual::AccrualConfig {
+            method: crate::cashflow::accrual::AccrualMethod::Linear,
+            ex_coupon: None,
+            include_pik: true,
+            frequency,
+        },
+    )
 }
 
 fn validate_tree_type(tree_type: ConvertibleTreeType) -> Result<()> {

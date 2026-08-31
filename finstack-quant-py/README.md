@@ -262,7 +262,6 @@ catches them.
 | `PortfolioError` | `finstack_quant.portfolio` | `FinstackError` |
 | `ValuationError` | `finstack_quant.portfolio` | `PortfolioError` |
 | `FxError` | `finstack_quant.portfolio` | `PortfolioError` |
-| `OptimizationError` | `finstack_quant.portfolio` | `PortfolioError` |
 | `ContractValidationError` | `finstack_quant.portfolio` | `FinstackError` |
 | `ContractLimitExceededError` | `finstack_quant.portfolio` | `ContractValidationError` |
 | `MalformedContractSchemaError` | `finstack_quant.portfolio` | `ContractValidationError` |

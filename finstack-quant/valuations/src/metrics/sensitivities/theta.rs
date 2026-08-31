@@ -357,15 +357,13 @@ fn compute_theta_breakdown(context: &mut crate::metrics::MetricContext) -> Resul
 
     // Theta uses value() (instrument-economics-signed PV) for both base and rolled dates.
     let base_pv = context
-        .instrument_value_with_scenario(&context.curves, context.as_of)?
+        .reprice_money(&context.curves, context.as_of)?
         .amount();
     let base_currency = context.base_value.currency();
 
     let horizon_days = (rolled_date - context.as_of).whole_days();
     let rolled_market = context.curves.roll_forward(horizon_days)?;
-    let rolled_pv = context
-        .instrument_value_with_scenario(&rolled_market, rolled_date)?
-        .amount();
+    let rolled_pv = context.reprice_money(&rolled_market, rolled_date)?.amount();
 
     let start_date = context.as_of;
     let carry =

@@ -190,7 +190,8 @@ fn sparse_repricing_factors(n_factors: usize) -> Vec<FactorDefinition> {
 fn bench_full_repricing(c: &mut Criterion) {
     let as_of = date!(2025 - 01 - 01);
     let market = repricing_market(as_of);
-    let engine = FullRepricingEngine::new(BumpSizeConfig::default(), 5); // 5-point grid
+    let engine = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
+        .expect("five points form a valid full-repricing grid");
 
     let mut group = c.benchmark_group("full_repricing_pnl_profiles");
     group.sample_size(10);

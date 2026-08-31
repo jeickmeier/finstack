@@ -171,9 +171,9 @@ impl CDSTranchePricer {
                 let expected_loss = if !(ADAPTIVE_INTEGRATION_LOW..=ADAPTIVE_INTEGRATION_HIGH)
                     .contains(&correlation)
                 {
-                    quad.integrate_adaptive(integrand, NUMERICAL_TOLERANCE)
+                    quad.try_integrate_adaptive(integrand, NUMERICAL_TOLERANCE)?
                 } else {
-                    quad.integrate(integrand)
+                    quad.try_integrate(integrand)?
                 };
                 return Ok(expected_loss);
             }
@@ -199,7 +199,7 @@ impl CDSTranchePricer {
             } else {
                 1.0
             };
-            let expected_loss = copula_ref.integrate_fn(&|factors| {
+            let expected_loss = copula_ref.try_integrate_fn(&|factors| {
                 let recovery_driver = self.recovery_driver_for_factors(factors);
                 self.conditional_equity_tranche_capped(
                     num_constituents,
@@ -207,7 +207,7 @@ impl CDSTranchePricer {
                     conditional_p(factors),
                     scale * exposure_at(recovery_driver),
                 )
-            });
+            })?;
             return Ok(expected_loss);
         }
 

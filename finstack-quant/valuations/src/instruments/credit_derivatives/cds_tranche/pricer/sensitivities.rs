@@ -11,6 +11,7 @@ use finstack_quant_core::dates::{next_cds_date, Date};
 use finstack_quant_core::market_data::{context::MarketContext, term_structures::CreditIndexData};
 use finstack_quant_core::math::binomial_pmf_all_into;
 use finstack_quant_core::{Error, Result};
+use std::sync::Arc;
 
 impl CDSTranchePricer {
     /// Apply smooth correlation boundary handling to avoid numerical discontinuities.
@@ -66,7 +67,7 @@ impl CDSTranchePricer {
         cap_notional: f64,
         conditional_default_prob: f64,
         exposure: f64,
-    ) -> f64 {
+    ) -> Result<f64> {
         let individual_notional = 1.0 / num_constituents as f64; // Normalized to 1.0 total
 
         // Evaluate the whole conditional binomial PMF once (O(n)) instead of
@@ -82,7 +83,7 @@ impl CDSTranchePricer {
 
         PMF_SCRATCH.with(|cell| {
             let mut pmf = cell.borrow_mut();
-            binomial_pmf_all_into(&mut pmf, num_constituents, conditional_default_prob);
+            binomial_pmf_all_into(&mut pmf, num_constituents, conditional_default_prob)?;
 
             let mut expected = 0.0;
 
@@ -97,7 +98,7 @@ impl CDSTranchePricer {
                 expected += prob_k_defaults * capped;
             }
 
-            expected
+            Ok(expected)
         })
     }
 
@@ -569,50 +570,34 @@ impl CDSTranchePricer {
         }
 
         let original_index_arc = market_ctx.get_credit_index(&tranche.credit_index_id)?;
-        let hazard = &original_index_arc.index_credit_curve;
-        crate::metrics::sensitivities::cs01::require_hazard_replay(
-            hazard.as_ref(),
-            "CDS tranche CS01",
-        )?;
-
+        let hazard = Arc::clone(&original_index_arc.index_credit_curve);
         let bump_bp = self.params.cs01_bump_size;
-        let source_market = std::sync::Arc::new(market_ctx.clone());
-        let bump_index_spreads = |sign: f64| -> Result<_> {
-            let bumped_hazard = provider.rebuild_hazard_curve(
-                &crate::recalibration::HazardRecalibrationRequest {
-                    hazard: std::sync::Arc::clone(hazard),
-                    source_market: std::sync::Arc::clone(&source_market),
-                    target_market: std::sync::Arc::clone(&source_market),
-                    discount_curve_id: tranche.discount_curve_id.clone(),
-                    doc_clause: None,
-                    cds_valuation_convention: None,
-                    deal_quote_override: None,
-                    action: crate::recalibration::HazardRecalibrationAction::SpreadBump(
-                        crate::recalibration::QuoteBump::ParallelBp(sign * bump_bp),
-                    ),
-                },
-            )?;
-            self.rebuild_credit_index(
-                original_index_arc.as_ref(),
-                original_index_arc.recovery_rate,
-                bumped_hazard,
-                std::sync::Arc::clone(&original_index_arc.base_correlation_curve),
-            )
-        };
-
-        // Central difference: (PV_up - PV_down) / 2 for O(h²) accuracy
-        let ctx_up = market_ctx
-            .clone()
-            .insert_credit_index(&tranche.credit_index_id, bump_index_spreads(1.0)?);
-        let ctx_down = market_ctx
-            .clone()
-            .insert_credit_index(&tranche.credit_index_id, bump_index_spreads(-1.0)?);
-
-        let pv_up = self.price_tranche(tranche, &ctx_up, as_of)?.amount();
-        let pv_down = self.price_tranche(tranche, &ctx_down, as_of)?.amount();
-
-        // Return sensitivity normalized to a 1bp configured bump.
-        Ok((pv_up - pv_down) / (2.0 * bump_bp))
+        let source_market = Arc::new(market_ctx.clone());
+        crate::metrics::sensitivities::cs01::compute_parallel_cs01_with_provider_raw(
+            provider,
+            hazard,
+            Arc::clone(&source_market),
+            source_market,
+            bump_bp,
+            tranche.discount_curve_id.clone(),
+            None,
+            None,
+            None,
+            |bumped_hazard| {
+                let bumped_index = self.rebuild_credit_index(
+                    original_index_arc.as_ref(),
+                    original_index_arc.recovery_rate,
+                    Arc::clone(&bumped_hazard),
+                    Arc::clone(&original_index_arc.base_correlation_curve),
+                )?;
+                let bumped_market = market_ctx
+                    .clone()
+                    .insert(bumped_hazard)
+                    .insert_credit_index(&tranche.credit_index_id, bumped_index);
+                self.price_tranche(tranche, &bumped_market, as_of)
+                    .map(|pv| pv.amount())
+            },
+        )
     }
 
     /// Calculate correlation delta (Correlation01) using a central difference.
@@ -923,7 +908,7 @@ mod tests {
     /// `C(125, 62) * 0.5^125` is finite and matches `0.07094031336820422`.
     #[test]
     fn binomial_pmf_all_finite_for_large_n() {
-        let pmf = binomial_pmf_all(125, 0.5);
+        let pmf = binomial_pmf_all(125, 0.5).expect("valid probability should produce a PMF");
         let p = pmf[62];
         assert!(
             p.is_finite(),
@@ -943,12 +928,14 @@ mod tests {
     #[test]
     fn conditional_equity_tranche_loss_finite_for_full_index() {
         let pricer = CDSTranchePricer::new();
-        let el = pricer.conditional_equity_tranche_capped(
-            125,        // num_constituents
-            0.03,       // cap_notional (3% equity tranche)
-            0.10,       // conditional default probability
-            1.0 - 0.40, // exposure = LGD at 40% recovery
-        );
+        let el = pricer
+            .conditional_equity_tranche_capped(
+                125,        // num_constituents
+                0.03,       // cap_notional (3% equity tranche)
+                0.10,       // conditional default probability
+                1.0 - 0.40, // exposure = LGD at 40% recovery
+            )
+            .expect("valid probability should produce an expected loss");
         assert!(
             el.is_finite(),
             "conditional equity tranche loss must be finite, got {el}"
@@ -960,10 +947,21 @@ mod tests {
         );
 
         // The binomial pmf over 0..=N must form a valid probability mass.
-        let total: f64 = binomial_pmf_all(125, 0.10).iter().sum();
+        let total: f64 = binomial_pmf_all(125, 0.10)
+            .expect("valid probability should produce a PMF")
+            .iter()
+            .sum();
         assert!(
             (total - 1.0).abs() < 1e-9,
             "binomial pmf over 0..=125 must sum to 1, got {total}"
         );
+    }
+
+    #[test]
+    fn conditional_equity_tranche_rejects_nan_probability() {
+        let error = CDSTranchePricer::new()
+            .conditional_equity_tranche_capped(125, 0.03, f64::NAN, 0.60)
+            .expect_err("NaN conditional probability must fail before integration");
+        assert!(matches!(error, finstack_quant_core::Error::Validation(_)));
     }
 }

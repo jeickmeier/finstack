@@ -711,7 +711,7 @@ fn bad_fit_envelope_error(step_id: &str, report: &CalibrationReport) -> Envelope
 
 /// Parse a JSON calibration envelope and execute it.
 ///
-/// Combines [`super::validate::parse_envelope`] with [`execute`] so host
+/// Combines the internal `parse_envelope` loader with [`execute`] so host
 /// bindings do not reimplement the parse-then-run path.
 ///
 /// # Arguments

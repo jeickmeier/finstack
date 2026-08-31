@@ -36,7 +36,7 @@ impl MetricCalculator for ThetaCalculator {
         let base_pv = context.base_value.amount();
 
         // Reprice at rolled date with same market context
-        let bumped = context.instrument_value_with_scenario(&context.curves, rolled_date)?;
+        let bumped = context.reprice_money(&context.curves, rolled_date)?;
 
         Ok(bumped.amount() - base_pv)
     }

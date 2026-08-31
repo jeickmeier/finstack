@@ -68,7 +68,7 @@ impl MetricCalculator for OasCalculator {
         // With the default `settlement_days = None`, settle == as_of and this
         // factor is 1.0 (no change); it only matters when a settlement lag is set.
         let settle =
-            crate::instruments::fixed_income::convertible::pricer::settlement_date(bond, as_of);
+            crate::instruments::fixed_income::convertible::pricer::settlement_date(bond, as_of)?;
         let settle_df = if settle > as_of {
             base_market
                 .get_discount(bond.discount_curve_id.as_str())?

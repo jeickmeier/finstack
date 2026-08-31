@@ -143,11 +143,12 @@ impl FactorModelBuilder {
         let bump_config = config.bump_size.clone().unwrap_or_default();
         let sensitivity_engine = {
             #[cfg(test)]
-            let engine = self
-                .custom_sensitivity_engine
-                .unwrap_or_else(|| default_sensitivity_engine(config.pricing_mode, &bump_config));
+            let engine = match self.custom_sensitivity_engine {
+                Some(engine) => engine,
+                None => default_sensitivity_engine(config.pricing_mode, &bump_config)?,
+            };
             #[cfg(not(test))]
-            let engine = default_sensitivity_engine(config.pricing_mode, &bump_config);
+            let engine = default_sensitivity_engine(config.pricing_mode, &bump_config)?;
             engine
         };
         let decomposer: Box<dyn RiskDecomposer> = {
@@ -183,11 +184,11 @@ impl Default for FactorModelBuilder {
 fn default_sensitivity_engine(
     pricing_mode: PricingMode,
     bump_config: &BumpSizeConfig,
-) -> Box<dyn FactorSensitivityEngine> {
-    match pricing_mode {
-        PricingMode::FullRepricing => Box::new(FullRepricingEngine::new(bump_config.clone(), 5)),
+) -> Result<Box<dyn FactorSensitivityEngine>> {
+    Ok(match pricing_mode {
+        PricingMode::FullRepricing => Box::new(FullRepricingEngine::new(bump_config.clone(), 5)?),
         _ => Box::new(DeltaBasedEngine::new(bump_config.clone())),
-    }
+    })
 }
 
 /// Portfolio-level factor-model orchestrator.

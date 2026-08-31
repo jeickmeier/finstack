@@ -233,7 +233,7 @@ fn iterative_breakeven(
 
     // Base PV at the horizon with current (un-bumped) curves.
     let base_pv_at_horizon = context
-        .instrument_value_with_scenario(context.curves.as_ref(), rolled_date)?
+        .reprice_money(context.curves.as_ref(), rolled_date)?
         .amount();
 
     // Linear estimate as initial guess.
@@ -258,7 +258,7 @@ fn iterative_breakeven(
             Ok(market) => market,
             Err(err) => return record(err),
         };
-        match context.instrument_value_with_scenario(&bumped_market, rolled_date) {
+        match context.reprice_money(&bumped_market, rolled_date) {
             Ok(pv) => carry_total + pv.amount() - base_pv_at_horizon,
             Err(err) => record(err),
         }

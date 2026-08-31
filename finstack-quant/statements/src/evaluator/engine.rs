@@ -212,25 +212,24 @@ impl Evaluator {
         let prepared = self.init_eval_plan(model)?;
         self.visibility_cutoff = as_of;
 
-        let cs_seed_nodes: HashSet<NodeId> = model
-            .nodes
-            .iter()
-            .filter_map(|(node_id, spec)| {
-                if spec
-                    .formula_text
-                    .as_deref()
-                    .is_some_and(|text| text.contains("cs."))
-                    || spec
-                        .where_text
-                        .as_deref()
-                        .is_some_and(|text| text.contains("cs."))
-                {
-                    Some(node_id.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let mut cs_seed_nodes = HashSet::new();
+        for (node_id, spec) in &model.nodes {
+            let formula_references_cs = spec
+                .formula_text
+                .as_deref()
+                .map(crate::utils::formula::contains_capital_structure_reference)
+                .transpose()?
+                .unwrap_or(false);
+            let predicate_references_cs = spec
+                .where_text
+                .as_deref()
+                .map(crate::utils::formula::contains_capital_structure_reference)
+                .transpose()?
+                .unwrap_or(false);
+            if formula_references_cs || predicate_references_cs {
+                cs_seed_nodes.insert(node_id.clone());
+            }
+        }
 
         let cs_affected_nodes = dependent_closure(&prepared.dag, &cs_seed_nodes);
 

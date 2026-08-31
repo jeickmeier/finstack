@@ -594,15 +594,6 @@ impl MetricContext {
         self.inputs.base_value = base_value;
     }
 
-    /// Value the instrument through the active canonical dispatch path.
-    pub fn instrument_value_with_scenario(
-        &self,
-        market: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Date,
-    ) -> finstack_quant_core::Result<Money> {
-        self.reprice_money(market, as_of)
-    }
-
     /// Reprice the context instrument using the active dispatch path.
     pub fn reprice_money(
         &self,

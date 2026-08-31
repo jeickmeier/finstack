@@ -428,7 +428,7 @@ impl BondFutureSpecs {
 ///     }])
 ///     .discount_curve_id(CurveId::new("USD-TREASURY"))
 ///     .attributes(Attributes::new())
-///     .build_validated()?;
+///     .build()?;
 /// assert_eq!(future.deliverable_basket.len(), 1);
 /// # Ok(())
 /// # }
@@ -440,6 +440,7 @@ impl BondFutureSpecs {
     serde::Serialize,
     serde::Deserialize,
 )]
+#[builder(validate = BondFuture::validate)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BondFuture {
@@ -604,7 +605,7 @@ impl BondFuture {
             ])
             .ctd_bond_id(bond1_id)
             .discount_curve_id(CurveId::new("USD-TREASURY"))
-            .build_validated()
+            .build()
     }
 
     fn resolve_ctd_bond_id(&self) -> finstack_quant_core::Result<InstrumentId> {
@@ -1098,28 +1099,6 @@ impl BondFuture {
     }
 }
 
-// Manually implement a validated builder method
-impl BondFutureBuilder {
-    /// Build the BondFuture with validation.
-    ///
-    /// This is a wrapper around the generated `build()` method that adds
-    /// validation checks after construction.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Any required field is missing (from the generated builder)
-    /// - Validation fails (from `BondFuture::validate`)
-    ///
-    pub fn build_validated(self) -> finstack_quant_core::Result<BondFuture> {
-        let bond_future = self.build().map_err(|e| {
-            finstack_quant_core::Error::Validation(format!("BondFuture construction failed: {}", e))
-        })?;
-        bond_future.validate()?;
-        Ok(bond_future)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1352,7 +1331,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_err());
         let err_msg = format!("{}", result.expect_err("Should have validation error"));
@@ -1380,7 +1359,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_err());
         let err_msg = format!("{}", result.expect_err("Should have validation error"));
@@ -1403,7 +1382,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_err());
         let err_msg = format!("{}", result.expect_err("Should have validation error"));
@@ -1431,7 +1410,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("UNKNOWN_BOND_ID")) // Invalid: not in basket
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_err());
         let err_msg = format!("{}", result.expect_err("Should have validation error"));
@@ -1463,7 +1442,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_err());
         let err_msg = format!("{}", result.expect_err("Should have validation error"));
@@ -1491,7 +1470,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_err());
         let err_msg = format!("{}", result.expect_err("Should have validation error"));
@@ -1519,7 +1498,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_ok());
         let future = result.expect("Should build valid BondFuture");
@@ -1546,7 +1525,7 @@ mod tests {
             .deliverable_basket(vec![deliverable])
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_ok());
     }
@@ -1572,7 +1551,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated()
+            .build()
             .expect("Valid UST 10Y future");
 
         assert_eq!(future.id.as_str(), "TYH5");
@@ -1605,7 +1584,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated()
+            .build()
             .expect("Valid UST 5Y future");
 
         assert_eq!(future.id.as_str(), "FVH5");
@@ -1638,7 +1617,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated()
+            .build()
             .expect("Valid UST 2Y future");
 
         assert_eq!(future.id.as_str(), "TUH5");
@@ -1671,7 +1650,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("DE0001102473"))
             .discount_curve_id(CurveId::new("EUR-BUNDS"))
             .attributes(Attributes::new())
-            .build_validated()
+            .build()
             .expect("Valid Bund future");
 
         assert_eq!(future.id.as_str(), "FGBLH5");
@@ -1704,7 +1683,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("GB00B128DH60"))
             .discount_curve_id(CurveId::new("GBP-GILTS"))
             .attributes(Attributes::new())
-            .build_validated()
+            .build()
             .expect("Valid Gilt future");
 
         assert_eq!(future.id.as_str(), "GILTH5");
@@ -1737,7 +1716,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated()
+            .build()
             .expect("Valid short future");
 
         assert_eq!(future.position, Position::Short);
@@ -1764,7 +1743,7 @@ mod tests {
             .ctd_bond_id(InstrumentId::new("US912828XG33"))
             .discount_curve_id(CurveId::new("USD-TREASURY"))
             .attributes(Attributes::new())
-            .build_validated();
+            .build();
 
         assert!(result.is_err());
     }

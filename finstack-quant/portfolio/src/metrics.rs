@@ -24,7 +24,6 @@ use crate::valuation::PortfolioValuation;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::summation::neumaier_sum;
-use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::HashSet;
 use finstack_quant_valuations::metrics::MetricId;
@@ -437,11 +436,8 @@ fn fx_rate_for_position(
     // carries base-currency quantization noise from the valuation step
     // (value_base was rounded to currency decimals), and that noise would
     // scale every summable risk metric (DV01, CS01, deltas).
-    if let Some(fx_matrix) = market.fx() {
-        if let Ok(rate_result) = fx_matrix.rate(FxQuery::new(native_currency, base_currency, as_of))
-        {
-            return Ok(rate_result.rate);
-        }
+    if let Ok(rate) = crate::fx::spot_rate_to_base(native_currency, as_of, market, base_currency) {
+        return Ok(rate);
     }
 
     // Fallback: the PV-implied ratio, so aggregation still works from

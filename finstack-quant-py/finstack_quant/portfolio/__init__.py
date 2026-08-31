@@ -58,7 +58,6 @@ FinstackError = _portfolio.FinstackError
 PortfolioError = _portfolio.PortfolioError
 ValuationError = _portfolio.ValuationError
 FxError = _portfolio.FxError
-OptimizationError = _portfolio.OptimizationError
 ContractValidationError = _portfolio.ContractValidationError
 UnsupportedContractVersionError = _portfolio.UnsupportedContractVersionError
 MissingContractVersionError = _portfolio.MissingContractVersionError
@@ -216,7 +215,6 @@ __all__: list[str] = [
     "MissingContractVersionError",
     "MissingMetricPolicy",
     "Objective",
-    "OptimizationError",
     "OptimizationStatus",
     "PerPositionMetric",
     "Portfolio",

@@ -54,26 +54,46 @@ pub fn convert_to_base(
     market: &MarketContext,
     base_currency: Currency,
 ) -> Result<Money> {
-    if amount.currency() == base_currency {
-        return Ok(amount);
+    let rate = spot_rate_to_base(amount.currency(), as_of, market, base_currency)?;
+    Ok(Money::new(amount.amount() * rate, base_currency))
+}
+
+/// Resolve the spot FX factor from `from_currency` into `base_currency`.
+///
+/// Returns `1.0` for a same-currency conversion without consulting the market.
+///
+/// # Arguments
+///
+/// * `from_currency` - Native currency whose units the factor converts.
+/// * `as_of` - Date used for the FX matrix lookup.
+/// * `market` - Market context supplying the FX matrix.
+/// * `base_currency` - Target reporting currency.
+///
+/// # Errors
+///
+/// * [`Error::MissingMarketData`] - The market context has no FX matrix.
+/// * [`Error::FxConversionFailed`] - The requested currency pair is not
+///   available in the FX matrix.
+pub fn spot_rate_to_base(
+    from_currency: Currency,
+    as_of: Date,
+    market: &MarketContext,
+    base_currency: Currency,
+) -> Result<f64> {
+    if from_currency == base_currency {
+        return Ok(1.0);
     }
 
     let fx_matrix = market
         .fx()
         .ok_or_else(|| Error::MissingMarketData("FX matrix not available".to_string()))?;
-
-    let query = FxQuery::new(amount.currency(), base_currency, as_of);
-    let rate_result = fx_matrix
-        .rate(query)
+    fx_matrix
+        .rate(FxQuery::new(from_currency, base_currency, as_of))
+        .map(|result| result.rate)
         .map_err(|_| Error::FxConversionFailed {
-            from: amount.currency(),
+            from: from_currency,
             to: base_currency,
-        })?;
-
-    Ok(Money::new(
-        amount.amount() * rate_result.rate,
-        base_currency,
-    ))
+        })
 }
 
 /// Convert a dated cashflow into `base_currency` using spot or a CIP forward.
@@ -182,6 +202,45 @@ mod tests {
             .interp(InterpStyle::Linear)
             .build()
             .expect("test discount curve should build")
+    }
+
+    #[test]
+    fn spot_rate_to_base_resolves_direct_and_inverse_pairs() {
+        let as_of = date!(2025 - 01 - 01);
+        let provider = Arc::new(SimpleFxProvider::new());
+        provider
+            .set_quote(Currency::EUR, Currency::USD, 1.25)
+            .expect("test FX quote should be valid");
+        let market = MarketContext::new().insert_fx(FxMatrix::new(provider));
+
+        let direct = spot_rate_to_base(Currency::EUR, as_of, &market, Currency::USD)
+            .expect("direct quote should resolve");
+        let inverse = spot_rate_to_base(Currency::USD, as_of, &market, Currency::EUR)
+            .expect("inverse quote should resolve");
+
+        assert!((direct - 1.25).abs() < 1e-12);
+        assert!((inverse - 0.8).abs() < 1e-12);
+    }
+
+    #[test]
+    fn spot_rate_to_base_preserves_missing_market_and_pair_errors() {
+        let as_of = date!(2025 - 01 - 01);
+        let missing_matrix =
+            spot_rate_to_base(Currency::EUR, as_of, &MarketContext::new(), Currency::USD)
+                .expect_err("missing matrix should fail");
+        assert!(matches!(missing_matrix, Error::MissingMarketData(_)));
+
+        let empty_market =
+            MarketContext::new().insert_fx(FxMatrix::new(Arc::new(SimpleFxProvider::new())));
+        let missing_pair = spot_rate_to_base(Currency::EUR, as_of, &empty_market, Currency::USD)
+            .expect_err("missing pair should fail");
+        assert!(matches!(
+            missing_pair,
+            Error::FxConversionFailed {
+                from: Currency::EUR,
+                to: Currency::USD
+            }
+        ));
     }
 
     #[test]

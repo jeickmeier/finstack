@@ -10,6 +10,7 @@
 use super::fixtures::*;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
+use time::Month;
 
 #[test]
 fn test_parity_metric() {
@@ -354,6 +355,34 @@ fn test_valuation_result_structure() {
     assert_eq!(result.as_of, as_of, "As-of date should match");
     assert!(result.value.amount() > 0.0, "Base value should be positive");
     assert!(!result.measures.is_empty(), "Should have metrics");
+}
+
+#[test]
+fn test_clean_dirty_price_reconciles_with_canonical_accrual() {
+    let bond = create_standard_convertible();
+    let market = create_market_context();
+    let as_of = finstack_quant_core::dates::Date::from_calendar_date(2025, Month::April, 1)
+        .expect("valid date");
+
+    let result = bond
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Accrued, MetricId::CleanPrice],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("convertible clean and accrued metrics should calculate");
+    let accrued = result.measures["accrued"];
+    let clean = result.measures["clean_price"];
+
+    assert!(
+        accrued > 0.0,
+        "mid-period accrued interest should be positive"
+    );
+    assert!(
+        (clean + accrued - result.value.amount()).abs() < 1e-10,
+        "clean + accrued must equal dirty model value"
+    );
 }
 
 #[test]

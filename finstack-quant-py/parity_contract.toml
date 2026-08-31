@@ -1532,7 +1532,7 @@ builder      = { python = "finstack_quant.portfolio.builder",      status = "mis
 cashflows    = { python = "finstack_quant.portfolio.cashflows",    status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 dataframe    = { python = "finstack_quant.portfolio.dataframe",    status = "missing", note = "The Rust root re-exports positions_to_table/entities_to_table/metrics_to_table/aggregated_metrics_to_table, but Python does not bind the free functions; they back the typed exits (PortfolioValuation.to_dataframe/to_arrow_positions, PortfolioMetrics.to_position_dataframe/to_aggregated_dataframe). entities_to_table has no host consumer yet." }
 dependencies = { python = "finstack_quant.portfolio.dependencies", status = "missing" }
-error        = { python = "finstack_quant.portfolio",              status = "flattened", note = "The Rust Error/Result surface flattens onto the Python root as the exception types PortfolioError, ValuationError, FxError, and OptimizationError (plus the materialization ContractValidationError family)" }
+error        = { python = "finstack_quant.portfolio",              status = "flattened", note = "The Rust Error/Result surface flattens onto the Python root as PortfolioError, ValuationError, and FxError (plus the materialization ContractValidationError family); optimization outcomes use the typed OptimizationStatus result envelope" }
 excess_return = { python = "finstack_quant.portfolio",             status = "flattened", note = "Duration-matched credit excess return functions (cell_returns_from_reference, cell_returns_from_curves, excess_returns) are exported flat on finstack_quant.portfolio (Dynkin, Hyman & Vankudre 1998, Appendix B); duration_cell_label remains Rust-only" }
 factor_brinson = { python = "finstack_quant.portfolio",            status = "flattened", note = "Jeet-Partani (2023) factor-Brinson unified attribution (factor_brinson_attribution) is exported flat on finstack_quant.portfolio" }
 factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Portfolio-owned assignment, what-if, valuation stress, and credit report adapters remain flat on finstack_quant.portfolio; pure risk kernels are owned by finstack_quant.models.factor.risk." }
@@ -1589,7 +1589,6 @@ public = [
     "FiReconciliationReport",
     "FinstackError",
     "FxError",
-    "OptimizationError",
     "ValuationError",
     "GridAttributionResult",
     "GridCarinoLinkedResult",
@@ -1793,7 +1792,6 @@ python_only = [
   "FactorRiskDecomposition",
   "FinstackError",
   "FxError",
-  "OptimizationError",
   "ValuationError",
   "ContractLimitExceededError",
   "ContractValidationError",

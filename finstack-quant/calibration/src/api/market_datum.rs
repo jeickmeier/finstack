@@ -12,7 +12,6 @@ use crate::quotes::market_quote::MarketQuote;
 use crate::quotes::rates::RateQuote;
 use crate::quotes::vol::VolQuote;
 use crate::quotes::xccy::XccyQuote;
-use f64;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::CreditIndexState;
 use finstack_quant_core::market_data::dividends::DividendSchedule;
@@ -204,7 +203,7 @@ impl MarketDatum {
 
 /// Convert any [`MarketQuote`] into the matching `MarketDatum::*Quote` variant.
 ///
-/// Inverse of [`MarketDatum::as_quote`] for the eight quote-bearing variants.
+/// Inverse of [`MarketDatum::as_quote`] for the six quote-bearing variants.
 impl From<MarketQuote> for MarketDatum {
     fn from(q: MarketQuote) -> Self {
         match q {

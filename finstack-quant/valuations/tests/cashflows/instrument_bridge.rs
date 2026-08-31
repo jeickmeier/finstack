@@ -100,7 +100,7 @@ fn bond_future_exposes_cashflow_provider_bridge() {
         }])
         .discount_curve_id(CurveId::new("USD-TREASURY"))
         .attributes(Default::default())
-        .build_validated()
+        .build()
         .expect("bond future fixture");
 
     assert_provider(&future);

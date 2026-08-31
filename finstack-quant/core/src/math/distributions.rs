@@ -275,22 +275,26 @@ pub fn binomial_probability(n: usize, k: usize, p: f64) -> f64 {
 /// ```rust
 /// use finstack_quant_core::math::{binomial_pmf_all, binomial_probability};
 ///
-/// let pmf = binomial_pmf_all(10, 0.3);
+/// let pmf = binomial_pmf_all(10, 0.3)?;
 /// assert_eq!(pmf.len(), 11);
 /// for k in 0..=10 {
 ///     assert!((pmf[k] - binomial_probability(10, k, 0.3)).abs() < 1e-12);
 /// }
+/// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `p` is NaN.
 ///
 /// # References
 ///
 /// - Johnson, N. L., Kotz, S., & Kemp, A. W. (1993). *Univariate Discrete Distributions*
 ///   (2nd ed.). Wiley. Chapter 3. `docs/REFERENCES.md#press-numerical-recipes`
-#[must_use]
-pub fn binomial_pmf_all(n: usize, p: f64) -> Vec<f64> {
+pub fn binomial_pmf_all(n: usize, p: f64) -> crate::Result<Vec<f64>> {
     let mut pmf = Vec::new();
-    binomial_pmf_all_into(&mut pmf, n, p);
-    pmf
+    binomial_pmf_all_into(&mut pmf, n, p)?;
+    Ok(pmf)
 }
 
 /// In-place variant of [`binomial_pmf_all`] that writes the PMF into `out`
@@ -308,16 +312,27 @@ pub fn binomial_pmf_all(n: usize, p: f64) -> Vec<f64> {
 /// * `n` - Number of independent Bernoulli trials.
 /// * `p` - Per-trial success probability. Values at or beyond `0.0` and `1.0`
 ///   produce the corresponding degenerate distribution.
-pub fn binomial_pmf_all_into(out: &mut Vec<f64>, n: usize, p: f64) {
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `p` is NaN. The output buffer is
+/// left unchanged when validation fails.
+pub fn binomial_pmf_all_into(out: &mut Vec<f64>, n: usize, p: f64) -> crate::Result<()> {
+    if p.is_nan() {
+        return Err(crate::Error::Validation(
+            "binomial_pmf_all: success probability p must not be NaN".to_string(),
+        ));
+    }
+
     out.clear();
     out.resize(n + 1, 0.0);
     if p <= 0.0 {
         out[0] = 1.0;
-        return;
+        return Ok(());
     }
     if p >= 1.0 {
         out[n] = 1.0;
-        return;
+        return Ok(());
     }
 
     let log_ratio = p.ln() - (1.0 - p).ln();
@@ -327,6 +342,7 @@ pub fn binomial_pmf_all_into(out: &mut Vec<f64>, n: usize, p: f64) {
         log_prob += ((n - k) as f64).ln() - ((k + 1) as f64).ln() + log_ratio;
         out[k + 1] = log_prob.exp();
     }
+    Ok(())
 }
 
 /// Calculate log factorial ln(n!) with automatic method selection.
@@ -911,7 +927,7 @@ mod tests {
     #[test]
     fn binomial_pmf_all_matches_binomial_probability() {
         for &(n, p) in &[(10usize, 0.3f64), (50, 0.05), (126, 0.5), (20, 0.9)] {
-            let pmf = binomial_pmf_all(n, p);
+            let pmf = binomial_pmf_all(n, p).expect("valid probability should produce a PMF");
             assert_eq!(pmf.len(), n + 1);
             for (k, &prob) in pmf.iter().enumerate() {
                 assert!(
@@ -928,7 +944,7 @@ mod tests {
 
     #[test]
     fn binomial_pmf_all_large_n_keeps_probability_mass() {
-        let pmf = binomial_pmf_all(2_000, 0.5);
+        let pmf = binomial_pmf_all(2_000, 0.5).expect("valid probability should produce a PMF");
         let sum: f64 = pmf.iter().sum();
         let mode = pmf[1_000];
 
@@ -944,13 +960,25 @@ mod tests {
 
     #[test]
     fn binomial_pmf_all_handles_degenerate_p() {
-        let lo = binomial_pmf_all(5, 0.0);
+        let lo = binomial_pmf_all(5, 0.0).expect("zero should produce a degenerate PMF");
         assert_eq!(lo[0], 1.0);
         assert!(lo[1..].iter().all(|&x| x == 0.0));
 
-        let hi = binomial_pmf_all(5, 1.0);
+        let hi = binomial_pmf_all(5, 1.0).expect("one should produce a degenerate PMF");
         assert_eq!(hi[5], 1.0);
         assert!(hi[..5].iter().all(|&x| x == 0.0));
+    }
+
+    #[test]
+    fn binomial_pmf_all_rejects_nan_without_mutating_scratch() {
+        let error = binomial_pmf_all(5, f64::NAN).expect_err("NaN must be rejected");
+        assert!(matches!(error, crate::Error::Validation(_)));
+
+        let mut scratch = vec![0.25, 0.75];
+        let error = binomial_pmf_all_into(&mut scratch, 5, f64::NAN)
+            .expect_err("in-place NaN must be rejected");
+        assert!(matches!(error, crate::Error::Validation(_)));
+        assert_eq!(scratch, vec![0.25, 0.75]);
     }
 
     // Gamma Distribution Tests

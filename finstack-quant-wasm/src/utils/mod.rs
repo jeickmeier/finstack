@@ -199,7 +199,6 @@ fn materialization_error_kind(error: &finstack_quant_portfolio::Error) -> &'stat
         Error::ValuationError { .. } => "valuation",
         Error::ScenarioError(_) => "scenario",
         Error::MissingMarketData(_) => "missing_market_data",
-        Error::OptimizationError(_) => "optimization",
         Error::Core(_) => "core",
         Error::InvalidInput(_) => "invalid_input",
         Error::ContractLimitExceeded { .. } => "limit_exceeded",
@@ -560,10 +559,6 @@ mod tests {
             (
                 Error::MissingMarketData("malformed validation".to_string()),
                 "missing_market_data",
-            ),
-            (
-                Error::OptimizationError("missing curve".to_string()),
-                "optimization",
             ),
             (
                 Error::Core(finstack_quant_core::Error::Internal(

@@ -125,6 +125,46 @@ pub trait Copula: Send + Sync {
     /// The factor-space expectation of the supplied integrand.
     fn integrate_fn(&self, f: &dyn Fn(&[f64]) -> f64) -> f64;
 
+    /// Integrate a fallible function over the copula factor distribution.
+    ///
+    /// The default implementation preserves each concrete copula's integration
+    /// rule and returns the first integrand error after stopping further useful
+    /// evaluations.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Fallible integrand receiving the copula's factor vector.
+    ///
+    /// # Returns
+    ///
+    /// The factor-space expectation when every evaluation succeeds.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `f`.
+    fn try_integrate_fn(
+        &self,
+        f: &dyn Fn(&[f64]) -> finstack_quant_core::Result<f64>,
+    ) -> finstack_quant_core::Result<f64> {
+        let error = std::cell::RefCell::new(None);
+        let value = self.integrate_fn(&|factors| {
+            if error.borrow().is_some() {
+                return 0.0;
+            }
+            match f(factors) {
+                Ok(value) => value,
+                Err(err) => {
+                    *error.borrow_mut() = Some(err);
+                    0.0
+                }
+            }
+        });
+        match error.into_inner() {
+            Some(err) => Err(err),
+            None => Ok(value),
+        }
+    }
+
     /// Per-name latent variable `Aᵢ` for a finite-pool Monte Carlo draw.
     ///
     /// This realizes the copula's *own* latent-variable construction (the

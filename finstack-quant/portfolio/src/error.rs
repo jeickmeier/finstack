@@ -63,10 +63,6 @@ pub enum Error {
     #[error("Missing market data: {0}")]
     MissingMarketData(String),
 
-    /// Optimization error
-    #[error("Optimization error: {0}")]
-    OptimizationError(String),
-
     /// Core error
     #[error(transparent)]
     Core(#[from] finstack_quant_core::Error),

@@ -351,6 +351,33 @@ impl GaussHermiteQuadrature {
         acc.total() / std::f64::consts::PI.sqrt()
     }
 
+    /// Integrate a fallible function over the standard normal distribution.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Function evaluated at each standard-normal quadrature node.
+    ///
+    /// # Returns
+    ///
+    /// The approximate standard-normal expectation when every node evaluates
+    /// successfully.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `f` and stops evaluating nodes.
+    pub fn try_integrate<F2>(&self, f: F2) -> crate::Result<f64>
+    where
+        F2: Fn(f64) -> crate::Result<f64>,
+    {
+        use crate::math::summation::NeumaierAccumulator;
+        let sqrt_2 = std::f64::consts::SQRT_2;
+        let mut acc = NeumaierAccumulator::new();
+        for (i, &z) in self.points.iter().enumerate() {
+            acc.add(self.weights[i] * f(sqrt_2 * z)?);
+        }
+        Ok(acc.total() / std::f64::consts::PI.sqrt())
+    }
+
     /// Gauss-Hermite integration with a single tolerance-checked refinement step.
     ///
     /// This performs at most **one** order-promotion step — it is not an
@@ -447,6 +474,65 @@ impl GaussHermiteQuadrature {
                 }
             }
             _ => base,
+        }
+    }
+
+    /// Tolerance-checked refinement for a fallible integrand.
+    ///
+    /// This follows the same single-step refinement table as
+    /// [`Self::integrate_adaptive`] while propagating integrand failures.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Fallible function evaluated at each standard-normal quadrature node.
+    /// * `tolerance` - Accepted absolute difference between the base and promoted
+    ///   quadrature estimates for orders 5, 7, and 10.
+    ///
+    /// # Returns
+    ///
+    /// The refined standard-normal expectation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `f` at any evaluated node.
+    #[allow(clippy::match_same_arms)]
+    pub fn try_integrate_adaptive<F2>(&self, f: F2, tolerance: f64) -> crate::Result<f64>
+    where
+        F2: Fn(f64) -> crate::Result<f64> + Copy,
+    {
+        let base = self.try_integrate(f)?;
+        let promoted = |points, weights| GaussHermiteQuadrature { points, weights };
+        match self.points.len() {
+            20 => Ok(base),
+            15 => promoted(GAUSS_HERMITE_20_POINTS, GAUSS_HERMITE_20_WEIGHTS).try_integrate(f),
+            10 => {
+                let v15 =
+                    promoted(GAUSS_HERMITE_15_POINTS, GAUSS_HERMITE_15_WEIGHTS).try_integrate(f)?;
+                if (v15 - base).abs() <= tolerance {
+                    Ok(v15)
+                } else {
+                    promoted(GAUSS_HERMITE_20_POINTS, GAUSS_HERMITE_20_WEIGHTS).try_integrate(f)
+                }
+            }
+            7 => {
+                let v10 =
+                    promoted(GAUSS_HERMITE_10_POINTS, GAUSS_HERMITE_10_WEIGHTS).try_integrate(f)?;
+                if (v10 - base).abs() <= tolerance {
+                    Ok(v10)
+                } else {
+                    promoted(GAUSS_HERMITE_15_POINTS, GAUSS_HERMITE_15_WEIGHTS).try_integrate(f)
+                }
+            }
+            5 => {
+                let v7 =
+                    promoted(GAUSS_HERMITE_7_POINTS, GAUSS_HERMITE_7_WEIGHTS).try_integrate(f)?;
+                if (v7 - base).abs() <= tolerance {
+                    Ok(v7)
+                } else {
+                    promoted(GAUSS_HERMITE_10_POINTS, GAUSS_HERMITE_10_WEIGHTS).try_integrate(f)
+                }
+            }
+            _ => Ok(base),
         }
     }
 }

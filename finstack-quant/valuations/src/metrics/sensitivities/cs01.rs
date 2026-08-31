@@ -180,6 +180,68 @@ fn require_cs01_discount_id<'a>(
     })
 }
 
+/// Compute parallel quote-space CS01 through an explicit recalibration provider.
+///
+/// This is the common engine for direct pricer APIs and registered metrics. It
+/// owns the symmetric quote bumps, replay requests, error classification, and
+/// one-basis-point normalization; callers own only the bumped-hazard repricing
+/// closure.
+///
+/// # Errors
+///
+/// Returns an error when the hazard is not replayable, the bump is invalid,
+/// recalibration fails, or `revalue_raw` cannot price a bumped hazard curve.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn compute_parallel_cs01_with_provider_raw<RevalFn>(
+    provider: &dyn crate::recalibration::RecalibrationProvider,
+    hazard: Arc<HazardCurve>,
+    source_market: Arc<MarketContext>,
+    target_market: Arc<MarketContext>,
+    bump_bp: f64,
+    discount_curve_id: CurveId,
+    doc_clause: Option<CdsDocClause>,
+    cds_valuation_convention: Option<CdsValuationConvention>,
+    deal_quote_override: Option<DealCdsQuoteOverride>,
+    mut revalue_raw: RevalFn,
+) -> finstack_quant_core::Result<f64>
+where
+    RevalFn: FnMut(Arc<HazardCurve>) -> finstack_quant_core::Result<f64>,
+{
+    require_hazard_replay(hazard.as_ref(), "quote-space CS01")?;
+    if !bump_bp.is_finite() || bump_bp <= MIN_BUMP_BP_THRESHOLD {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "CS01 bump size must be finite and greater than {MIN_BUMP_BP_THRESHOLD} bp, got {bump_bp}"
+        )));
+    }
+
+    let rebuild = |bump: QuoteBump, direction: &str| {
+        provider
+            .rebuild_hazard_curve(&crate::recalibration::HazardRecalibrationRequest {
+                hazard: Arc::clone(&hazard),
+                source_market: Arc::clone(&source_market),
+                target_market: Arc::clone(&target_market),
+                discount_curve_id: discount_curve_id.clone(),
+                doc_clause,
+                cds_valuation_convention,
+                deal_quote_override,
+                action: crate::recalibration::HazardRecalibrationAction::SpreadBump(bump),
+            })
+            .map_err(|error| finstack_quant_core::Error::Calibration {
+                message: format!(
+                    "CS01 {direction}-bumped hazard curve re-calibration failed for '{}': {error}",
+                    hazard.id()
+                ),
+                category: "cs01_rebootstrap".to_string(),
+            })
+    };
+
+    let bumped_up = rebuild(QuoteBump::ParallelBp(bump_bp), "up")?;
+    let bumped_down = rebuild(QuoteBump::ParallelBp(-bump_bp), "down")?;
+    let pv_up = revalue_raw(bumped_up)?;
+    let pv_down = revalue_raw(bumped_down)?;
+    Ok(sensitivity_central_diff(pv_up, pv_down, bump_bp))
+}
+
 /// Compute parallel CS01 by bumping par spreads and re-calibrating.
 ///
 /// Calculates credit spread sensitivity by shifting the par spreads in parallel
@@ -216,69 +278,31 @@ where
     let curves = Arc::clone(&context.curves);
     let base_ctx = curves.as_ref();
     let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
-    let hazard_ref = hazard.as_ref();
-    require_hazard_replay(hazard_ref, "quote-space CS01")?;
-    let discount_id = require_cs01_discount_id(Some(&discount_curve_id), hazard_ref)?;
+    let discount_id = require_cs01_discount_id(Some(&discount_curve_id), hazard.as_ref())?;
     debug_assert_eq!(discount_id, &discount_curve_id);
-
-    let bump_request_up = QuoteBump::ParallelBp(bump_bp);
-    let bump_request_down = QuoteBump::ParallelBp(-bump_bp);
-
-    let bumped_hazard_up = context
-        .bump_hazard_spreads_cached(
-            hazard_ref,
-            base_ctx,
-            &bump_request_up,
-            discount_curve_id.clone(),
-            doc_clause,
-            cds_valuation_convention,
-            deal_quote_override,
-        )
-        .map_err(|e| finstack_quant_core::Error::Calibration {
-            message: format!(
-                "CS01 up-bumped hazard curve re-calibration failed for '{}': {}",
-                hazard_id.as_str(),
-                e
-            ),
-            category: "cs01_rebootstrap".to_string(),
-        })?;
-
-    let bumped_hazard_down = context
-        .bump_hazard_spreads_cached(
-            hazard_ref,
-            base_ctx,
-            &bump_request_down,
-            discount_curve_id,
-            doc_clause,
-            cds_valuation_convention,
-            deal_quote_override,
-        )
-        .map_err(|e| finstack_quant_core::Error::Calibration {
-            message: format!(
-                "CS01 down-bumped hazard curve re-calibration failed for '{}': {}",
-                hazard_id.as_str(),
-                e
-            ),
-            category: "cs01_rebootstrap".to_string(),
-        })?;
-
-    let (pv_bumped_up, pv_bumped_down) = context.with_market_scratch(|_, scratch| {
-        scratch.insert_mut(bumped_hazard_up);
-        let pv_bumped_up = revalue_raw(scratch)?;
-        scratch.insert_mut(std::sync::Arc::clone(&hazard));
-
-        scratch.insert_mut(bumped_hazard_down);
-        let pv_bumped_down = revalue_raw(scratch)?;
-        scratch.insert_mut(std::sync::Arc::clone(&hazard));
-
-        Ok((pv_bumped_up, pv_bumped_down))
-    })?;
-
-    Ok(sensitivity_central_diff(
-        pv_bumped_up,
-        pv_bumped_down,
+    // Preserve the quote-space contract before looking up the execution
+    // provider, so an unreplayable curve reports the primary input defect.
+    require_hazard_replay(hazard.as_ref(), "quote-space CS01")?;
+    let provider = context.recalibration_provider("cs01")?;
+    compute_parallel_cs01_with_provider_raw(
+        provider.as_ref(),
+        Arc::clone(&hazard),
+        Arc::clone(&curves),
+        curves,
         bump_bp,
-    ))
+        discount_curve_id,
+        doc_clause,
+        cds_valuation_convention,
+        deal_quote_override,
+        |bumped_hazard| {
+            context.with_market_scratch(|_, scratch| {
+                scratch.insert_mut(bumped_hazard);
+                let pv = revalue_raw(scratch)?;
+                scratch.insert_mut(Arc::clone(&hazard));
+                Ok(pv)
+            })
+        },
+    )
 }
 
 /// Compute key-rate CS01 series by bumping par spreads at specific tenors.
