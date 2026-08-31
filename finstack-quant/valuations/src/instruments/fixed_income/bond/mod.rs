@@ -118,9 +118,7 @@ pub use crate::cashflow::accrual::AccrualMethod;
 pub use cashflow_spec::{BondBuilderParams, CashflowSpec, FloatingConventionParams};
 pub use json::bond_from_cashflows_json;
 #[doc(hidden)]
-pub use metrics::price_yield_spread::asw::{
-    asw_market_with_forward, asw_par_with_forward, AssetSwapConfig,
-};
+pub use metrics::price_yield_spread::asw::{asw_market_with_forward, asw_par_with_forward};
 #[doc(hidden)]
 pub use metrics::{
     AssetSwapMarketCalculator, AssetSwapParCalculator, DiscountMarginCalculator, ZSpreadCalculator,

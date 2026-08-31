@@ -211,8 +211,8 @@ pub(crate) fn register_bond_metrics(
             (ZSpread, ZSpreadCalculator::default()),
             (ISpread, ISpreadCalculator::default()),
             (DiscountMargin, DiscountMarginCalculator::default()),
-            (ASWPar, AssetSwapParCalculator::default()),
-            (ASWMarket, AssetSwapMarketCalculator::default()),
+            (ASWPar, AssetSwapParCalculator),
+            (ASWMarket, AssetSwapMarketCalculator),
 
             (WAL, BondWalCalculator),
 

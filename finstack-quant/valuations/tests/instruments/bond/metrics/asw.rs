@@ -1,18 +1,15 @@
 //! Tests for asset swap (ASW) metrics.
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{DayCount, Tenor};
+use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::fixed_income::bond::AssetSwapConfig;
+use finstack_quant_valuations::instruments::fixed_income::bond::AssetSwapMarketCalculator;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::fixed_income::bond::CashflowSpec;
-use finstack_quant_valuations::instruments::fixed_income::bond::{
-    AssetSwapMarketCalculator, AssetSwapParCalculator,
-};
 use finstack_quant_valuations::instruments::InstrumentPricingOverrides;
 use finstack_quant_valuations::metrics::{
     standard_registry, MetricCalculator, MetricContext, MetricId,
@@ -71,7 +68,7 @@ fn test_asw_market_requires_accrued_when_clean_price_present() {
         MetricContext::default_config(),
     );
 
-    let calc = AssetSwapMarketCalculator::default();
+    let calc = AssetSwapMarketCalculator;
     let result = calc.calculate(&mut ctx);
 
     match result {
@@ -88,55 +85,6 @@ fn test_asw_market_requires_accrued_when_clean_price_present() {
             v
         ),
     }
-}
-
-#[test]
-fn test_asw_par_with_config_uses_fixed_leg_conventions() {
-    let as_of = date!(2025 - 01 - 15);
-    let bond = simple_fixed_bond(as_of);
-
-    let disc = simple_discount_curve("USD-OIS", as_of);
-    let market = MarketContext::new().insert(disc);
-
-    let mut ctx_default = MetricContext::new(
-        Arc::new(bond.clone()),
-        Arc::new(market.clone()),
-        as_of,
-        Money::new(100.0, Currency::USD),
-        MetricContext::default_config(),
-    );
-    let asw_default = AssetSwapParCalculator::default()
-        .calculate(&mut ctx_default)
-        .expect("ASW par with default config should succeed");
-
-    // Override fixed-leg conventions to annual 30E/360 and verify we still get
-    // a finite result and that the value changes relative to the default.
-    let config = AssetSwapConfig {
-        fixed_leg_day_count: Some(DayCount::ThirtyE360),
-        fixed_leg_frequency: Some(Tenor::annual()),
-        fixed_leg_business_day_convention: None,
-        fixed_leg_calendar_id: None,
-        fixed_leg_stub: None,
-    };
-    let mut ctx_custom = MetricContext::new(
-        Arc::new(bond),
-        Arc::new(market),
-        as_of,
-        Money::new(100.0, Currency::USD),
-        MetricContext::default_config(),
-    );
-    let asw_custom = AssetSwapParCalculator::with_config(config)
-        .calculate(&mut ctx_custom)
-        .expect("ASW par with custom config should succeed");
-
-    assert!(
-        asw_custom.is_finite(),
-        "ASW par with custom config should be finite"
-    );
-    assert!(
-        (asw_custom - asw_default).abs() > 1e-12,
-        "ASW par with custom conventions should differ from default"
-    );
 }
 
 #[test]
