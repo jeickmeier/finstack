@@ -270,17 +270,16 @@ impl PyMonteCarloResults {
         let periods: Vec<String> = series.values.keys().map(ToString::to_string).collect();
         let columns = PyDict::new(py);
         for &quantile in &self.inner.percentiles {
-            // Match a configured quantile the same way the Rust accessor does
-            // (exact-to-1e-12), so the frame and `percentile_by_period` can
-            // never disagree about which stored pair a column refers to.
+            let percentile_values = self.inner.percentile_by_period(metric, quantile);
             let column: Vec<f64> = series
                 .values
-                .values()
-                .map(|pairs| {
-                    pairs
-                        .iter()
-                        .find(|(q, _)| (*q - quantile).abs() < 1e-12)
-                        .map_or(f64::NAN, |(_, value)| *value)
+                .keys()
+                .map(|period| {
+                    percentile_values
+                        .as_ref()
+                        .and_then(|values| values.get(period))
+                        .copied()
+                        .unwrap_or(f64::NAN)
                 })
                 .collect();
             columns.set_item(format!("p{quantile}"), column)?;

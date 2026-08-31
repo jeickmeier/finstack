@@ -247,6 +247,20 @@ def test_monte_carlo_to_dataframe_matches_get_percentile_series() -> None:
         assert df.loc[period, "p0.5"] == pytest.approx(value)
 
 
+def test_monte_carlo_to_dataframe_keeps_missing_percentile_as_nan() -> None:
+    """A missing stored pair does not shift or remove its forecast-period row."""
+    results = _monte_carlo_results(include_path_data=False)
+    payload = json.loads(results.to_json())
+    values = payload["percentile_results"]["revenue"]["values"]
+    first_period = next(iter(values))
+    values[first_period] = [pair for pair in values[first_period] if pair[0] != 0.5]
+
+    df = MonteCarloResults.from_json(json.dumps(payload)).to_dataframe("revenue")
+
+    assert list(df.index) == results.forecast_periods
+    assert pd.isna(df.loc[first_period, "p0.5"])
+
+
 def test_monte_carlo_to_dataframe_raises_for_unknown_metric() -> None:
     """An unsimulated metric is a KeyError, not an empty frame."""
     results = _monte_carlo_results(include_path_data=False)
