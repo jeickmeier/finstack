@@ -79,7 +79,7 @@ fn create_ctd_bond() -> Bond {
     Bond::fixed(
         InstrumentId::from("US912828XG33"),
         Money::new(1_000_000.0, Currency::USD),
-        0.035, // 3.5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.035), // 3.5% coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

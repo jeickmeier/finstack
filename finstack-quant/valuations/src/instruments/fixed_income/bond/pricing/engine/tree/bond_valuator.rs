@@ -908,7 +908,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "OFF-GRID-NONEX-CF",
             Money::new(1_000.0, Currency::USD),
-            0.06,
+            finstack_quant_core::types::Rate::from_decimal(0.06),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -1006,7 +1006,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "FIRST-STEP-COUPON",
             Money::new(1_000.0, Currency::USD),
-            0.06,
+            finstack_quant_core::types::Rate::from_decimal(0.06),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -1105,7 +1105,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "OFF-GRID-CALL-CF",
             Money::new(1_000.0, Currency::USD),
-            0.06,
+            finstack_quant_core::types::Rate::from_decimal(0.06),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,

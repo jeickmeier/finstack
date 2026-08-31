@@ -22,7 +22,7 @@ fn build_callable_credit_bond(as_of: time::Date) -> Bond {
     let mut bond = Bond::fixed(
         "CALL-CREDIT",
         Money::new(1_000_000.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         date!(2032 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

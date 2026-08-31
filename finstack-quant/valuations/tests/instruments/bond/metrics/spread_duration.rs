@@ -25,15 +25,19 @@ fn bullet_5y(credit: bool) -> (Bond, MarketContext) {
     let mut bond = Bond::fixed(
         "SD-BULLET",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2030 - 01 - 06),
         finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond builds");
-    bond.cashflow_spec = CashflowSpec::fixed_rate(0.05.into(), Tenor::annual(), DayCount::Act365F)
-        .expect("finite coupon");
+    bond.cashflow_spec = CashflowSpec::fixed_rate(
+        finstack_quant_core::types::Rate::from_decimal(0.05),
+        Tenor::annual(),
+        DayCount::Act365F,
+    )
+    .expect("finite coupon");
     bond.instrument_pricing_overrides =
         InstrumentPricingOverrides::default().with_quoted_clean_price(96.5);
 
@@ -189,15 +193,19 @@ fn callable_bond_spread_duration_uses_quote_reproducing_workout_path() {
     let mut bond = Bond::fixed(
         "SD-CALLABLE",
         notional,
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date!(2023 - 01 - 06),
         date!(2032 - 01 - 06),
         finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond builds");
-    bond.cashflow_spec = CashflowSpec::fixed_rate(0.05.into(), Tenor::annual(), DayCount::Act365F)
-        .expect("finite coupon");
+    bond.cashflow_spec = CashflowSpec::fixed_rate(
+        finstack_quant_core::types::Rate::from_decimal(0.05),
+        Tenor::annual(),
+        DayCount::Act365F,
+    )
+    .expect("finite coupon");
     bond.settlement_convention = Some(BondSettlementConvention {
         settlement_days: 3,
         ..Default::default()

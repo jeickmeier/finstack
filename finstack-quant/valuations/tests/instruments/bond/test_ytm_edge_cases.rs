@@ -51,7 +51,7 @@ fn test_deep_discount_bond_ytm() {
     let mut bond = Bond::fixed(
         "DEEP-DISCOUNT",
         Money::new(1_000.0, Currency::USD),
-        0.05, // 5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.05), // 5% coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -206,7 +206,7 @@ fn test_eom_february_maturity_ytm() {
     let mut bond = Bond::with_convention(
         "EOM-FEB",
         Money::new(1_000.0, Currency::USD),
-        0.04,
+        finstack_quant_core::types::Rate::from_decimal(0.04),
         issue,
         maturity,
         BondConvention::UsCorporate,
@@ -323,7 +323,7 @@ fn test_premium_bond_ytm_solver_convergence() {
     let mut bond = Bond::fixed(
         "PREMIUM",
         Money::new(1_000.0, Currency::USD),
-        0.08, // 8% coupon (high)
+        finstack_quant_core::types::Rate::from_decimal(0.08), // 8% coupon (high)
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -373,7 +373,7 @@ fn test_very_long_maturity_bond() {
     let mut bond = Bond::fixed(
         "LONG-30Y",
         Money::new(1_000.0, Currency::USD),
-        0.04,
+        finstack_quant_core::types::Rate::from_decimal(0.04),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -424,7 +424,7 @@ fn test_near_maturity_bond_ytm() {
     let mut bond = Bond::fixed(
         "NEAR-MATURITY",
         Money::new(1_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -472,7 +472,7 @@ fn test_negative_ytm_extreme_premium() {
     let mut bond = Bond::fixed(
         "NEG-YTM",
         Money::new(100.0, Currency::USD),
-        0.005, // 0.5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.005), // 0.5% coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

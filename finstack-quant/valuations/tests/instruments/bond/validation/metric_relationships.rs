@@ -54,7 +54,7 @@ fn test_modified_macaulay_duration_relationship() {
     let bond = Bond::fixed(
         "DUR_REL",
         Money::new(100.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

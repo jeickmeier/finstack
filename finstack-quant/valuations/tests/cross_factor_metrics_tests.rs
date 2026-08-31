@@ -41,7 +41,7 @@ fn build_test_bond(as_of: Date) -> Bond {
     let mut bond = Bond::fixed(
         "CROSS-GAMMA-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

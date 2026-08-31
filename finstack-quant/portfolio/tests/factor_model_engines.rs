@@ -45,7 +45,7 @@ fn create_test_bond() -> Result<Bond> {
     Bond::fixed(
         "BOND-FACTOR-MODEL",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -160,7 +160,7 @@ fn create_eur_bond() -> Result<Bond> {
     Bond::fixed(
         "BOND-FACTOR-MODEL-EUR",
         Money::new(1_000_000.0, Currency::EUR),
-        0.04,
+        finstack_quant_core::types::Rate::from_decimal(0.04),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

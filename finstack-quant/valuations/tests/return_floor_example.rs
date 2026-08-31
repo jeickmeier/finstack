@@ -61,7 +61,7 @@ fn build_floored_loan() -> Bond {
     Bond::fixed(
         "LOAN-FLOOR-001",
         Money::new(1_000_000.0, Currency::USD),
-        0.10, // 10% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.10), // 10% coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -196,7 +196,7 @@ fn min_moic_shortcut_equivalent_to_explicit_full_window_spec() {
     let loan_shortcut = Bond::fixed(
         "LOAN-SHORTCUT",
         Money::new(1_000_000.0, Currency::USD),
-        0.10,
+        finstack_quant_core::types::Rate::from_decimal(0.10),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -209,7 +209,7 @@ fn min_moic_shortcut_equivalent_to_explicit_full_window_spec() {
     let loan_explicit = Bond::fixed(
         "LOAN-EXPLICIT",
         Money::new(1_000_000.0, Currency::USD),
-        0.10,
+        finstack_quant_core::types::Rate::from_decimal(0.10),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

@@ -233,7 +233,7 @@ mod tests {
         Bond::fixed(
             "ZERO",
             Money::new(100.0, Currency::USD),
-            0.0,
+            finstack_quant_core::types::Rate::from_decimal(0.0),
             date!(2025 - 01 - 15),
             date!(2026 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,

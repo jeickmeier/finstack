@@ -686,7 +686,7 @@ mod tests {
         let bond = Bond::fixed(
             "BOND-DISC-RECONCILE",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -752,7 +752,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "BOND-CASHFLOW-SCENARIO",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -813,7 +813,7 @@ mod tests {
         let bond = Bond::fixed(
             "BOND-SEASONED-TIME-ORIGIN",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -885,7 +885,7 @@ mod tests {
         let bond = Bond::fixed(
             "BOND-BAD-MODEL",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,

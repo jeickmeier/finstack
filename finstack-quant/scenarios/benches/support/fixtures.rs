@@ -288,7 +288,7 @@ pub fn sample_bond(id: &str, maturity_year_offset: i32) -> Bond {
     let mut bond = Bond::fixed(
         id,
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         AS_OF,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

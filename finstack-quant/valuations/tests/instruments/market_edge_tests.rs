@@ -396,7 +396,7 @@ mod bond_market_edge {
         let mut bond = Bond::fixed(
             "EX_COUPON_TEST",
             Money::new(1000.0, Currency::USD),
-            0.06,
+            finstack_quant_core::types::Rate::from_decimal(0.06),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -469,7 +469,7 @@ mod bond_market_edge {
         let bond = Bond::fixed(
             "SHORT_STUB",
             Money::new(1000.0, Currency::USD),
-            0.06,
+            finstack_quant_core::types::Rate::from_decimal(0.06),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -592,7 +592,7 @@ mod bond_market_edge {
         let bond = Bond::fixed(
             "DIRTY_CLEAN",
             Money::new(1000.0, Currency::USD),
-            0.06,
+            finstack_quant_core::types::Rate::from_decimal(0.06),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,

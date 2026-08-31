@@ -30,7 +30,7 @@ fn test_accrued_uses_settlement_at_issue() {
     let bond = Bond::fixed(
         "ACCR1",
         Money::new(100.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -57,7 +57,7 @@ fn test_accrued_mid_period() {
     let bond = Bond::fixed(
         "ACCR2",
         Money::new(100.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         issue,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -84,7 +84,7 @@ fn test_quoted_price_accrued_uses_settlement_date() {
     let mut bond = Bond::fixed(
         "ACCR-QUOTE",
         Money::new(1_000.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         issue,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -202,7 +202,7 @@ fn test_clean_dirty_ex_coupon_parity() {
     let bond = Bond::fixed(
         "B",
         Money::new(100.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         issue,
         date!(2026 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

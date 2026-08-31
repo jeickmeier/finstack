@@ -772,7 +772,7 @@ fn test_constituent_reference_with_bond_instrument() {
     let bond = Bond::fixed(
         "CORP_BOND",
         usd(1000.0),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         base_date,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -1354,7 +1354,7 @@ fn test_basket_with_mixed_constituents_serialization() {
     let bond = Bond::fixed(
         "CORP_BOND",
         usd(1000.0),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date(2025, 1, 1),
         date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -1455,7 +1455,7 @@ fn test_constituent_reference_instrument_roundtrip() {
     let bond = Bond::fixed(
         "TEST_BOND",
         usd(1000.0),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date(2025, 1, 1),
         date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -1488,7 +1488,7 @@ fn test_basket_envelope_roundtrip_with_instruments() {
     let bond = Bond::fixed(
         "ENVELOPE_BOND",
         usd(1000.0),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date(2025, 1, 1),
         date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,

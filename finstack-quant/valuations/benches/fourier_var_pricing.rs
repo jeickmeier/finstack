@@ -42,7 +42,7 @@ fn make_var_bond(base: Date) -> Bond {
     Bond::fixed(
         "BOND-10Y",
         Money::new(10_000_000.0, Currency::USD),
-        0.045,
+        finstack_quant_core::types::Rate::from_decimal(0.045),
         base,
         base + time::Duration::days(365 * 10),
         finstack_quant_core::dates::StubKind::ShortFront,

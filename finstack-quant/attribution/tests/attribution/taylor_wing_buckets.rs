@@ -47,7 +47,7 @@ fn attribute_bond_on_wing_curve(maturity_year: i32) -> finstack_quant_attributio
     let bond = Bond::fixed(
         "WING-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.04,
+        finstack_quant_core::types::Rate::from_decimal(0.04),
         create_date(2025, Month::January, 1).unwrap(),
         create_date(maturity_year, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -108,7 +108,7 @@ fn taylor_short_end_wing_explains_sub_3m_rates_move() {
     let bond = Bond::fixed(
         "WING-BOND-SHORT",
         Money::new(1_000_000.0, Currency::USD),
-        0.0,
+        finstack_quant_core::types::Rate::from_decimal(0.0),
         create_date(2025, Month::January, 1).unwrap(),
         create_date(2025, Month::March, 15).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,

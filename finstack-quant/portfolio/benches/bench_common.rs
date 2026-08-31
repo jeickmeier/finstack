@@ -495,7 +495,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
         let bond = Bond::fixed(
             bond_id.clone(),
             Money::new(1_000_000.0, ccy),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             base,
             maturity_5y(),
             finstack_quant_core::dates::StubKind::ShortFront,

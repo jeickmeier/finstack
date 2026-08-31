@@ -540,7 +540,7 @@ mod tests {
                 1_000.0,
                 finstack_quant_core::currency::Currency::USD,
             ),
-            0.04,
+            finstack_quant_core::types::Rate::from_decimal(0.04),
             time::macros::date!(2020 - 01 - 15),
             time::macros::date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,

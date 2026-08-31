@@ -381,7 +381,7 @@ fn sample_bond_with_issuer(idx: usize) -> Bond {
     let mut bond = Bond::fixed(
         format!("BENCH-BOND-{idx}"),
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

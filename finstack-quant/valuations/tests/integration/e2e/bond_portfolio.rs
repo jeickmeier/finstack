@@ -79,7 +79,7 @@ fn build_bond_portfolio(as_of: Date) -> Vec<Bond> {
         let bond = Bond::fixed(
             format!("USD-BOND-{:03}", i + 1),
             notional,
-            coupon,
+            finstack_quant_core::types::Rate::from_decimal(coupon),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -101,7 +101,7 @@ fn build_bond_portfolio(as_of: Date) -> Vec<Bond> {
         let bond = Bond::fixed(
             format!("EUR-BOND-{:03}", i + 1),
             notional,
-            coupon,
+            finstack_quant_core::types::Rate::from_decimal(coupon),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -123,7 +123,7 @@ fn build_bond_portfolio(as_of: Date) -> Vec<Bond> {
         let bond = Bond::fixed(
             format!("GBP-BOND-{:03}", i + 1),
             notional,
-            coupon,
+            finstack_quant_core::types::Rate::from_decimal(coupon),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -284,7 +284,7 @@ fn test_dataframe_export_metric_keys() {
     let bond = Bond::fixed(
         "TEST-BOND-EXPORT",
         notional,
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         as_of + time::Duration::days(5 * 365),
         finstack_quant_core::dates::StubKind::ShortFront,

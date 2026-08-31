@@ -20,7 +20,7 @@ fn test_missing_metric_errors_in_strict_mode() {
     let bond = Bond::fixed(
         "TEST_BOND",
         Money::new(1000.0, Currency::USD),
-        0.05, // 5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.05), // 5% coupon
         date!(2024 - 01 - 01),
         date!(2025 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

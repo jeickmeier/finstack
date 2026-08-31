@@ -71,7 +71,7 @@ fn bench_bond_cashflow_generation(c: &mut Criterion) {
     let bond = Bond::fixed(
         format!("BOND-{}Y", tenor),
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

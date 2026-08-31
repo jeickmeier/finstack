@@ -31,7 +31,7 @@ fn test_dm_fixed_bond_is_rejected_in_strict_mode() {
     let bond = Bond::fixed(
         "DM1",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

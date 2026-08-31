@@ -61,7 +61,7 @@ pub fn sample_bond(id: &str, maturity_year_offset: i32) -> Bond {
     Bond::fixed(
         id,
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -81,7 +81,7 @@ pub fn sample_eur_bond(id: &str, maturity_year_offset: i32) -> Bond {
     Bond::fixed(
         id,
         Money::new(1_000_000.0, Currency::EUR),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

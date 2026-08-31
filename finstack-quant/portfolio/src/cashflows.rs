@@ -708,7 +708,7 @@ mod tests {
         let bond = bond::Bond::fixed(
             "BOND_001",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2027 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -926,7 +926,7 @@ mod tests {
         let bond = bond::Bond::fixed(
             "BOND_FULL",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,

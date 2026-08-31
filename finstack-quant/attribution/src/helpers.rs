@@ -693,7 +693,7 @@ mod tests {
         let bond = Bond::fixed(
             "USE-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -731,7 +731,7 @@ mod tests {
         let bond = Bond::fixed(
             "FLAT-YTM-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2024 - 01 - 01),
             date!(2034 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -786,7 +786,7 @@ mod tests {
         let bond = Bond::with_convention(
             "FLAT-YTM-BUND",
             Money::new(1_000_000.0, Currency::EUR),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2024 - 01 - 01),
             date!(2034 - 01 - 01),
             BondConvention::GermanBund,
@@ -824,7 +824,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "FUND-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2025 - 01 - 15),
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,

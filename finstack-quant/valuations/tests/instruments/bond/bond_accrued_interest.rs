@@ -25,7 +25,7 @@ fn test_accrued_interest_linear_default() {
     let bond = Bond::fixed(
         "LINEAR_TEST",
         Money::new(100.0, Currency::USD),
-        0.06, // 6% annual, semi-annual payments = 3% per period
+        finstack_quant_core::types::Rate::from_decimal(0.06), // 6% annual, semi-annual payments = 3% per period
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -64,7 +64,7 @@ fn test_accrued_interest_compounded_vs_linear() {
     let bond_linear = Bond::fixed(
         "LINEAR",
         Money::new(100.0, Currency::USD),
-        0.06, // 6% annual coupon, semi-annual = 3% per period
+        finstack_quant_core::types::Rate::from_decimal(0.06), // 6% annual coupon, semi-annual = 3% per period
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -76,7 +76,7 @@ fn test_accrued_interest_compounded_vs_linear() {
     let mut bond_compounded = Bond::fixed(
         "COMPOUNDED",
         Money::new(100.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -138,7 +138,7 @@ fn test_accrued_interest_compounded_zero_coupon() {
     let mut bond = Bond::fixed(
         "ZERO",
         Money::new(100.0, Currency::USD),
-        0.0, // Zero coupon
+        finstack_quant_core::types::Rate::from_decimal(0.0), // Zero coupon
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -167,7 +167,7 @@ fn test_accrued_interest_ex_coupon_period() {
     let mut bond = Bond::fixed(
         "EX_COUPON",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -211,7 +211,7 @@ fn test_accrued_interest_just_before_ex_coupon_window_positive() {
     let mut bond = Bond::fixed(
         "CUM_COUPON",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -244,7 +244,7 @@ fn test_accrued_interest_at_coupon_boundaries() {
     let bond = Bond::fixed(
         "BOUNDARY",
         Money::new(100.0, Currency::USD),
-        0.04, // 4% annual, semi-annual = 2% per period
+        finstack_quant_core::types::Rate::from_decimal(0.04), // 4% annual, semi-annual = 2% per period
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -441,7 +441,7 @@ fn test_accrual_method_serialization() {
     let mut bond = Bond::fixed(
         "SERDE_TEST",
         Money::new(1000.0, Currency::EUR),
-        0.025,
+        finstack_quant_core::types::Rate::from_decimal(0.025),
         make_date(2025, 1, 1),
         make_date(2035, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -468,7 +468,7 @@ fn test_bond_deserialization_defaults_accrual_method_and_call_put_period() {
     let bond = Bond::fixed(
         "CALL_PERIOD_DEFAULT_ACCRUAL",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
         finstack_quant_core::dates::StubKind::ShortFront,

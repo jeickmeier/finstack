@@ -183,7 +183,7 @@ fn test_model_params_none_for_plain_instruments() {
     let bond = Bond::fixed(
         "PLAIN-BOND-001",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2029, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -216,7 +216,7 @@ fn test_with_model_params_none_reuses_original_arc() {
     let bond = Bond::fixed(
         "PLAIN-BOND-002",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2029, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,

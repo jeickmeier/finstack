@@ -218,7 +218,7 @@ fn test_simple_equity_pricer_type_mismatch() {
     let bond = Bond::fixed(
         "BOND",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

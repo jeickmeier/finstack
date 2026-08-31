@@ -84,7 +84,7 @@ fn test_accrued_interest_semi_annual_bond() -> Result<(), Box<dyn std::error::Er
     let bond = Bond::fixed(
         InstrumentId::new("BOND-AUDIT"),
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue_date,
         maturity_date,
         finstack_quant_core::dates::StubKind::ShortFront,

@@ -33,7 +33,7 @@ fn simple_fixed_bond(as_of: time::Date) -> Bond {
     Bond::fixed(
         "ASW-TEST",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2030 - 01 - 15),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -391,7 +391,7 @@ fn test_asw_par_metric_rejects_matured_schedule() {
     let bond = Bond::fixed(
         "ASW-PAR-METRIC-MATURED",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -429,7 +429,7 @@ fn test_asw_market_metric_rejects_matured_schedule() {
     let mut bond = Bond::fixed(
         "ASW-MKT-METRIC-MATURED",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -610,7 +610,7 @@ fn test_asw_par_forward_rejects_matured_schedule() {
     let bond = Bond::fixed(
         "ASW-PAR-MATURED",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -647,7 +647,7 @@ fn test_asw_market_forward_rejects_matured_schedule() {
     let bond = Bond::fixed(
         "ASW-MKT-MATURED",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

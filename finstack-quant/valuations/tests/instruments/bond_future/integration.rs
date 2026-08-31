@@ -90,7 +90,7 @@ fn create_ust_bond(
     Bond::fixed(
         bond_id,
         Money::new(notional, Currency::USD),
-        coupon_rate,
+        finstack_quant_core::types::Rate::from_decimal(coupon_rate),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

@@ -23,7 +23,7 @@ fn create_test_bond() -> Bond {
     Bond::fixed(
         "BOND-DETERMINISM-TEST",
         Money::new(1_000_000.0, Currency::USD),
-        0.05, // 5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.05), // 5% coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

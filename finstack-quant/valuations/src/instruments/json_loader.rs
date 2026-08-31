@@ -948,7 +948,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             Date::from_calendar_date(2024, Month::January, 1).expect("Valid test date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("Valid test date"),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -976,7 +976,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             Date::from_calendar_date(2024, Month::January, 1).expect("Valid test date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("Valid test date"),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -1049,7 +1049,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST-BARE",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             Date::from_calendar_date(2024, Month::January, 1).expect("Valid test date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("Valid test date"),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -1070,7 +1070,7 @@ mod tests {
         let bond = Bond::fixed(
             "STRICT-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             Date::from_calendar_date(2024, Month::January, 1).expect("valid date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("valid date"),
             finstack_quant_core::dates::StubKind::ShortFront,

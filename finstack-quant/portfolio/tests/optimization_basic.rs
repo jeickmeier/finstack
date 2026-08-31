@@ -211,7 +211,7 @@ fn build_bond_portfolio() -> finstack_quant_portfolio::Portfolio {
     let mut bond_aaa = Bond::fixed(
         "BOND_AAA",
         Money::new(1_000_000.0, Currency::USD),
-        0.03,
+        finstack_quant_core::types::Rate::from_decimal(0.03),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -222,7 +222,7 @@ fn build_bond_portfolio() -> finstack_quant_portfolio::Portfolio {
     let mut bond_bbb = Bond::fixed(
         "BOND_BBB",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -233,7 +233,7 @@ fn build_bond_portfolio() -> finstack_quant_portfolio::Portfolio {
     let mut bond_ccc = Bond::fixed(
         "BOND_CCC",
         Money::new(1_000_000.0, Currency::USD),
-        0.08,
+        finstack_quant_core::types::Rate::from_decimal(0.08),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

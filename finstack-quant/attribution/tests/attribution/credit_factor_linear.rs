@@ -247,7 +247,7 @@ fn taylor_credit_detail_reconciles_to_credit_curves_pnl() {
     let mut bond = Bond::fixed(
         "BOND-ISSUER-A",
         Money::new(1_000_000.0, Currency::USD),
-        0.05_f64,
+        finstack_quant_core::types::Rate::from_decimal(0.05_f64),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -419,7 +419,7 @@ fn twisted_hazard_curve_does_not_omit_or_explode_credit_detail() {
     let mut bond = Bond::fixed(
         "BOND-ISSUER-A",
         Money::new(1_000_000.0, Currency::USD),
-        0.05_f64,
+        finstack_quant_core::types::Rate::from_decimal(0.05_f64),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,

@@ -114,7 +114,7 @@ fn test_par_cds_bump_reprices_credit_bond() {
     let mut bond = Bond::fixed(
         "CREDIT-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         base_date,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

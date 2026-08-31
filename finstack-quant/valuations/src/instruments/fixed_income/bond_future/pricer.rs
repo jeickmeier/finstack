@@ -502,7 +502,7 @@ mod tests {
         Bond::fixed(
             "TEST_BOND",
             Money::new(notional, Currency::USD),
-            coupon_rate,
+            finstack_quant_core::types::Rate::from_decimal(coupon_rate),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -1275,7 +1275,7 @@ mod tests {
         let bond_a = Bond::fixed(
             "BOND-A",
             Money::new(100_000.0, Currency::USD),
-            0.04,
+            finstack_quant_core::types::Rate::from_decimal(0.04),
             date!(2020 - 01 - 15),
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -1285,7 +1285,7 @@ mod tests {
         let bond_b = Bond::fixed(
             "BOND-B",
             Money::new(100_000.0, Currency::USD),
-            0.06,
+            finstack_quant_core::types::Rate::from_decimal(0.06),
             date!(2020 - 01 - 15),
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,

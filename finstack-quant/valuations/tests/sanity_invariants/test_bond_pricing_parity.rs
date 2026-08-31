@@ -45,7 +45,7 @@ fn create_2y_bond(issue: Date, maturity: Date) -> Bond {
     Bond::fixed(
         "UST-2Y-PARITY",
         Money::new(NOTIONAL, Currency::USD),
-        COUPON_RATE,
+        finstack_quant_core::types::Rate::from_decimal(COUPON_RATE),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

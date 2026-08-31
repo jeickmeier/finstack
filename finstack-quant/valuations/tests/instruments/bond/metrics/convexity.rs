@@ -21,7 +21,7 @@ fn test_convexity_positive() {
     let mut bond = Bond::fixed(
         "CVX1",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

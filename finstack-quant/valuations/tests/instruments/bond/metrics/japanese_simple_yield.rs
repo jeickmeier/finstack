@@ -151,7 +151,7 @@ fn jgb_street_ytm_is_unchanged_and_distinct_from_simple_yield() {
     let mut bond = Bond::with_convention(
         "JGB-STREET",
         Money::new(100_000_000.0, Currency::JPY),
-        0.02,
+        finstack_quant_core::types::Rate::from_decimal(0.02),
         date!(2025 - 01 - 01),
         date!(2030 - 01 - 01),
         BondConvention::Jgb,

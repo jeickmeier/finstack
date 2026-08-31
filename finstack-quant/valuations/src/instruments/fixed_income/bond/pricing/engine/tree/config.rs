@@ -634,7 +634,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "BDT-CALLABLE",
             Money::new(1_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -669,7 +669,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "BDT-CALLABLE-NO-VOL",
             Money::new(1_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,

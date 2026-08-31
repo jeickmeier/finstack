@@ -47,7 +47,7 @@ fn test_fixed_rate_cashflows() {
     let bond = Bond::fixed(
         "FIXED_CF",
         Money::new(1000.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -79,7 +79,7 @@ fn test_cashflow_dates_alignment() {
     let bond = Bond::fixed(
         "CF_DATES",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -301,7 +301,7 @@ fn test_cashflows_for_matured_bond() {
     let bond = Bond::fixed(
         "MATURED",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -383,7 +383,7 @@ fn test_zero_coupon_cashflows() {
     let bond = Bond::fixed(
         "ZERO",
         Money::new(1000.0, Currency::USD),
-        0.0,
+        finstack_quant_core::types::Rate::from_decimal(0.0),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -416,7 +416,7 @@ fn test_cashflows_notional_scaling() {
         let bond = Bond::fixed(
             format!("SCALE_{}", notional_amt),
             Money::new(notional_amt, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -443,7 +443,7 @@ fn test_cashflow_schedule_fixed() {
     let bond = Bond::fixed(
         "FULL_SCHED",
         Money::new(1000.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

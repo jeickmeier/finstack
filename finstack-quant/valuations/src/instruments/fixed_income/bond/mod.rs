@@ -182,7 +182,7 @@ mod tests {
         let bond = Bond::fixed(
             "BOND_FIXED",
             Money::new(100.0, Currency::USD),
-            0.04,
+            finstack_quant_core::types::Rate::from_decimal(0.04),
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -218,7 +218,7 @@ mod tests {
             let bond = Bond::fixed(
                 format!("BOND-{stub}"),
                 Money::new(100.0, Currency::USD),
-                0.04,
+                finstack_quant_core::types::Rate::from_decimal(0.04),
                 issue,
                 date!(2030 - 01 - 15),
                 stub,
@@ -237,7 +237,7 @@ mod tests {
         let bond = Bond::with_convention(
             "UST-10Y",
             Money::new(1000.0, Currency::USD),
-            0.03,
+            finstack_quant_core::types::Rate::from_decimal(0.03),
             date!(2025 - 01 - 01),
             date!(2035 - 01 - 01),
             BondConvention::UsTreasury,
@@ -274,7 +274,7 @@ mod tests {
         let bond = Bond::with_convention(
             "GILT-10Y",
             Money::new(1000.0, Currency::GBP),
-            0.025,
+            finstack_quant_core::types::Rate::from_decimal(0.025),
             date!(2025 - 01 - 01),
             date!(2035 - 01 - 01),
             BondConvention::UkGilt,
@@ -305,7 +305,7 @@ mod tests {
         let bond = Bond::with_convention(
             "EOM-UST",
             Money::new(1000.0, Currency::USD),
-            0.03,
+            finstack_quant_core::types::Rate::from_decimal(0.03),
             date!(2025 - 01 - 31),
             date!(2030 - 01 - 31),
             BondConvention::UsTreasury,
@@ -628,7 +628,7 @@ mod tests {
         let bond = Bond::fixed(
             "TRAIT_TEST",
             Money::new(1000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -647,7 +647,7 @@ mod tests {
         let bond1 = Bond::fixed(
             "CLONE_TEST",
             Money::new(1000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -670,7 +670,7 @@ mod tests {
         let bond = Bond::fixed(
             "SHORT_TERM",
             Money::new(1000.0, Currency::USD),
-            0.03,
+            finstack_quant_core::types::Rate::from_decimal(0.03),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -691,7 +691,7 @@ mod tests {
         let bond = Bond::fixed(
             "LONG_TERM",
             Money::new(1000.0, Currency::USD),
-            0.045,
+            finstack_quant_core::types::Rate::from_decimal(0.045),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,

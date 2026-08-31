@@ -22,7 +22,7 @@ fn bond_position_from_json_spec_matches_typed_pricing() {
     let bond = Bond::fixed(
         "BOND_JSON",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -81,7 +81,7 @@ fn portfolio_valuation_stamps_caller_config() {
     let bond = Bond::fixed(
         "BOND_CONFIG",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

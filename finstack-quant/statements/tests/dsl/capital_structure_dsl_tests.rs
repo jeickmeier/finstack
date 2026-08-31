@@ -407,7 +407,7 @@ fn test_aggregate_instrument_cashflows() {
     let bond = Bond::fixed(
         InstrumentId::new("BOND-001"),
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -452,7 +452,7 @@ fn test_build_instrument_from_spec_bond_variant() {
     let bond = Bond::fixed(
         InstrumentId::new("BOND-002"),
         Money::new(2_000_000.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

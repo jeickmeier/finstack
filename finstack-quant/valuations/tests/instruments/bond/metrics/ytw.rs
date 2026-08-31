@@ -16,7 +16,7 @@ fn test_ytw_equals_ytm_for_non_callable_bond_from_price() {
     let mut bond = Bond::fixed(
         "YTW_NON_CALL",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -64,7 +64,7 @@ fn test_ytw_tracks_quoted_price_not_model_pv() {
     let mut bond = Bond::fixed(
         "YTW_PRICE_SENSITIVE",
         Money::new(100.0, Currency::USD),
-        0.04,
+        finstack_quant_core::types::Rate::from_decimal(0.04),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -136,7 +136,7 @@ fn test_ytw_off_cycle_call_uses_dirty_street_redemption() {
     let mut bond = Bond::fixed(
         "YTW-OFF-CYCLE-CALL",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2030 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

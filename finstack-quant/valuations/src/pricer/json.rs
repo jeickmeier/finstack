@@ -836,7 +836,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             time::Date::from_calendar_date(2024, time::Month::January, 1).expect("date"),
             time::Date::from_calendar_date(2034, time::Month::January, 1).expect("date"),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -861,7 +861,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             time::Date::from_calendar_date(2024, time::Month::January, 1).expect("date"),
             time::Date::from_calendar_date(2034, time::Month::January, 1).expect("date"),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -1147,7 +1147,7 @@ mod tests {
         let bond = Bond::fixed(
             "ENVELOPE-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             time::Date::from_calendar_date(2024, time::Month::January, 1).expect("date"),
             time::Date::from_calendar_date(2034, time::Month::January, 1).expect("date"),
             finstack_quant_core::dates::StubKind::ShortFront,

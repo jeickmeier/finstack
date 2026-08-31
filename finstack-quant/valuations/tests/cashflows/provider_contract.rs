@@ -218,7 +218,7 @@ mod bond_contract {
         let bond = Bond::fixed(
             "TEST-FIXED-BOND",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             issue,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,

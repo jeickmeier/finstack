@@ -637,7 +637,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "BOND-ISSUER-B",
             Money::new(1_000_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             create_date(2024, Month::January, 1).unwrap(),
             create_date(2030, Month::January, 1).unwrap(),
             finstack_quant_core::dates::StubKind::ShortFront,

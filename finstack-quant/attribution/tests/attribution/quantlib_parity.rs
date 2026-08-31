@@ -137,7 +137,7 @@ fn quantlib_parity_metrics_based_bond_attribution() {
     let bond = Bond::fixed(
         "QL-PARITY-BOND",
         Money::new(fixture.spec.face_amount, Currency::USD),
-        fixture.spec.coupon_rate,
+        finstack_quant_core::types::Rate::from_decimal(fixture.spec.coupon_rate),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

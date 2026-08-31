@@ -77,7 +77,7 @@ mod tests {
         let bond = Bond::fixed(
             "SPREAD-DURATION-VALIDATION",
             Money::new(notional, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             maturity,
             finstack_quant_core::dates::StubKind::ShortFront,

@@ -153,7 +153,7 @@ fn test_fx_attribution_parallel_internal_exposure() {
     let bond = Bond::fixed(
         "US-BOND-001",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -225,7 +225,7 @@ fn test_waterfall_attribution_sum_equality() {
     let bond = Bond::fixed(
         "US-BOND-001",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -317,7 +317,7 @@ fn test_fx_attribution_cross_currency_exposure() {
     let eur_bond = Bond::fixed(
         "EUR-BOND-001",
         Money::new(1_000_000.0, Currency::EUR),
-        0.03, // 3% EUR coupon
+        finstack_quant_core::types::Rate::from_decimal(0.03), // 3% EUR coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -487,7 +487,7 @@ fn test_fx_attribution_eur_weakening() {
     let eur_bond = Bond::fixed(
         "EUR-BOND-WEAK",
         Money::new(1_000_000.0, Currency::EUR),
-        0.03,
+        finstack_quant_core::types::Rate::from_decimal(0.03),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -547,7 +547,7 @@ fn test_waterfall_factor_ordering_sensitivity() {
     let bond = Bond::fixed(
         "US-BOND-001",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -635,7 +635,7 @@ fn test_waterfall_rejects_non_carry_first_order() {
     let bond = Bond::fixed(
         "US-BOND-DOCTRINE",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2025, Month::January, 1).unwrap(),
         create_date(2030, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -679,7 +679,7 @@ fn test_waterfall_rejects_duplicate_factors() {
     let bond = Bond::fixed(
         "US-BOND-DUP-FACTOR",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2025, Month::January, 1).unwrap(),
         create_date(2030, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,

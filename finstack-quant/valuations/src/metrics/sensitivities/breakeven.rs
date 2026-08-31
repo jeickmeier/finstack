@@ -327,7 +327,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST",
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -397,7 +397,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST",
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -433,7 +433,7 @@ mod tests {
         let bond = Bond::fixed(
             "TEST",
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -515,7 +515,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "CARRY-TEST",
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -572,7 +572,7 @@ mod tests {
         let mut bond = Bond::fixed(
             id,
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -769,7 +769,7 @@ mod tests {
         let mut bond = Bond::fixed(
             "CREDIT-BE",
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -841,7 +841,7 @@ mod tests {
         let mut bond_1m = Bond::fixed(
             "HORIZON-TEST",
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,
@@ -871,7 +871,7 @@ mod tests {
         let mut bond_6m = Bond::fixed(
             "HORIZON-TEST",
             Money::new(100.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             as_of,
             date!(2030 - 01 - 15),
             finstack_quant_core::dates::StubKind::ShortFront,

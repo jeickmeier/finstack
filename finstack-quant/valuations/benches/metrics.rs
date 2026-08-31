@@ -53,7 +53,7 @@ fn create_benchmark_bond(base_date: Date) -> Bond {
     Bond::fixed(
         "BOND-5Y",
         notional,
-        coupon_rate,
+        finstack_quant_core::types::Rate::from_decimal(coupon_rate),
         base_date,
         maturity_date,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -181,7 +181,7 @@ fn bench_metrics_portfolio(c: &mut Criterion) {
             Bond::fixed(
                 format!("BOND-{}Y", years),
                 notional,
-                0.05,
+                finstack_quant_core::types::Rate::from_decimal(0.05),
                 base_date,
                 maturity_date,
                 finstack_quant_core::dates::StubKind::ShortFront,

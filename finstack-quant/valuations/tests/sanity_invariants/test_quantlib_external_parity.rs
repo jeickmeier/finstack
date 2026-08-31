@@ -130,7 +130,7 @@ fn external_quantlib_parity_vanilla_bond_npv_and_dv01() {
     let bond = Bond::fixed(
         "QL-PARITY-BOND",
         Money::new(fixture.spec.face_amount, Currency::USD),
-        fixture.spec.coupon_rate,
+        finstack_quant_core::types::Rate::from_decimal(fixture.spec.coupon_rate),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

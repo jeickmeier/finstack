@@ -25,7 +25,7 @@ fn test_attribution_envelope_json_roundtrip() {
     let bond = Bond::fixed(
         "TEST-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -102,7 +102,7 @@ fn test_attribution_envelope_deserialization_rejects_unknown_schema() {
     let bond = Bond::fixed(
         "TEST-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -171,7 +171,7 @@ fn test_attribution_envelope_waterfall_roundtrip() {
     let bond = Bond::fixed(
         "TEST-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -291,7 +291,7 @@ fn test_attribution_envelope_to_from_json_helpers() {
     let bond = Bond::fixed(
         "TEST-BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
         finstack_quant_core::dates::StubKind::ShortFront,

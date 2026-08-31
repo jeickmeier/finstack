@@ -1754,7 +1754,7 @@ mod tests {
         let ctd_bond = Bond::fixed(
             ctd_bond_id.as_str(),
             Money::new(100_000.0, Currency::USD),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             Date::from_calendar_date(2020, Month::January, 15).expect("valid date"),
             Date::from_calendar_date(2030, Month::January, 15).expect("valid date"),
             finstack_quant_core::dates::StubKind::ShortFront,

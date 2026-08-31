@@ -53,7 +53,7 @@ fn test_bond_basic_pricing() {
     let bond = Bond::fixed(
         "PRICE_TEST",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -85,7 +85,7 @@ fn test_bond_price_vs_yield() {
     let bond = Bond::fixed(
         "YIELD_TEST",
         Money::new(1000.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -116,7 +116,7 @@ fn test_bond_price_coupon_relationship() {
     let high_coupon = Bond::fixed(
         "HIGH_COUPON",
         Money::new(1000.0, Currency::USD),
-        0.08,
+        finstack_quant_core::types::Rate::from_decimal(0.08),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -128,7 +128,7 @@ fn test_bond_price_coupon_relationship() {
     let low_coupon = Bond::fixed(
         "LOW_COUPON",
         Money::new(1000.0, Currency::USD),
-        0.03,
+        finstack_quant_core::types::Rate::from_decimal(0.03),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -159,7 +159,7 @@ fn test_bond_price_maturity_relationship() {
     let bond_2y = Bond::fixed(
         "2Y",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2027 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -170,7 +170,7 @@ fn test_bond_price_maturity_relationship() {
     let bond_10y = Bond::fixed(
         "10Y",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2035 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -214,7 +214,7 @@ fn test_bond_price_zero_coupon() {
     let bond = Bond::fixed(
         "ZERO",
         Money::new(1000.0, Currency::USD),
-        0.0,
+        finstack_quant_core::types::Rate::from_decimal(0.0),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -253,7 +253,7 @@ fn test_bond_theta_time_decay() {
     let bond = Bond::fixed(
         "THETA_TEST",
         Money::new(1000.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -349,7 +349,7 @@ fn test_bond_matured_or_near_zero_value() {
     let bond = Bond::fixed(
         "MATURED",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -377,7 +377,7 @@ fn test_bond_near_maturity_pricing() {
     let bond = Bond::fixed(
         "NEAR_MAT",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -408,7 +408,7 @@ fn test_bond_curve_parallel_shift() {
     let bond = Bond::fixed(
         "SHIFT_TEST",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -453,7 +453,7 @@ fn test_bond_price_consistency() {
     let bond = Bond::fixed(
         "CONSISTENT",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -481,7 +481,7 @@ fn test_bond_notional_scaling() {
     let bond_100 = Bond::fixed(
         "N100",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -492,7 +492,7 @@ fn test_bond_notional_scaling() {
     let bond_1000 = Bond::fixed(
         "N1000",
         Money::new(1000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,

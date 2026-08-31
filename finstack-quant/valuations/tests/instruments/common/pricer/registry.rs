@@ -240,7 +240,7 @@ fn test_registry_price_with_unknown_pricer() {
     let bond = Bond::fixed(
         "TEST_BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -472,7 +472,7 @@ fn test_expect_inst_type_mismatch() {
     let bond = Bond::fixed(
         "TEST_BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -500,7 +500,7 @@ fn test_expect_inst_success() {
     let bond = Bond::fixed(
         "TEST_BOND",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

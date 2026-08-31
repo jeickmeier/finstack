@@ -27,7 +27,7 @@ fn test_attribution_parallel_rates_shift() {
     let bond = Bond::fixed(
         "BOND_001",
         Money::new(1_000_000.0, Currency::USD),
-        0.05, // 5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.05), // 5% coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -98,7 +98,7 @@ fn test_attribution_metrics_based_rates_shift() {
     let bond = Bond::fixed(
         "BOND_METRICS_001",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of_t0,
         as_of_t0 + Duration::days(1825),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -146,7 +146,7 @@ fn test_attribution_metrics_based_fx_translation() {
     let bond = Bond::fixed(
         "BOND_METRICS_EUR",
         Money::new(1_000_000.0, Currency::EUR),
-        0.03,
+        finstack_quant_core::types::Rate::from_decimal(0.03),
         as_of_t0,
         as_of_t0 + Duration::days(365),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -198,7 +198,7 @@ fn test_attribution_fx_translation() {
     let bond = Bond::fixed(
         "BOND_EUR",
         Money::new(1_000_000.0, Currency::EUR),
-        0.03,
+        finstack_quant_core::types::Rate::from_decimal(0.03),
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -285,7 +285,7 @@ fn test_attribution_carry_theta() {
     let bond = Bond::fixed(
         "BOND_CARRY",
         Money::new(1_000_000.0, Currency::USD),
-        0.05, // 5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.05), // 5% coupon
         issue,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -364,7 +364,7 @@ fn test_parallel_portfolio_attribution_closes_with_serial_inner_policy() {
             let bond = Bond::fixed(
                 instrument_id.as_str(),
                 Money::new(100_000.0 + f64::from(i) * 1_000.0, Currency::USD),
-                0.04,
+                finstack_quant_core::types::Rate::from_decimal(0.04),
                 issue,
                 maturity,
                 finstack_quant_core::dates::StubKind::ShortFront,

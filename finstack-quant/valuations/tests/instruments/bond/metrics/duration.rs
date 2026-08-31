@@ -15,7 +15,7 @@ fn test_duration_zero_coupon() {
     let mut bond = Bond::fixed(
         "DUR1",
         Money::new(100.0, Currency::USD),
-        0.0,
+        finstack_quant_core::types::Rate::from_decimal(0.0),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -59,7 +59,7 @@ fn test_yield_duration_convexity_act_act_isma() {
     let mut bond = Bond::fixed(
         "DUR-ISMA",
         Money::new(100.0, Currency::GBP),
-        0.04,
+        finstack_quant_core::types::Rate::from_decimal(0.04),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -111,7 +111,7 @@ fn test_modified_duration_matches_macaulay_over_yield() {
     let bond = Bond::fixed(
         "DUR2",
         Money::new(100.0, Currency::USD),
-        0.06,
+        finstack_quant_core::types::Rate::from_decimal(0.06),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -155,7 +155,7 @@ fn test_convexity_matches_numerical_second_derivative() {
     let bond = Bond::fixed(
         "CONV1",
         Money::new(100.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         maturity,
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -213,7 +213,7 @@ fn callable_risk_bond(as_of: finstack_quant_core::dates::Date) -> Bond {
     let mut bond = Bond::fixed(
         "CALLABLE-RISK",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2032 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,
@@ -363,7 +363,7 @@ fn test_callable_no_quote_default_basis_dv01_is_yield_basis() {
     let mut callable = Bond::fixed(
         "CALLABLE-NOQUOTE",
         Money::new(1_000_000.0, Currency::USD),
-        0.05,
+        finstack_quant_core::types::Rate::from_decimal(0.05),
         as_of,
         date!(2032 - 01 - 01),
         finstack_quant_core::dates::StubKind::ShortFront,

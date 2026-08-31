@@ -757,7 +757,7 @@ mod period_timeline_tests {
                 1_000_000.0,
                 finstack_quant_core::currency::Currency::USD,
             ),
-            0.05,
+            finstack_quant_core::types::Rate::from_decimal(0.05),
             Date::from_calendar_date(2025, Month::January, 1).expect("valid date"),
             Date::from_calendar_date(2030, Month::January, 1).expect("valid date"),
             finstack_quant_core::dates::StubKind::ShortFront,

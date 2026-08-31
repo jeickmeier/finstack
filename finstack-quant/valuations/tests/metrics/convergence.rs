@@ -272,7 +272,7 @@ fn test_bucketed_dv01_sums_to_parallel() {
     let bond = Bond::fixed(
         "BUCKETED_TEST",
         Money::new(10_000_000.0, Currency::USD), // $10M notional
-        0.05,                                    // 5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.05), // 5% coupon
         as_of,
         date!(2035 - 01 - 01), // 10 year bond
         finstack_quant_core::dates::StubKind::ShortFront,

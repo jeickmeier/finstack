@@ -48,7 +48,7 @@ fn create_test_bond(as_of: Date) -> Bond {
     Bond::fixed(
         "TEST-BOND-001",
         notional,
-        0.05, // 5% coupon
+        finstack_quant_core::types::Rate::from_decimal(0.05), // 5% coupon
         issue_date,
         maturity_date,
         finstack_quant_core::dates::StubKind::ShortFront,
