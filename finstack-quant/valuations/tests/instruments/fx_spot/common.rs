@@ -10,7 +10,10 @@ use finstack_quant_core::{
     money::Money,
     types::InstrumentId,
 };
-use finstack_quant_valuations::instruments::fx::fx_spot::FxSpot;
+use finstack_quant_valuations::{
+    instruments::fx::fx_spot::FxSpot,
+    metrics::{standard_registry, MetricContext, MetricId},
+};
 use std::sync::Arc;
 use time::Month;
 
@@ -158,4 +161,16 @@ pub fn assert_approx_eq(actual: f64, expected: f64, tolerance: f64, msg: &str) {
         actual,
         diff
     );
+}
+
+/// Calculate one FX spot metric through the production registry.
+pub fn calculate_metric(
+    context: &mut MetricContext,
+    metric: MetricId,
+) -> finstack_quant_core::Result<f64> {
+    standard_registry()
+        .compute(std::slice::from_ref(&metric), context)?
+        .get(&metric)
+        .copied()
+        .ok_or_else(|| finstack_quant_core::Error::internal("registered metric result missing"))
 }

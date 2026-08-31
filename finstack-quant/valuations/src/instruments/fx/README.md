@@ -58,9 +58,8 @@ at `instruments::*` — aliases, not FX-specific variants.
 
 Inside a leaf, `metrics/`, `pricer.rs`, `types.rs` and Monte Carlo payoff
 adapters are `pub(crate)` or private; supported items surface through each
-leaf's `pub use`. `fx_spot` also re-exports three metric calculators
-(`BaseAmountCalculator`, `InverseRateCalculator`, `SpotRateCalculator`) as
-`#[doc(hidden)]`.
+leaf's `pub use`. Metric calculator implementations remain internal and are
+reached through the standard metric registry.
 
 ## Family conventions
 

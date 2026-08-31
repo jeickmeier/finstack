@@ -46,10 +46,3 @@ mod types;
 
 pub(crate) mod metrics;
 pub use types::FxSpot;
-
-#[doc(hidden)]
-pub use metrics::base_amount::BaseAmountCalculator;
-#[doc(hidden)]
-pub use metrics::inverse_rate::InverseRateCalculator;
-#[doc(hidden)]
-pub use metrics::spot_rate::SpotRateCalculator;

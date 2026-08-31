@@ -5,8 +5,8 @@ use finstack_quant_core::{
     currency::Currency, dates::Date, market_data::context::MarketContext, money::Money,
 };
 use finstack_quant_valuations::{
-    instruments::{fx::fx_spot::InverseRateCalculator, FxSpot, Instrument},
-    metrics::{MetricCalculator, MetricContext},
+    instruments::{FxSpot, Instrument},
+    metrics::{MetricContext, MetricId},
 };
 use std::sync::Arc;
 
@@ -27,9 +27,8 @@ fn create_context(fx: FxSpot, as_of: Date) -> MetricContext {
 fn test_inverse_rate_basic() {
     let fx = eurusd_with_notional(1_000_000.0, 1.20);
     let mut ctx = create_context(fx, test_date());
-    let calc = InverseRateCalculator;
 
-    let inv_rate = calc.calculate(&mut ctx).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     let expected = 1.0 / 1.20;
     assert_approx_eq(inv_rate, expected, EPSILON, "Inverse rate");
 }
@@ -39,22 +38,20 @@ fn test_inverse_rate_reciprocal_relationship() {
     // EUR/USD = 1.20, so USD/EUR = 1/1.20 ≈ 0.8333
     let fx = eurusd_with_notional(1_000_000.0, 1.20);
     let mut ctx = create_context(fx, test_date());
-    let calc = InverseRateCalculator;
 
-    let inv_rate = calc.calculate(&mut ctx).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     assert_approx_eq(inv_rate, 0.8333333333, LARGE_EPSILON, "Reciprocal");
 }
 
 #[test]
 fn test_inverse_rate_various_rates() {
-    let calc = InverseRateCalculator;
     let rates = vec![0.5, 1.0, 1.2, 1.5, 2.0, 110.0];
 
     for rate in rates {
         let fx = eurusd_with_notional(1_000_000.0, rate);
         let mut ctx = create_context(fx, test_date());
 
-        let inv_rate = calc.calculate(&mut ctx).unwrap();
+        let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
         let expected = 1.0 / rate;
 
         assert_approx_eq(
@@ -76,10 +73,8 @@ fn test_inverse_rate_zero_notional_errors() {
         .with_rate(1.20)
         .expect("test rate");
     let mut ctx = create_context(fx, test_date());
-    let calc = InverseRateCalculator;
 
-    let err = calc
-        .calculate(&mut ctx)
+    let err = calculate_metric(&mut ctx, MetricId::InverseRate)
         .expect_err("zero notional should not silently return 0");
     let msg = err.to_string();
     assert!(
@@ -93,9 +88,8 @@ fn test_inverse_rate_unity() {
     // Rate of 1.0 has inverse of 1.0
     let fx = eurusd_with_notional(1_000_000.0, 1.0);
     let mut ctx = create_context(fx, test_date());
-    let calc = InverseRateCalculator;
 
-    let inv_rate = calc.calculate(&mut ctx).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     assert_approx_eq(inv_rate, 1.0, EPSILON, "Inverse of unity");
 }
 
@@ -103,16 +97,11 @@ fn test_inverse_rate_unity() {
 fn test_inverse_rate_symmetry() {
     // If EUR/USD = r, then USD/EUR = 1/r
     // And inverse(inverse(r)) = r
-    use finstack_quant_valuations::instruments::fx::fx_spot::SpotRateCalculator;
-
     let fx = eurusd_with_notional(1_000_000.0, 1.25);
     let mut ctx = create_context(fx, test_date());
 
-    let spot_calc = SpotRateCalculator;
-    let inv_calc = InverseRateCalculator;
-
-    let spot_rate = spot_calc.calculate(&mut ctx).unwrap();
-    let inv_rate = inv_calc.calculate(&mut ctx).unwrap();
+    let spot_rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
 
     // inverse(spot) should equal inv_rate
     assert_approx_eq(inv_rate, 1.0 / spot_rate, EPSILON, "Inverse symmetry");
@@ -130,9 +119,8 @@ fn test_inverse_rate_large_rate() {
         .with_rate(110.0)
         .expect("test rate");
     let mut ctx = create_context(fx, test_date());
-    let calc = InverseRateCalculator;
 
-    let inv_rate = calc.calculate(&mut ctx).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     assert_approx_eq(inv_rate, 1.0 / 110.0, LARGE_EPSILON, "Large rate inverse");
 }
 
@@ -141,15 +129,13 @@ fn test_inverse_rate_small_rate() {
     // Small rate (less than 1)
     let fx = eurusd_with_notional(1_000_000.0, 0.5);
     let mut ctx = create_context(fx, test_date());
-    let calc = InverseRateCalculator;
 
-    let inv_rate = calc.calculate(&mut ctx).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     assert_approx_eq(inv_rate, 2.0, EPSILON, "Small rate inverse");
 }
 
 #[test]
 fn test_inverse_rate_independent_of_notional_size() {
-    let calc = InverseRateCalculator;
     let rate = 1.25;
     let expected_inv = 1.0 / rate;
 
@@ -159,7 +145,7 @@ fn test_inverse_rate_independent_of_notional_size() {
         let fx = eurusd_with_notional(notional, rate);
         let mut ctx = create_context(fx, test_date());
 
-        let inv_rate = calc.calculate(&mut ctx).unwrap();
+        let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
         assert_approx_eq(
             inv_rate,
             expected_inv,
@@ -171,7 +157,6 @@ fn test_inverse_rate_independent_of_notional_size() {
 
 #[test]
 fn test_inverse_rate_independent_of_date() {
-    let calc = InverseRateCalculator;
     let fx = eurusd_with_notional(1_000_000.0, 1.20);
     let expected_inv = 1.0 / 1.20;
 
@@ -179,7 +164,7 @@ fn test_inverse_rate_independent_of_date() {
 
     for date in dates {
         let mut ctx = create_context(fx.clone(), date);
-        let inv_rate = calc.calculate(&mut ctx).unwrap();
+        let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
 
         assert_approx_eq(
             inv_rate,
@@ -193,16 +178,11 @@ fn test_inverse_rate_independent_of_date() {
 #[test]
 fn test_inverse_rate_product_equals_unity() {
     // spot_rate * inverse_rate should equal 1.0
-    use finstack_quant_valuations::instruments::fx::fx_spot::SpotRateCalculator;
-
     let fx = eurusd_with_notional(1_500_000.0, 1.23456);
     let mut ctx = create_context(fx, test_date());
 
-    let spot_calc = SpotRateCalculator;
-    let inv_calc = InverseRateCalculator;
-
-    let spot_rate = spot_calc.calculate(&mut ctx).unwrap();
-    let inv_rate = inv_calc.calculate(&mut ctx).unwrap();
+    let spot_rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
 
     let product = spot_rate * inv_rate;
     assert_approx_eq(product, 1.0, EPSILON, "Product equals unity");
@@ -212,9 +192,8 @@ fn test_inverse_rate_product_equals_unity() {
 fn test_inverse_rate_fractional_precision() {
     let fx = eurusd_with_notional(1_000_000.0, 1.23456789);
     let mut ctx = create_context(fx, test_date());
-    let calc = InverseRateCalculator;
 
-    let inv_rate = calc.calculate(&mut ctx).unwrap();
+    let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     let expected = 1.0 / 1.23456789;
     assert_approx_eq(inv_rate, expected, EPSILON, "Fractional precision");
 }
