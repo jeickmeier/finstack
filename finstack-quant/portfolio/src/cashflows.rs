@@ -16,6 +16,8 @@
 //! curves or discount factors fail closed.
 
 use crate::error::{Error, Result};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::evaluation::POSITION_PARALLEL_MIN_POSITIONS;
 use crate::portfolio::Portfolio;
 use crate::types::PositionId;
 use finstack_quant_cashflows::builder::{CashFlowSchedule, CashflowRepresentation};
@@ -322,13 +324,6 @@ fn json_money_amount(value: &serde_json::Value) -> Option<f64> {
     }
 }
 
-/// Portfolios below this position count run cashflow scheduling serially:
-/// Rayon's fan-out overhead exceeds the per-position scheduling cost for
-/// small books. Mirrors `VALUE_PORTFOLIO_PARALLEL_MIN_POSITIONS` in
-/// `valuation.rs` so the crate uses one consistent parallel cutover.
-#[cfg(not(target_arch = "wasm32"))]
-const AGGREGATE_CASHFLOWS_PARALLEL_MIN_POSITIONS: usize = 64;
-
 /// Aggregate contractual portfolio cashflows while preserving `CFKind` classification.
 ///
 /// Successful positions contribute scaled events, deterministic date/currency/
@@ -407,7 +402,7 @@ pub fn aggregate_full_cashflows(
 
     #[cfg(not(target_arch = "wasm32"))]
     let per_position: Vec<PositionCashflowResult> =
-        if portfolio.positions.len() >= AGGREGATE_CASHFLOWS_PARALLEL_MIN_POSITIONS {
+        if portfolio.positions.len() >= POSITION_PARALLEL_MIN_POSITIONS {
             use rayon::prelude::*;
             portfolio
                 .positions
