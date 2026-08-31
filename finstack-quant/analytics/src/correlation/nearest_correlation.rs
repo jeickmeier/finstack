@@ -40,7 +40,7 @@
 //! application rejects any silent modification — validate first and let the
 //! caller decide.
 
-use super::error::{Error, Result};
+use super::{Error, Result};
 
 /// Convergence parameters for [`nearest_correlation_matrix`].
 ///
