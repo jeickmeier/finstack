@@ -28,7 +28,7 @@ There is **no `prelude` module** — import the names you need directly.
 | `PricingMode` | Valuation-owned stochastic pricing mode — see [`pricing/stochastic/README.md`](pricing/stochastic/README.md). |
 | `StochasticPrepaySpec`, `StochasticDefaultSpec`, `CorrelationStructure`, `PoolGranularity` | Models-owned stochastic inputs; import from `finstack_quant_models::credit::pool`. |
 | `StochasticPricingResult`, `TranchePricingResult` | Stochastic output. |
-| `ReinvestmentPeriod`, `ReinvestmentCriteria`, `ReinvestmentManager` | CLO reinvestment. |
+| `ReinvestmentPeriod`, `ReinvestmentCriteria` | CLO reinvestment contract used by the simulation engine. |
 | `EarlyAmortizationSpec`, `ControlledAccumulationSpec`, `ExcessSpreadSpec`, `CreditEnhancement` | ABS/credit-card structural features. |
 | `run_simulation`, `generate_cashflows`, `generate_tranche_cashflows` | Deterministic projection entry points. |
 | `execute_waterfall`, `execute_waterfall_with_explanation`, `WaterfallContext`, `WaterfallDistribution`, `resolve_waterfall` | Waterfall execution. |
@@ -52,7 +52,7 @@ structured_credit/
 │   ├── pricing_methods.rs# advanced-only value_tranche / price_stochastic; hosts use ModelKey
 │   ├── stochastic.rs     # enable_stochastic_defaults, with_stochastic_* setters
 │   ├── constants.rs enums.rs pool.rs pool_state.rs tranches.rs waterfall.rs
-│   ├── results.rs setup.rs reinvestment.rs
+│   ├── results.rs setup.rs
 ├── pricing/
 │   ├── simulation_engine/ # the deterministic period loop, pool flows, conservation checks
 │   ├── waterfall.rs       # execute_waterfall(_with_explanation), WaterfallContext

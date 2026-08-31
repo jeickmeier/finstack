@@ -21,7 +21,6 @@ pub(crate) mod waterfall;
 mod constructors;
 mod instrument;
 mod pricing_methods;
-mod reinvestment;
 mod stochastic;
 mod structured_credit_impl;
 
@@ -41,8 +40,6 @@ pub use tranches::{
 };
 
 pub use setup::{CoverageTestConfig, DealConfig, DealDates, DealFees, DefaultAssumptions};
-
-pub use reinvestment::ReinvestmentManager;
 
 pub(crate) use waterfall::DiversionRecord;
 pub use waterfall::{

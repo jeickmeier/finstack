@@ -40,12 +40,12 @@ pub use types::{
     CoverageTrigger, CreditEnhancement, CreditModelConfig, DealConfig, DealDates, DealFees,
     DealType, DefaultAssumptions, EarlyAmortizationSpec, ExcessSpreadSpec, ManagementFeeType,
     Metadata, Overrides, PaymentCalculation, PaymentMode, PaymentRecord, PaymentType, PoolAsset,
-    PoolStats, Recipient, RecipientType, ReinvestmentCriteria, ReinvestmentManager,
-    ReinvestmentPeriod, RepLine, RoundingConvention, ShiftingInterestSpec, ShiftingInterestStep,
-    StepDownSpec, StepDownTrigger, StructuredCredit, StructuredCreditBuilder, Tranche,
-    TrancheBehaviorType, TrancheBuilder, TrancheCashflows, TrancheCoupon, TrancheSeniority,
-    TrancheStructure, TrancheValuation, TriggerConsequence, Waterfall, WaterfallBuilder,
-    WaterfallDistribution, WaterfallRules, WaterfallTier, WaterfallWorkspace,
+    PoolStats, Recipient, RecipientType, ReinvestmentCriteria, ReinvestmentPeriod, RepLine,
+    RoundingConvention, ShiftingInterestSpec, ShiftingInterestStep, StepDownSpec, StepDownTrigger,
+    StructuredCredit, StructuredCreditBuilder, Tranche, TrancheBehaviorType, TrancheBuilder,
+    TrancheCashflows, TrancheCoupon, TrancheSeniority, TrancheStructure, TrancheValuation,
+    TriggerConsequence, Waterfall, WaterfallBuilder, WaterfallDistribution, WaterfallRules,
+    WaterfallTier, WaterfallWorkspace,
 };
 
 pub use crate::cashflow::builder::{DefaultCurve, PrepaymentCurve};
