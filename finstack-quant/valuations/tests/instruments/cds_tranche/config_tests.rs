@@ -146,7 +146,8 @@ fn test_pricer_config_builder_methods_wire_copula_and_numerical_settings() {
         } if (loading_volatility - 0.15).abs() < 1e-12
     ));
 
-    let rfl_pct = CDSTranchePricerConfig::default().with_rfl_copula_pct(Percentage::new(12.5));
+    let rfl_pct = CDSTranchePricerConfig::default()
+        .with_rfl_copula_pct(Percentage::new(12.5).expect("finite percentage"));
     assert!(matches!(
         rfl_pct.copula_spec,
         CopulaSpec::RandomFactorLoading {
@@ -201,8 +202,8 @@ fn test_pricer_config_recovery_builders_populate_recovery_spec() {
     assert!(custom_debug.contains("-0.4"));
 
     let custom_pct = CDSTranchePricerConfig::default().with_custom_stochastic_recovery_pct(
-        Percentage::new(45.0),
-        Percentage::new(25.0),
+        Percentage::new(45.0).expect("finite percentage"),
+        Percentage::new(25.0).expect("finite percentage"),
         -0.3,
     );
     let custom_pct_debug = format!("{:?}", custom_pct.recovery_spec);
@@ -215,8 +216,8 @@ fn test_pricer_config_recovery_builders_populate_recovery_spec() {
     assert!(constant.recovery_spec.is_some());
     assert!(constant_debug.contains("0.42"));
 
-    let constant_pct =
-        CDSTranchePricerConfig::default().with_constant_recovery_pct(Percentage::new(38.0));
+    let constant_pct = CDSTranchePricerConfig::default()
+        .with_constant_recovery_pct(Percentage::new(38.0).expect("finite percentage"));
     let constant_pct_debug = format!("{:?}", constant_pct.recovery_spec);
     assert!(constant_pct.recovery_spec.is_some());
     assert!(constant_pct_debug.contains("0.38"));

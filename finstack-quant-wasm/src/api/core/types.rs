@@ -193,7 +193,7 @@ impl JsPercentage {
     /// @throws If `value` is non-finite.
     #[wasm_bindgen(constructor)]
     pub fn new(value: f64) -> Result<JsPercentage, JsValue> {
-        RustPercentage::try_new(value)
+        RustPercentage::new(value)
             .map(|inner| JsPercentage { inner })
             .map_err(to_js_err)
     }
@@ -306,6 +306,6 @@ mod tests {
 
     #[test]
     fn percentage_rejects_nan() {
-        assert!(RustPercentage::try_new(f64::NAN).is_err());
+        assert!(RustPercentage::new(f64::NAN).is_err());
     }
 }

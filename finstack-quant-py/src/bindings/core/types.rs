@@ -294,7 +294,7 @@ impl PyPercentage {
     #[pyo3(text_signature = "(percent)")]
     /// Construct from a percent value (e.g. ``12.5`` for 12.5%).
     fn new(percent: f64) -> PyResult<Self> {
-        Percentage::try_new(percent)
+        Percentage::new(percent)
             .map(Self::from_inner)
             .map_err(core_to_py)
     }

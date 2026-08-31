@@ -280,7 +280,7 @@ fn value_checked_matches_value_clamped_on_interior() {
     }
 }
 
-// Rate / Percentage / Bps: TryFrom<f64> parity and NaN rejection
+// Rate / Percentage / Bps: fallible-construction parity and NaN rejection
 
 #[test]
 fn rate_try_from_decimal_matches_from_decimal_for_valid_inputs() {
@@ -302,18 +302,18 @@ fn rate_try_from_decimal_rejects_non_finite() {
 }
 
 #[test]
-fn percentage_try_new_matches_new_for_valid_inputs() {
+fn percentage_try_from_matches_new_for_valid_inputs() {
     for &x in &[0.0, 5.0, -1.25, 150.0] {
-        let via_try = Percentage::try_new(x).unwrap();
-        let via_new = Percentage::new(x);
+        let via_try = Percentage::try_from(x).unwrap();
+        let via_new = Percentage::new(x).unwrap();
         assert!((via_try.as_percent() - via_new.as_percent()).abs() < 1e-15);
     }
 }
 
 #[test]
-fn percentage_try_new_rejects_non_finite() {
-    assert!(Percentage::try_new(f64::NAN).is_err());
-    assert!(Percentage::try_new(f64::INFINITY).is_err());
+fn percentage_new_rejects_non_finite() {
+    assert!(Percentage::new(f64::NAN).is_err());
+    assert!(Percentage::new(f64::INFINITY).is_err());
 }
 
 #[test]

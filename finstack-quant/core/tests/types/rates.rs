@@ -4,6 +4,10 @@ use finstack_quant_core::types::{Bps, Percentage, Rate};
 use proptest::prelude::*;
 use std::panic::catch_unwind;
 
+fn percentage(percent: f64) -> Percentage {
+    Percentage::new(percent).expect("finite percentage fixture")
+}
+
 #[test]
 fn rate_conversions_roundtrip() {
     // Test decimal -> bp -> decimal
@@ -162,7 +166,7 @@ fn bp_from_conversions() {
 
 #[test]
 fn percentage_conversions() {
-    let pct = Percentage::new(12.5);
+    let pct = percentage(12.5);
 
     assert_eq!(pct.as_percent(), 12.5);
     assert!((pct.as_decimal() - 0.125).abs() < 1e-10);
@@ -173,15 +177,15 @@ fn percentage_conversions() {
 }
 
 #[test]
-fn percentage_arithmetic_operations() {
-    let p1 = Percentage::new(10.0);
-    let p2 = Percentage::new(5.0);
+fn percentage_checked_arithmetic_operations() {
+    let p1 = percentage(10.0);
+    let p2 = percentage(5.0);
 
-    assert_eq!(p1 + p2, Percentage::new(15.0));
-    assert_eq!(p1 - p2, Percentage::new(5.0));
-    assert_eq!(p1 * 2.0, Percentage::new(20.0));
-    assert_eq!(p1.checked_div(2.0).unwrap(), Percentage::new(5.0));
-    assert_eq!(-p1, Percentage::new(-10.0));
+    assert_eq!(p1.checked_add(p2).unwrap(), percentage(15.0));
+    assert_eq!(p1.checked_sub(p2).unwrap(), percentage(5.0));
+    assert_eq!(p1.checked_mul(2.0).unwrap(), percentage(20.0));
+    assert_eq!(p1.checked_div(2.0).unwrap(), percentage(5.0));
+    assert_eq!(-p1, percentage(-10.0));
 }
 
 #[test]
@@ -190,36 +194,36 @@ fn percentage_predicates() {
     assert!(!Percentage::ZERO.is_positive());
     assert!(!Percentage::ZERO.is_negative());
 
-    let positive = Percentage::new(15.5);
+    let positive = percentage(15.5);
     assert!(positive.is_positive());
     assert!(!positive.is_negative());
 
-    let negative = Percentage::new(-5.0);
+    let negative = percentage(-5.0);
     assert!(negative.is_negative());
     assert!(!negative.is_positive());
 }
 
 #[test]
 fn percentage_abs() {
-    let negative = Percentage::new(-7.5);
-    assert_eq!(negative.abs(), Percentage::new(7.5));
+    let negative = percentage(-7.5);
+    assert_eq!(negative.abs(), percentage(7.5));
 
-    let positive = Percentage::new(3.5);
-    assert_eq!(positive.abs(), Percentage::new(3.5));
+    let positive = percentage(3.5);
+    assert_eq!(positive.abs(), percentage(3.5));
 }
 
 #[test]
 fn percentage_display_formatting() {
-    let pct = Percentage::new(12.75);
+    let pct = percentage(12.75);
     assert_eq!(format!("{}", pct), "12.75%");
 
-    let pct = Percentage::new(-5.5);
+    let pct = percentage(-5.5);
     assert_eq!(format!("{}", pct), "-5.50%");
 }
 
 #[test]
 fn percentage_from_conversions() {
-    let p: Percentage = 15.0.into();
+    let p = Percentage::try_from(15.0).expect("finite percentage");
     assert_eq!(p.as_percent(), 15.0);
 
     let f: f64 = p.into();
@@ -251,10 +255,10 @@ fn cross_type_conversions() {
 }
 
 #[test]
-fn non_finite_rate_constructors_panic() {
+fn non_finite_constructors_reject_input() {
     assert!(catch_unwind(|| Rate::from_decimal(f64::NAN)).is_err());
     assert!(catch_unwind(|| Rate::from_percent(f64::INFINITY)).is_err());
-    assert!(catch_unwind(|| Percentage::new(f64::NEG_INFINITY)).is_err());
+    assert!(Percentage::new(f64::NEG_INFINITY).is_err());
     assert!(catch_unwind(|| {
         let _: Rate = f64::NAN.into();
     })
@@ -309,15 +313,12 @@ fn checked_bps_arithmetic_rejects_integer_overflow_and_zero_division() {
 
 #[test]
 fn checked_percentage_arithmetic_rejects_non_finite_results() {
-    let pct = Percentage::new(10.0);
+    let pct = percentage(10.0);
 
     assert!(pct.checked_mul(f64::INFINITY).is_err());
     assert!(pct.checked_div(0.0).is_err());
-    assert_eq!(
-        pct.checked_add(Percentage::new(2.5)).unwrap(),
-        Percentage::new(12.5)
-    );
-    assert_eq!(pct.checked_neg().unwrap(), Percentage::new(-10.0));
+    assert_eq!(pct.checked_add(percentage(2.5)).unwrap(), percentage(12.5));
+    assert_eq!(-pct, percentage(-10.0));
 }
 
 #[test]
@@ -353,9 +354,9 @@ fn bp_ordering() {
 
 #[test]
 fn percentage_ordering() {
-    let p1 = Percentage::new(5.0);
-    let p2 = Percentage::new(10.0);
-    let p3 = Percentage::new(5.0);
+    let p1 = percentage(5.0);
+    let p2 = percentage(10.0);
+    let p3 = percentage(5.0);
 
     assert!(p1 < p2);
     assert!(p2 > p1);
@@ -395,7 +396,7 @@ proptest! {
         percent in -100_000.0_f64..100_000.0,
         divisor in prop_oneof![-1_000.0_f64..-1.0e-9, 1.0e-9_f64..1_000.0],
     ) {
-        let percentage = Percentage::try_new(percent).unwrap();
+        let percentage = Percentage::new(percent).unwrap();
         let divided = percentage.checked_div(divisor).unwrap();
 
         prop_assert!(divided.as_percent().is_finite());

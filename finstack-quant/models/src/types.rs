@@ -293,9 +293,9 @@ mod tests {
             100.0,
             95.0,
             Rate::from_percent(4.0),
-            Percentage::new(20.0),
+            Percentage::new(20.0).expect("finite percentage"),
             1.5,
-            Percentage::new(1.5),
+            Percentage::new(1.5).expect("finite percentage"),
             OptionType::Put,
         );
         assert!((typed.rate - 0.04).abs() < 1e-12);
@@ -314,7 +314,7 @@ mod tests {
             100.0,
             95.0,
             Rate::from_percent(4.0),
-            Percentage::new(20.0),
+            Percentage::new(20.0).expect("finite percentage"),
             1.5,
         );
         assert_eq!(put.option_type, OptionType::Put);
@@ -327,7 +327,8 @@ mod tests {
             OptionMarketParams::call(100.0, 95.0, 0.04, 0.20, 1.5).with_dividend_yield(0.025);
         assert_eq!(decimal.dividend_yield, 0.025);
 
-        let typed = decimal.with_dividend_yield_pct(Percentage::new(1.5));
+        let typed =
+            decimal.with_dividend_yield_pct(Percentage::new(1.5).expect("finite percentage"));
         assert!((typed.dividend_yield - 0.015).abs() < 1e-12);
     }
 

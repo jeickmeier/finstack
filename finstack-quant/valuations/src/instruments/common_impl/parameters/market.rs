@@ -148,7 +148,11 @@ mod tests {
 
     #[test]
     fn credit_typed_constructors_preserve_typed_inputs() {
-        let credit = CreditParams::new_pct("ACME", Percentage::new(35.0), "ACME-CDS");
+        let credit = CreditParams::new_pct(
+            "ACME",
+            Percentage::new(35.0).expect("finite percentage"),
+            "ACME-CDS",
+        );
         assert_eq!(credit.reference_entity, "ACME");
         assert!((credit.recovery_rate - 0.35).abs() < 1e-12);
         assert_eq!(credit.credit_curve_id.as_str(), "ACME-CDS");

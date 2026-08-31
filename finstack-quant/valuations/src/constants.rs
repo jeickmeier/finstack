@@ -8,7 +8,7 @@
 //! For rate/spread conversions, prefer the type-safe types from `finstack_quant_core::types`:
 //! - [`finstack_quant_core::types::Rate`] — `Rate::from_percent(5.0)`, `Rate::from_bp(500)`
 //! - [`finstack_quant_core::types::Bps`] — `Bps::new(500).as_decimal()`
-//! - [`finstack_quant_core::types::Percentage`] — `Percentage::new(5.0).as_decimal()`
+//! - [`finstack_quant_core::types::Percentage`] — `Percentage::new(5.0)?.as_decimal()`
 //!
 //! The raw `f64` constants below (`ONE_BASIS_POINT`, `BASIS_POINTS_PER_UNIT`, and
 //! `DECIMAL_TO_PERCENT`) exist for use in **performance-sensitive inner loops** where:

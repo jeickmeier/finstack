@@ -7,8 +7,8 @@
 //!
 //! `Rate` and `Percentage` serialize in their stored floating-point units and
 //! reject non-finite values when deserialized. `Bps` serializes as its integer
-//! basis-point quote. Floating-point compatibility constructors document when
-//! they panic; corresponding fallible constructors return validation errors.
+//! basis-point quote. [`Percentage::new`] and the floating-point `Bps`
+//! conversion reject invalid values with validation errors.
 //!
 //! # Example
 //!
@@ -18,7 +18,8 @@
 //! let rate = Rate::from_decimal(0.05);
 //! assert_eq!(rate, Rate::from_percent(5.0));
 //! assert_eq!(rate, Rate::from_bp(500));
-//! assert_eq!(rate.as_percent(), Percentage::new(5.0).as_percent());
+//! let percentage = Percentage::new(5.0).expect("finite percentage");
+//! assert_eq!(rate.as_percent(), percentage.as_percent());
 //! assert_eq!(rate.as_bp(), Bps::new(500).as_bp());
 //! ```
 
@@ -535,7 +536,7 @@ impl Neg for Bps {
 /// # Serde
 ///
 /// Serialized transparently as the inner `f64` percentage value.
-/// Deserialization routes through [`Percentage::try_new`], so non-finite
+/// Deserialization routes through [`Percentage::new`], so non-finite
 /// values (NaN, ±Infinity) are rejected even for binary formats that can
 /// encode them.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Serialize)]
@@ -547,43 +548,32 @@ impl<'de> Deserialize<'de> for Percentage {
         D: serde::Deserializer<'de>,
     {
         let percent = f64::deserialize(deserializer)?;
-        Percentage::try_new(percent).map_err(serde::de::Error::custom)
+        Percentage::new(percent).map_err(serde::de::Error::custom)
     }
 }
 
 impl Percentage {
-    /// Create a new percentage (12.5 = 12.5%).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `percent` is not finite. Use [`try_new`](Self::try_new)
-    /// for untrusted or external input.
-    #[allow(clippy::expect_used)] // Compatibility constructor is documented to panic.
-    pub fn new(percent: f64) -> Self {
-        Self::try_new(percent).expect("Percentage::new requires a finite value")
-    }
-
     /// Create a percentage value, rejecting non-finite inputs.
     ///
-    /// Returns an error if `pct` is NaN or infinite, preventing silent
+    /// Returns an error if `percent` is NaN or infinite, preventing silent
     /// corruption of downstream financial calculations.
     ///
     /// # Errors
     ///
-    /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when `pct`
+    /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when `percent`
     /// is NaN or infinite.
     ///
     /// # Arguments
     ///
-    /// * `pct` - Pct supplied by the caller for this operation
-    pub fn try_new(pct: f64) -> Result<Self> {
-        if !pct.is_finite() {
+    /// * `percent` - Percentage points, where `5.0` represents 5%.
+    pub fn new(percent: f64) -> Result<Self> {
+        if !percent.is_finite() {
             return Err(InputError::NonFiniteValue {
-                kind: non_finite_kind(pct),
+                kind: non_finite_kind(percent),
             }
             .into());
         }
-        Ok(Self(pct))
+        Ok(Self(percent))
     }
 
     /// Return the stored percentage value (5.0 represents 5%).
@@ -635,7 +625,7 @@ impl Percentage {
     ///
     /// Returns `InputError::NonFiniteValue` when the sum is NaN or infinite.
     pub fn checked_add(self, rhs: Self) -> Result<Self> {
-        Self::try_new(self.0 + rhs.0)
+        Self::new(self.0 + rhs.0)
     }
 
     /// Subtract two percentages, rejecting non-finite results.
@@ -645,7 +635,7 @@ impl Percentage {
     /// Returns `InputError::NonFiniteValue` when the difference is NaN or
     /// infinite.
     pub fn checked_sub(self, rhs: Self) -> Result<Self> {
-        Self::try_new(self.0 - rhs.0)
+        Self::new(self.0 - rhs.0)
     }
 
     /// Multiply by a scalar, rejecting non-finite results.
@@ -655,7 +645,7 @@ impl Percentage {
     /// Returns `InputError::NonFiniteValue` when `rhs` or the product is NaN
     /// or infinite.
     pub fn checked_mul(self, rhs: f64) -> Result<Self> {
-        Self::try_new(self.0 * rhs)
+        Self::new(self.0 * rhs)
     }
 
     /// Divide by a scalar, rejecting zero divisors and non-finite results.
@@ -668,31 +658,13 @@ impl Percentage {
         if rhs == 0.0 {
             return Err(InputError::Invalid.into());
         }
-        Self::try_new(self.0 / rhs)
-    }
-
-    /// Negate the percentage, rejecting non-finite results.
-    ///
-    /// # Errors
-    ///
-    /// Returns `InputError::NonFiniteValue` when the stored percentage is not
-    /// finite.
-    pub fn checked_neg(self) -> Result<Self> {
-        Self::try_new(-self.0)
+        Self::new(self.0 / rhs)
     }
 }
 
 impl fmt::Display for Percentage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:.2}%", self.0)
-    }
-}
-
-impl From<f64> for Percentage {
-    /// Prefer the fallible [`Percentage::try_new`]; this panics on non-finite input
-    /// and remains only for backward compatibility.
-    fn from(percent: f64) -> Self {
-        Self::new(percent)
     }
 }
 
@@ -712,32 +684,12 @@ impl From<Percentage> for f64 {
     }
 }
 
-// Arithmetic operations for Percentage.
-//
-// As with [`Rate`], these operators panic on a non-finite result (they route
-// through [`Percentage::new`]). Use the `checked_*` variants for untrusted or
-// computed inputs.
-impl Add for Percentage {
-    type Output = Self;
+impl TryFrom<f64> for Percentage {
+    type Error = Error;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::new(self.0 + rhs.0)
-    }
-}
-
-impl Sub for Percentage {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(self.0 - rhs.0)
-    }
-}
-
-impl Mul<f64> for Percentage {
-    type Output = Self;
-
-    fn mul(self, rhs: f64) -> Self::Output {
-        Self::new(self.0 * rhs)
+    /// Fallible conversion from percentage points, where `5.0` represents 5%.
+    fn try_from(percent: f64) -> Result<Self> {
+        Self::new(percent)
     }
 }
 
@@ -760,7 +712,7 @@ impl From<Rate> for Bps {
 
 impl From<Rate> for Percentage {
     fn from(rate: Rate) -> Self {
-        Percentage::new(rate.as_percent())
+        Percentage(rate.as_percent())
     }
 }
 
@@ -772,7 +724,7 @@ impl From<Bps> for Rate {
 
 impl From<Bps> for Percentage {
     fn from(bp: Bps) -> Self {
-        Percentage::new(bp.as_percent())
+        Percentage(bp.as_percent())
     }
 }
 
@@ -892,7 +844,7 @@ mod tests {
 
     #[test]
     fn percentage_creation_and_conversion() {
-        let pct = Percentage::new(12.5);
+        let pct = Percentage::new(12.5).expect("finite percentage");
         assert_eq!(pct.as_percent(), 12.5);
         assert_eq!(pct.as_decimal(), 0.125);
         assert_eq!(pct.as_bp(), 1250);
@@ -945,7 +897,7 @@ mod tests {
             serde_json::from_str(&json).expect("JSON deserialization should succeed in test");
         assert_eq!(bp, deserialized);
 
-        let pct = Percentage::new(12.5);
+        let pct = Percentage::new(12.5).expect("finite percentage");
         let json = serde_json::to_string(&pct).expect("JSON serialization should succeed in test");
         let deserialized: Percentage =
             serde_json::from_str(&json).expect("JSON deserialization should succeed in test");
