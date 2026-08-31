@@ -136,50 +136,6 @@ pub fn compute_factor_sensitivities_from_json(
     engine.compute_sensitivities(&positions, &factors, market, as_of, base_currency)
 }
 
-/// Compute factor sensitivities from fully serialized binding inputs.
-///
-/// `market_json` is decoded into a [`MarketContext`] and `as_of` must be an ISO
-/// calendar date. The returned JSON is the `SensitivityMatrixJson` view, with
-/// position IDs, factor IDs, and rows of sensitivity values.
-///
-/// # Arguments
-///
-/// * `positions_json` - UTF-8 JSON array of positions; its IDs determine
-///   serialized sensitivity-row order.
-/// * `factors_json` - UTF-8 JSON factor-definition array that determines
-///   factor IDs, order, and applied bump semantics.
-/// * `market_json` - UTF-8 JSON representation of the pricing
-///   [`MarketContext`] for the valuation snapshot.
-/// * `as_of` - ISO-8601 calendar date parsed as the valuation date.
-/// * `bump_config_json` - Optional UTF-8 JSON [`BumpSizeConfig`]; `None`
-///   uses the canonical defaults.
-///
-/// # Errors
-///
-/// Propagates JSON/date parsing, sensitivity-engine, and result-serialization
-/// failures.
-pub fn compute_factor_sensitivities_json(
-    positions_json: &str,
-    factors_json: &str,
-    market_json: &str,
-    as_of: &str,
-    bump_config_json: Option<&str>,
-) -> Result<String> {
-    let market: MarketContext = serde_json::from_str(market_json)
-        .map_err(|e| Error::Validation(format!("invalid market JSON: {e}")))?;
-    let as_of = finstack_quant_core::dates::parse_iso_date(as_of)?;
-    let matrix = compute_factor_sensitivities_from_json(
-        positions_json,
-        factors_json,
-        &market,
-        as_of,
-        bump_config_json,
-    )?;
-    let output = SensitivityMatrixJson::from(&matrix);
-    serde_json::to_string(&output)
-        .map_err(|e| Error::Validation(format!("failed to serialize sensitivity matrix: {e}")))
-}
-
 /// Compute repriced P&L profiles from JSON binding inputs.
 ///
 /// Each factor is shifted across `n_scenario_points` around its configured
@@ -219,55 +175,6 @@ pub fn compute_pnl_profiles_from_json(
     let engine = FullRepricingEngine::new(bump_config, n_scenario_points)?;
     let base_currency = json_reporting_currency(&positions, market, as_of)?;
     engine.compute_pnl_profiles(&positions, &factors, market, as_of, base_currency)
-}
-
-/// Compute repriced P&L profiles from fully serialized binding inputs.
-///
-/// Uses [`DEFAULT_PNL_SCENARIO_POINTS`] when `n_scenario_points` is `None`.
-/// The returned JSON contains one factor ID, shift grid, and per-position P&L
-/// matrix for each shocked factor.
-///
-/// # Arguments
-///
-/// * `positions_json` - UTF-8 JSON array of positions; its IDs order P&L rows
-///   in the serialized profiles.
-/// * `factors_json` - UTF-8 JSON factor-definition array to shock, in
-///   serialized profile order.
-/// * `market_json` - UTF-8 JSON representation of the pricing
-///   [`MarketContext`] for each scenario reprice.
-/// * `as_of` - ISO-8601 calendar date parsed as the valuation date.
-/// * `bump_config_json` - Optional UTF-8 JSON [`BumpSizeConfig`]; `None`
-///   uses canonical bump sizes.
-/// * `n_scenario_points` - Optional count of shock-grid points per factor;
-///   `None` uses [`DEFAULT_PNL_SCENARIO_POINTS`].
-///
-/// # Errors
-///
-/// Propagates JSON/date parsing and repricing failures, and returns validation
-/// errors if the output cannot be serialized.
-pub fn compute_pnl_profiles_json(
-    positions_json: &str,
-    factors_json: &str,
-    market_json: &str,
-    as_of: &str,
-    bump_config_json: Option<&str>,
-    n_scenario_points: Option<usize>,
-) -> Result<String> {
-    let market: MarketContext = serde_json::from_str(market_json)
-        .map_err(|e| Error::Validation(format!("invalid market JSON: {e}")))?;
-    let as_of = finstack_quant_core::dates::parse_iso_date(as_of)?;
-    let profiles = compute_pnl_profiles_from_json(
-        positions_json,
-        factors_json,
-        &market,
-        as_of,
-        bump_config_json,
-        n_scenario_points.unwrap_or(DEFAULT_PNL_SCENARIO_POINTS),
-    )?;
-    let output: Vec<FactorPnlProfileJson> =
-        profiles.iter().map(FactorPnlProfileJson::from).collect();
-    serde_json::to_string(&output)
-        .map_err(|e| Error::Validation(format!("failed to serialize P&L profiles: {e}")))
 }
 
 impl From<&SensitivityMatrix> for SensitivityMatrixJson {

@@ -24,8 +24,7 @@ mod traits;
 pub use delta_engine::{mapping_to_market_bumps, DeltaBasedEngine};
 pub use finstack_quant_models::factor::SensitivityMatrix;
 pub use json::{
-    compute_factor_sensitivities_from_json, compute_factor_sensitivities_json,
-    compute_pnl_profiles_from_json, compute_pnl_profiles_json, parse_bump_config_json,
+    compute_factor_sensitivities_from_json, compute_pnl_profiles_from_json, parse_bump_config_json,
     parse_factor_definitions_json, FactorPnlProfileJson, SensitivityMatrixJson,
     DEFAULT_PNL_SCENARIO_POINTS,
 };
