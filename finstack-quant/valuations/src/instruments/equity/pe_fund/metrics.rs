@@ -43,7 +43,7 @@ fn realized_lp_to_date(
 /// Propagates the XIRR solver's errors: fewer than two dated flows (an IRR
 /// is undefined for a fund with no cashflow history), no sign change in the
 /// flow stream, day-count failures, or no valid root.
-pub struct LpIrrCalculator;
+struct LpIrrCalculator;
 
 impl MetricCalculator for LpIrrCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
@@ -72,7 +72,7 @@ impl MetricCalculator for LpIrrCalculator {
 /// A GP IRR is not well-defined here (the GP has no initial investment in
 /// the carry stream), so this metric reports the total carry dollars instead
 /// and is registered as `gp_carry_total` .
-pub struct GpCarryTotalCalculator;
+struct GpCarryTotalCalculator;
 
 impl MetricCalculator for GpCarryTotalCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
@@ -119,7 +119,7 @@ fn total_value_to_paid_in(context: &mut MetricContext) -> finstack_quant_core::R
 /// (net of GP carry) and the residual value is the pricing `base_value`. On
 /// this net LP basis MOIC equals TVPI by definition; the metric is kept as a
 /// separate id because desks quote both names.
-pub struct MoicLpCalculator;
+struct MoicLpCalculator;
 
 impl MetricCalculator for MoicLpCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
@@ -132,7 +132,7 @@ impl MetricCalculator for MoicLpCalculator {
 /// Realized-only multiple: ledger `to_lp` distributions over contributions,
 /// both up to the valuation date. Gross fund events would overstate the LP
 /// multiple by the GP carry.
-pub struct DpiLpCalculator;
+struct DpiLpCalculator;
 
 impl MetricCalculator for DpiLpCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
@@ -154,7 +154,7 @@ impl MetricCalculator for DpiLpCalculator {
 ///
 /// `TVPI = (realized LP distributions + residual value) / paid-in capital`,
 /// i.e. `DPI + RVPI`. The residual value is the pricing `base_value`.
-pub struct TvpiLpCalculator;
+struct TvpiLpCalculator;
 
 impl MetricCalculator for TvpiLpCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
@@ -167,7 +167,7 @@ impl MetricCalculator for TvpiLpCalculator {
 /// Cumulative gross GP carry (`gp_carry_cum`, pre-holdback) as of the
 /// valuation date: the last ledger row dated on or before `as_of`. Events
 /// after the valuation date do not contribute.
-pub struct CarryAccruedCalculator;
+struct CarryAccruedCalculator;
 
 impl MetricCalculator for CarryAccruedCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
@@ -209,7 +209,7 @@ impl MetricCalculator for CarryAccruedCalculator {
 /// [`xirr_with_daycount`](finstack_quant_core::cashflow::xirr_with_daycount):
 /// fewer than two cashflows, no sign change in the cashflow stream, a day-count
 /// failure on any flow date, or no valid root.
-pub fn calculate_irr(
+pub(crate) fn calculate_irr(
     flows: &[(Date, Money)],
     day_count: DayCount,
 ) -> finstack_quant_core::Result<f64> {
