@@ -25,7 +25,7 @@ pub(crate) mod ytw;
 /// Z-spread (zero-volatility spread) calculator
 pub(crate) mod z_spread;
 
-pub use asw::{AssetSwapMarketCalculator, AssetSwapParCalculator};
+pub(crate) use asw::{AssetSwapMarketCalculator, AssetSwapParCalculator};
 pub use dm::DiscountMarginCalculator;
 pub(crate) use embedded_option_value::EmbeddedOptionValueCalculator;
 pub(crate) use i_spread::ISpreadCalculator;

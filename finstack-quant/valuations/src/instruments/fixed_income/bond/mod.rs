@@ -120,9 +120,7 @@ pub use json::bond_from_cashflows_json;
 #[doc(hidden)]
 pub use metrics::price_yield_spread::asw::{asw_market_with_forward, asw_par_with_forward};
 #[doc(hidden)]
-pub use metrics::{
-    AssetSwapMarketCalculator, AssetSwapParCalculator, DiscountMarginCalculator, ZSpreadCalculator,
-};
+pub use metrics::{DiscountMarginCalculator, ZSpreadCalculator};
 pub use types::AmortizationSpec;
 pub use types::Bond;
 pub use types::BondSettlementConvention;

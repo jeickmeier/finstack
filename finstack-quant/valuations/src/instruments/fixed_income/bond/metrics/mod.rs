@@ -86,14 +86,13 @@ pub(crate) use cs01::{
 pub(crate) use duration_macaulay::MacaulayDurationCalculator;
 pub(crate) use duration_modified::ModifiedDurationCalculator;
 pub(crate) use dv01::{BondBucketedDv01Calculator, BondDv01Calculator};
-pub use price_yield_spread::{
-    AssetSwapMarketCalculator, AssetSwapParCalculator, DiscountMarginCalculator, ZSpreadCalculator,
-};
 pub(crate) use price_yield_spread::{
-    BondVegaCalculator, CleanPriceCalculator, DirtyPriceCalculator, EmbeddedOptionValueCalculator,
-    ISpreadCalculator, JapaneseSimpleYieldCalculator, MoosmullerYtmCalculator, OasCalculator,
-    YtmCalculator, YtwCalculator,
+    AssetSwapMarketCalculator, AssetSwapParCalculator, BondVegaCalculator, CleanPriceCalculator,
+    DirtyPriceCalculator, EmbeddedOptionValueCalculator, ISpreadCalculator,
+    JapaneseSimpleYieldCalculator, MoosmullerYtmCalculator, OasCalculator, YtmCalculator,
+    YtwCalculator,
 };
+pub use price_yield_spread::{DiscountMarginCalculator, ZSpreadCalculator};
 pub(crate) use spread_duration::BondSpreadDurationCalculator;
 pub(crate) use wal::BondWalCalculator;
 pub(crate) use yield_dv01::YieldDv01Calculator;

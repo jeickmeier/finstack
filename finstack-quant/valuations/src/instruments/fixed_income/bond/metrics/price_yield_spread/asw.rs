@@ -49,7 +49,7 @@ fn resolved_asw_forward_curve_id(bond: &Bond) -> Option<CurveId> {
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug, Clone, Default)]
-pub struct AssetSwapParCalculator;
+pub(crate) struct AssetSwapParCalculator;
 
 /// Asset swap market spread calculator using market price.
 ///
@@ -83,7 +83,7 @@ pub struct AssetSwapParCalculator;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug, Clone, Default)]
-pub struct AssetSwapMarketCalculator;
+pub(crate) struct AssetSwapMarketCalculator;
 
 fn build_future_dates_from_flows(
     flows: &[(

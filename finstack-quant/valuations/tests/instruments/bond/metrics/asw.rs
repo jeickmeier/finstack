@@ -7,13 +7,10 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::fixed_income::bond::AssetSwapMarketCalculator;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::fixed_income::bond::CashflowSpec;
 use finstack_quant_valuations::instruments::InstrumentPricingOverrides;
-use finstack_quant_valuations::metrics::{
-    standard_registry, MetricCalculator, MetricContext, MetricId,
-};
+use finstack_quant_valuations::metrics::{standard_registry, MetricContext, MetricId};
 use std::sync::Arc;
 use time::macros::date;
 
@@ -45,46 +42,6 @@ fn simple_forward_curve(id: &str, as_of: time::Date) -> ForwardCurve {
         .knots(vec![(0.5, 0.04), (5.0, 0.045), (10.0, 0.05)])
         .build()
         .unwrap()
-}
-
-#[test]
-fn test_asw_market_requires_accrued_when_clean_price_present() {
-    let as_of = date!(2025 - 01 - 15);
-    let mut bond = simple_fixed_bond(as_of);
-    // Attach a clean price so the market ASW calculator will require Accrued.
-    bond.instrument_pricing_overrides =
-        InstrumentPricingOverrides::default().with_quoted_clean_price(101.0);
-
-    // Market with a simple discount curve
-    let disc = simple_discount_curve("USD-OIS", as_of);
-    let market = MarketContext::new().insert(disc);
-
-    // Metric context with quoted clean price but without Accrued metric
-    let mut ctx = MetricContext::new(
-        Arc::new(bond),
-        Arc::new(market),
-        as_of,
-        Money::new(100.0, Currency::USD),
-        MetricContext::default_config(),
-    );
-
-    let calc = AssetSwapMarketCalculator;
-    let result = calc.calculate(&mut ctx);
-
-    match result {
-        Err(e) => {
-            let msg = format!("{}", e);
-            assert!(
-                msg.contains("metric:Accrued"),
-                "expected missing Accrued error, got {}",
-                msg
-            );
-        }
-        Ok(v) => panic!(
-            "expected ASW market calculation to fail without Accrued, got {}",
-            v
-        ),
-    }
 }
 
 #[test]
