@@ -1151,7 +1151,7 @@ templates                   = { python = "finstack_quant.statements_analytics", 
 #   RatingPdMap and RawPdCurve stay Rust-only (the host Exposure wrapper
 #   stores undrawn/ccf; compute_ecl takes a priced EAD).
 # - analysis::credit covenant forecasting (forecast_breaches,
-#   forecast_covenant(s), compute_credit_context with per-period
+#   forecast_covenant, compute_credit_context with per-period
 #   reference_values, CreditContextMetrics including dscr_incl_fees,
 #   CorporateAnalysisBuilder.ltv_value_node — the last is bound on
 #   run_corporate_analysis), StatementsAdapter, lbo_model_checks,

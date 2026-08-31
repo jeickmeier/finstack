@@ -178,36 +178,6 @@ pub fn forecast_covenant(
     forecast_covenant_generic(covenant, &adapter, periods, cfg)
 }
 
-/// Forecast multiple covenants with shared statement inputs.
-///
-/// # Arguments
-///
-/// * `covenants` - Covenant specifications to forecast
-/// * `model` - Source statement model
-/// * `base_case` - Evaluated base-case statement results
-/// * `periods` - Future periods to test
-/// * `config` - Shared simulation configuration
-///
-/// # Returns
-///
-/// Returns one [`CovenantForecast`] per covenant in input order.
-///
-/// # Errors
-///
-/// Returns the first error raised while forecasting any covenant in the batch.
-pub fn forecast_covenants(
-    covenants: &[CovenantSpec],
-    model: &FinancialModelSpec,
-    base_case: &StatementResult,
-    periods: &[PeriodId],
-    config: CovenantForecastConfig,
-) -> Result<Vec<CovenantForecast>> {
-    covenants
-        .iter()
-        .map(|c| forecast_covenant(c, model, base_case, periods, config.clone()))
-        .collect()
-}
-
 /// Forecast covenant breaches based on statement results.
 ///
 /// # Arguments
