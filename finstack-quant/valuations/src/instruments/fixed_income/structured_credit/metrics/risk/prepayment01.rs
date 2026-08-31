@@ -96,8 +96,7 @@ impl MetricCalculator for Prepayment01Calculator {
         //
         // Quant review Note: the slope `(ΔPV / achieved_bump)` is in dollars
         // per UNIT of CPR; multiply by 1bp (0.0001) so the metric matches its
-        // documented `$ per 1bp` convention — the unit the attribution layer's
-        // `measure_prepayment_shift` (bp) pairs with directly.
+        // documented `$ per 1bp` convention used by model-parameter attribution.
         let prepayment01 = if achieved_bump > 0.0 {
             (pv_up - pv_down) / achieved_bump * 0.0001
         } else {

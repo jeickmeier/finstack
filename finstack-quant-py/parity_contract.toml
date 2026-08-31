@@ -975,8 +975,8 @@ schema = { python = "finstack_quant.attribution.schema", status = "exists", note
 #     AttributionResult(Envelope), AttributionSchema, AttributionConfig,
 #     AttributionJsonInputs, TaylorAttributionConfig) — hosts pass/receive
 #     them as JSON or binding fragments
-#   - measure helpers and model-param shift utilities (extract_model_params,
-#     measure_*_shift, with_model_params, MarketSnapshot/MarketRestoreFlags)
+#   - test-only market snapshot support
+#     (MarketSnapshot/MarketRestoreFlags)
 #   - return-contribution value types (spec/position/factor/group structs) —
 #     hosts pass the spec as JSON and read the typed result wrapper
 #   - the long-rows projection (LongDetailRow, pnl_attribution_long_rows and

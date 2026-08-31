@@ -607,7 +607,7 @@ fn compute_taylor_result(
     // Model-parameter snapshot: reprice T1 market with T0 params restored.
     let params_t0 = model_params_t0
         .cloned()
-        .unwrap_or_else(|| model_params::extract_model_params(instrument));
+        .unwrap_or_else(|| instrument.model_params_snapshot());
     if !matches!(params_t0, ModelParamsSnapshot::None) {
         record_taylor_factor_result(
             "model-parameter",
@@ -692,8 +692,8 @@ fn compute_taylor_result(
 /// curves, forward curves, hazard curves and vol surfaces, restore-and-reprice
 /// isolation for FX, inflation curves, base-correlation curves, and market
 /// scalars (the same `MarketRestoreFlags` families the parallel methodology
-/// uses), T₀-vs-T₁ model-parameter snapshot P&L via [`crate::extract_model_params`]
-/// / [`crate::with_model_params`], and
+/// uses), T₀-vs-T₁ model-parameter snapshot P&L via the internal
+/// snapshot/restore helpers, and
 /// theta. Each factor maps into its dedicated `PnlAttribution` bucket here, so
 /// an FX-rate, spot, inflation, correlation, or model-parameter move lands in
 /// its named field rather than silently inflating `residual`.

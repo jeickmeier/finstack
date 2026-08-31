@@ -6,7 +6,6 @@
 //! - `fx_attribution`: FX translation and waterfall attribution tests
 //! - `invariants`: Mathematical invariants (sign conventions, scaling, edge cases)
 //! - `metrics_based_convexity`: Second-order metrics support
-//! - `model_params_attribution`: Prepayment, default, recovery attribution
 //! - `analytical_self_consistency`: Validates attribution against the library's
 //!   own analytical DV01 / Convexity formulas (self-consistency, NOT a true
 //!   external QuantLib parity — that is a separate effort).
@@ -28,7 +27,6 @@ mod factors_snapshot;
 mod fx_attribution;
 mod invariants;
 mod metrics_based_convexity;
-mod model_params_attribution;
 mod no_model;
 mod quantlib_parity;
 mod return_contribution;

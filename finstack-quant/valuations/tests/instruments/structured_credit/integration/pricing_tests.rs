@@ -640,11 +640,8 @@ fn test_sensitivity01_units_reconcile_with_reprice() {
     // Quant review Note: pin the producer unit conventions —
     // `Prepayment01` is $ per 1bp of CPR, `Recovery01` is $ per 1% of
     // recovery — by reconciling `metric × shift` against a true reprice with
-    // the shifted parameter. This is the multiplication the public
-    // attribution helpers (`measure_prepayment_shift` in bp,
-    // `measure_recovery_shift` in pct-pt) document, so a producer/consumer
-    // unit drift (the old per-unit figures were 10⁴× / 10²× larger) fails
-    // loudly here.
+    // the shifted parameter. A producer/consumer unit drift (the old per-unit
+    // figures were 10⁴× / 10²× larger) therefore fails loudly here.
     use finstack_quant_cashflows::builder::PrepaymentModelSpec;
 
     let mut sc = StructuredCredit::new_abs(

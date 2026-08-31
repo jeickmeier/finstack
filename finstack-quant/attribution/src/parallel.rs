@@ -791,7 +791,7 @@ fn attribute_pnl_parallel_impl(
 
         let params_t0 = model_params_t0
             .cloned()
-            .unwrap_or_else(|| model_params::extract_model_params(instrument));
+            .unwrap_or_else(|| instrument.model_params_snapshot());
         if !matches!(params_t0, ModelParamsSnapshot::None) {
             factor_specs.push(ParallelLatentFactorSpec::ModelParams {
                 snapshot: params_t0,
@@ -1155,7 +1155,7 @@ fn attribute_pnl_parallel_impl(
         // Step 9: Model parameters attribution
         let params_t0 = model_params_t0
             .cloned()
-            .unwrap_or_else(|| model_params::extract_model_params(instrument));
+            .unwrap_or_else(|| instrument.model_params_snapshot());
         if !matches!(params_t0, ModelParamsSnapshot::None) {
             // Create instrument with T₀ parameters
             match model_params::with_model_params(instrument, &params_t0) {
