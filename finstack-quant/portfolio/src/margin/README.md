@@ -7,8 +7,8 @@ holdings through `finstack-quant-valuations`, whose instruments implement
 `Marginable` and surface it via `Instrument::as_marginable()`. It does not
 implement a margin model of its own.
 
-The module itself is `pub(crate)`; its six public types are re-exported at the
-crate root.
+The module itself is `pub(crate)`; its four public result/orchestration types
+are re-exported at the crate root. Netting-set bookkeeping stays internal.
 
 ## What it does
 
@@ -26,7 +26,6 @@ crate root.
 | Type | Role |
 |------|------|
 | `PortfolioMarginAggregator` | Orchestration entry point (`new`, `from_portfolio`, `add_position`, `calculate`) |
-| `NettingSet`, `NettingSetManager` | Grouping containers and sensitivity merge |
 | `NettingSetMargin` | One netting set's IM, VM, total, methodology, sensitivities, and IM breakdown |
 | `PortfolioMarginResult` | Portfolio summary: totals, `by_netting_set`, counts, `degraded_positions` |
 | `CurrencyMismatchError` | Returned when a netting-set result is not in the base currency |

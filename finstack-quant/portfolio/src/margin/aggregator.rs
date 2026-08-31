@@ -4,13 +4,14 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::HashMap;
 
 use finstack_quant_margin::{
     ClearingHouseImCalculator, ImCalculator, ImMethodology, NettingSetId, SimmCalculator,
     SimmSensitivities, VmCalculator,
 };
 
-use crate::margin::netting_set::{NettingSet, NettingSetManager};
+use crate::margin::netting_set::NettingSet;
 use crate::margin::results::{NettingSetMargin, PortfolioMarginResult};
 use crate::portfolio::Portfolio;
 use crate::position::{Position, PositionUnit};
@@ -29,8 +30,8 @@ use crate::{Error, Result};
 /// - `docs/REFERENCES.md#isda-simm`
 #[derive(Debug)]
 pub struct PortfolioMarginAggregator {
-    /// Netting set manager
-    netting_sets: NettingSetManager,
+    /// Netting sets indexed by their ID
+    netting_sets: HashMap<NettingSetId, NettingSet>,
     /// Position references for calculation
     positions: Vec<(PositionId, NettingSetId)>,
     /// Base currency for aggregation
@@ -53,7 +54,7 @@ impl PortfolioMarginAggregator {
     #[must_use]
     pub fn new(base_currency: Currency) -> Self {
         Self {
-            netting_sets: NettingSetManager::new(),
+            netting_sets: HashMap::default(),
             positions: Vec::new(),
             base_currency,
             simm_calculator: SimmCalculator::default(),
@@ -99,8 +100,23 @@ impl PortfolioMarginAggregator {
         let margin_spec = marginable.margin_spec().cloned();
 
         if let Some(ns_id) = netting_set_id {
-            self.netting_sets
-                .add_position(position, Some(ns_id.clone()), margin_spec);
+            let netting_set = self
+                .netting_sets
+                .entry(ns_id.clone())
+                .or_insert_with(|| NettingSet::new(ns_id.clone()));
+            if let Some(spec) = margin_spec {
+                match &netting_set.margin_spec {
+                    None => netting_set.margin_spec = Some(spec),
+                    Some(existing) if existing != &spec => {
+                        tracing::warn!(
+                            netting_set_id = ?netting_set.id,
+                            "Conflicting margin specs registered for netting set; keeping first spec"
+                        );
+                    }
+                    Some(_) => {}
+                }
+            }
+            netting_set.positions.push(position.position_id.clone());
             self.positions.push((position.position_id.clone(), ns_id));
         }
     }
@@ -131,7 +147,9 @@ impl PortfolioMarginAggregator {
         as_of: Date,
     ) -> Result<PortfolioMarginResult> {
         let mut result = PortfolioMarginResult::new(as_of, self.base_currency);
-        self.netting_sets.reset_sensitivities();
+        for netting_set in self.netting_sets.values_mut() {
+            netting_set.reset_sensitivities();
+        }
 
         // Phase A (parallel): compute SIMM sensitivities for every tracked
         // position. Each `simm_sensitivities` call is a read-only function of
@@ -179,8 +197,9 @@ impl PortfolioMarginAggregator {
         for (position_id, ns_id, sens_result) in position_sensitivities {
             match sens_result {
                 Ok(sensitivities) => {
-                    self.netting_sets
-                        .merge_sensitivities(&ns_id, &sensitivities);
+                    if let Some(netting_set) = self.netting_sets.get_mut(&ns_id) {
+                        netting_set.merge_sensitivities(&sensitivities);
+                    }
                 }
                 Err(err) => {
                     tracing::warn!(
@@ -194,7 +213,7 @@ impl PortfolioMarginAggregator {
         }
 
         // Calculate margin for each netting set
-        for (_ns_id, netting_set) in self.netting_sets.iter() {
+        for netting_set in self.netting_sets.values() {
             let (ns_margin, degraded_positions) =
                 self.calculate_netting_set_margin(netting_set, portfolio, market, as_of)?;
             for (position_id, message) in degraded_positions {
@@ -529,7 +548,7 @@ impl PortfolioMarginAggregator {
     /// Number of tracked netting sets.
     #[must_use]
     pub fn netting_set_count(&self) -> usize {
-        self.netting_sets.count()
+        self.netting_sets.len()
     }
 }
 

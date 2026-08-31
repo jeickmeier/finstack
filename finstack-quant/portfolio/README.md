@@ -66,7 +66,7 @@ through its module path. See the rustdoc for detail
 | `factor_model` | `FactorModel` (`assign_factors` / `compute_sensitivities` / `analyze`), `ParametricDecomposer`, `SimulationDecomposer`, `allocate_weights` |
 | `sensitivity` | `DeltaBasedEngine`, `FullRepricingEngine` + `ScenarioGrid`, `FactorSensitivityEngine` |
 | `optimization` | `PortfolioOptimizationProblem`, `DefaultLpOptimizer`, `optimize_from_spec`, `PortfolioOptimizationResult` |
-| `margin` (re-exported at root) | `PortfolioMarginAggregator`, `NettingSet`, `PortfolioMarginResult` — see [`src/margin/README.md`](src/margin/README.md) |
+| `margin` (re-exported at root) | `PortfolioMarginAggregator`, `PortfolioMarginResult` — see [`src/margin/README.md`](src/margin/README.md) |
 | `scenarios` | `apply_and_revalue`, `scenario_pnl`, `scenario_pnl_batch` |
 | `replay` | `replay_portfolio` over a `ReplayTimeline` of dated market snapshots |
 
