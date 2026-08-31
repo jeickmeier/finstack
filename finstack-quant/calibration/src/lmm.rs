@@ -80,24 +80,6 @@ pub(crate) struct CoTerminalSlice<'a> {
     pub first_alive: usize,
 }
 
-/// Result of calibrating `base_vol` to a swaption surface.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct LmmBaseVolCalibration {
-    /// Calibrated overall loading scale.
-    pub base_vol: f64,
-    /// Rebonato shape factor `R` (`σ_swaption = base_vol · R`).
-    ///
-    /// Diagnostic output: the LMM pricer consumes only `base_vol`, but the
-    /// shape factor and implied vol are surfaced for calibration tests and
-    /// downstream callers that want to verify the repricing.
-    #[allow(dead_code)]
-    pub shape_factor: f64,
-    /// LMM-implied co-terminal European swaption Black vol after calibration
-    /// (equals the market target up to floating-point rounding).
-    #[allow(dead_code)]
-    pub implied_swaption_vol: f64,
-}
-
 /// Rebonato decomposition of the co-terminal swap: shape factor plus the
 /// basket levels needed to convert between Black and displaced vols.
 #[derive(Debug, Clone, Copy)]
@@ -198,7 +180,7 @@ pub(crate) fn rebonato_factors(slice: &CoTerminalSlice<'_>) -> Option<RebonatoFa
 pub(crate) fn calibrate_base_vol(
     slice: &CoTerminalSlice<'_>,
     market_swaption_vol: f64,
-) -> Option<LmmBaseVolCalibration> {
+) -> Option<f64> {
     if !market_swaption_vol.is_finite() || market_swaption_vol <= 0.0 {
         return None;
     }
@@ -208,14 +190,7 @@ pub(crate) fn calibrate_base_vol(
         return None;
     }
     let displaced_vol = market_swaption_vol * factors.swap_rate / factors.shifted_level;
-    let base_vol = displaced_vol / shape_factor;
-    Some(LmmBaseVolCalibration {
-        base_vol,
-        shape_factor,
-        // Convert back to the Black quote convention so the diagnostic
-        // round-trips to the market target.
-        implied_swaption_vol: base_vol * shape_factor * factors.shifted_level / factors.swap_rate,
-    })
+    Some(displaced_vol / shape_factor)
 }
 
 /// Calibrate the explicit flat LMM loading scale for a Bermudan swaption.
@@ -314,13 +289,12 @@ pub fn calibrate_bermudan_lmm_base_vol(
         expiry,
         factors.swap_rate,
     );
-    let calibration = calibrate_base_vol(&slice, market_vol).ok_or_else(|| {
+    calibrate_base_vol(&slice, market_vol).ok_or_else(|| {
         finstack_quant_core::Error::Validation(format!(
             "LMM calibration for '{}' is degenerate at expiry {expiry} and swap rate {}",
             swaption.id, factors.swap_rate
         ))
-    })?;
-    Ok(calibration.base_vol)
+    })
 }
 
 /// Parse a canonical instrument envelope and calibrate the Bermudan LMM loading scale.
@@ -430,6 +404,11 @@ mod tests {
                 [1.0 - alpha * frac, alpha * frac, 0.0]
             })
             .collect()
+    }
+
+    fn implied_swaption_vol(slice: &CoTerminalSlice<'_>, base_vol: f64) -> f64 {
+        let factors = rebonato_factors(slice).expect("factors");
+        base_vol * factors.shape_factor * factors.shifted_level / factors.swap_rate
     }
 
     #[test]
@@ -594,16 +573,17 @@ mod tests {
             first_alive: 0,
         };
         let market_vol = 0.22;
-        let cal = super::calibrate_base_vol(&slice, market_vol).expect("calibration");
+        let base_vol = super::calibrate_base_vol(&slice, market_vol).expect("calibration");
+        let implied_swaption_vol = implied_swaption_vol(&slice, base_vol);
         assert!(
-            (cal.implied_swaption_vol - market_vol).abs() < 1e-12,
+            (implied_swaption_vol - market_vol).abs() < 1e-12,
             "calibrated LMM should reprice swaption vol {market_vol}, got {}",
-            cal.implied_swaption_vol
+            implied_swaption_vol
         );
         // base_vol differs from the raw surface vol — this is the defect fix:
         // feeding `market_vol` directly as base_vol would mis-price by 1/R.
         assert!(
-            (cal.base_vol - market_vol).abs() > 1e-6,
+            (base_vol - market_vol).abs() > 1e-6,
             "shape factor R must be != 1, otherwise calibration is a no-op"
         );
     }
@@ -625,9 +605,10 @@ mod tests {
             loading_shapes: &shapes,
             first_alive: 2,
         };
-        let cal = super::calibrate_base_vol(&slice, 0.20).expect("calibration");
-        assert!(cal.base_vol.is_finite() && cal.base_vol > 0.0);
-        assert!((cal.implied_swaption_vol - 0.20).abs() < 1e-12);
+        let base_vol = super::calibrate_base_vol(&slice, 0.20).expect("calibration");
+        assert!(base_vol.is_finite() && base_vol > 0.0);
+        let implied_swaption_vol = implied_swaption_vol(&slice, base_vol);
+        assert!((implied_swaption_vol - 0.20).abs() < 1e-12);
     }
 
     #[test]
@@ -676,29 +657,30 @@ mod tests {
             first_alive: 0,
         };
         let market_vol = 0.30;
-        let cal = super::calibrate_base_vol(&slice, market_vol).expect("calibration");
+        let base_vol = super::calibrate_base_vol(&slice, market_vol).expect("calibration");
         let factors = rebonato_factors(&slice).expect("factors");
 
         // base_vol = sigma_Black * S/(S+d) / R, materially below sigma/R.
         let expected_base =
             market_vol * factors.swap_rate / factors.shifted_level / factors.shape_factor;
         assert!(
-            (cal.base_vol - expected_base).abs() < 1e-14,
+            (base_vol - expected_base).abs() < 1e-14,
             "base_vol {} != expected {expected_base}",
-            cal.base_vol
+            base_vol
         );
         let unscaled_base = market_vol / factors.shape_factor;
         assert!(
-            (cal.base_vol - unscaled_base).abs() > 1e-3,
+            (base_vol - unscaled_base).abs() > 1e-3,
             "S/(S+d) rescaling must materially change base_vol \
              (got {}, unscaled {unscaled_base})",
-            cal.base_vol
+            base_vol
         );
         // The Black-convention implied vol still round-trips.
+        let implied_swaption_vol = implied_swaption_vol(&slice, base_vol);
         assert!(
-            (cal.implied_swaption_vol - market_vol).abs() < 1e-12,
+            (implied_swaption_vol - market_vol).abs() < 1e-12,
             "implied Black vol {} should round-trip market {market_vol}",
-            cal.implied_swaption_vol
+            implied_swaption_vol
         );
     }
 
