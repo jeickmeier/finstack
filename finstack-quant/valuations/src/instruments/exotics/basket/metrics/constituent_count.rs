@@ -7,7 +7,7 @@ use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;
 
 /// Calculate number of constituents in the basket
-pub struct ConstituentCountCalculator;
+pub(super) struct ConstituentCountCalculator;
 
 impl MetricCalculator for ConstituentCountCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {

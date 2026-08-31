@@ -16,14 +16,11 @@ use finstack_quant_core::money::fx::{FxConversionPolicy, FxMatrix, FxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::exotics::basket::BasketCalculator;
 use finstack_quant_valuations::instruments::exotics::basket::{
-    AssetExposureCalculator, ConstituentCountCalculator, ExpenseRatioCalculator,
-};
-use finstack_quant_valuations::instruments::exotics::basket::{
     AssetType, Basket, BasketConstituent, BasketPricingConfig, ConstituentReference,
 };
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::{Attributes, Instrument};
-use finstack_quant_valuations::metrics::{MetricCalculator, MetricContext};
+use finstack_quant_valuations::metrics::{standard_registry, MetricContext, MetricId};
 use std::sync::Arc;
 use time::Month;
 
@@ -886,13 +883,13 @@ fn test_constituent_count_metric() {
         usd(0.0),
         MetricContext::default_config(),
     );
-    let calculator = ConstituentCountCalculator;
-
     // Act
-    let result = calculator.calculate(&mut metric_context).unwrap();
+    let results = standard_registry()
+        .compute(&[MetricId::ConstituentCount], &mut metric_context)
+        .unwrap();
 
     // Assert
-    assert_eq!(result, 2.0);
+    assert_eq!(results[&MetricId::ConstituentCount], 2.0);
 }
 
 #[test]
@@ -908,151 +905,14 @@ fn test_expense_ratio_metric() {
         usd(0.0),
         MetricContext::default_config(),
     );
-    let calculator = ExpenseRatioCalculator;
-
     // Act
-    let result = calculator.calculate(&mut metric_context).unwrap();
+    let results = standard_registry()
+        .compute(&[MetricId::ExpenseRatio], &mut metric_context)
+        .unwrap();
 
     // Assert
     // Expense ratio is stored as decimal (0.001), returned as percentage (0.1)
-    assert!((result - 0.1).abs() < 0.001);
-}
-
-#[test]
-fn test_asset_exposure_metric_equity() {
-    // Arrange
-    let basket = Basket::builder()
-        .id("EXPOSURE_TEST".into())
-        .constituents(vec![
-            BasketConstituent {
-                id: "AAPL".to_string(),
-                reference: ConstituentReference::MarketData {
-                    price_id: "AAPL".into(),
-                    asset_type: AssetType::Equity,
-                },
-                weight: 0.6,
-                units: None,
-                ticker: None,
-            },
-            BasketConstituent {
-                id: "MSFT".to_string(),
-                reference: ConstituentReference::MarketData {
-                    price_id: "MSFT".into(),
-                    asset_type: AssetType::Equity,
-                },
-                weight: 0.3,
-                units: None,
-                ticker: None,
-            },
-            BasketConstituent {
-                id: "BOND".to_string(),
-                reference: ConstituentReference::MarketData {
-                    price_id: "BOND_AAA".into(),
-                    asset_type: AssetType::Bond,
-                },
-                weight: 0.1,
-                units: None,
-                ticker: None,
-            },
-        ])
-        .expense_ratio(0.0)
-        .currency(Currency::USD)
-        .notional(usd(1_000_000.0))
-        .discount_curve_id("USD-OIS".into())
-        .instrument_pricing_overrides(Default::default())
-        .metric_pricing_overrides(Default::default())
-        .scenario_pricing_overrides(Default::default())
-        .attributes(Attributes::new())
-        .pricing_config(BasketPricingConfig::default())
-        .build()
-        .unwrap();
-    let context = equity_market_context();
-    let instrument: Arc<dyn Instrument> = Arc::new(basket);
-    let mut metric_context = MetricContext::new(
-        instrument,
-        Arc::new(context),
-        date(2025, 1, 1),
-        usd(0.0),
-        MetricContext::default_config(),
-    );
-    let calculator = AssetExposureCalculator::new(AssetType::Equity);
-
-    // Act
-    let result = calculator.calculate(&mut metric_context).unwrap();
-
-    // Assert
-    // Equity exposure: 0.6 + 0.3 = 0.9 = 90%
-    assert!((result - 90.0).abs() < 0.01);
-}
-
-#[test]
-fn test_asset_exposure_metric_bond() {
-    // Arrange
-    let basket = Basket::builder()
-        .id("BOND_EXPOSURE".into())
-        .constituents(vec![
-            BasketConstituent {
-                id: "BOND1".to_string(),
-                reference: ConstituentReference::MarketData {
-                    price_id: "BOND_AAA".into(),
-                    asset_type: AssetType::Bond,
-                },
-                weight: 0.5,
-                units: None,
-                ticker: None,
-            },
-            BasketConstituent {
-                id: "BOND2".to_string(),
-                reference: ConstituentReference::MarketData {
-                    price_id: "BOND_AA".into(),
-                    asset_type: AssetType::Bond,
-                },
-                weight: 0.3,
-                units: None,
-                ticker: None,
-            },
-            BasketConstituent {
-                id: "EQUITY".to_string(),
-                reference: ConstituentReference::MarketData {
-                    price_id: "AAPL".into(),
-                    asset_type: AssetType::Equity,
-                },
-                weight: 0.2,
-                units: None,
-                ticker: None,
-            },
-        ])
-        .expense_ratio(0.0)
-        .currency(Currency::USD)
-        .notional(usd(1_000_000.0))
-        .discount_curve_id("USD-OIS".into())
-        .instrument_pricing_overrides(Default::default())
-        .metric_pricing_overrides(Default::default())
-        .scenario_pricing_overrides(Default::default())
-        .attributes(Attributes::new())
-        .pricing_config(BasketPricingConfig::default())
-        .build()
-        .unwrap();
-    // Need to add bond prices to context
-    let context = equity_market_context()
-        .insert_price("BOND_AAA", MarketScalar::Unitless(98.5))
-        .insert_price("BOND_AA", MarketScalar::Unitless(101.2));
-    let instrument: Arc<dyn Instrument> = Arc::new(basket);
-    let mut metric_context = MetricContext::new(
-        instrument,
-        Arc::new(context),
-        date(2025, 1, 1),
-        usd(0.0),
-        MetricContext::default_config(),
-    );
-    let calculator = AssetExposureCalculator::new(AssetType::Bond);
-
-    // Act
-    let result = calculator.calculate(&mut metric_context).unwrap();
-
-    // Assert
-    // Bond exposure: 0.5 + 0.3 = 0.8 = 80%
-    assert!((result - 80.0).abs() < 0.01);
+    assert!((results[&MetricId::ExpenseRatio] - 0.1).abs() < 0.001);
 }
 
 // Instrument Trait Implementation Tests

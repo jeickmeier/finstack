@@ -86,7 +86,6 @@
 //! - **NAV**: Net asset value
 //! - **Constituent delta**: Sensitivity to each constituent
 //! - **Weight risk**: Sensitivity to weight changes
-//! - **Asset exposure**: Exposure by asset type
 //! - **Constituent count**: Number of holdings
 //!
 //! # References
@@ -117,7 +116,7 @@
 //!
 //! - `types`: `Basket` instrument struct and constituent definitions
 //! - `pricer`: Basket valuation calculator
-//! - `metrics`: Constituent-level risk metrics
+//! - `metrics`: Basket-specific metrics
 //!
 //! # See Also
 //!
@@ -131,8 +130,6 @@ pub(crate) mod pricer;
 pub(crate) mod types;
 
 // Builder is generated via derive on `Basket`.
-#[doc(hidden)]
-pub use metrics::{AssetExposureCalculator, ConstituentCountCalculator, ExpenseRatioCalculator};
 pub use pricer::BasketCalculator;
 pub use types::{AssetType, Basket, BasketConstituent, BasketPricingConfig, ConstituentReference};
 

@@ -7,7 +7,7 @@ use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;
 
 /// Calculate expense ratio as percentage
-pub struct ExpenseRatioCalculator;
+pub(super) struct ExpenseRatioCalculator;
 
 impl MetricCalculator for ExpenseRatioCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
