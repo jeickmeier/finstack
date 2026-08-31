@@ -160,13 +160,13 @@ impl PortfolioEclResult {
 /// Provision movement waterfall between two reporting dates.
 ///
 /// Tracks how the ECL provision balance moves from opening to closing,
-/// decomposed into business drivers (new originations, stage transfers,
-/// write-offs, etc.).
+/// decomposed into business drivers such as new originations, stage transfers,
+/// derecognitions, and remeasurement.
 ///
 /// The accounting identity is:
 /// closing = opening + new_originations + transfers_to_stage2
 ///         + transfers_to_stage3 + cured_to_stage1 + cured_to_stage2
-///         + derecognitions + write_offs + remeasurement
+///         + derecognitions + remeasurement
 ///
 /// Cure movements are split into `cured_to_stage1` (Stage 2 → Stage 1,
 /// and Stage 3 → Stage 1 "direct" cures) and `cured_to_stage2`
@@ -192,9 +192,6 @@ pub struct ProvisionWaterfall {
     pub cured_to_stage2: f64,
     /// Derecognitions (maturities, repayments, sales).
     pub derecognitions: f64,
-    /// Write-offs, currently reported as `0.0` because disappearing exposures
-    /// are classified as derecognitions.
-    pub write_offs: f64,
     /// Model/parameter changes (remeasurement, i.e., the residual).
     pub remeasurement: f64,
     /// Closing ECL balance.
@@ -204,8 +201,9 @@ pub struct ProvisionWaterfall {
 /// Compute the provision waterfall between two portfolio snapshots.
 ///
 /// Matches exposures by ID across periods to track stage movements and
-/// identify new originations and derecognitions. All disappearing exposures
-/// are reported as derecognitions, and `write_offs` remains `0.0`.
+/// identify new originations and derecognitions. Disappearing exposures are
+/// reported as derecognitions because the snapshots contain no write-off
+/// classification.
 ///
 /// # Arguments
 ///
@@ -297,7 +295,6 @@ pub fn compute_waterfall(
         cured_to_stage1,
         cured_to_stage2,
         derecognitions,
-        write_offs: 0.0,
         remeasurement,
         closing,
     }
@@ -443,7 +440,6 @@ mod tests {
         assert!((waterfall.opening - 300.0).abs() < 1e-10);
         assert!((waterfall.closing - 100.0).abs() < 1e-10);
         assert!((waterfall.derecognitions - (-200.0)).abs() < 1e-10);
-        assert_eq!(waterfall.write_offs, 0.0);
         let reconciled = waterfall.opening
             + waterfall.new_originations
             + waterfall.transfers_to_stage2
@@ -451,7 +447,6 @@ mod tests {
             + waterfall.cured_to_stage1
             + waterfall.cured_to_stage2
             + waterfall.derecognitions
-            + waterfall.write_offs
             + waterfall.remeasurement;
         assert!((reconciled - waterfall.closing).abs() < 1e-10);
     }
