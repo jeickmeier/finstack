@@ -209,17 +209,7 @@ impl OtcMarginSpec {
         let csa = CsaSpec {
             id: format!("{}-CCP-CSA", ccp_name),
             base_currency: currency,
-            calendar_id: match currency {
-                Currency::USD => "usny",
-                Currency::EUR => "target2",
-                Currency::GBP => "gblo",
-                Currency::JPY => "jpto",
-                Currency::CHF => "chzh",
-                Currency::CAD => "cato",
-                Currency::AUD => "auce",
-                _ => "weekends",
-            }
-            .to_string(),
+            calendar_id: super::default_margin_calendar(currency).to_string(),
             vm_params,
             im_params: Some(
                 registry
