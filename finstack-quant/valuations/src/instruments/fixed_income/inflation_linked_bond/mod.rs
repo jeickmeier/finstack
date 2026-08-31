@@ -96,8 +96,6 @@
 
 pub(crate) mod metrics;
 pub(crate) mod parameters;
-/// Inflation-linked bond pricer implementation
-pub(crate) mod pricer;
 mod types;
 
 pub use parameters::InflationLinkedBondParams;
