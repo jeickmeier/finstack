@@ -33,4 +33,5 @@ mod test_metrics_registry;
 
 // Bloomberg reconciliation against the public pricing surface.
 mod test_bloomberg_cdsw_parity;
+mod test_cdx_hy_price_strike;
 mod test_cdx_ig_46_cdso_regressions;
