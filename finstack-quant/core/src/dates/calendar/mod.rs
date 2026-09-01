@@ -102,7 +102,6 @@
 pub(crate) mod algo;
 pub(crate) mod business_days;
 pub(crate) mod composite;
-pub(crate) mod generated;
 pub(crate) mod rule;
 pub(crate) mod types;
 mod year_cache;

@@ -462,13 +462,13 @@ impl CashFlow {
     pub fn validate(&self) -> crate::Result<()> {
         // Check for non-finite amount (NaN or Infinity)
         if !self.amount.amount().is_finite() {
-            let kind = non_finite_kind(self.amount.amount());
+            let kind = NonFiniteKind::classify(self.amount.amount());
             return Err(InputError::NonFiniteValue { kind }.into());
         }
 
         // Check for non-finite accrual factor
         if !self.accrual_factor.is_finite() {
-            let kind = non_finite_kind(self.accrual_factor);
+            let kind = NonFiniteKind::classify(self.accrual_factor);
             return Err(InputError::NonFiniteValue { kind }.into());
         }
 
@@ -482,7 +482,7 @@ impl CashFlow {
         // Check for non-finite rate (if present)
         if let Some(rate) = self.rate {
             if !rate.is_finite() {
-                let kind = non_finite_kind(rate);
+                let kind = NonFiniteKind::classify(rate);
                 return Err(InputError::NonFiniteValue { kind }.into());
             }
         }
@@ -505,7 +505,7 @@ impl CashFlow {
             if let Some(projected_index_rate) = accrual.projected_index_rate {
                 if !projected_index_rate.is_finite() {
                     return Err(InputError::NonFiniteValue {
-                        kind: non_finite_kind(projected_index_rate),
+                        kind: NonFiniteKind::classify(projected_index_rate),
                     }
                     .into());
                 }
@@ -515,22 +515,6 @@ impl CashFlow {
         Ok(())
     }
 }
-
-/// Classify a non-finite f64 into a [`NonFiniteKind`].
-///
-/// # Panics
-/// The caller must ensure `x` is **not** finite before calling.
-#[inline]
-fn non_finite_kind(x: f64) -> NonFiniteKind {
-    if x.is_nan() {
-        NonFiniteKind::NaN
-    } else if x.is_sign_positive() {
-        NonFiniteKind::PosInfinity
-    } else {
-        NonFiniteKind::NegInfinity
-    }
-}
-
 // Compile-time size assertion (≤ 56 bytes)
 #[cfg(test)]
 mod tests {

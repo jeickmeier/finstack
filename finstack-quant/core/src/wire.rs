@@ -557,240 +557,112 @@ pub mod optional_decimal {
     }
 }
 
-/// Finite JSON number that is strictly greater than zero.
+/// Declare a `#[serde(transparent)]` `f64` newtype whose deserializer and
+/// generated schema enforce the same finite-range contract.
 ///
-/// This type is used by serde field adapters so runtime deserialization and
-/// generated schemas enforce the same positive-number contract.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(transparent)]
-#[cfg_attr(feature = "json-schema", schemars(transparent))]
-pub struct PositiveF64Wire(
-    #[cfg_attr(feature = "json-schema", schemars(extend("exclusiveMinimum" = 0.0)))] f64,
-);
+/// `$field_attr` is the `schemars` range attribute applied to the inner
+/// field; `$check` is the runtime predicate over `$v` (finiteness is checked
+/// first); `$msg` prefixes the validation error (`"<msg>, got <value>"`).
+macro_rules! bounded_f64_wire {
+    (
+        $(#[$doc:meta])*
+        $name:ident,
+        field: #[$field_attr:meta],
+        valid: |$v:ident| $check:expr,
+        message: $msg:literal $(,)?
+    ) => {
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+        #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+        #[serde(transparent)]
+        #[cfg_attr(feature = "json-schema", schemars(transparent))]
+        pub struct $name(#[$field_attr] f64);
 
-impl PositiveF64Wire {
-    /// Return the validated primitive value.
-    pub const fn into_inner(self) -> f64 {
-        self.0
-    }
-}
-
-impl TryFrom<f64> for PositiveF64Wire {
-    type Error = crate::Error;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_finite() && value > 0.0 {
-            Ok(Self(value))
-        } else {
-            Err(crate::Error::Validation(format!(
-                "expected a finite number greater than zero, got {value}"
-            )))
+        impl $name {
+            /// Return the validated primitive value.
+            pub const fn into_inner(self) -> f64 {
+                self.0
+            }
         }
-    }
-}
 
-impl<'de> Deserialize<'de> for PositiveF64Wire {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
+        impl TryFrom<f64> for $name {
+            type Error = crate::Error;
 
-/// Finite JSON number greater than or equal to zero.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(transparent)]
-#[cfg_attr(feature = "json-schema", schemars(transparent))]
-pub struct NonNegativeF64Wire(#[cfg_attr(feature = "json-schema", schemars(range(min = 0.0)))] f64);
-
-impl NonNegativeF64Wire {
-    /// Return the validated primitive value.
-    pub const fn into_inner(self) -> f64 {
-        self.0
-    }
-}
-
-impl TryFrom<f64> for NonNegativeF64Wire {
-    type Error = crate::Error;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_finite() && value >= 0.0 {
-            Ok(Self(value))
-        } else {
-            Err(crate::Error::Validation(format!(
-                "expected a finite non-negative number, got {value}"
-            )))
+            fn try_from($v: f64) -> Result<Self, Self::Error> {
+                if $v.is_finite() && $check {
+                    Ok(Self($v))
+                } else {
+                    Err(crate::Error::Validation(format!(
+                        concat!($msg, ", got {}"),
+                        $v
+                    )))
+                }
+            }
         }
-    }
-}
 
-impl<'de> Deserialize<'de> for NonNegativeF64Wire {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
-
-/// Finite JSON number in the closed interval `[0, 1]`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(transparent)]
-#[cfg_attr(feature = "json-schema", schemars(transparent))]
-pub struct ClosedUnitIntervalF64Wire(
-    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))] f64,
-);
-
-impl ClosedUnitIntervalF64Wire {
-    /// Return the validated primitive value.
-    pub const fn into_inner(self) -> f64 {
-        self.0
-    }
-}
-
-impl TryFrom<f64> for ClosedUnitIntervalF64Wire {
-    type Error = crate::Error;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_finite() && (0.0..=1.0).contains(&value) {
-            Ok(Self(value))
-        } else {
-            Err(crate::Error::Validation(format!(
-                "expected a finite number in [0, 1], got {value}"
-            )))
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+            }
         }
-    }
+    };
 }
 
-impl<'de> Deserialize<'de> for ClosedUnitIntervalF64Wire {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
+bounded_f64_wire! {
+    /// Finite JSON number that is strictly greater than zero.
+    ///
+    /// This type is used by serde field adapters so runtime deserialization and
+    /// generated schemas enforce the same positive-number contract.
+    PositiveF64Wire,
+    field: #[cfg_attr(feature = "json-schema", schemars(extend("exclusiveMinimum" = 0.0)))],
+    valid: |value| value > 0.0,
+    message: "expected a finite number greater than zero",
 }
 
-/// Finite JSON number in the open interval `(0, 1)`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(transparent)]
-#[cfg_attr(feature = "json-schema", schemars(transparent))]
-pub struct OpenUnitIntervalF64Wire(
-    #[cfg_attr(feature = "json-schema", schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0)))]
-     f64,
-);
-
-impl OpenUnitIntervalF64Wire {
-    /// Return the validated primitive value.
-    pub const fn into_inner(self) -> f64 {
-        self.0
-    }
+bounded_f64_wire! {
+    /// Finite JSON number greater than or equal to zero.
+    NonNegativeF64Wire,
+    field: #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0)))],
+    valid: |value| value >= 0.0,
+    message: "expected a finite non-negative number",
 }
 
-impl TryFrom<f64> for OpenUnitIntervalF64Wire {
-    type Error = crate::Error;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_finite() && value > 0.0 && value < 1.0 {
-            Ok(Self(value))
-        } else {
-            Err(crate::Error::Validation(format!(
-                "expected a finite number strictly between zero and one, got {value}"
-            )))
-        }
-    }
+bounded_f64_wire! {
+    /// Finite JSON number in the closed interval `[0, 1]`.
+    ClosedUnitIntervalF64Wire,
+    field: #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))],
+    valid: |value| (0.0..=1.0).contains(&value),
+    message: "expected a finite number in [0, 1]",
 }
 
-impl<'de> Deserialize<'de> for OpenUnitIntervalF64Wire {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
+bounded_f64_wire! {
+    /// Finite JSON number in the open interval `(0, 1)`.
+    OpenUnitIntervalF64Wire,
+    field: #[cfg_attr(
+        feature = "json-schema",
+        schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0))
+    )],
+    valid: |value| value > 0.0 && value < 1.0,
+    message: "expected a finite number strictly between zero and one",
 }
 
-/// Finite correlation coefficient in the closed interval `[-1, 1]`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(transparent)]
-#[cfg_attr(feature = "json-schema", schemars(transparent))]
-pub struct CorrelationWire(
-    #[cfg_attr(feature = "json-schema", schemars(range(min = -1.0, max = 1.0)))] f64,
-);
-
-impl CorrelationWire {
-    /// Return the validated primitive value.
-    pub const fn into_inner(self) -> f64 {
-        self.0
-    }
+bounded_f64_wire! {
+    /// Finite correlation coefficient in the closed interval `[-1, 1]`.
+    CorrelationWire,
+    field: #[cfg_attr(feature = "json-schema", schemars(range(min = -1.0, max = 1.0)))],
+    valid: |value| (-1.0..=1.0).contains(&value),
+    message: "expected a finite correlation in [-1, 1]",
 }
 
-impl TryFrom<f64> for CorrelationWire {
-    type Error = crate::Error;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_finite() && (-1.0..=1.0).contains(&value) {
-            Ok(Self(value))
-        } else {
-            Err(crate::Error::Validation(format!(
-                "expected a finite correlation in [-1, 1], got {value}"
-            )))
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for CorrelationWire {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
-
-/// Finite percentage-position quantity in the closed interval `[-100, 100]`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(transparent)]
-#[cfg_attr(feature = "json-schema", schemars(transparent))]
-pub struct PercentageQuantityWire(
-    #[cfg_attr(feature = "json-schema", schemars(range(min = -100.0, max = 100.0)))] f64,
-);
-
-impl PercentageQuantityWire {
-    /// Return the validated primitive value.
-    pub const fn into_inner(self) -> f64 {
-        self.0
-    }
-}
-
-impl TryFrom<f64> for PercentageQuantityWire {
-    type Error = crate::Error;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_finite() && (-100.0..=100.0).contains(&value) {
-            Ok(Self(value))
-        } else {
-            Err(crate::Error::Validation(format!(
-                "expected a finite percentage quantity in [-100, 100], got {value}"
-            )))
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for PercentageQuantityWire {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
+bounded_f64_wire! {
+    /// Finite percentage-position quantity in the closed interval `[-100, 100]`.
+    PercentageQuantityWire,
+    field: #[cfg_attr(feature = "json-schema", schemars(range(min = -100.0, max = 100.0)))],
+    valid: |value| (-100.0..=100.0).contains(&value),
+    message: "expected a finite percentage quantity in [-100, 100]",
 }
 
 /// Deserialize a finite, strictly positive `f64` through [`PositiveF64Wire`].

@@ -37,19 +37,11 @@ use rust_decimal::Decimal;
 /// assert!(f64_to_decimal(f64::INFINITY).is_err());
 /// ```
 pub fn f64_to_decimal(value: f64) -> Result<Decimal> {
-    if value.is_nan() {
+    if !value.is_finite() {
         return Err(InputError::NonFiniteValue {
-            kind: NonFiniteKind::NaN,
+            kind: NonFiniteKind::classify(value),
         }
         .into());
-    }
-    if value.is_infinite() {
-        let kind = if value.is_sign_positive() {
-            NonFiniteKind::PosInfinity
-        } else {
-            NonFiniteKind::NegInfinity
-        };
-        return Err(InputError::NonFiniteValue { kind }.into());
     }
     Decimal::try_from(value).map_err(|_| Error::from(InputError::ConversionOverflow))
 }

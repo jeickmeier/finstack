@@ -88,10 +88,9 @@ pub use calendar::business_days::{
 pub use calendar::business_days::available_calendars;
 pub use calendar::{calendar_by_id, calendars_by_ids, WEEKENDS_ONLY};
 
-mod schedule_gen;
-mod schedule_iter;
+mod schedule;
 
-pub use schedule_iter::{
+pub use schedule::{
     Schedule, ScheduleBuilder, ScheduleErrorPolicy, ScheduleSpec, ScheduleWarning, StubKind,
 };
 

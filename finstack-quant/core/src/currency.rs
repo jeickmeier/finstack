@@ -108,12 +108,9 @@
 //! assert!(three_decimal_currencies.contains(&Currency::KWD));
 //! ```
 
-// Generated enum (ISO-4217)
-// The build script copies the generated currency enum to OUT_DIR for inclusion.
-// This allows IDEs (`rust-analyzer`) to parse the generated code for auto-completion
-// and navigation. We load it and publicly re-export all items.
-
-include!(concat!(env!("OUT_DIR"), "/currency_generated.rs"));
+// Generated enum (ISO-4217), included by path so IDEs (`rust-analyzer`) can
+// parse it for auto-completion and navigation.
+include!("generated/currency_generated.rs");
 
 #[cfg(test)]
 mod tests {

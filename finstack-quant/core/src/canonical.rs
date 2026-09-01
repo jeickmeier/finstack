@@ -63,9 +63,9 @@ pub fn to_canonical_bytes<T: Serialize>(value: &T) -> crate::Result<Vec<u8>> {
 /// Returns [`crate::Error::Internal`] if the canonical JSON tree cannot be
 /// encoded.
 pub fn canonical_bytes_of_value(value: &Value) -> crate::Result<Vec<u8>> {
-    let mut canonical = value.clone();
-    sort_object_keys(&mut canonical);
-    serde_json::to_vec(&canonical)
+    // `serde_json::Map` is a `BTreeMap` (the `preserve_order` feature is off),
+    // so object keys are already byte-ordered; see `map_keys_iterate_sorted`.
+    serde_json::to_vec(value)
         .map_err(|error| crate::Error::internal(format!("canonical JSON encoding failed: {error}")))
 }
 
@@ -114,21 +114,25 @@ fn canonical_value_error(error: CanonicalValueError) -> crate::Error {
     }
 }
 
-fn sort_object_keys(value: &mut Value) {
-    match value {
-        Value::Object(map) => {
-            let mut entries: Vec<_> = std::mem::take(map).into_iter().collect();
-            for (_, child) in &mut entries {
-                sort_object_keys(child);
-            }
-            entries.sort_unstable_by(|(left, _), (right, _)| left.as_bytes().cmp(right.as_bytes()));
-            map.extend(entries);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `canonical_bytes_of_value` relies on `serde_json::Map` being ordered
+    /// (the `preserve_order` feature must stay off). Guard that assumption.
+    #[test]
+    fn map_keys_iterate_sorted() {
+        let mut map = serde_json::Map::new();
+        for key in ["zeta", "alpha", "mid", "Beta"] {
+            map.insert(key.to_string(), Value::Null);
         }
-        Value::Array(items) => {
-            for item in items {
-                sort_object_keys(item);
-            }
-        }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        let keys: Vec<&str> = map.keys().map(String::as_str).collect();
+        assert_eq!(keys, ["Beta", "alpha", "mid", "zeta"]);
+
+        let bytes = canonical_bytes_of_value(&Value::Object(map)).expect("encodes");
+        assert_eq!(
+            String::from_utf8(bytes).expect("utf8"),
+            r#"{"Beta":null,"alpha":null,"mid":null,"zeta":null}"#
+        );
     }
 }

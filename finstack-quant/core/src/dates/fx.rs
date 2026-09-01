@@ -151,12 +151,8 @@ pub fn adjust_joint_calendar(
     base_cal_id: Option<&str>,
     quote_cal_id: Option<&str>,
 ) -> Result<Date> {
-    let base_cal = resolve_calendar(base_cal_id)?;
-    let quote_cal = resolve_calendar(quote_cal_id)?;
-
-    with_joint_calendar(base_cal, quote_cal, |joint_calendar| {
-        adjust(date, business_day_convention, joint_calendar)
-    })
+    ResolvedCalendarPair::resolve(base_cal_id, quote_cal_id)?
+        .adjust_joint_calendar(date, business_day_convention)
 }
 
 fn advance_business_days(
@@ -248,16 +244,14 @@ pub fn add_joint_business_days(
     quote_cal_id: Option<&str>,
     settlement_cal_id: Option<&str>,
 ) -> Result<Date> {
-    let base_cal = resolve_calendar(base_cal_id)?;
-    let quote_cal = resolve_calendar(quote_cal_id)?;
+    let pair = ResolvedCalendarPair::resolve(base_cal_id, quote_cal_id)?;
     let settlement_cal = match settlement_cal_id {
         Some(id) => Some(resolve_calendar(Some(id))?),
         None => None,
     };
 
     advance_business_days(start, n_days, |date| {
-        base_cal.is_business_day(date)
-            && quote_cal.is_business_day(date)
+        pair.is_joint_business_day(date)
             && settlement_cal.is_none_or(|calendar| calendar.is_business_day(date))
     })
 }

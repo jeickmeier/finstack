@@ -71,30 +71,72 @@
 //!
 //! [`ScheduleBuilder::cds_imm`]: super::ScheduleBuilder::cds_imm
 
-use crate::dates::calendar::generated::nth_weekday_of_month;
+use crate::dates::calendar::algo::nth_weekday_of_month;
 use time::{Date, Duration, Month, Weekday};
 
 // Shared quarter months used by IMM/CDS roll helpers
 const QUARTERLY_MONTHS: [Month; 4] = [Month::March, Month::June, Month::September, Month::December];
 
-/// Generic helper to find the next date strictly after `date` by scanning
-/// specific `months` within a (possibly incrementing) `year`, where candidates
-/// are produced by `candidate_fn`.
+/// Scan direction for [`scan_months`].
+#[derive(Clone, Copy)]
+enum Scan {
+    /// First candidate strictly after `date`.
+    After,
+    /// First candidate on or after `date`.
+    OnOrAfter,
+    /// Last candidate strictly before `date`.
+    Before,
+    /// Last candidate on or before `date`.
+    OnOrBefore,
+}
+
+/// Generic helper to find the nearest date to `date` (in the direction and
+/// inclusivity given by `scan`) by walking `months` year by year, where
+/// candidates are produced by `candidate_fn`.
 #[inline]
-fn next_date_from_months<F>(date: Date, months: &[Month], candidate_fn: F) -> Date
+fn scan_months<F>(date: Date, months: &[Month], scan: Scan, candidate_fn: F) -> Date
 where
     F: Fn(Month, i32) -> Date,
 {
+    let forward = matches!(scan, Scan::After | Scan::OnOrAfter);
+    let hit = |candidate: Date| match scan {
+        Scan::After => candidate > date,
+        Scan::OnOrAfter => candidate >= date,
+        Scan::Before => candidate < date,
+        Scan::OnOrBefore => candidate <= date,
+    };
     let mut year = date.year();
     loop {
-        for &m in months {
-            let candidate = candidate_fn(m, year);
-            if candidate > date {
-                return candidate;
-            }
+        let mut ordered: [Option<Month>; 12] = [None; 12];
+        for (slot, &m) in ordered.iter_mut().zip(months) {
+            *slot = Some(m);
         }
-        year += 1;
+        let candidates = ordered.iter().flatten().copied();
+        let found = if forward {
+            candidates.map(|m| candidate_fn(m, year)).find(|&c| hit(c))
+        } else {
+            candidates
+                .rev()
+                .map(|m| candidate_fn(m, year))
+                .find(|&c| hit(c))
+        };
+        if let Some(candidate) = found {
+            return candidate;
+        }
+        year += if forward { 1 } else { -1 };
     }
+}
+
+/// The 20th of `month` in `year`, clamped to the `time` range at the edges.
+#[inline]
+fn twentieth(month: Month, year: i32) -> Date {
+    Date::from_calendar_date(year, month, 20).unwrap_or_else(|_| {
+        if year < Date::MIN.year() {
+            Date::MIN
+        } else {
+            Date::MAX
+        }
+    })
 }
 
 /// Return the **third Wednesday** of `month` in `year`.
@@ -125,7 +167,7 @@ pub fn third_wednesday(month: Month, year: i32) -> Date {
 ///   the following quarterly IMM date rather than itself.
 #[must_use]
 pub fn next_imm(date: Date) -> Date {
-    next_date_from_months(date, &QUARTERLY_MONTHS, third_wednesday)
+    scan_months(date, &QUARTERLY_MONTHS, Scan::After, third_wednesday)
 }
 
 /// Check if a date is a CDS roll date (20th of Mar/Jun/Sep/Dec).
@@ -194,15 +236,7 @@ pub fn is_imm_date(date: Date) -> bool {
 ///   returns the next quarterly roll date rather than itself.
 #[must_use]
 pub fn next_cds_date(date: Date) -> Date {
-    next_date_from_months(date, &QUARTERLY_MONTHS, |m, year| {
-        Date::from_calendar_date(year, m, 20).unwrap_or_else(|_| {
-            if year < Date::MIN.year() {
-                Date::MIN
-            } else {
-                Date::MAX
-            }
-        })
-    })
+    scan_months(date, &QUARTERLY_MONTHS, Scan::After, twentieth)
 }
 
 /// Return the **previous CDS roll date** (20-Mar/20-Jun/20-Sep/20-Dec)
@@ -231,22 +265,7 @@ pub fn next_cds_date(date: Date) -> Date {
 ///   returns the preceding quarterly roll date rather than itself.
 #[must_use]
 pub fn prev_cds_date(date: Date) -> Date {
-    let mut year = date.year();
-    loop {
-        for &m in QUARTERLY_MONTHS.iter().rev() {
-            let candidate = Date::from_calendar_date(year, m, 20).unwrap_or_else(|_| {
-                if year > Date::MAX.year() {
-                    Date::MAX
-                } else {
-                    Date::MIN
-                }
-            });
-            if candidate < date {
-                return candidate;
-            }
-        }
-        year -= 1;
-    }
+    scan_months(date, &QUARTERLY_MONTHS, Scan::Before, twentieth)
 }
 
 /// Return the **semi-annual CDS roll date** (20-Mar / 20-Sep) **on or before**
@@ -282,23 +301,8 @@ pub fn prev_cds_date(date: Date) -> Date {
 /// * `date` - Trade or valuation date anchoring the on-the-run contract.
 #[must_use]
 pub fn prev_cds_semiannual_roll(date: Date) -> Date {
-    const SEMIANNUAL_ROLL_MONTHS: [Month; 2] = [Month::September, Month::March];
-    let mut year = date.year();
-    loop {
-        for &m in &SEMIANNUAL_ROLL_MONTHS {
-            let candidate = Date::from_calendar_date(year, m, 20).unwrap_or_else(|_| {
-                if year > Date::MAX.year() {
-                    Date::MAX
-                } else {
-                    Date::MIN
-                }
-            });
-            if candidate <= date {
-                return candidate;
-            }
-        }
-        year -= 1;
-    }
+    const SEMIANNUAL_ROLL_MONTHS: [Month; 2] = [Month::March, Month::September];
+    scan_months(date, &SEMIANNUAL_ROLL_MONTHS, Scan::OnOrBefore, twentieth)
 }
 
 /// Return the **standard CDS scheduled termination date** (20-Jun / 20-Dec)
@@ -336,22 +340,7 @@ pub fn prev_cds_semiannual_roll(date: Date) -> Date {
 #[must_use]
 pub fn next_semiannual_cds_maturity(date: Date) -> Date {
     const MATURITY_MONTHS: [Month; 2] = [Month::June, Month::December];
-    let mut year = date.year();
-    loop {
-        for &m in &MATURITY_MONTHS {
-            let candidate = Date::from_calendar_date(year, m, 20).unwrap_or_else(|_| {
-                if year < Date::MIN.year() {
-                    Date::MIN
-                } else {
-                    Date::MAX
-                }
-            });
-            if candidate >= date {
-                return candidate;
-            }
-        }
-        year += 1;
-    }
+    scan_months(date, &MATURITY_MONTHS, Scan::OnOrAfter, twentieth)
 }
 
 /// Return the **IMM option expiry date** (Friday before the third Wednesday) for
@@ -403,7 +392,7 @@ pub fn third_friday(month: Month, year: i32) -> Date {
 ///   returns the following quarterly expiry rather than itself.
 #[must_use]
 pub fn next_imm_option_expiry(date: Date) -> Date {
-    next_date_from_months(date, &QUARTERLY_MONTHS, imm_option_expiry)
+    scan_months(date, &QUARTERLY_MONTHS, Scan::After, imm_option_expiry)
 }
 
 /// Return the **next equity option expiry date** (third Friday of any month)
@@ -433,7 +422,7 @@ pub fn next_equity_option_expiry(date: Date) -> Date {
         Month::December,
     ];
 
-    next_date_from_months(date, &ALL_MONTHS, third_friday)
+    scan_months(date, &ALL_MONTHS, Scan::After, third_friday)
 }
 
 /// SIFMA MBS settlement class.

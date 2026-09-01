@@ -66,14 +66,10 @@ pub(crate) fn repr_div_f64(a: AmountRepr, rhs: f64) -> AmountRepr {
 #[inline]
 pub(crate) fn try_repr_mul_f64(a: AmountRepr, rhs: f64) -> Result<AmountRepr, Error> {
     if !rhs.is_finite() {
-        let kind = if rhs.is_nan() {
-            crate::error::NonFiniteKind::NaN
-        } else if rhs.is_sign_positive() {
-            crate::error::NonFiniteKind::PosInfinity
-        } else {
-            crate::error::NonFiniteKind::NegInfinity
-        };
-        return Err(InputError::NonFiniteValue { kind }.into());
+        return Err(InputError::NonFiniteValue {
+            kind: crate::error::NonFiniteKind::classify(rhs),
+        }
+        .into());
     }
     // Shortest round-trip conversion per the 2026-06-09 core quant review
     // (user decision): avoids embedding IEEE noise digits in the Decimal.
@@ -92,14 +88,10 @@ pub(crate) fn try_repr_mul_f64(a: AmountRepr, rhs: f64) -> Result<AmountRepr, Er
 #[inline]
 pub(crate) fn try_repr_div_f64(a: AmountRepr, rhs: f64) -> Result<AmountRepr, Error> {
     if !rhs.is_finite() {
-        let kind = if rhs.is_nan() {
-            crate::error::NonFiniteKind::NaN
-        } else if rhs.is_sign_positive() {
-            crate::error::NonFiniteKind::PosInfinity
-        } else {
-            crate::error::NonFiniteKind::NegInfinity
-        };
-        return Err(InputError::NonFiniteValue { kind }.into());
+        return Err(InputError::NonFiniteValue {
+            kind: crate::error::NonFiniteKind::classify(rhs),
+        }
+        .into());
     }
     // Exact-zero check on f64 is intentional and well-defined: division by
     // any non-zero divisor (however small) is representable as a Decimal,
@@ -125,14 +117,10 @@ pub(crate) fn try_repr_div_f64(a: AmountRepr, rhs: f64) -> Result<AmountRepr, Er
 #[inline]
 pub(crate) fn try_round_f64(x: f64, dp: i32, mode: RoundingMode) -> Result<Decimal, Error> {
     if !x.is_finite() {
-        let kind = if x.is_nan() {
-            crate::error::NonFiniteKind::NaN
-        } else if x.is_sign_positive() {
-            crate::error::NonFiniteKind::PosInfinity
-        } else {
-            crate::error::NonFiniteKind::NegInfinity
-        };
-        return Err(InputError::NonFiniteValue { kind }.into());
+        return Err(InputError::NonFiniteValue {
+            kind: crate::error::NonFiniteKind::classify(x),
+        }
+        .into());
     }
     // Shortest round-trip conversion per the 2026-06-09 core quant review
     // (user decision): avoids embedding IEEE noise digits in the Decimal.

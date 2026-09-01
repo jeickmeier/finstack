@@ -30,20 +30,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, InputError, NonFiniteKind};
 use crate::Result;
-
-/// Classify a non-finite `f64` value into a `NonFiniteKind`.
-///
-/// The caller is responsible for ensuring `v` is not finite before calling.
-fn non_finite_kind(v: f64) -> NonFiniteKind {
-    if v.is_nan() {
-        NonFiniteKind::NaN
-    } else if v.is_sign_positive() {
-        NonFiniteKind::PosInfinity
-    } else {
-        NonFiniteKind::NegInfinity
-    }
-}
-
 /// A financial rate stored as an `f64` decimal.
 ///
 /// For example, `0.05` represents 5% or 500 bp.
@@ -98,7 +84,7 @@ impl Rate {
     pub fn try_from_decimal(decimal: f64) -> Result<Self> {
         if !decimal.is_finite() {
             return Err(InputError::NonFiniteValue {
-                kind: non_finite_kind(decimal),
+                kind: NonFiniteKind::classify(decimal),
             }
             .into());
         }
@@ -328,7 +314,7 @@ impl Bps {
     pub fn try_new(bp: f64) -> Result<Self> {
         if !bp.is_finite() {
             return Err(InputError::NonFiniteValue {
-                kind: non_finite_kind(bp),
+                kind: NonFiniteKind::classify(bp),
             }
             .into());
         }
@@ -560,7 +546,7 @@ impl Percentage {
     pub fn new(percent: f64) -> Result<Self> {
         if !percent.is_finite() {
             return Err(InputError::NonFiniteValue {
-                kind: non_finite_kind(percent),
+                kind: NonFiniteKind::classify(percent),
             }
             .into());
         }

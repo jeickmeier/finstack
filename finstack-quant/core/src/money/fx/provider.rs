@@ -20,14 +20,10 @@ pub(crate) fn reciprocal_rate_or_err(
     to: Currency,
 ) -> crate::Result<f64> {
     if !rate.is_finite() {
-        let kind = if rate.is_nan() {
-            crate::error::NonFiniteKind::NaN
-        } else if rate.is_sign_positive() {
-            crate::error::NonFiniteKind::PosInfinity
-        } else {
-            crate::error::NonFiniteKind::NegInfinity
-        };
-        return Err(crate::error::InputError::NonFiniteValue { kind }.into());
+        return Err(crate::error::InputError::NonFiniteValue {
+            kind: crate::error::NonFiniteKind::classify(rate),
+        }
+        .into());
     }
     if rate == 0.0 {
         return Err(crate::error::InputError::NotFound {

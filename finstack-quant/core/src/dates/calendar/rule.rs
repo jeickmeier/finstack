@@ -794,7 +794,7 @@ impl Rule {
                 // skips the computation for ~11/12 of queries without changing the
                 // answer.
                 date.month() == *month
-                    && crate::dates::calendar::generated::nth_weekday_of_month(
+                    && crate::dates::calendar::algo::nth_weekday_of_month(
                         date.year(),
                         *month,
                         *weekday,
@@ -897,9 +897,9 @@ impl Rule {
                 }
             }
             Rule::NthWeekday { n, weekday, month } => {
-                if let Some(d) = crate::dates::calendar::generated::nth_weekday_of_month(
-                    year, *month, *weekday, *n,
-                ) {
+                if let Some(d) =
+                    crate::dates::calendar::algo::nth_weekday_of_month(year, *month, *weekday, *n)
+                {
                     out.push(d);
                 }
             }

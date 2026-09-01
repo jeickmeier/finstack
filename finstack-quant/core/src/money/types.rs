@@ -382,14 +382,9 @@ impl Money {
         cfg: Option<&FinstackConfig>,
     ) -> Result<Self, Error> {
         if !amount.is_finite() {
-            let kind = if amount.is_nan() {
-                NonFiniteKind::NaN
-            } else if amount.is_sign_positive() {
-                NonFiniteKind::PosInfinity
-            } else {
-                NonFiniteKind::NegInfinity
-            };
-            return Err(Error::Input(InputError::NonFiniteValue { kind }));
+            return Err(Error::Input(InputError::NonFiniteValue {
+                kind: NonFiniteKind::classify(amount),
+            }));
         }
         Self::try_new_finite(amount, currency, cfg)
     }

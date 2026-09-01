@@ -22,6 +22,27 @@ pub enum NonFiniteKind {
     NegInfinity,
 }
 
+impl NonFiniteKind {
+    /// Classify a non-finite `f64` (NaN, `+inf`, or `-inf`).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Floating-point value that has already failed an
+    ///   `is_finite()` check. A finite value is reported as `PosInfinity` or
+    ///   `NegInfinity` by sign, so callers must test finiteness first.
+    #[inline]
+    #[must_use]
+    pub fn classify(value: f64) -> Self {
+        if value.is_nan() {
+            Self::NaN
+        } else if value.is_sign_positive() {
+            Self::PosInfinity
+        } else {
+            Self::NegInfinity
+        }
+    }
+}
+
 impl core::fmt::Display for NonFiniteKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

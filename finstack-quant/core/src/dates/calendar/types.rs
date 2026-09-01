@@ -5,8 +5,8 @@
 //! - A validated year range (`BASE_YEAR..=END_YEAR`); out-of-range queries still
 //!   evaluate but emit a one-time warning
 
+use super::algo::{BASE_YEAR, END_YEAR};
 use super::business_days::{CalendarMetadata, HolidayCalendar};
-use super::generated::{BASE_YEAR, END_YEAR};
 use super::rule::Rule;
 use super::year_cache;
 use time::{Date, Weekday};

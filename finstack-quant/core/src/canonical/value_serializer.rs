@@ -112,11 +112,11 @@ impl Serializer for ValueSerializer {
     }
 
     fn serialize_f32(self, value: f32) -> Result<Self::Ok, Self::Error> {
-        finite_number(f64::from(value), non_finite_kind_f32(value))
+        finite_number(f64::from(value), NonFiniteKind::classify(f64::from(value)))
     }
 
     fn serialize_f64(self, value: f64) -> Result<Self::Ok, Self::Error> {
-        finite_number(value, non_finite_kind_f64(value))
+        finite_number(value, NonFiniteKind::classify(value))
     }
 
     fn serialize_char(self, value: char) -> Result<Self::Ok, Self::Error> {
@@ -496,7 +496,9 @@ impl Serializer for MapKeySerializer {
         if value.is_finite() {
             Ok(value.to_string())
         } else {
-            Err(CanonicalValueError::NonFinite(non_finite_kind_f32(value)))
+            Err(CanonicalValueError::NonFinite(NonFiniteKind::classify(
+                f64::from(value),
+            )))
         }
     }
 
@@ -504,7 +506,9 @@ impl Serializer for MapKeySerializer {
         if value.is_finite() {
             Ok(value.to_string())
         } else {
-            Err(CanonicalValueError::NonFinite(non_finite_kind_f64(value)))
+            Err(CanonicalValueError::NonFinite(NonFiniteKind::classify(
+                value,
+            )))
         }
     }
 
@@ -631,24 +635,4 @@ fn finite_number(value: f64, non_finite_kind: NonFiniteKind) -> Result<Value, Ca
 
 fn key_must_be_string() -> CanonicalValueError {
     CanonicalValueError::Custom("JSON object key must serialize as a string".to_string())
-}
-
-fn non_finite_kind_f32(value: f32) -> NonFiniteKind {
-    if value.is_nan() {
-        NonFiniteKind::NaN
-    } else if value.is_sign_positive() {
-        NonFiniteKind::PosInfinity
-    } else {
-        NonFiniteKind::NegInfinity
-    }
-}
-
-fn non_finite_kind_f64(value: f64) -> NonFiniteKind {
-    if value.is_nan() {
-        NonFiniteKind::NaN
-    } else if value.is_sign_positive() {
-        NonFiniteKind::PosInfinity
-    } else {
-        NonFiniteKind::NegInfinity
-    }
 }

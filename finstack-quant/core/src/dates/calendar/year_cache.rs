@@ -12,8 +12,8 @@ fn recover<T>(res: Result<T, std::sync::PoisonError<T>>) -> T {
 }
 use time::{Date, Duration};
 
+use super::algo::{BASE_YEAR, END_YEAR};
 use super::business_days::HolidayCalendar;
-use super::generated::{BASE_YEAR, END_YEAR};
 use super::types::Calendar;
 use crate::HashMap;
 
