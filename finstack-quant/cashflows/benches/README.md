@@ -21,7 +21,6 @@ ns-per-coupon is linear; rising ns-per-coupon is the regression signal.
 |-------|-------|
 | `cashflow_pv_by_period` | `5y_40cf` — `CashFlowSchedule::pv_by_period` over quarterly reporting periods, `PvDiscountSource::Discount` with no credit leg |
 | `cashflow_pv_by_period_credit` | `no_recovery/5y_40cf`, `with_recovery/5y_40cf` — the same call with a `PvCreditAdjustment` carrying a flat `HazardCurve`, with and without a 40% recovery rate |
-| `cashflow_period_dataframe` | `10y_80cf_40p`, `with_hazard/10y_80cf_40p` — `to_period_dataframe`, the O(n+m) flow/period cursor |
 | `cashflow_build_fixed` | `5y_q` — full `CashFlowSchedule::builder()` build of a quarterly fixed-coupon bullet |
 | `cashflow_aggregate_by_period` | `120f_20p` — `aggregate_by_period` over nominal `DatedFlows` |
 | `cashflow_aggregate_precise` | `120` — `aggregate_cashflows_checked`, the compensated single-currency sum |

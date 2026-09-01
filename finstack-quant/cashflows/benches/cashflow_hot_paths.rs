@@ -4,7 +4,6 @@
 //! review:
 //!
 //! - `pv_by_period`: periodized PV aggregation (plain and credit-adjusted)
-//! - `to_period_dataframe`: DataFrame export with O(n+m) cursor vs prior O(n×m)
 //! - `build`: full schedule generation (fixed bond, floating loan)
 //! - `aggregate_by_period`: nominal dated-flow aggregation
 //! - `npv`: per-instrument NPV (allocation-per-call pattern)
@@ -29,7 +28,7 @@ use finstack_quant_cashflows::aggregation::{
 };
 use finstack_quant_cashflows::builder::schedule::merge_cashflow_schedules;
 use finstack_quant_cashflows::builder::{
-    CashFlowMeta, CashFlowSchedule, CouponType, FixedCouponSpec, Notional, PeriodDataFrameOptions,
+    CashFlowMeta, CashFlowSchedule, CouponType, FixedCouponSpec, Notional,
 };
 use finstack_quant_cashflows::primitives::{CFKind, CashFlow};
 use finstack_quant_cashflows::DatedFlows;
@@ -279,60 +278,6 @@ fn bench_pv_by_period_credit(c: &mut Criterion) {
                             }),
                         },
                         black_box(ctx),
-                    )
-                    .unwrap()
-            });
-        });
-    }
-
-    group.finish();
-}
-
-// Benchmark: to_period_dataframe (hot O(n+m) cursor path)
-
-fn bench_period_dataframe(c: &mut Criterion) {
-    let mut group = c.benchmark_group("cashflow_period_dataframe");
-    let base = base_date();
-    let market = make_market(base);
-
-    {
-        let (years, n_periods, label) = (10i32, 40u32, "10y_80cf_40p");
-        let schedule = make_fixed_schedule(base, years, Tenor::quarterly());
-        let periods = make_quarterly_periods(base, n_periods);
-
-        group.throughput(Throughput::Elements(schedule.get_flows().len() as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(label), label, |b, _| {
-            let options = PeriodDataFrameOptions {
-                as_of: Some(base),
-                day_count: Some(DayCount::Act365F),
-                ..Default::default()
-            };
-            b.iter(|| {
-                black_box(&schedule)
-                    .to_period_dataframe(
-                        black_box(&periods),
-                        black_box(&market),
-                        "USD-OIS",
-                        black_box(options.clone()),
-                    )
-                    .unwrap()
-            });
-        });
-
-        group.bench_with_input(BenchmarkId::new("with_hazard", label), label, |b, _| {
-            let options = PeriodDataFrameOptions {
-                as_of: Some(base),
-                day_count: Some(DayCount::Act365F),
-                credit_curve_id: Some("USD-CREDIT"),
-                ..Default::default()
-            };
-            b.iter(|| {
-                black_box(&schedule)
-                    .to_period_dataframe(
-                        black_box(&periods),
-                        black_box(&market),
-                        "USD-OIS",
-                        black_box(options.clone()),
                     )
                     .unwrap()
             });
@@ -663,7 +608,6 @@ criterion_group!(
     benches,
     bench_pv_by_period,
     bench_pv_by_period_credit,
-    bench_period_dataframe,
     bench_build_fixed_schedule,
     bench_build_floating,
     bench_build_structured,

@@ -50,7 +50,6 @@ mod principal;
 
 pub mod calendar;
 pub(crate) mod credit_rates;
-pub(crate) mod dataframe;
 pub(crate) mod date_generation;
 pub mod periods;
 pub mod rate_helpers;
@@ -59,7 +58,6 @@ pub mod specs;
 
 pub use orchestrator::{CashFlowBuilder, PrincipalEvent};
 
-pub use dataframe::{PeriodDataFrame, PeriodDataFrameOptions};
 pub use periods::SchedulePeriod;
 pub use rate_helpers::{project_floating_rate, FloatingRateParams};
 pub use schedule::{

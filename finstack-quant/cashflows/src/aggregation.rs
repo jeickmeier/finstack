@@ -20,9 +20,7 @@
 //!
 //! PV aggregation functions assign **zero PV** to flows dated on or before the
 //! valuation base date (`DateContext::base`). Historical flows still appear in
-//! plain amount aggregation (`aggregate_by_period`). This matches the
-//! convention documented by
-//! [`CashFlowSchedule::to_period_dataframe`](crate::builder::CashFlowSchedule::to_period_dataframe).
+//! plain amount aggregation (`aggregate_by_period`).
 
 use finstack_quant_core::cashflow::{CFKind, CashFlow};
 use finstack_quant_core::currency::Currency;

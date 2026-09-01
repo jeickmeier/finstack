@@ -1,7 +1,6 @@
 //! Bond pricing methods, validation, and cashflow projection.
 
 use crate::instruments::common_impl::validation;
-use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 use rust_decimal::prelude::ToPrimitive;
@@ -112,53 +111,6 @@ impl Bond {
             flows.push((cf.date, cf.amount));
         }
         Ok(flows)
-    }
-
-    /// Cashflow schedule enriched with discount factors, survival probabilities, and PVs.
-    ///
-    /// Builds the bond's full internal cashflow schedule
-    /// and computes per-cashflow discount factors and (when a credit curve is configured)
-    /// survival probabilities, returning a
-    /// [`crate::cashflow::builder::PeriodDataFrame`] that is ready for tabular
-    /// export or further analysis.
-    ///
-    /// # Arguments
-    /// * `market` - Market context containing discount and optional hazard curves
-    /// * `as_of` - Valuation date; defaults to the discount curve's base date when `None`
-    ///
-    /// # Returns
-    /// A [`crate::cashflow::builder::PeriodDataFrame`] with `discount_factors`,
-    /// optional `survival_probs`, and `pvs`.
-    pub fn pricing_cashflows(
-        &self,
-        market: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Option<Date>,
-    ) -> Result<crate::cashflow::builder::PeriodDataFrame> {
-        use crate::cashflow::builder::PeriodDataFrameOptions;
-        use finstack_quant_core::dates::{Period, PeriodId};
-
-        let schedule = self.full_cashflow_schedule(market)?;
-
-        let periods: Vec<Period> = if let (Some(first), Some(last)) =
-            (schedule.get_flows().first(), schedule.get_flows().last())
-        {
-            vec![Period {
-                id: PeriodId::annual(first.date.year()),
-                start: first.date,
-                end: last.date,
-                is_actual: true,
-            }]
-        } else {
-            Vec::new()
-        };
-
-        let options = PeriodDataFrameOptions {
-            credit_curve_id: self.credit_curve_id.as_ref().map(|id| id.as_str()),
-            as_of,
-            ..Default::default()
-        };
-
-        schedule.to_period_dataframe(&periods, market, self.discount_curve_id.as_str(), options)
     }
 
     /// Price bond using tree-based pricing for embedded options (calls/puts).

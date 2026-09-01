@@ -17,9 +17,8 @@ mod fixtures;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use finstack_quant_cashflows::aggregation::DateContext;
 use finstack_quant_cashflows::builder::{
-    CashFlowSchedule, CouponType, FixedCouponSpec, ScheduleParams,
+    CashFlowSchedule, CouponType, FixedCouponSpec, PvDiscountSource, ScheduleParams,
 };
-use finstack_quant_cashflows::builder::{PeriodDataFrameOptions, PvDiscountSource};
 use finstack_quant_cashflows::{AccrualConfig, AccrualIndex};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{
@@ -266,37 +265,6 @@ fn bench_pv_by_period_scaling(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_period_dataframe_scaling(c: &mut Criterion) {
-    let mut group = c.benchmark_group("scaling_period_dataframe");
-    let base = fixtures::base_date();
-    let market = fixtures::make_discount_market(base);
-
-    for years in [5i32, 10, 20] {
-        let n = (years * 12) as u64;
-        let schedule = fixtures::build_monthly(base, years);
-        let periods = fixtures::make_quarterly_periods(base, (years * 4) as u32);
-        let options = PeriodDataFrameOptions {
-            as_of: Some(base),
-            day_count: Some(DayCount::Act365F),
-            ..Default::default()
-        };
-        group.throughput(Throughput::Elements(n));
-        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| {
-                black_box(&schedule)
-                    .to_period_dataframe(
-                        black_box(&periods),
-                        black_box(&market),
-                        "USD-OIS",
-                        black_box(options.clone()),
-                    )
-                    .unwrap()
-            });
-        });
-    }
-    group.finish();
-}
-
 fn bench_outstanding_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("scaling_outstanding_by_date");
     let base = fixtures::base_date();
@@ -320,7 +288,6 @@ criterion_group!(
     bench_accrued_single,
     bench_accrued_per_exercise_date,
     bench_pv_by_period_scaling,
-    bench_period_dataframe_scaling,
     bench_outstanding_scaling,
 );
 criterion_main!(benches);
