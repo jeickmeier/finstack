@@ -28,12 +28,13 @@ use finstack_quant_core::dates::{build_periods, Date};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_statements::capital_structure::aggregate_instrument_cashflows;
-use finstack_quant_statements::types::CapitalStructureSpec;
 use finstack_quant_valuations::instruments::Bond;
 use indexmap::IndexMap;
 use std::sync::Arc;
 use time::Month;
+
+#[path = "support/period_flows.rs"]
+mod support;
 
 /// Verify accrued interest accumulation and reset for a semi-annual bond.
 ///
@@ -96,17 +97,9 @@ fn test_accrued_interest_semi_annual_bond() -> Result<(), Box<dyn std::error::Er
     instruments.insert("BOND-AUDIT".to_string(), Arc::new(bond));
 
     // 4. Run Aggregation
-    let spec = CapitalStructureSpec {
-        debt_instruments: vec![],
-        meta: IndexMap::new(),
-        reporting_currency: None,
-        fx_policy: None,
-        waterfall: None,
-    };
     let as_of = issue_date; // Not strictly used for contractual flows, but required API
 
-    let cashflows =
-        aggregate_instrument_cashflows(&spec, &instruments, &periods, &market_ctx, as_of)?;
+    let cashflows = support::aggregate_period_flows(&instruments, &periods, &market_ctx, as_of)?;
 
     // 5. Verify Results
 

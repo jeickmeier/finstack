@@ -388,15 +388,13 @@ fn test_compile_multiple_instruments() {
 // Capital Structure Integration Tests
 
 #[test]
-fn test_aggregate_instrument_cashflows() {
+fn test_aggregate_period_flows() {
     use finstack_quant_cashflows::CashflowProvider;
     use finstack_quant_core::dates::{build_periods, Date};
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::types::{CurveId, InstrumentId};
-    use finstack_quant_statements::capital_structure::aggregate_instrument_cashflows;
-    use finstack_quant_statements::types::CapitalStructureSpec;
     use finstack_quant_valuations::instruments::Bond;
-    use indexmap::IndexMap;
+
     use std::sync::Arc;
     use time::Month;
 
@@ -422,15 +420,8 @@ fn test_aggregate_instrument_cashflows() {
     let periods = build_periods("2025Q1..2025Q4", None).unwrap().periods;
     let market_ctx = MarketContext::new();
 
-    let dummy_spec = CapitalStructureSpec {
-        debt_instruments: vec![],
-        meta: IndexMap::new(),
-        reporting_currency: None,
-        fx_policy: None,
-        waterfall: None,
-    };
     let cashflows =
-        aggregate_instrument_cashflows(&dummy_spec, &instruments, &periods, &market_ctx, as_of);
+        super::support::aggregate_period_flows(&instruments, &periods, &market_ctx, as_of);
 
     assert!(cashflows.is_ok());
     let cf = cashflows.unwrap();

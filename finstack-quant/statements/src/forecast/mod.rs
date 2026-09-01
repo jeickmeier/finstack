@@ -71,53 +71,15 @@ mod timeseries;
 use deterministic::{curve_pct, forward_fill, growth_pct};
 use fade::fade_to_target;
 use override_method::apply_override;
-use statistical::{
-    bootstrap_forecast, lognormal_forecast, mean_reverting_forecast, normal_forecast,
-};
 use timeseries::{seasonal_forecast, timeseries_forecast};
 
 use crate::error::Result;
 use crate::types::ForecastSpec;
 use finstack_quant_core::dates::PeriodId;
-
-/// Apply a forecast method to generate values for forecast periods.
-///
-/// Use this for the standalone deterministic forecast path. Statistical
-/// methods use the seed recorded in `spec.params`. Monte Carlo evaluation
-/// layers an additional per-path seed internally.
-///
-/// # Arguments
-///
-/// * `spec` - Forecast specification with method and parameters
-/// * `base_value` - Starting value (typically last actual value)
-/// * `forecast_periods` - List of periods to forecast
-///
-/// # Returns
-///
-/// Map of period_id → forecasted value
-/// in the same order as `forecast_periods`. An empty period slice is valid and
-/// returns an empty map.
-///
-/// # Errors
-///
-/// Returns an error when `spec` has missing, malformed, or out-of-range method
-/// parameters (including an absent statistical seed), when a time-series or
-/// seasonal input is invalid, or when projected growth overflows. `base_value`
-/// is passed through to the selected method; callers should validate its
-/// economic meaning and units before forecasting.
-pub fn apply_forecast(
-    spec: &ForecastSpec,
-    base_value: f64,
-    forecast_periods: &[PeriodId],
-) -> Result<indexmap::IndexMap<PeriodId, f64>> {
-    let mut results = apply_forecast_internal(spec, base_value, forecast_periods, None)?;
-    apply_bounds(&spec.params, &mut results)?;
-    Ok(results)
-}
-
 /// Apply a forecast for a specific node in single-run (non-Monte-Carlo) mode.
 ///
-/// Behaves like [`apply_forecast`] but mixes a stable hash of `node_id` into
+/// Runs the method selected by `spec` and applies its `min`/`max` bounds,
+/// mixing a stable hash of `node_id` into
 /// the seed of statistical methods (Normal, LogNormal, MeanReverting,
 /// Bootstrap), matching Monte Carlo mode. Without this mix, two stochastic
 /// nodes configured with the same `seed` would receive identical shock paths
@@ -135,11 +97,16 @@ pub(crate) fn apply_forecast_for_node(
     use statistical::{parse_seed_json, stable_hash_u64};
 
     let mut results = match spec.method {
-        ForecastMethod::Normal | ForecastMethod::LogNormal | ForecastMethod::MeanReverting => {
-            // Correlation (`correlation_with`) is a Monte Carlo-only feature;
-            // the single-run path produces independent draws. Warn loudly so a
-            // configured correlation is not silently ignored (which would make a
-            // one-run sanity check disagree with the MC output).
+        // Stochastic (seeded) methods get the node-seed mix. Correlation
+        // (`correlation_with`) is a Monte Carlo-only feature; the single-run
+        // path produces independent draws. Warn loudly so a configured
+        // correlation is not silently ignored (which would make a one-run
+        // sanity check disagree with the MC output). Bootstrap does not
+        // support correlation, so the parser returns `None` for it.
+        ForecastMethod::Normal
+        | ForecastMethod::LogNormal
+        | ForecastMethod::MeanReverting
+        | ForecastMethod::Bootstrap => {
             if let Some((peer, _rho)) = statistical::parse_correlation_params(&spec.params)? {
                 tracing::warn!(
                     node = node_id,
@@ -148,16 +115,6 @@ pub(crate) fn apply_forecast_for_node(
                      (only Monte Carlo honors it); this node's draws are independent here"
                 );
             }
-            let params = mix_node_seed(&spec.params, node_id, parse_seed_json, stable_hash_u64);
-            let spec = ForecastSpec {
-                method: spec.method,
-                params,
-            };
-            apply_forecast_internal(&spec, base_value, forecast_periods, None)?
-        }
-        // Bootstrap is stochastic (seeded) but does not support correlation,
-        // so it only needs the node-seed mix.
-        ForecastMethod::Bootstrap => {
             let params = mix_node_seed(&spec.params, node_id, parse_seed_json, stable_hash_u64);
             let spec = ForecastSpec {
                 method: spec.method,
@@ -179,7 +136,7 @@ pub(crate) fn apply_forecast_for_node(
 /// [`ForecastSpec`]. The `node_id` argument is mixed into the effective RNG
 /// seed so different stochastic nodes on the same path do not reuse identical
 /// draws. Deterministic methods ignore the seed and behave identically to
-/// [`apply_forecast`].
+/// [`apply_forecast_for_node`].
 pub(crate) fn apply_forecast_seeded(
     spec: &ForecastSpec,
     base_value: f64,
@@ -203,7 +160,8 @@ fn apply_forecast_internal(
 ) -> Result<indexmap::IndexMap<PeriodId, f64>> {
     use crate::types::ForecastMethod;
     use statistical::{
-        lognormal_forecast_with_stream, normal_forecast_with_stream, parse_seed_json,
+        bootstrap_forecast_with_stream, lognormal_forecast_with_stream,
+        mean_reverting_forecast_with_stream, normal_forecast_with_stream, parse_seed_json,
         stable_hash_u64,
     };
 
@@ -222,7 +180,7 @@ fn apply_forecast_internal(
         }
         (ForecastMethod::MeanReverting, Some((seed_offset, node_id))) => {
             let params = mix_node_seed(&spec.params, node_id, parse_seed_json, stable_hash_u64);
-            statistical::mean_reverting_forecast_with_stream(
+            mean_reverting_forecast_with_stream(
                 base_value,
                 forecast_periods,
                 &params,
@@ -231,22 +189,17 @@ fn apply_forecast_internal(
         }
         (ForecastMethod::Bootstrap, Some((seed_offset, node_id))) => {
             let params = mix_node_seed(&spec.params, node_id, parse_seed_json, stable_hash_u64);
-            statistical::bootstrap_forecast_with_stream(
-                base_value,
-                forecast_periods,
-                &params,
-                Some(seed_offset),
-            )
+            bootstrap_forecast_with_stream(base_value, forecast_periods, &params, Some(seed_offset))
         }
         (ForecastMethod::ForwardFill, _) => forward_fill(base_value, forecast_periods),
         (ForecastMethod::GrowthPct, _) => growth_pct(base_value, forecast_periods, &spec.params),
         (ForecastMethod::CurvePct, _) => curve_pct(base_value, forecast_periods, &spec.params),
         (ForecastMethod::Override, _) => apply_override(base_value, forecast_periods, &spec.params),
         (ForecastMethod::Normal, None) => {
-            normal_forecast(base_value, forecast_periods, &spec.params)
+            normal_forecast_with_stream(base_value, forecast_periods, &spec.params, None)
         }
         (ForecastMethod::LogNormal, None) => {
-            lognormal_forecast(base_value, forecast_periods, &spec.params)
+            lognormal_forecast_with_stream(base_value, forecast_periods, &spec.params, None)
         }
         (ForecastMethod::TimeSeries, _) => {
             timeseries_forecast(base_value, forecast_periods, &spec.params)
@@ -258,10 +211,10 @@ fn apply_forecast_internal(
             fade_to_target(base_value, forecast_periods, &spec.params)
         }
         (ForecastMethod::MeanReverting, None) => {
-            mean_reverting_forecast(base_value, forecast_periods, &spec.params)
+            mean_reverting_forecast_with_stream(base_value, forecast_periods, &spec.params, None)
         }
         (ForecastMethod::Bootstrap, None) => {
-            bootstrap_forecast(base_value, forecast_periods, &spec.params)
+            bootstrap_forecast_with_stream(base_value, forecast_periods, &spec.params, None)
         }
     }
 }
@@ -459,7 +412,8 @@ mod tests {
         let periods = quarters(4);
         let mut spec = ForecastSpec::growth(0.10);
         spec.params.insert("max".into(), serde_json::json!(120.0));
-        let results = apply_forecast(&spec, 100.0, &periods).expect("bounded growth");
+        let results =
+            apply_forecast_for_node(&spec, 100.0, &periods, "node").expect("bounded growth");
         // Unbounded: 110, 121, 133.1, 146.41 — everything above 120 pins.
         assert!((results[&periods[0]] - 110.0).abs() < 1e-9);
         assert!((results[&periods[1]] - 120.0).abs() < 1e-9);
@@ -473,7 +427,8 @@ mod tests {
         let mut spec = ForecastSpec::normal(0.0, 50.0, 42);
         spec.params.insert("min".into(), serde_json::json!(0.0));
         spec.params.insert("max".into(), serde_json::json!(150.0));
-        let results = apply_forecast(&spec, 100.0, &periods).expect("bounded normal");
+        let results =
+            apply_forecast_for_node(&spec, 100.0, &periods, "node").expect("bounded normal");
         for (pid, value) in &results {
             assert!(
                 (0.0..=150.0).contains(value),
@@ -488,7 +443,7 @@ mod tests {
         let mut spec = ForecastSpec::forward_fill();
         spec.params.insert("min".into(), serde_json::json!(10.0));
         spec.params.insert("max".into(), serde_json::json!(-10.0));
-        let err = apply_forecast(&spec, 100.0, &periods).expect_err("min > max");
+        let err = apply_forecast_for_node(&spec, 100.0, &periods, "node").expect_err("min > max");
         assert!(err.to_string().contains("min <= max"), "{err}");
     }
 
@@ -498,7 +453,8 @@ mod tests {
         for bad in [serde_json::json!("high"), serde_json::Value::Null] {
             let mut spec = ForecastSpec::forward_fill();
             spec.params.insert("max".into(), bad);
-            let err = apply_forecast(&spec, 100.0, &periods).expect_err("bad bound");
+            let err =
+                apply_forecast_for_node(&spec, 100.0, &periods, "node").expect_err("bad bound");
             assert!(err.to_string().contains("finite"), "{err}");
         }
     }
@@ -561,7 +517,7 @@ mod tests {
         let mut spec = ForecastSpec::fade_to_target(50.0);
         spec.params
             .insert("shpae".into(), serde_json::json!("linear"));
-        let err = apply_forecast(&spec, 100.0, &periods).expect_err("typo key");
+        let err = apply_forecast_for_node(&spec, 100.0, &periods, "node").expect_err("typo key");
         assert!(err.to_string().contains("shpae"), "{err}");
     }
 }

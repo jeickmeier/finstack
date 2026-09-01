@@ -25,6 +25,9 @@ use std::time::Instant;
 
 type PeriodEvaluation = (IndexMap<String, f64>, Vec<Option<f64>>, Vec<EvalWarning>);
 
+/// Per-path cache of Monte Carlo z-scores, keyed by node then period.
+type McZCache = IndexMap<NodeId, IndexMap<PeriodId, f64>>;
+
 /// Cached structural analysis from [`Evaluator::prepare`], allowing repeated
 /// evaluations of the same model structure without recompilation.
 pub struct PreparedEvaluation {
@@ -311,6 +314,7 @@ impl Evaluator {
                         &prepared.eval_order,
                         &historical,
                         &historical_cs,
+                        None,
                     )?
                 };
 
@@ -531,6 +535,7 @@ impl Evaluator {
                 &prepared.eval_order,
                 &historical,
                 &historical_cs,
+                None,
             )?;
             all_warnings.extend(period_warnings);
             for (node_id, value) in &period_results {
@@ -637,21 +642,25 @@ impl Evaluator {
                 .seed
                 .wrapping_mul(6_364_136_223_846_793_005)
                 .wrapping_add(path_idx as u64);
-            let mut mc_z_cache: IndexMap<NodeId, IndexMap<PeriodId, f64>> = IndexMap::new();
+            let mut mc_z_cache = McZCache::new();
             let mut historical = std::sync::Arc::new(PeriodHistory::new(std::sync::Arc::clone(
                 &prepared.node_to_column,
             )));
+            // Monte Carlo paths carry no capital-structure history.
+            let historical_cs: std::sync::Arc<
+                IndexMap<PeriodId, crate::capital_structure::CapitalStructureCashflows>,
+            > = std::sync::Arc::new(IndexMap::new());
             let mut all_warnings = Vec::new();
 
             for period in &model.periods {
-                let (_period_results, period_row, warnings) = path_eval.evaluate_period_mc(
+                let (_period_results, period_row, warnings) = path_eval.evaluate_period(
                     model,
                     &period.id,
                     period.is_actual,
                     &prepared.eval_order,
                     &historical,
-                    seed_offset,
-                    &mut mc_z_cache,
+                    &historical_cs,
+                    Some((seed_offset, &mut mc_z_cache)),
                 )?;
                 all_warnings.extend(warnings);
                 std::sync::Arc::make_mut(&mut historical).push_row(period.id, period_row);
@@ -774,7 +783,7 @@ impl Evaluator {
         context: &mut EvaluationContext,
         seed_offset: Option<u64>,
         node_filter: Option<&HashSet<NodeId>>,
-        mut mc_z_cache: Option<&mut IndexMap<NodeId, IndexMap<PeriodId, f64>>>,
+        mut mc_z_cache: Option<&mut McZCache>,
     ) -> Result<()> {
         let visibility_cutoff = self.visibility_cutoff;
         let period = model
@@ -813,8 +822,7 @@ impl Evaluator {
                     is_actual && explicit_value_is_visible,
                     explicit_value_is_visible,
                 )?;
-                let mut mc_z_wrapper: Option<&mut IndexMap<NodeId, IndexMap<PeriodId, f64>>> =
-                    mc_z_cache.as_deref_mut();
+                let mut mc_z_wrapper: Option<&mut McZCache> = mc_z_cache.as_deref_mut();
                 match source {
                     NodeValueSource::Value(v) => Ok(v),
                     NodeValueSource::Forecast => forecast_eval::evaluate_forecast(
@@ -852,6 +860,9 @@ impl Evaluator {
     }
 
     /// Evaluate a single period.
+    ///
+    /// `mc` carries the Monte Carlo seed offset and per-path z-score cache;
+    /// `None` is the single-run path.
     #[allow(clippy::too_many_arguments)]
     fn evaluate_period(
         &mut self,
@@ -863,6 +874,7 @@ impl Evaluator {
         historical_cs: &std::sync::Arc<
             IndexMap<PeriodId, crate::capital_structure::CapitalStructureCashflows>,
         >,
+        mc: Option<(u64, &mut McZCache)>,
     ) -> Result<PeriodEvaluation> {
         let mut context = EvaluationContext::new_with_history(
             *period_id,
@@ -870,52 +882,19 @@ impl Evaluator {
             std::sync::Arc::clone(historical_cs),
         );
 
+        let (seed_offset, mc_z_cache) = match mc {
+            Some((seed_offset, cache)) => (Some(seed_offset), Some(cache)),
+            None => (None, None),
+        };
         self.evaluate_nodes_in_order(
             model,
             period_id,
             is_actual,
             eval_order,
             &mut context,
+            seed_offset,
             None,
-            None,
-            None,
-        )?;
-
-        let row = context.current_values.clone();
-        let (results, warnings) = context.into_results();
-        Ok((results, row, warnings))
-    }
-
-    /// Evaluate a single period for Monte Carlo paths.
-    ///
-    /// Identical to [`evaluate_period`] but passes a seed offset to perturb
-    /// stochastic forecast methods.
-    #[allow(clippy::too_many_arguments)]
-    fn evaluate_period_mc(
-        &mut self,
-        model: &FinancialModelSpec,
-        period_id: &PeriodId,
-        is_actual: bool,
-        eval_order: &[NodeId],
-        historical: &std::sync::Arc<PeriodHistory>,
-        seed_offset: u64,
-        mc_z_cache: &mut IndexMap<NodeId, IndexMap<PeriodId, f64>>,
-    ) -> Result<PeriodEvaluation> {
-        let mut context = EvaluationContext::new_with_history(
-            *period_id,
-            std::sync::Arc::clone(historical),
-            std::sync::Arc::new(IndexMap::new()),
-        );
-
-        self.evaluate_nodes_in_order(
-            model,
-            period_id,
-            is_actual,
-            eval_order,
-            &mut context,
-            Some(seed_offset),
-            None,
-            Some(mc_z_cache),
+            mc_z_cache,
         )?;
 
         let row = context.current_values.clone();

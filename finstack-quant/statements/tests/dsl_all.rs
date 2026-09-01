@@ -14,3 +14,6 @@ mod proptest_dsl;
 
 #[path = "support/rates.rs"]
 mod rates_support;
+
+#[path = "support/period_flows.rs"]
+mod support;

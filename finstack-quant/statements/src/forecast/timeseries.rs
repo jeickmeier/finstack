@@ -77,10 +77,6 @@ pub(super) fn timeseries_forecast(
     forecast_periods: &[PeriodId],
     params: &IndexMap<String, serde_json::Value>,
 ) -> Result<IndexMap<PeriodId, f64>> {
-    // Validated here as well as at dispatch: these entry points are reachable
-    // directly, and the vocabulary itself lives in one place.
-    crate::forecast::validate_params(crate::types::ForecastMethod::TimeSeries, params)?;
-
     // Get historical data
     let historical = params
         .get("historical")
@@ -408,10 +404,6 @@ pub(super) fn seasonal_forecast(
     forecast_periods: &[PeriodId],
     params: &IndexMap<String, serde_json::Value>,
 ) -> Result<IndexMap<PeriodId, f64>> {
-    // Validated here as well as at dispatch: this entry point is reachable
-    // directly, and the vocabulary itself lives in one place.
-    crate::forecast::validate_params(crate::types::ForecastMethod::Seasonal, params)?;
-
     // `base_value` is ignored for seasonal forecasts — the user-supplied
     // `historical` array provides the level. That array is a separate input
     // with no cross-check against the model's own actuals, so if its last
@@ -983,8 +975,16 @@ mod tests {
             "season_start".into() => serde_json::json!(1),
         };
 
-        let err = seasonal_forecast(0.0, &periods, &params)
-            .expect_err("unsupported season_start must be rejected");
+        let err = crate::forecast::apply_forecast_for_node(
+            &crate::types::ForecastSpec {
+                method: crate::types::ForecastMethod::Seasonal,
+                params,
+            },
+            0.0,
+            &periods,
+            "node",
+        )
+        .expect_err("unsupported season_start must be rejected");
         assert!(err.to_string().contains("season_start"));
     }
 
@@ -1017,8 +1017,16 @@ mod tests {
         };
         let periods = vec![PeriodId::quarter(2025, 1)];
 
-        let err = timeseries_forecast(100.0, &periods, &params)
-            .expect_err("typoed parameter key must be rejected");
+        let err = crate::forecast::apply_forecast_for_node(
+            &crate::types::ForecastSpec {
+                method: crate::types::ForecastMethod::TimeSeries,
+                params,
+            },
+            100.0,
+            &periods,
+            "node",
+        )
+        .expect_err("typoed parameter key must be rejected");
         assert!(err.to_string().contains("windoww"));
     }
 
@@ -1032,8 +1040,16 @@ mod tests {
         };
         let periods = vec![PeriodId::quarter(2025, 1)];
 
-        let err = seasonal_forecast(100.0, &periods, &params)
-            .expect_err("typoed parameter key must be rejected");
+        let err = crate::forecast::apply_forecast_for_node(
+            &crate::types::ForecastSpec {
+                method: crate::types::ForecastMethod::Seasonal,
+                params,
+            },
+            100.0,
+            &periods,
+            "node",
+        )
+        .expect_err("typoed parameter key must be rejected");
         assert!(err.to_string().contains("seasonstart"));
     }
 

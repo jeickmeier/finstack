@@ -1,9 +1,8 @@
 //! Per-period cashflow extraction for a single instrument.
 //!
-//! Extracted from `integration.rs` so the schedule-classification logic and
-//! its safety clamps live next to their tests, and so the multi-instrument
-//! `aggregate_instrument_cashflows` driver in `integration.rs` can stay
-//! focused on currency / FX bookkeeping. The logic here:
+//! The schedule-classification logic and its safety clamps live here, next to
+//! their tests; the evaluator's capital-structure runtime drives this function
+//! per instrument and period and handles currency / FX bookkeeping. The logic here:
 //!
 //! 1. Pulls the full `CashFlowSchedule` for an instrument.
 //! 2. Computes a stateful `scale` factor that relates the model's

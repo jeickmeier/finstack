@@ -188,14 +188,6 @@ fn extract_distribution_params(
 ///
 /// - Monte Carlo simulation practice: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 /// - Numerical sampling techniques: `docs/REFERENCES.md#press-numerical-recipes`
-pub(super) fn normal_forecast(
-    base_value: f64,
-    forecast_periods: &[PeriodId],
-    params: &IndexMap<String, serde_json::Value>,
-) -> Result<IndexMap<PeriodId, f64>> {
-    normal_forecast_with_stream(base_value, forecast_periods, params, None)
-}
-
 pub(crate) fn normal_forecast_with_stream(
     base_value: f64,
     forecast_periods: &[PeriodId],
@@ -222,6 +214,23 @@ pub(crate) fn normal_forecast_with_stream(
     }
 
     Ok(results)
+}
+
+/// Validate the strictly positive anchor required by a LogNormal path.
+///
+/// Zero is not silently converted into an unrelated i.i.d. level process:
+/// under GBM it is absorbing, and no path-return shocks can be recovered for
+/// correlated Monte Carlo peers. Negative and non-finite levels are likewise
+/// invalid.
+fn validate_lognormal_base(base_value: f64, context: &str) -> Result<()> {
+    if !base_value.is_finite() || base_value <= 0.0 {
+        return Err(crate::error::Error::forecast(format!(
+            "{context} requires a finite, strictly positive base value; got {base_value}. \
+             Use a Normal forecast or an explicitly level-based model for series that can \
+             be zero or negative."
+        )));
+    }
+    Ok(())
 }
 
 /// Log-normal distribution forecast (deterministic with seed).
@@ -261,31 +270,6 @@ pub(crate) fn normal_forecast_with_stream(
 ///
 /// - Monte Carlo simulation practice: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 /// - Numerical sampling techniques: `docs/REFERENCES.md#press-numerical-recipes`
-pub(super) fn lognormal_forecast(
-    base_value: f64,
-    forecast_periods: &[PeriodId],
-    params: &IndexMap<String, serde_json::Value>,
-) -> Result<IndexMap<PeriodId, f64>> {
-    lognormal_forecast_with_stream(base_value, forecast_periods, params, None)
-}
-
-/// Validate the strictly positive anchor required by a LogNormal path.
-///
-/// Zero is not silently converted into an unrelated i.i.d. level process:
-/// under GBM it is absorbing, and no path-return shocks can be recovered for
-/// correlated Monte Carlo peers. Negative and non-finite levels are likewise
-/// invalid.
-fn validate_lognormal_base(base_value: f64, context: &str) -> Result<()> {
-    if !base_value.is_finite() || base_value <= 0.0 {
-        return Err(crate::error::Error::forecast(format!(
-            "{context} requires a finite, strictly positive base value; got {base_value}. \
-             Use a Normal forecast or an explicitly level-based model for series that can \
-             be zero or negative."
-        )));
-    }
-    Ok(())
-}
-
 pub(crate) fn lognormal_forecast_with_stream(
     base_value: f64,
     forecast_periods: &[PeriodId],
@@ -437,14 +421,6 @@ fn extract_mean_reverting_params(
 /// # References
 ///
 /// - Monte Carlo simulation practice: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
-pub(super) fn mean_reverting_forecast(
-    base_value: f64,
-    forecast_periods: &[PeriodId],
-    params: &IndexMap<String, serde_json::Value>,
-) -> Result<IndexMap<PeriodId, f64>> {
-    mean_reverting_forecast_with_stream(base_value, forecast_periods, params, None)
-}
-
 pub(crate) fn mean_reverting_forecast_with_stream(
     base_value: f64,
     forecast_periods: &[PeriodId],
@@ -604,14 +580,6 @@ fn extract_bootstrap_params(
 /// Returns an error if the parameter map is incomplete or malformed, if the
 /// history is too short or non-finite, if growth mode is requested with
 /// non-positive history, or if the path produces a non-finite value.
-pub(super) fn bootstrap_forecast(
-    base_value: f64,
-    forecast_periods: &[PeriodId],
-    params: &IndexMap<String, serde_json::Value>,
-) -> Result<IndexMap<PeriodId, f64>> {
-    bootstrap_forecast_with_stream(base_value, forecast_periods, params, None)
-}
-
 pub(crate) fn bootstrap_forecast_with_stream(
     base_value: f64,
     forecast_periods: &[PeriodId],
@@ -945,6 +913,38 @@ mod tests {
     use super::*;
     use finstack_quant_core::dates::PeriodId;
 
+    fn normal_forecast(
+        base_value: f64,
+        periods: &[PeriodId],
+        params: &IndexMap<String, serde_json::Value>,
+    ) -> Result<IndexMap<PeriodId, f64>> {
+        normal_forecast_with_stream(base_value, periods, params, None)
+    }
+
+    fn lognormal_forecast(
+        base_value: f64,
+        periods: &[PeriodId],
+        params: &IndexMap<String, serde_json::Value>,
+    ) -> Result<IndexMap<PeriodId, f64>> {
+        lognormal_forecast_with_stream(base_value, periods, params, None)
+    }
+
+    fn mean_reverting_forecast(
+        base_value: f64,
+        periods: &[PeriodId],
+        params: &IndexMap<String, serde_json::Value>,
+    ) -> Result<IndexMap<PeriodId, f64>> {
+        mean_reverting_forecast_with_stream(base_value, periods, params, None)
+    }
+
+    fn bootstrap_forecast(
+        base_value: f64,
+        periods: &[PeriodId],
+        params: &IndexMap<String, serde_json::Value>,
+    ) -> Result<IndexMap<PeriodId, f64>> {
+        bootstrap_forecast_with_stream(base_value, periods, params, None)
+    }
+
     #[test]
     fn test_parse_seed_accepts_integer_like_json_float() {
         let v = serde_json::json!(42.0);
@@ -1005,7 +1005,7 @@ mod tests {
             method: ForecastMethod::LogNormal,
             params,
         };
-        let err = crate::forecast::apply_forecast(&spec, 100.0, &periods)
+        let err = crate::forecast::apply_forecast_for_node(&spec, 100.0, &periods, "node")
             .expect_err("an unknown parameter must be rejected");
         let msg = err.to_string();
         assert!(
@@ -1060,7 +1060,7 @@ mod tests {
             method: ForecastMethod::LogNormal,
             params,
         };
-        crate::forecast::apply_forecast(&spec, 100.0, &periods)
+        crate::forecast::apply_forecast_for_node(&spec, 100.0, &periods, "node")
             .expect("correlation parameters are legal to configure");
     }
 

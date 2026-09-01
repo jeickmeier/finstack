@@ -7,13 +7,13 @@ use finstack_quant_core::dates::{build_periods, Date};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_statements::capital_structure::aggregate_instrument_cashflows;
 use finstack_quant_statements::capital_structure::build_instrument_from_spec;
-use finstack_quant_statements::types::{
-    CapitalStructureSpec, DebtInstrumentSpec, FinancialStatementInstrument,
-};
+use finstack_quant_statements::types::{DebtInstrumentSpec, FinancialStatementInstrument};
 use finstack_quant_valuations::instruments::{fixed_income::bond::Bond, PayReceive};
 use time::Month;
+
+#[path = "support/period_flows.rs"]
+mod support;
 
 #[path = "support/rates.rs"]
 mod rates_support;
@@ -105,17 +105,8 @@ fn test_reporting_totals_sum_without_fx_when_same_currency() {
     instruments.insert("BOND-1".to_string(), Arc::new(bond_1));
     instruments.insert("BOND-2".to_string(), Arc::new(bond_2));
 
-    let spec = CapitalStructureSpec {
-        debt_instruments: vec![],
-        meta: IndexMap::new(),
-        reporting_currency: Some(Currency::USD),
-        fx_policy: None,
-        waterfall: None,
-    };
-
-    let cashflows =
-        aggregate_instrument_cashflows(&spec, &instruments, &periods, &market_ctx, issue)
-            .expect("aggregate cashflows");
+    let cashflows = support::aggregate_period_flows(&instruments, &periods, &market_ctx, issue)
+        .expect("aggregate cashflows");
 
     let period_id = finstack_quant_core::dates::PeriodId::month(2025, 1);
 

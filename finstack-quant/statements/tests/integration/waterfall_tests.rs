@@ -614,9 +614,6 @@ mod period_flow_waterfall_integration {
     /// entry, i.e. the full notional).
     #[test]
     fn forward_dated_instrument_reports_zero_balance_before_issuance() {
-        use finstack_quant_statements::capital_structure::aggregate_instrument_cashflows;
-        use finstack_quant_statements::types::CapitalStructureSpec;
-
         let issue = Date::from_calendar_date(2025, Month::July, 1).expect("valid date");
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
 
@@ -652,16 +649,7 @@ mod period_flow_waterfall_integration {
         instruments.insert("DDTL-1".to_string(), instrument);
 
         let periods: Vec<Period> = (1..=4).map(|q| quarter_period(2025, q)).collect();
-        let spec = CapitalStructureSpec {
-            debt_instruments: vec![],
-            meta: IndexMap::new(),
-            reporting_currency: None,
-            fx_policy: None,
-            waterfall: None,
-        };
-
-        let cashflows = aggregate_instrument_cashflows(
-            &spec,
+        let cashflows = crate::support::aggregate_period_flows(
             &instruments,
             &periods,
             &MarketContext::new(),
