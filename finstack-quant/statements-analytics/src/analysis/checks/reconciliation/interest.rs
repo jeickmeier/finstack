@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
 };
@@ -49,14 +49,15 @@ impl Check for InterestExpenseReconciliation {
         for (period_idx, period_spec) in periods.iter().enumerate() {
             let pid = &period_spec.id;
 
-            let Some(interest) = get_node_value(context.results, &self.interest_expense_node, pid)
+            let Some(interest) =
+                get_finite_node_value(context.results, &self.interest_expense_node, pid)
             else {
                 continue;
             };
 
             // Path 1: direct comparison with CS interest node.
             if let Some(ref cs_node) = self.cs_interest_node {
-                let Some(cs_interest) = get_node_value(context.results, cs_node, pid) else {
+                let Some(cs_interest) = get_finite_node_value(context.results, cs_node, pid) else {
                     continue;
                 };
 
@@ -110,18 +111,20 @@ impl Check for InterestExpenseReconciliation {
                 .map(|p| p.id);
 
             for (balance_node, rate_node) in &self.debt_balance_nodes {
-                let Some(balance) = get_node_value(context.results, balance_node, pid) else {
+                let Some(balance) = get_finite_node_value(context.results, balance_node, pid)
+                else {
                     continue;
                 };
                 let effective_balance = match prev_pid {
-                    Some(prev) => match get_node_value(context.results, balance_node, &prev) {
+                    Some(prev) => match get_finite_node_value(context.results, balance_node, &prev)
+                    {
                         Some(prev_balance) => 0.5 * (prev_balance + balance),
                         None => balance,
                     },
                     None => balance,
                 };
                 if let Some(rn) = rate_node {
-                    if let Some(rate) = get_node_value(context.results, rn, pid) {
+                    if let Some(rate) = get_finite_node_value(context.results, rn, pid) {
                         total_implied_interest += effective_balance * rate;
                         has_rate = true;
                     }

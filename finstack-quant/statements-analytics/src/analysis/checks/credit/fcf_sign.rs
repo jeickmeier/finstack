@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Severity,
 };
@@ -47,7 +47,7 @@ impl Check for FcfSignCheck {
         for period_spec in &context.model.periods {
             let pid = &period_spec.id;
 
-            let Some(fcf) = get_node_value(context.results, &self.fcf_node, pid) else {
+            let Some(fcf) = get_finite_node_value(context.results, &self.fcf_node, pid) else {
                 consecutive_negative = 0;
                 continue;
             };

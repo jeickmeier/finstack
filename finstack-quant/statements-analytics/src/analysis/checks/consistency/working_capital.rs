@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::{get_node_value, sum_nodes};
+use super::super::{get_finite_node_value, sum_nodes};
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
 };
@@ -51,7 +51,8 @@ impl Check for WorkingCapitalConsistency {
             let prev_pid = &periods[i - 1].id;
             let curr_pid = &periods[i].id;
 
-            let Some(wc_cf) = get_node_value(context.results, &self.wc_change_cf_node, curr_pid)
+            let Some(wc_cf) =
+                get_finite_node_value(context.results, &self.wc_change_cf_node, curr_pid)
             else {
                 continue;
             };

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
 };
@@ -47,10 +47,12 @@ impl Check for CoverageFloorCheck {
         for period_spec in &context.model.periods {
             let pid = &period_spec.id;
 
-            let Some(num) = get_node_value(context.results, &self.numerator_node, pid) else {
+            let Some(num) = get_finite_node_value(context.results, &self.numerator_node, pid)
+            else {
                 continue;
             };
-            let Some(denom) = get_node_value(context.results, &self.denominator_node, pid) else {
+            let Some(denom) = get_finite_node_value(context.results, &self.denominator_node, pid)
+            else {
                 continue;
             };
 

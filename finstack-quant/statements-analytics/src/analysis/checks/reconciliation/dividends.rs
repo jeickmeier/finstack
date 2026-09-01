@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::{get_finite_node_value, get_node_value};
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
     SignConventionPolicy,
@@ -52,11 +52,37 @@ impl Check for DividendReconciliation {
         for period_spec in &context.model.periods {
             let pid = &period_spec.id;
 
-            let Some(div_cf) = get_node_value(context.results, &self.dividends_cf_node, pid) else {
-                continue;
-            };
-            let Some(div_eq) = get_node_value(context.results, &self.dividends_equity_node, pid)
-            else {
+            // `get_finite_node_value`: a NaN/Inf operand poisons the diff
+            // (`NaN > tolerance` is false ⇒ silent pass), so it is skipped like
+            // a missing one — but, unlike a missing value, it is reported.
+            let div_cf = get_finite_node_value(context.results, &self.dividends_cf_node, pid);
+            let div_eq = get_finite_node_value(context.results, &self.dividends_equity_node, pid);
+            let (Some(div_cf), Some(div_eq)) = (div_cf, div_eq) else {
+                let non_finite: Vec<NodeId> =
+                    [&self.dividends_cf_node, &self.dividends_equity_node]
+                        .into_iter()
+                        .filter(|n| {
+                            get_node_value(context.results, n, pid).is_some_and(|v| !v.is_finite())
+                        })
+                        .cloned()
+                        .collect();
+                if !non_finite.is_empty() {
+                    findings.push(CheckFinding {
+                        check_id: self.id().to_string(),
+                        severity: Severity::Warning,
+                        message: format!(
+                            "Dividend reconciliation skipped for {pid}: non-finite value(s) in {}",
+                            non_finite
+                                .iter()
+                                .map(|n| n.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                        period: Some(*pid),
+                        materiality: None,
+                        nodes: non_finite,
+                    });
+                }
                 continue;
             };
 

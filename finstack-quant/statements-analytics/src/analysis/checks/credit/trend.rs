@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::{get_finite_node_value, get_node_value};
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Severity,
 };
@@ -61,11 +61,27 @@ impl Check for TrendCheck {
             let prev_pid = &periods[i - 1].id;
             let curr_pid = &periods[i].id;
 
-            let Some(prev_val) = get_node_value(context.results, &self.node, prev_pid) else {
-                consecutive_bad = 0;
-                continue;
-            };
-            let Some(curr_val) = get_node_value(context.results, &self.node, curr_pid) else {
+            // `get_finite_node_value`: NaN comparisons are all false, so a
+            // NaN period would silently reset the deterioration streak. Treat it
+            // like a missing value (reset + skip) but report it.
+            let prev_val = get_finite_node_value(context.results, &self.node, prev_pid);
+            let curr_val = get_finite_node_value(context.results, &self.node, curr_pid);
+            let (Some(prev_val), Some(curr_val)) = (prev_val, curr_val) else {
+                if get_node_value(context.results, &self.node, curr_pid)
+                    .is_some_and(|v| !v.is_finite())
+                {
+                    findings.push(CheckFinding {
+                        check_id: self.id().to_string(),
+                        severity: Severity::Warning,
+                        message: format!(
+                            "Trend check skipped for {curr_pid}: '{}' is non-finite",
+                            self.node.as_str()
+                        ),
+                        period: Some(*curr_pid),
+                        materiality: None,
+                        nodes: vec![self.node.clone()],
+                    });
+                }
                 consecutive_bad = 0;
                 continue;
             };

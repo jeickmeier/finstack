@@ -731,3 +731,58 @@ fn liquidity_runway_skips_no_burn() {
 
     assert!(result.findings.is_empty());
 }
+
+#[test]
+fn trend_nan_period_warns_and_resets() {
+    // Q3 is NaN: the streak must reset (no deterioration finding) and the
+    // poisoned period must be reported rather than silently swallowed.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q4", None)
+        .unwrap()
+        .value(
+            "coverage",
+            &[
+                (q(1), s(2.0)),
+                (q(2), s(1.8)),
+                (q(3), s(1.5)),
+                (q(4), s(1.2)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let mut ev = Evaluator::new();
+    let mut results = ev.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("coverage".to_string())
+        .or_default()
+        .insert(q(3), f64::NAN);
+
+    let check = TrendCheck {
+        node: NodeId::new("coverage"),
+        direction: TrendDirection::IncreasingIsGood,
+        lookback_periods: 3,
+        severity: Severity::Error,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("non-finite")),
+        "a NaN period must be reported: {:?}",
+        result.findings
+    );
+    assert!(
+        !result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "a NaN period must not be judged as deterioration: {:?}",
+        result.findings
+    );
+}

@@ -34,22 +34,6 @@ pub use mappings::{CreditMapping, ThreeStatementMapping};
 pub use renderer::CheckReportRenderer;
 pub use suites::{credit_underwriting_checks, lbo_model_checks, three_statement_checks};
 
-use finstack_quant_core::dates::PeriodId;
-use finstack_quant_statements::evaluator::StatementResult;
-use finstack_quant_statements::types::NodeId;
-
-/// Look up a single node's value for a given period.
-fn get_node_value(results: &StatementResult, node: &NodeId, period: &PeriodId) -> Option<f64> {
-    results
-        .nodes
-        .get(node.as_str())
-        .and_then(|m| m.get(period).copied())
-}
-
-/// Sum several nodes' values for a given period, treating missing values as zero.
-fn sum_nodes(results: &StatementResult, nodes: &[NodeId], period: &PeriodId) -> f64 {
-    nodes
-        .iter()
-        .filter_map(|n| get_node_value(results, n, period))
-        .sum()
-}
+pub(crate) use finstack_quant_statements::checks::helpers::{
+    get_finite_node_value, get_node_value, sum_nodes,
+};

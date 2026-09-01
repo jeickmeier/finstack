@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
 };
@@ -51,10 +51,11 @@ impl Check for LiquidityRunwayCheck {
         for period_spec in &context.model.periods {
             let pid = &period_spec.id;
 
-            let Some(cash) = get_node_value(context.results, &self.cash_node, pid) else {
+            let Some(cash) = get_finite_node_value(context.results, &self.cash_node, pid) else {
                 continue;
             };
-            let Some(burn) = get_node_value(context.results, &self.cash_burn_node, pid) else {
+            let Some(burn) = get_finite_node_value(context.results, &self.cash_burn_node, pid)
+            else {
                 continue;
             };
 

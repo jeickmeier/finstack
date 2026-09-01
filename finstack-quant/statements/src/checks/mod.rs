@@ -13,6 +13,7 @@
 
 pub mod builtins;
 mod formula;
+pub mod helpers;
 pub mod suite;
 pub mod traits;
 pub mod types;

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use crate::analysis::reports::trailing_sum_at;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
@@ -52,7 +52,7 @@ impl Check for LeverageRangeCheck {
         for period_spec in &context.model.periods {
             let pid = &period_spec.id;
 
-            let Some(debt) = get_node_value(context.results, &self.debt_node, pid) else {
+            let Some(debt) = get_finite_node_value(context.results, &self.debt_node, pid) else {
                 continue;
             };
             let Some(ebitda) = trailing_sum_at(context.results, self.ebitda_node.as_str(), pid)

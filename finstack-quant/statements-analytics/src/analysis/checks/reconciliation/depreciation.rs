@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
     SignConventionPolicy,
@@ -62,17 +62,20 @@ impl Check for DepreciationReconciliation {
             let prev_pid = &periods[i - 1].id;
             let curr_pid = &periods[i].id;
 
-            let Some(ppe_prev) = get_node_value(context.results, &self.ppe_node, prev_pid) else {
+            let Some(ppe_prev) = get_finite_node_value(context.results, &self.ppe_node, prev_pid)
+            else {
                 continue;
             };
-            let Some(ppe_curr) = get_node_value(context.results, &self.ppe_node, curr_pid) else {
+            let Some(ppe_curr) = get_finite_node_value(context.results, &self.ppe_node, curr_pid)
+            else {
                 continue;
             };
-            let Some(capex) = get_node_value(context.results, &self.capex_node, curr_pid) else {
+            let Some(capex) = get_finite_node_value(context.results, &self.capex_node, curr_pid)
+            else {
                 continue;
             };
             let Some(da) =
-                get_node_value(context.results, &self.depreciation_expense_node, curr_pid)
+                get_finite_node_value(context.results, &self.depreciation_expense_node, curr_pid)
             else {
                 continue;
             };
@@ -80,7 +83,7 @@ impl Check for DepreciationReconciliation {
             let disposals = self
                 .disposals_node
                 .as_ref()
-                .and_then(|n| get_node_value(context.results, n, curr_pid))
+                .and_then(|n| get_finite_node_value(context.results, n, curr_pid))
                 .unwrap_or(0.0);
 
             // Flag magnitude-positive violations before the

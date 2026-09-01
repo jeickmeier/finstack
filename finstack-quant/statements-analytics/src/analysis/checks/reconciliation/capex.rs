@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
     SignConventionPolicy,
@@ -72,7 +72,8 @@ impl Check for CapexReconciliation {
         for period_spec in &context.model.periods {
             let pid = &period_spec.id;
 
-            let Some(capex_cf) = get_node_value(context.results, &self.capex_cf_node, pid) else {
+            let Some(capex_cf) = get_finite_node_value(context.results, &self.capex_cf_node, pid)
+            else {
                 continue;
             };
 
@@ -92,7 +93,7 @@ impl Check for CapexReconciliation {
             let ppe_add = self
                 .ppe_additions_node
                 .as_ref()
-                .and_then(|n| get_node_value(context.results, n, pid))
+                .and_then(|n| get_finite_node_value(context.results, n, pid))
                 .unwrap_or(0.0);
 
             if let Some(node) = self.ppe_additions_node.as_ref() {
@@ -107,7 +108,7 @@ impl Check for CapexReconciliation {
             let intangible_add = self
                 .intangible_additions_node
                 .as_ref()
-                .and_then(|n| get_node_value(context.results, n, pid))
+                .and_then(|n| get_finite_node_value(context.results, n, pid))
                 .unwrap_or(0.0);
 
             if let Some(node) = self.intangible_additions_node.as_ref() {

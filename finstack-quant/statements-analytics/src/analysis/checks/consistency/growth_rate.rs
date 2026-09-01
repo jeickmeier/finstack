@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::get_node_value;
+use super::super::get_finite_node_value;
 use finstack_quant_statements::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, PeriodScope,
     Severity,
@@ -56,10 +56,10 @@ impl Check for GrowthRateConsistency {
                 let prev_pid = &prev_spec.id;
                 let curr_pid = &curr_spec.id;
 
-                let Some(prev_val) = get_node_value(context.results, node, prev_pid) else {
+                let Some(prev_val) = get_finite_node_value(context.results, node, prev_pid) else {
                     continue;
                 };
-                let Some(curr_val) = get_node_value(context.results, node, curr_pid) else {
+                let Some(curr_val) = get_finite_node_value(context.results, node, curr_pid) else {
                     continue;
                 };
 

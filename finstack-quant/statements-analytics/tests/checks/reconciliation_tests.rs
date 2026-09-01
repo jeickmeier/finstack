@@ -4,7 +4,7 @@
 
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::builder::ModelBuilder;
-use finstack_quant_statements::checks::{Check, CheckContext};
+use finstack_quant_statements::checks::{Check, CheckContext, Severity};
 use finstack_quant_statements::evaluator::Evaluator;
 use finstack_quant_statements::types::{AmountOrScalar, NodeId};
 use finstack_quant_statements_analytics::analysis::checks::{
@@ -362,4 +362,47 @@ fn dividends_mismatch_flags_warning() {
     assert_eq!(result.findings.len(), 1);
     let mat = result.findings[0].materiality.as_ref().unwrap();
     assert!((mat.absolute - 5.0).abs() < 0.01);
+}
+
+#[test]
+fn dividends_nan_operand_warns_and_skips() {
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("div_cf", &[(q(1), s(15.0))])
+        .value("div_eq", &[(q(1), s(10.0))])
+        .build()
+        .unwrap();
+
+    let mut ev = Evaluator::new();
+    let mut results = ev.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("div_eq".to_string())
+        .or_default()
+        .insert(q(1), f64::NAN);
+
+    let check = DividendReconciliation {
+        dividends_cf_node: NodeId::new("div_cf"),
+        dividends_equity_node: NodeId::new("div_eq"),
+        tolerance: None,
+        sign_convention: Default::default(),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("non-finite")),
+        "a NaN dividend value must warn and skip, not silently pass: {:?}",
+        result.findings
+    );
+    assert!(
+        result.findings.iter().all(|f| f.materiality.is_none()),
+        "the poisoned period must be skipped, not judged: {:?}",
+        result.findings
+    );
 }
