@@ -10,8 +10,6 @@
 //!   market curve. This is the pricing-oriented path used by most instruments.
 //!   **Note:** these exclude flows dated on or before the valuation date
 //!   (market-standard pricing semantics).
-//! - Use [`crate::cashflow::npv_amounts`] for scalar cashflow studies
-//!   driven by a single continuously compounded annual rate.
 //! - Use [`crate::cashflow::irr`] for periodic cashflows and
 //!   [`crate::cashflow::xirr`] / [`crate::cashflow::xirr_with_daycount`] /
 //!   [`crate::cashflow::xirr_with_daycount_ctx`] for dated cashflows when the
@@ -28,15 +26,8 @@
 //!
 //! ## Net Present Value (NPV)
 //!
-//! The present value of a stream of future cashflows. In this module there are
-//! two closely related conventions:
-//!
-//! - Curve-based NPV uses discount factors supplied by a market curve.
-//! - Scalar `npv_amounts*` helpers convert a quoted annual rate into a
-//!   continuously compounded discount factor over the chosen year-fraction
-//!   basis.
-//!
-//! A generic scalar-rate form is:
+//! The present value of a stream of future cashflows, using discount factors
+//! supplied by a market curve. A generic scalar-rate form is:
 //! ```text
 //! NPV = Σ CF_i / (1 + r)^t_i
 //! ```
@@ -76,24 +67,6 @@
 //! # Ok::<(), finstack_quant_core::Error>(())
 //! ```
 //!
-//! For scalar cashflows, use `npv_amounts()`:
-//!
-//! ```rust
-//! use finstack_quant_core::cashflow::npv_amounts;
-//! use finstack_quant_core::dates::DayCount;
-//! use time::macros::date;
-//!
-//! let base = date!(2025 - 01 - 01);
-//! let flows = vec![
-//!     (date!(2025 - 07 - 01), 1000.0),
-//!     (date!(2026 - 01 - 01), 1000.0),
-//! ];
-//!
-//! let present_value = npv_amounts(&flows, 0.05, Some(base), Some(DayCount::Act365F))?;
-//! assert!(present_value > 0.0);
-//! # Ok::<(), finstack_quant_core::Error>(())
-//! ```
-//!
 //! ## IRR Calculation
 //!
 //! ```rust
@@ -116,8 +89,6 @@ mod discounting;
 mod primitives;
 mod xirr;
 
-pub use discounting::{
-    flat_discount_factor, npv, npv_amounts, npv_amounts_with_curve, Discountable,
-};
+pub use discounting::{flat_discount_factor, npv, npv_amounts_with_curve, Discountable};
 pub use primitives::{CFKind, CashFlow, CashFlowAccrual};
 pub use xirr::{irr, xirr, xirr_with_daycount, xirr_with_daycount_ctx};

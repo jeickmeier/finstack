@@ -1,10 +1,9 @@
-//! Neutral credit-rating types, parsing, ordering, and labels.
+//! Neutral credit-rating types, parsing, and ordering.
 //!
 //! This module provides fundamental credit rating types used throughout the
 //! financial system, including:
 //!
 //! - [`CreditRating`]: A unified credit rating scale with notch-level precision
-//! - [`RatingLabel`]: Stable, display-ready labels sourced from `CreditRating`
 //!
 //! # Examples
 //!
@@ -301,45 +300,6 @@ impl core::fmt::Display for CreditRating {
         f.write_str(self.to_generic_string())
     }
 }
-
-/// Stable label for referring to ratings (curve names, exports, etc.).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RatingLabel(String);
-
-impl RatingLabel {
-    /// Create a label using the generic (S&P/Fitch-style) string.
-    pub fn generic(rating: CreditRating) -> Self {
-        Self(rating.to_string())
-    }
-
-    /// Create a label using Moody's naming convention.
-    pub fn moodys(rating: CreditRating) -> Self {
-        Self(rating.to_moodys_string().to_owned())
-    }
-
-    /// Access the underlying string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Consume the label and return the owned string.
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-}
-
-impl From<CreditRating> for RatingLabel {
-    fn from(value: CreditRating) -> Self {
-        Self::generic(value)
-    }
-}
-
-impl core::fmt::Display for RatingLabel {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
 impl core::str::FromStr for CreditRating {
     type Err = crate::Error;
 
@@ -581,18 +541,6 @@ mod tests {
         assert_eq!(CreditRating::BPlus.to_moodys_string(), "B1");
         assert_eq!(CreditRating::CC.to_moodys_string(), "Ca");
     }
-
-    #[test]
-    fn test_rating_labels() {
-        let generic = RatingLabel::generic(CreditRating::BBBMinus);
-        let moodys = RatingLabel::moodys(CreditRating::BBBMinus);
-
-        assert_eq!(generic.as_str(), "BBB-");
-        assert_eq!(moodys.as_str(), "Baa3");
-        assert_eq!(generic.to_string(), "BBB-");
-        assert_eq!(moodys.into_inner(), "Baa3".to_string());
-    }
-
     #[test]
     fn credit_rating_serde_wire_name_is_stable() {
         let json = serde_json::to_string(&CreditRating::BBBMinus).expect("rating serializes");

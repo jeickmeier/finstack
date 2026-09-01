@@ -21,8 +21,6 @@
 //!   (e.g., non-monotonic knots, invalid dates, missing curves)
 //! - **Currency safety** ([`Error::CurrencyMismatch`]): Attempted cross-currency
 //!   arithmetic without explicit conversion
-//! - **Interpolation** ([`Error::InterpOutOfBounds`]): Query point falls outside
-//!   curve bounds
 //! - **Calibration** ([`Error::Calibration`]): Numerical solver or fitting
 //!   procedure failed to converge
 //! - **Validation** ([`Error::Validation`]): Market data fails no-arbitrage or
@@ -127,7 +125,6 @@ use crate::currency::Currency;
 /// # Variants
 ///
 /// - **Input**: Wraps [`InputError`] for all validation failures
-/// - **InterpOutOfBounds**: Query point outside interpolator domain
 /// - **CurrencyMismatch**: Binary operation on incompatible currencies
 /// - **Calibration**: Numerical fitting or solver convergence failure
 /// - **Validation**: Market data structural checks failed
@@ -153,7 +150,6 @@ use crate::currency::Currency;
 ///         Error::CurrencyMismatch { expected, actual } => {
 ///             format!("Cannot mix {} and {}", expected, actual)
 ///         }
-///         Error::InterpOutOfBounds => "Query outside curve range".to_string(),
 ///         Error::Calibration { message, .. } => format!("Calibration failed: {}", message),
 ///         Error::Validation(msg) => format!("Validation error: {}", msg),
 ///         Error::UnknownMetric { metric_id, .. } => format!("Unknown metric: {}", metric_id),
@@ -172,10 +168,6 @@ pub enum Error {
     /// User input validation error.
     #[error(transparent)]
     Input(#[from] InputError),
-
-    /// Interpolator evaluation exceeded grid bounds.
-    #[error("Interpolation input out of bounds")]
-    InterpOutOfBounds,
 
     /// Currency mismatch in a binary [`Money`](crate::money::Money) operation.
     #[error("Currency mismatch: expected {expected}, got {actual}")]

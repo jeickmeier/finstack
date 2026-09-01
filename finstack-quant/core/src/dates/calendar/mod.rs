@@ -111,7 +111,7 @@ mod year_cache;
 // calendar traits. This namespace keeps the generated calendars and related
 // implementation types available for callers that need them directly.
 pub use business_days::{adjust, available_calendars, BusinessDayConvention, HolidayCalendar};
-pub use composite::{CompositeCalendar, CompositeMode};
+pub use composite::CompositeCalendar;
 pub use rule::{Direction, Observed, Rule};
 pub use types::{Calendar, WeekendRule};
 

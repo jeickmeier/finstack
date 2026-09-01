@@ -11,7 +11,7 @@ mod bench_utils;
 
 use bench_utils::bench_iter;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use finstack_quant_core::cashflow::{npv, npv_amounts, Discountable};
+use finstack_quant_core::cashflow::{npv, Discountable};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
@@ -59,17 +59,6 @@ fn money_flows(n: usize) -> Vec<(Date, Money)> {
         })
         .collect()
 }
-
-fn scalar_flows(n: usize) -> Vec<(Date, f64)> {
-    let base = base_date();
-    (1..=n)
-        .map(|i| {
-            let date = base + time::Duration::days(i as i64 * 91);
-            (date, 1000.0)
-        })
-        .collect()
-}
-
 fn bench_npv_flat_curve(c: &mut Criterion) {
     let mut group = c.benchmark_group("npv_flat_curve");
     let curve = flat_curve(0.05_f64.ln_1p());
@@ -105,30 +94,6 @@ fn bench_npv_shaped_curve(c: &mut Criterion) {
 
     group.finish();
 }
-
-fn bench_npv_amounts(c: &mut Criterion) {
-    let mut group = c.benchmark_group("npv_amounts_scalar");
-
-    {
-        let size = 60;
-        let flows = scalar_flows(size);
-        group.bench_with_input(BenchmarkId::new("scalar", size), &size, |b, _| {
-            b.iter(|| {
-                let pv = npv_amounts(
-                    black_box(&flows),
-                    black_box(0.05),
-                    Some(base_date()),
-                    Some(DayCount::Act365F),
-                )
-                .unwrap();
-                black_box(pv);
-            })
-        });
-    }
-
-    group.finish();
-}
-
 fn bench_discountable_trait(c: &mut Criterion) {
     let mut group = c.benchmark_group("discountable_trait");
     let curve = shaped_curve();
@@ -146,48 +111,10 @@ fn bench_discountable_trait(c: &mut Criterion) {
 
     group.finish();
 }
-
-fn bench_npv_investment_profile(c: &mut Criterion) {
-    let mut group = c.benchmark_group("npv_investment_profile");
-    let base = base_date();
-
-    let bond_flows: Vec<(Date, f64)> = {
-        let mut flows = vec![(base, -100_000.0)];
-        for i in 1..=20 {
-            flows.push((base + time::Duration::days(i * 182), 2_500.0));
-        }
-        let last = flows.last().unwrap().0;
-        flows.push((last, 100_000.0));
-        flows
-    };
-
-    bench_iter(&mut group, "bond_20_coupons", || {
-        let pv = npv_amounts(&bond_flows, 0.04, Some(base), Some(DayCount::Act365F)).unwrap();
-        black_box(pv);
-    });
-
-    let swap_flows: Vec<(Date, f64)> = (1..=40)
-        .map(|i| {
-            let date = base + time::Duration::days(i * 91);
-            let amount = if i % 2 == 0 { 500.0 } else { -480.0 };
-            (date, amount)
-        })
-        .collect();
-
-    bench_iter(&mut group, "swap_40_netted", || {
-        let pv = npv_amounts(&swap_flows, 0.03, Some(base), Some(DayCount::Act360)).unwrap();
-        black_box(pv);
-    });
-
-    group.finish();
-}
-
 criterion_group!(
     benches,
     bench_npv_flat_curve,
     bench_npv_shaped_curve,
-    bench_npv_amounts,
     bench_discountable_trait,
-    bench_npv_investment_profile,
 );
 criterion_main!(benches);

@@ -9,8 +9,8 @@
 //! - Japanese equinox rules (Vernal, Autumnal)
 //! - Span rules (multi-day holidays)
 
+use finstack_quant_core::dates::{Calendar, Direction, Observed, Rule};
 use finstack_quant_core::dates::{Date, HolidayCalendar};
-use finstack_quant_core::dates::{Direction, Observed, Rule};
 use smallvec::SmallVec;
 use time::{Month, Weekday};
 
@@ -83,24 +83,6 @@ fn rule_convenience_constructors() {
         fixed,
         Rule::Fixed {
             observed: Observed::None,
-            ..
-        }
-    ));
-
-    let next_mon = Rule::fixed_next_monday(Month::January, 1);
-    assert!(matches!(
-        next_mon,
-        Rule::Fixed {
-            observed: Observed::NextMonday,
-            ..
-        }
-    ));
-
-    let weekend = Rule::fixed_weekend(Month::July, 4);
-    assert!(matches!(
-        weekend,
-        Rule::Fixed {
-            observed: Observed::FriIfSatMonIfSun,
             ..
         }
     ));
@@ -537,11 +519,12 @@ static DEC31: Rule = Rule::fixed(Month::December, 31);
 
 #[test]
 fn span_len2_cross_year() {
-    let rules: &[Rule] = &[Rule::Span {
+    static RULES: [Rule; 1] = [Rule::Span {
         start: &DEC31,
         len: 2,
         offset: 0,
     }];
+    let rules = Calendar::new("span2", "span2", false, &RULES);
 
     let dec31 = Date::from_calendar_date(2024, Month::December, 31).unwrap();
     let jan01 = Date::from_calendar_date(2025, Month::January, 1).unwrap();
@@ -554,11 +537,12 @@ fn span_len2_cross_year() {
 
 #[test]
 fn span_len3_cross_year() {
-    let rules: &[Rule] = &[Rule::Span {
+    static RULES: [Rule; 1] = [Rule::Span {
         start: &DEC31,
         len: 3,
         offset: 0,
     }];
+    let rules = Calendar::new("span3", "span3", false, &RULES);
 
     let dec31 = Date::from_calendar_date(2024, Month::December, 31).unwrap();
     let jan01 = Date::from_calendar_date(2025, Month::January, 1).unwrap();
@@ -635,12 +619,12 @@ fn rule_observed_next_monday_sunday() {
 
 #[test]
 fn rule_slice_as_holiday_calendar() {
-    let rules: &[Rule] = &[
+    static RULES: [Rule; 2] = [
         Rule::fixed(Month::January, 1),
         Rule::fixed(Month::December, 25),
     ];
+    let rules = Calendar::new("two", "two", false, &RULES);
 
-    // Should implement HolidayCalendar trait
     assert!(rules.is_holiday(make_date(2025, 1, 1)));
     assert!(rules.is_holiday(make_date(2025, 12, 25)));
     assert!(!rules.is_holiday(make_date(2025, 7, 4)));
@@ -648,12 +632,13 @@ fn rule_slice_as_holiday_calendar() {
 
 #[test]
 fn rule_multiple_rules_combine() {
-    let rules: &[Rule] = &[
+    static RULES: [Rule; 4] = [
         Rule::fixed(Month::January, 1),
         Rule::fixed(Month::July, 4),
         Rule::fixed(Month::December, 25),
         Rule::EasterOffset(-3),
     ];
+    let rules = Calendar::new("four", "four", false, &RULES);
 
     // New Year
     assert!(rules.is_holiday(make_date(2025, 1, 1)));

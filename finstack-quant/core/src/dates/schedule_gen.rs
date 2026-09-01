@@ -50,17 +50,6 @@ fn push_if_new(buf: &mut Buffer, d: Date) {
         buf.push(d)
     }
 }
-
-/// Check if a date is a CDS roll date (20th of Mar/Jun/Sep/Dec).
-pub(super) fn is_cds_roll_date(date: Date) -> bool {
-    crate::dates::imm::is_cds_date(date)
-}
-
-/// Check if a date is a standard IMM date (third Wednesday of Mar/Jun/Sep/Dec).
-pub(super) fn is_imm_roll_date(date: Date) -> bool {
-    crate::dates::imm::is_imm_date(date)
-}
-
 /// Generate IMM dates (third Wednesday of Mar/Jun/Sep/Dec) within the given range.
 ///
 /// Unlike regular schedule generation which adds fixed intervals, this function
@@ -69,7 +58,7 @@ pub(super) fn is_imm_roll_date(date: Date) -> bool {
 pub(super) fn generate_imm_dates(start: Date, end: Date) -> Vec<Date> {
     let mut dates = Vec::new();
 
-    let first_imm = if is_imm_roll_date(start) {
+    let first_imm = if crate::dates::imm::is_imm_date(start) {
         start
     } else {
         next_imm(start)
@@ -126,11 +115,7 @@ pub(super) struct BuilderInternal {
 impl BuilderInternal {
     pub(super) fn generate(self) -> crate::Result<Vec<Date>> {
         if self.start >= self.end {
-            return Err(crate::error::InputError::InvalidScheduleRange {
-                start: self.start,
-                end: self.end,
-            }
-            .into());
+            return Err(crate::error::InputError::InvalidDateRange.into());
         }
         match self.stub {
             StubKind::ShortFront => self.gen_short_front(),

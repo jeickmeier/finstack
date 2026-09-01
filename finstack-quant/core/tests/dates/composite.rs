@@ -1,7 +1,7 @@
 //! Tests for composite calendar functionality
 
 use finstack_quant_core::dates::calendar::{GBLO, NYSE, TARGET2, USNY};
-use finstack_quant_core::dates::{CompositeCalendar, CompositeMode};
+use finstack_quant_core::dates::CompositeCalendar;
 use finstack_quant_core::dates::{Date, HolidayCalendar};
 use time::Month;
 
@@ -31,28 +31,6 @@ fn composite_union_any_holiday() {
     let regular_day = make_date(2025, 6, 18); // Wednesday
     assert!(!composite.is_holiday(regular_day));
 }
-
-#[test]
-fn composite_intersection_all_holidays() {
-    let t2 = TARGET2;
-    let gb = GBLO;
-    let calendars = [&t2 as &dyn HolidayCalendar, &gb as &dyn HolidayCalendar];
-
-    let composite = CompositeCalendar::with_mode(&calendars, CompositeMode::Intersection);
-
-    // Jan 1 is a holiday in both
-    let jan1 = make_date(2025, 1, 1);
-    assert!(composite.is_holiday(jan1));
-
-    // Spring bank holiday (May 26, 2025) is only in GBLO, not TARGET2
-    let may26 = make_date(2025, 5, 26);
-    assert!(!composite.is_holiday(may26)); // Intersection requires both
-
-    // Christmas is in both
-    let christmas = make_date(2025, 12, 25);
-    assert!(composite.is_holiday(christmas));
-}
-
 #[test]
 fn composite_empty_calendars_union() {
     let calendars: &[&dyn HolidayCalendar] = &[];
@@ -62,31 +40,18 @@ fn composite_empty_calendars_union() {
     let any_date = make_date(2025, 1, 1);
     assert!(!composite.is_holiday(any_date));
 }
-
-#[test]
-fn composite_empty_calendars_intersection() {
-    let calendars: &[&dyn HolidayCalendar] = &[];
-    let composite = CompositeCalendar::with_mode(calendars, CompositeMode::Intersection);
-
-    // Empty intersection should have no holidays
-    let any_date = make_date(2025, 1, 1);
-    assert!(!composite.is_holiday(any_date));
-}
-
 #[test]
 fn composite_single_calendar_behaves_like_original() {
     let t2 = TARGET2;
     let calendars = [&t2 as &dyn HolidayCalendar];
 
     let composite_union = CompositeCalendar::new(&calendars);
-    let composite_inter = CompositeCalendar::with_mode(&calendars, CompositeMode::Intersection);
 
     // Test several dates
     for day in 1..=28 {
         let date = make_date(2025, 1, day);
         let original = t2.is_holiday(date);
         assert_eq!(composite_union.is_holiday(date), original);
-        assert_eq!(composite_inter.is_holiday(date), original);
     }
 }
 

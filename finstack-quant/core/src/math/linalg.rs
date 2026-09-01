@@ -29,7 +29,7 @@
 //! # Examples
 //!
 //! ```
-//! use finstack_quant_core::math::linalg::{cholesky_correlation, apply_correlation};
+//! use finstack_quant_core::math::linalg::cholesky_correlation;
 //!
 //! // 2x2 correlation matrix: [[1.0, 0.5], [0.5, 1.0]]
 //! let corr = vec![1.0, 0.5, 0.5, 1.0];
@@ -573,7 +573,7 @@ pub fn cholesky_correlation(
 /// Returns `(eigenvalues, eigenvectors)` where `eigenvectors[i * n + k]` is
 /// the `i`-th component of the `k`-th eigenvector — i.e. column-major in the
 /// eigenvector index, matching the convention used by
-/// [`apply_correlation`] and by most linear-algebra references.
+/// [`apply_lower_triangular`] and by most linear-algebra references.
 ///
 /// The routine delegates to `nalgebra::SymmetricEigen` (Householder
 /// tridiagonalization followed by symmetric QR iteration, `O(n³)`), which is
@@ -811,73 +811,12 @@ pub fn cholesky_decomposition_into(
 
     Ok(())
 }
-
-/// Apply correlation via Cholesky factor to independent shocks.
-///
-/// Transforms independent N(0,1) shocks into correlated shocks.
-///
-/// # Arguments
-///
-/// * `chol` - Lower triangular Cholesky factor (n x n, row-major)
-/// * `independent` - Independent shocks (length n)
-/// * `correlated` - Output correlated shocks (length n)
-///
-/// # Errors
-///
-/// Returns `CholeskyError::DimensionMismatch` if:
-/// - `chol.len() != independent.len() * independent.len()` (Cholesky factor is not n x n)
-/// - `correlated.len() != independent.len()` (output buffer has wrong length)
-///
-/// # Example
-///
-/// ```
-/// use finstack_quant_core::math::linalg::{cholesky_decomposition, apply_correlation};
-///
-/// let corr = vec![1.0, 0.5, 0.5, 1.0];
-/// let chol = cholesky_decomposition(&corr, 2).expect("Cholesky decomposition should succeed");
-///
-/// let z = vec![1.0, 0.0]; // Independent shocks
-/// let mut z_corr = vec![0.0; 2];
-/// apply_correlation(&chol, &z, &mut z_corr).expect("dimensions match");
-/// ```
-pub fn apply_correlation(
-    chol: &[f64],
-    independent: &[f64],
-    correlated: &mut [f64],
-) -> std::result::Result<(), CholeskyError> {
-    let n = independent.len();
-    if chol.len() != n * n {
-        return Err(CholeskyError::DimensionMismatch {
-            expected: n * n,
-            actual: chol.len(),
-        });
-    }
-    if correlated.len() != n {
-        return Err(CholeskyError::DimensionMismatch {
-            expected: n,
-            actual: correlated.len(),
-        });
-    }
-
-    for i in 0..n {
-        correlated[i] = 0.0;
-        for j in 0..=i {
-            correlated[i] += chol[i * n + j] * independent[j];
-        }
-    }
-
-    Ok(())
-}
-
 /// Apply a lower-triangular factor `L` to a vector `z`, returning `L z`.
 ///
 /// This is the Cholesky *apply* step used to turn a vector of i.i.d. standard
 /// normals into correlated normals: if `Sigma = L L^T` and `z ~ N(0, I)`, then
-/// `L z ~ N(0, Sigma)`. It is the owned-return counterpart of
-/// [`apply_correlation`], which writes into a caller-supplied buffer; use this
-/// form when an output buffer is inconvenient (for example across the Python
-/// and WASM bindings) and [`apply_correlation`] on hot Monte Carlo paths where
-/// the allocation matters.
+/// `L z ~ N(0, Sigma)`. Use [`CorrelationFactor::apply`] on hot Monte Carlo
+/// paths where the allocation matters.
 ///
 /// `l` is the same **row-major, `n * n`, lower-triangular** flat layout that
 /// [`cholesky_decomposition`] returns — entry `(i, j)` lives at `l[i * n + j]`.
@@ -931,8 +870,7 @@ pub fn apply_correlation(
 ///
 /// # See Also
 ///
-/// - [`apply_correlation`] for the buffer-writing, allocation-free form.
-/// - [`CorrelationFactor::apply`] for the pivoted, rank-aware factor.
+/// - [`CorrelationFactor::apply`] for the pivoted, rank-aware, allocation-free factor.
 pub fn apply_lower_triangular(l: &[f64], n: usize, z: &[f64]) -> Result<Vec<f64>> {
     if l.len() != n * n || z.len() != n {
         return Err(error::InputError::DimensionMismatch.into());
@@ -1011,61 +949,6 @@ pub fn cholesky_solve(chol: &[f64], b: &[f64], x: &mut [f64]) -> Result<()> {
 
     Ok(())
 }
-
-/// Helper to create correlation matrix from correlation pairs.
-///
-/// # Arguments
-///
-/// * `n` - Matrix dimension
-/// * `correlations` - List of (i, j, ρ_ij) tuples
-///
-/// # Returns
-///
-/// Symmetric correlation matrix (n x n, row-major)
-///
-/// # Errors
-///
-/// Returns [`CholeskyError::DimensionMismatch`] if an index in `correlations`
-/// is out of bounds, or [`crate::Error::Validation`] if a diagonal pair `(i, i)` is
-/// supplied.
-///
-/// # Example
-///
-/// ```
-/// use finstack_quant_core::math::linalg::build_correlation_matrix;
-///
-/// let correlations = vec![(0, 1, 0.5)];
-/// let matrix = build_correlation_matrix(2, &correlations).unwrap();
-/// // matrix = [[1.0, 0.5], [0.5, 1.0]]
-/// ```
-pub fn build_correlation_matrix(
-    n: usize,
-    correlations: &[(usize, usize, f64)],
-) -> crate::Result<Vec<f64>> {
-    let mut matrix = vec![0.0; n * n];
-
-    for i in 0..n {
-        matrix[i * n + i] = 1.0;
-    }
-
-    for &(i, j, rho) in correlations {
-        if i >= n || j >= n {
-            return Err(crate::Error::Validation(format!(
-                "correlation index out of bounds: ({i}, {j}) for matrix size {n}"
-            )));
-        }
-        if i == j {
-            return Err(crate::Error::Validation(format!(
-                "correlation entry ({i}, {j}) is on the diagonal; diagonal elements are fixed at 1.0"
-            )));
-        }
-        matrix[i * n + j] = rho;
-        matrix[j * n + i] = rho;
-    }
-
-    Ok(matrix)
-}
-
 /// Validate that a matrix is a valid correlation matrix.
 ///
 /// Checks:
@@ -1543,33 +1426,6 @@ mod tests {
             assert!((av[1] - lambda * v[1]).abs() < 1e-10);
         }
     }
-
-    #[test]
-    fn test_apply_correlation() {
-        let corr = vec![1.0, 0.5, 0.5, 1.0];
-        let chol = cholesky_decomposition(&corr, 2)
-            .expect("Cholesky decomposition should succeed in test");
-
-        let z = vec![1.0, 0.0];
-        let mut z_corr = vec![0.0; 2];
-        apply_correlation(&chol, &z, &mut z_corr)
-            .expect("apply_correlation should succeed in test");
-
-        assert!((z_corr[0] - 1.0).abs() < 1e-10);
-        assert!((z_corr[1] - 0.5).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_build_correlation_matrix() {
-        let correlations = vec![(0, 1, 0.5)];
-        let matrix = build_correlation_matrix(2, &correlations).expect("valid correlations");
-
-        assert!((matrix[0] - 1.0).abs() < 1e-10); // [0,0]
-        assert!((matrix[1] - 0.5).abs() < 1e-10); // [0,1]
-        assert!((matrix[2] - 0.5).abs() < 1e-10); // [1,0]
-        assert!((matrix[3] - 1.0).abs() < 1e-10); // [1,1]
-    }
-
     #[test]
     fn test_validate_correlation_matrix() {
         // Valid matrix
@@ -1997,23 +1853,6 @@ mod tests {
 
         assert!((x[0] - 2.0).abs() < 1e-12, "x={}", x[0]);
     }
-
-    #[test]
-    fn apply_lower_triangular_matches_apply_correlation() {
-        let corr = vec![1.0, 0.5, 0.3, 0.5, 1.0, 0.2, 0.3, 0.2, 1.0];
-        let l = cholesky_decomposition(&corr, 3)
-            .expect("Cholesky decomposition should succeed in test");
-        let z = vec![0.7, -1.3, 0.4];
-
-        let mut expected = vec![0.0; 3];
-        apply_correlation(&l, &z, &mut expected).expect("dimensions match in test");
-        let actual = apply_lower_triangular(&l, 3, &z).expect("dimensions match in test");
-
-        for (a, e) in actual.iter().zip(expected.iter()) {
-            assert!((a - e).abs() < 1e-15, "got {a}, expected {e}");
-        }
-    }
-
     #[test]
     fn apply_lower_triangular_reproduces_target_covariance() {
         // L L^T must equal the input matrix, i.e. applying L to each unit

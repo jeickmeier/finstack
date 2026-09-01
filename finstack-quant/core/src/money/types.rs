@@ -561,6 +561,30 @@ impl Money {
         })
     }
 
+    /// Negate the amount, preserving the currency.
+    ///
+    /// Negation is exact on the internal `Decimal` representation (it never
+    /// round-trips through `f64`) and cannot overflow for any value that was
+    /// already constructed, so this method is infallible.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use finstack_quant_core::money::Money;
+    /// use finstack_quant_core::currency::Currency;
+    ///
+    /// let m = Money::new(100.0, Currency::USD);
+    /// assert_eq!(m.checked_neg().amount(), -100.0);
+    /// assert_eq!(m.checked_neg().checked_neg(), m);
+    /// ```
+    #[must_use = "returns the negated Money"]
+    #[inline]
+    pub fn checked_neg(self) -> Self {
+        Self {
+            amount: -self.amount,
+            currency: self.currency,
+        }
+    }
+
     /// Divide by an `f64` scalar, returning an error on non-finite, zero, or
     /// non-representable values instead of panicking.
     ///

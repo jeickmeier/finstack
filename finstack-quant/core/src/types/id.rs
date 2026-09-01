@@ -207,35 +207,6 @@ impl<T> Id<T> {
     pub fn into_string(self) -> String {
         self.value.as_ref().to_owned()
     }
-
-    /// Create an ID from a string slice.
-    ///
-    /// This is equivalent to using `From<&str>` but provides a named constructor
-    /// for clarity when the conversion intent is explicit.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - String slice to create the ID from
-    ///
-    /// # Returns
-    ///
-    /// A new `Id<T>` containing the string value.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_core::types::CurveId;
-    ///
-    /// let id = CurveId::from_string_slice("EUR-OIS");
-    /// assert_eq!(id.as_str(), "EUR-OIS");
-    /// ```
-    pub fn from_string_slice(value: &str) -> Self {
-        Self {
-            value: Arc::<str>::from(value),
-            _marker: PhantomData,
-        }
-    }
-
     /// Check if this ID is empty.
     ///
     /// # Returns
@@ -347,19 +318,13 @@ impl<T> fmt::Display for Id<T> {
 
 impl<T> From<String> for Id<T> {
     fn from(value: String) -> Self {
-        Self {
-            value: Arc::<str>::from(value),
-            _marker: PhantomData,
-        }
+        Self::new(value)
     }
 }
 
 impl<T> From<&str> for Id<T> {
     fn from(value: &str) -> Self {
-        Self {
-            value: Arc::<str>::from(value),
-            _marker: PhantomData,
-        }
+        Self::new(value)
     }
 }
 
@@ -387,10 +352,7 @@ impl<T> std::str::FromStr for Id<T> {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self {
-            value: Arc::<str>::from(s),
-            _marker: PhantomData,
-        })
+        Ok(Self::new(s))
     }
 }
 

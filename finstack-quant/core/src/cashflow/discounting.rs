@@ -24,10 +24,6 @@
 //! valuation date are excluded (only strictly-future flows are discounted).
 //! A flow that has already paid is not part of the instrument's present value.
 //!
-//! The scalar helper [`npv_amounts`] keeps the investment-NPV convention (all
-//! flows included, signed year fractions) since its default base date is the
-//! earliest flow.
-//!
 //! # Use Cases
 //!
 //! - **Bond pricing**: Government and corporate bonds
@@ -72,7 +68,9 @@
 //! - Andersen, L., & Piterbarg, V. (2010). *Interest Rate Modeling* (3 vols).
 //!   Atlantic Financial Press. Volume 1, Chapter 3. `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 
-use crate::dates::{Date, DayCount, DayCountContext};
+#[cfg(test)]
+use crate::dates::DayCount;
+use crate::dates::{Date, DayCountContext};
 use crate::market_data::traits::Discounting;
 use crate::math::NeumaierAccumulator;
 use crate::money::Money;
@@ -129,8 +127,7 @@ pub trait Discountable: Send + Sync {
     /// Compute present value using the given discount curve.
     ///
     /// Follows market-standard pricing semantics: flows dated on or before
-    /// `base` are excluded. See the module docs ("Valuation-Date Cutoff")
-    /// and [`npv_amounts`] for the investment-NPV convention.
+    /// `base` are excluded. See the module docs ("Valuation-Date Cutoff").
     ///
     /// # Arguments
     ///
@@ -439,125 +436,6 @@ where
 
     Ok(())
 }
-
-/// Compute NPV of dated scalar cashflows using a flat annual discount rate.
-///
-/// This is a convenience helper for performance analytics and bindings that work in
-/// scalar amounts (e.g. `[(date, f64)]`) rather than typed [`Money`] cashflows.
-///
-/// The discounting convention for this helper is:
-/// - `discount_rate` is an annually-compounded rate expressed as a decimal (0.05 = 5%)
-/// - Internally this is converted to continuous compounding via `ln(1 + r)` for stability.
-///
-/// Defaults (when the optional arguments are `None`):
-/// - `base_date`: earliest cashflow date
-/// - `day_count`: [`DayCount::Act365F`]
-///
-/// # Flow Convention
-///
-/// Unlike [`npv`], this helper follows the **investment-NPV convention**: all
-/// flows are included, with signed year fractions relative to the base date.
-/// The time-0 outlay (a flow on the base date) is part of the result, which
-/// is what project/return analytics expect.
-///
-/// # Arguments
-///
-/// * `cash_flows` - Dated scalar amounts in a consistent caller-defined unit.
-///   The time-zero amount is included; an empty slice returns an error.
-/// * `discount_rate` - Flat annually compounded decimal rate (`0.05` means
-///   5%). It must be finite and greater than `-1.0`.
-/// * `base_date` - Optional valuation origin. When omitted, the earliest
-///   cashflow date is used.
-/// * `day_count` - Optional year-fraction convention. When omitted,
-///   [`DayCount::Act365F`] is used.
-///
-/// # Errors
-/// - [`InputError::TooFewPoints`](crate::error::InputError::TooFewPoints) when `cash_flows` is empty
-/// - Day count year-fraction calculation failures
-pub fn npv_amounts(
-    cash_flows: &[(Date, f64)],
-    discount_rate: f64,
-    base_date: Option<Date>,
-    day_count: Option<DayCount>,
-) -> crate::Result<f64> {
-    npv_amounts_with_ctx(
-        cash_flows,
-        discount_rate,
-        base_date,
-        day_count,
-        crate::dates::DayCountContext::default(),
-    )
-}
-
-/// Compute scalar NPV with an explicit day-count context.
-///
-/// This is the contextual form of [`npv_amounts`]. It discounts each signed
-/// scalar amount by `exp(-ln(1 + discount_rate) * t)`, where `t` is the signed
-/// year fraction from `base_date` (or the earliest cashflow date when omitted)
-/// under `day_count` (or Act/365F when omitted). The supplied `ctx` is passed
-/// unchanged to every year-fraction calculation, which matters for
-/// conventions that require calendars or reference-period information.
-///
-/// Amounts are not separately validated: IEEE-754 NaN or infinity in an
-/// amount propagates into the returned NPV. Accumulation uses Neumaier
-/// compensation to reduce cancellation error for mixed-sign cashflows.
-///
-/// # Arguments
-///
-/// * `cash_flows` - Dated scalar amounts in a consistent caller-defined unit.
-///   The time-zero amount is included; an empty slice returns an error.
-/// * `discount_rate` - Flat annually compounded decimal rate (`0.05` means
-///   5%). It must be finite and greater than `-1.0`.
-/// * `base_date` - Optional valuation origin. When omitted, the earliest
-///   cashflow date is used.
-/// * `day_count` - Optional year-fraction convention. When omitted,
-///   [`DayCount::Act365F`] is used.
-/// * `ctx` - Supplemental day-count information passed unchanged to each
-///   year-fraction calculation, including calendar and reference-period data.
-///
-/// # Errors
-///
-/// Returns an error if `cash_flows` is empty, `discount_rate` is non-finite or
-/// less than or equal to `-1.0` (so annual-to-continuous conversion is
-/// undefined), or a signed year-fraction calculation fails for the chosen
-/// day-count context.
-pub(crate) fn npv_amounts_with_ctx(
-    cash_flows: &[(Date, f64)],
-    discount_rate: f64,
-    base_date: Option<Date>,
-    day_count: Option<DayCount>,
-    ctx: crate::dates::DayCountContext<'_>,
-) -> crate::Result<f64> {
-    if cash_flows.is_empty() {
-        return Err(crate::Error::from(crate::error::InputError::TooFewPoints));
-    }
-
-    let base = base_date.unwrap_or_else(|| {
-        cash_flows
-            .iter()
-            .map(|(date, _)| *date)
-            .min()
-            .unwrap_or(cash_flows[0].0)
-    });
-    let day_count = day_count.unwrap_or(DayCount::Act365F);
-
-    // Convert annually compounded rate to continuously compounded rate:
-    // flat discounting expects continuously compounded rates: r_cont = ln(1 + r_annual)
-    if !discount_rate.is_finite() || (1.0 + discount_rate) <= 0.0 {
-        return Err(crate::Error::from(crate::error::InputError::Invalid));
-    }
-    let continuous_rate = (1.0 + discount_rate).ln();
-
-    // Use Neumaier compensated summation for numerical stability with many cashflows
-    let mut acc = NeumaierAccumulator::new();
-    for (date, amount) in cash_flows {
-        let t = day_count.signed_year_fraction(base, *date, ctx)?;
-        acc.add(amount * (-continuous_rate * t).exp());
-    }
-
-    Ok(acc.total())
-}
-
 #[cfg(test)]
 fn flat_curve(
     id: &str,
@@ -589,56 +467,6 @@ mod hardening_tests {
     use crate::dates::calendar::TARGET2;
     use crate::dates::create_date;
     use time::Month;
-
-    #[test]
-    fn npv_amounts_uses_earliest_cashflow_as_default_base_date() {
-        let base = create_date(2024, Month::January, 1).expect("Valid test date");
-        let later = create_date(2025, Month::January, 1).expect("Valid test date");
-        let rate = 0.05;
-
-        let sorted = vec![(base, -100000.0), (later, 110000.0)];
-        let unsorted = vec![(later, 110000.0), (base, -100000.0)];
-
-        let pv_sorted = npv_amounts(&sorted, rate, None, Some(DayCount::Act365F))
-            .expect("sorted npv should succeed");
-        let pv_unsorted = npv_amounts(&unsorted, rate, None, Some(DayCount::Act365F))
-            .expect("unsorted npv should succeed");
-
-        assert!((pv_sorted - pv_unsorted).abs() < 1e-10);
-    }
-
-    #[test]
-    fn npv_amounts_rejects_empty_flows_and_invalid_discount_rates() {
-        let base = create_date(2024, Month::January, 1).expect("Valid test date");
-        let flows = vec![(base, 100.0)];
-
-        assert!(npv_amounts(&[], 0.05, Some(base), Some(DayCount::Act365F)).is_err());
-        assert!(npv_amounts(&flows, f64::NAN, Some(base), Some(DayCount::Act365F)).is_err());
-        assert!(npv_amounts(&flows, f64::INFINITY, Some(base), Some(DayCount::Act365F)).is_err());
-        assert!(npv_amounts(&flows, -1.0, Some(base), Some(DayCount::Act365F)).is_err());
-        assert!(npv_amounts(&flows, -1.01, Some(base), Some(DayCount::Act365F)).is_err());
-    }
-
-    #[test]
-    fn npv_amounts_with_ctx_propagates_day_count_context_errors() {
-        let base = create_date(2025, Month::January, 6).expect("Valid test date");
-        let pay = create_date(2025, Month::January, 13).expect("Valid test date");
-        let flows = vec![(pay, 100.0)];
-
-        let result = npv_amounts_with_ctx(
-            &flows,
-            0.05,
-            Some(base),
-            Some(DayCount::Bus252),
-            DayCountContext::default(),
-        );
-
-        assert!(
-            result.is_err(),
-            "Bus/252 scalar NPV requires a calendar in the day-count context"
-        );
-    }
-
     #[test]
     fn npv_with_bus252_context_counts_business_days() {
         let base = create_date(2025, Month::January, 6).expect("Valid test date"); // Monday
@@ -963,46 +791,6 @@ mod tests {
         // Approximately: 110000/(1.05) ≈ 104761.90 (initial outlay excluded)
         assert!(pv.amount() > 104700.0 && pv.amount() < 104800.0);
     }
-
-    #[test]
-    fn test_npv_amounts_matches_money_npv() {
-        let base = create_date(2024, Month::January, 1).expect("Valid test date");
-        let dates = [
-            create_date(2024, Month::July, 1).expect("Valid test date"),
-            create_date(2025, Month::January, 1).expect("Valid test date"),
-        ];
-        let amounts = [-100000.0, 110000.0];
-
-        let amount_flows = vec![(dates[0], amounts[0]), (dates[1], amounts[1])];
-        let money_flows = vec![
-            (dates[0], Money::new(amounts[0], Currency::USD)),
-            (dates[1], Money::new(amounts[1], Currency::USD)),
-        ];
-
-        let rate: f64 = 0.05;
-        let day_count = DayCount::Act365F;
-
-        // For strictly-future flows the scalar and Money paths must agree
-        // exactly: both discount every flow from the same base date on the
-        // same day-count basis. (Flows dated on or before `base` are excluded
-        // by the Money path, so the comparison is made on future flows only.)
-        let pv_amounts = npv_amounts(&amount_flows, rate, Some(base), Some(day_count))
-            .expect("npv_amounts should succeed");
-
-        let continuous_rate = (1.0 + rate).ln();
-        let curve = flat_curve("TEST", base, continuous_rate, day_count);
-        let pv_money = npv_with_ctx(&curve, base, DayCountContext::default(), &money_flows)
-            .expect("npv should succeed")
-            .amount();
-
-        assert!(
-            (pv_amounts - pv_money).abs() < 1e-10,
-            "npv_amounts should match npv: {} vs {}",
-            pv_amounts,
-            pv_money
-        );
-    }
-
     #[test]
     fn test_npv_zero_discount() {
         let base = create_date(2024, Month::January, 1).expect("Valid test date");
@@ -1117,31 +905,6 @@ mod tests {
             flows.len(),
             pv.amount(),
             (pv.amount() - 12000.0).abs()
-        );
-    }
-
-    #[test]
-    fn npv_amounts_precision_many_cashflows() {
-        // Same precision test for npv_amounts (scalar version)
-        let base = create_date(2025, Month::January, 1).expect("Valid test date");
-
-        // Create 120 cashflows with 0% discount rate (DF=1.0 at all times)
-        let flows: Vec<(Date, f64)> = (1..=120)
-            .map(|i| {
-                let date = base + time::Duration::days(i as i64 * 91);
-                (date, 100.0)
-            })
-            .collect();
-
-        let pv = npv_amounts(&flows, 0.0, Some(base), None).expect("npv_amounts should succeed");
-
-        // With Neumaier summation, we expect precision better than 1e-10
-        assert!(
-            (pv - 12000.0).abs() < 1e-10,
-            "npv_amounts precision lost with {} cashflows: expected 12000.0, got {} (error: {:.2e})",
-            flows.len(),
-            pv,
-            (pv - 12000.0).abs()
         );
     }
 }

@@ -113,14 +113,6 @@ impl CompiledExpr {
             }
         }
     }
-
-    pub(super) fn eval_lag(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_lag_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_lag_into(
         &self,
         arg_results: &[&[f64]],
@@ -144,14 +136,6 @@ impl CompiledExpr {
         }
         Ok(())
     }
-
-    pub(super) fn eval_lead(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_lead_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_lead_into(
         &self,
         arg_results: &[&[f64]],
@@ -171,14 +155,6 @@ impl CompiledExpr {
         }
         Ok(())
     }
-
-    pub(super) fn eval_diff(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_diff_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_diff_into(
         &self,
         arg_results: &[&[f64]],
@@ -201,14 +177,6 @@ impl CompiledExpr {
         }
         Ok(())
     }
-
-    pub(super) fn eval_pct_change(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_pct_change_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     /// Percentage change over step `n`.
     ///
     /// Division-by-zero convention (intentionally different from the binary
@@ -303,14 +271,6 @@ impl CompiledExpr {
         }
         out
     }
-
-    pub(super) fn eval_rolling_mean(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_mean_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_rolling_mean_into(
         &self,
         arg_results: &[&[f64]],
@@ -344,14 +304,6 @@ impl CompiledExpr {
         }
         Ok(())
     }
-
-    pub(super) fn eval_rolling_sum(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_sum_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_rolling_sum_into(
         &self,
         arg_results: &[&[f64]],
@@ -588,14 +540,6 @@ impl CompiledExpr {
             (buf[n / 2 - 1] + buf[n / 2]) * 0.5
         }
     }
-
-    pub(super) fn eval_rolling_std(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_std_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_rolling_std_into(
         &self,
         arg_results: &[&[f64]],
@@ -619,14 +563,6 @@ impl CompiledExpr {
         });
         Ok(())
     }
-
-    pub(super) fn eval_rolling_var(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_var_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_rolling_var_into(
         &self,
         arg_results: &[&[f64]],
@@ -670,14 +606,6 @@ impl CompiledExpr {
             .sum::<f64>()
             / n
     }
-
-    pub(super) fn eval_rolling_median(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_median_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     /// Rolling median over a fixed row window.
     ///
     /// NaN policy: NaNs inside a window are excluded from both the sample and
@@ -713,14 +641,6 @@ impl CompiledExpr {
         });
         Ok(())
     }
-
-    pub(super) fn eval_shift(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_shift_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_shift_into(
         &self,
         arg_results: &[&[f64]],
@@ -934,14 +854,6 @@ impl CompiledExpr {
         }
         Vec::with_capacity(len)
     }
-
-    pub(super) fn eval_rolling_min(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_min_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_rolling_min_into(
         &self,
         arg_results: &[&[f64]],
@@ -963,14 +875,6 @@ impl CompiledExpr {
         Self::rolling_apply_into(base, win, out, &mut finite_min_or_nan);
         Ok(())
     }
-
-    pub(super) fn eval_rolling_max(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_max_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_rolling_max_into(
         &self,
         arg_results: &[&[f64]],
@@ -992,14 +896,6 @@ impl CompiledExpr {
         Self::rolling_apply_into(base, win, out, &mut finite_max_or_nan);
         Ok(())
     }
-
-    pub(super) fn eval_rolling_count(&self, arg_results: &[&[f64]]) -> crate::Result<Vec<f64>> {
-        let len = arg_results.first().map(|a| a.len()).unwrap_or(0);
-        let mut out = vec![0.0; len];
-        self.eval_rolling_count_into(arg_results, &mut out)?;
-        Ok(out)
-    }
-
     pub(super) fn eval_rolling_count_into(
         &self,
         arg_results: &[&[f64]],
@@ -1101,29 +997,16 @@ impl CompiledExpr {
         _cols: &[&[f64]],
     ) -> crate::Result<Vec<f64>> {
         match fun {
-            Function::Lag => self.eval_lag(arg_results),
-            Function::Lead => self.eval_lead(arg_results),
-            Function::Diff => self.eval_diff(arg_results),
-            Function::PctChange => self.eval_pct_change(arg_results),
             Function::CumSum => Ok(self.eval_cum_sum(arg_results)),
             Function::CumProd => Ok(self.eval_cum_prod(arg_results)),
             Function::CumMin => Ok(self.eval_cum_min(arg_results)),
             Function::CumMax => Ok(self.eval_cum_max(arg_results)),
-            Function::RollingMean => self.eval_rolling_mean(arg_results),
-            Function::RollingSum => self.eval_rolling_sum(arg_results),
             Function::EwmMean => Ok(self.eval_ewm_mean(arg_results)),
             Function::Std => Ok(self.eval_std(arg_results)),
             Function::Var => Ok(self.eval_var(arg_results)),
             Function::Median => Ok(self.eval_median(arg_results)),
-            Function::RollingStd => self.eval_rolling_std(arg_results),
-            Function::RollingVar => self.eval_rolling_var(arg_results),
-            Function::RollingMedian => self.eval_rolling_median(arg_results),
-            Function::Shift => self.eval_shift(arg_results),
             Function::Rank => Ok(self.eval_rank(arg_results)),
             Function::Quantile => Ok(self.eval_quantile(arg_results)),
-            Function::RollingMin => self.eval_rolling_min(arg_results),
-            Function::RollingMax => self.eval_rolling_max(arg_results),
-            Function::RollingCount => self.eval_rolling_count(arg_results),
             Function::EwmStd => Ok(self.eval_ewm_std(arg_results)),
             Function::EwmVar => Ok(self.eval_ewm_var(arg_results)),
             Function::Abs => Ok(self.eval_abs(arg_results)),
@@ -1138,6 +1021,23 @@ impl CompiledExpr {
             Function::Sqrt => Ok(self.eval_sqrt(arg_results)),
             Function::Clamp => Ok(self.eval_clamp(arg_results)),
             Function::IsMissing => Ok(self.eval_is_missing(arg_results)),
+            // The windowed/lag family is evaluated arena-first through the
+            // `eval_*_into` writers in `eval.rs`; it never reaches this path.
+            Function::Lag
+            | Function::Lead
+            | Function::Diff
+            | Function::PctChange
+            | Function::RollingMean
+            | Function::RollingSum
+            | Function::RollingStd
+            | Function::RollingVar
+            | Function::RollingMedian
+            | Function::Shift
+            | Function::RollingMin
+            | Function::RollingMax
+            | Function::RollingCount => Err(crate::Error::Internal(format!(
+                "{fun:?} is evaluated through eval_function_into"
+            ))),
             Function::Sum
             | Function::Mean
             | Function::Ttm

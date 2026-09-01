@@ -75,7 +75,10 @@
 
 use crate::{error::InputError, types::CurveId};
 
-use super::{fx_atm_dns_strike, fx_forward, fx_smile_pillars, interp_linear_clamp, VolSurface};
+use super::{fx_atm_dns_strike, fx_forward, fx_smile_pillars, VolSurface};
+use crate::math::interp::{
+    ExtrapolationPolicy, InterpFn, Interpolator, LinearStrategy, ValidationPolicy,
+};
 
 /// Builder that converts FX delta-quoted vols to a standard strike-based [`VolSurface`].
 ///
@@ -354,7 +357,6 @@ impl FxDeltaVolSurfaceBuilder {
             all_strikes.dedup_by(|a, b| (*a - *b).abs() < 1e-10);
 
             let strikes = &all_strikes;
-            let n_strikes = strikes.len();
 
             let mut builder = VolSurface::builder(self.id)
                 .expiries(&self.expiries)
@@ -363,12 +365,14 @@ impl FxDeltaVolSurfaceBuilder {
             // Each row samples that expiry's OWN smile only: linear within
             // its own 3/5 pillars, flat beyond its own quoted wings. Strikes
             // contributed by other expiries never alter the smile shape.
-            for (known_strikes, known_vols) in &per_expiry_smiles {
-                let mut row = Vec::with_capacity(n_strikes);
-                for &k in strikes {
-                    let vol = interp_linear_clamp(known_strikes, known_vols, k);
-                    row.push(vol);
-                }
+            for (known_strikes, known_vols) in per_expiry_smiles {
+                let smile = Interpolator::<LinearStrategy>::new(
+                    known_strikes.into_boxed_slice(),
+                    known_vols.into_boxed_slice(),
+                    ExtrapolationPolicy::FlatZero,
+                    ValidationPolicy::AllowNegative,
+                )?;
+                let row: Vec<f64> = strikes.iter().map(|&k| smile.interp(k)).collect();
                 builder = builder.row(&row);
             }
 

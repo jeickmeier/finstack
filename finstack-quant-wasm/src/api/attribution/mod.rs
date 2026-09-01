@@ -163,7 +163,6 @@ fn error_variant_name(err: &finstack_quant_core::Error) -> &'static str {
     use finstack_quant_core::Error as E;
     match err {
         E::Input(_) => "Input",
-        E::InterpOutOfBounds => "InterpOutOfBounds",
         E::CurrencyMismatch { .. } => "CurrencyMismatch",
         E::Calibration { .. } => "Calibration",
         E::Validation(_) => "Validation",

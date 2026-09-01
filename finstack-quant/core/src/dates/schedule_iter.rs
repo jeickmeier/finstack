@@ -118,9 +118,7 @@
 
 use time::Date;
 
-use super::schedule_gen::{
-    enforce_monotonic_and_dedup, generate_imm_dates, is_cds_roll_date, BuilderInternal,
-};
+use super::schedule_gen::{enforce_monotonic_and_dedup, generate_imm_dates, BuilderInternal};
 use super::{adjust, prev_cds_date, BusinessDayConvention, DateExt, HolidayCalendar};
 use crate::error::InputError;
 
@@ -958,7 +956,7 @@ impl<'a> ScheduleBuilder<'a> {
             // one. Snapping the start forward (the previous behavior) dropped
             // that initial accrual period (2026-06-09 core quant review,
             // Moderate/Dates).
-            let adj_start = if is_cds_roll_date(self.start) {
+            let adj_start = if crate::dates::imm::is_cds_date(self.start) {
                 self.start
             } else {
                 prev_cds_date(self.start)

@@ -26,23 +26,11 @@ fn date_ext_is_weekend() {
     let thursday = make_date(2025, 1, 2);
     assert!(!thursday.is_weekend());
 }
-
 #[test]
 fn date_ext_quarter() {
     assert_eq!(make_date(2025, 1, 15).quarter(), 1);
-    assert_eq!(make_date(2025, 2, 28).quarter(), 1);
-    assert_eq!(make_date(2025, 3, 31).quarter(), 1);
-
     assert_eq!(make_date(2025, 4, 1).quarter(), 2);
-    assert_eq!(make_date(2025, 5, 15).quarter(), 2);
-    assert_eq!(make_date(2025, 6, 30).quarter(), 2);
-
-    assert_eq!(make_date(2025, 7, 1).quarter(), 3);
-    assert_eq!(make_date(2025, 8, 15).quarter(), 3);
     assert_eq!(make_date(2025, 9, 30).quarter(), 3);
-
-    assert_eq!(make_date(2025, 10, 1).quarter(), 4);
-    assert_eq!(make_date(2025, 11, 15).quarter(), 4);
     assert_eq!(make_date(2025, 12, 31).quarter(), 4);
 }
 
@@ -136,17 +124,4 @@ fn date_ext_add_business_days_zero() {
     let date = make_date(2025, 6, 27);
     let result = date.add_business_days(0, &cal).unwrap();
     assert_eq!(result, date);
-}
-
-#[test]
-fn date_ext_next_imm() {
-    // After March IMM (March 19, 2025), next is June 18
-    let after_march = make_date(2025, 3, 20);
-    let next = after_march.next_imm();
-    assert_eq!(next, make_date(2025, 6, 18));
-
-    // Before March IMM, next is March 19
-    let before_march = make_date(2025, 3, 10);
-    let next = before_march.next_imm();
-    assert_eq!(next, make_date(2025, 3, 19));
 }

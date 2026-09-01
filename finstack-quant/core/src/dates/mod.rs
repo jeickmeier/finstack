@@ -95,7 +95,7 @@ pub use schedule_iter::{
     Schedule, ScheduleBuilder, ScheduleErrorPolicy, ScheduleSpec, ScheduleWarning, StubKind,
 };
 
-pub use calendar::composite::{CompositeCalendar, CompositeMode};
+pub use calendar::composite::CompositeCalendar;
 
 mod imm;
 mod tenor;

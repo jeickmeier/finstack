@@ -31,9 +31,6 @@ mod rules;
 #[path = "dates/rules_coverage.rs"]
 mod rules_coverage;
 
-#[path = "dates/rules_serde.rs"]
-mod rules_serde;
-
 // Calendar Infrastructure
 #[path = "dates/adjustment.rs"]
 mod adjustment;

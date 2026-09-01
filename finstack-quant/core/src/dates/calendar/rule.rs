@@ -28,7 +28,11 @@
 //! use time::{Date, Month};
 //!
 //! // Fixed date: July 4th (US Independence Day)
-//! let july4 = Rule::fixed_weekend(Month::July, 4);
+//! let july4 = Rule::Fixed {
+//!     month: Month::July,
+//!     day: 4,
+//!     observed: Observed::FriIfSatMonIfSun,
+//! };
 //!
 //! // Check if specific date is a holiday
 //! let date = Date::from_calendar_date(2025, Month::July, 4)?;
@@ -51,7 +55,6 @@
 //! [`HolidayCalendar`]: super::business_days::HolidayCalendar
 
 use crate::dates::calendar::algo;
-use crate::dates::calendar::business_days::HolidayCalendar;
 use time::{Date, Duration, Month, Weekday};
 
 /// Weekend observation convention for fixed-date holidays.
@@ -100,8 +103,7 @@ use time::{Date, Duration, Month, Weekday};
 /// - **UK Christmas/Boxing Day**: MonIfSatTueIfSun (chained substitution so the
 ///   two observed days never collide)
 /// - **European markets**: Mixed; often NextMonday or None
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Observed {
     /// No adjustment—holiday is observed **only** on the exact calendar date.
@@ -176,8 +178,7 @@ pub enum Observed {
 /// assert!(election_day.applies(date));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Direction {
     /// Find the nearest occurrence of the weekday **on or after** the reference date.
@@ -230,7 +231,11 @@ pub enum Direction {
 /// use finstack_quant_core::dates::{Rule, Observed};
 /// use time::{Date, Month};
 ///
-/// let new_years = Rule::fixed_next_monday(Month::January, 1);
+/// let new_years = Rule::Fixed {
+///     month: Month::January,
+///     day: 1,
+///     observed: Observed::NextMonday,
+/// };
 ///
 /// // Jan 1, 2022 is Saturday → observed Monday Jan 3
 /// let sat = Date::from_calendar_date(2022, Month::January, 1)?;
@@ -277,8 +282,7 @@ pub enum Direction {
 /// - [`HolidayCalendar`] for using rules in calendars
 ///
 /// [`HolidayCalendar`]: super::business_days::HolidayCalendar
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum Rule {
     /// Exact one-off calendar date.
@@ -373,7 +377,6 @@ pub enum Rule {
     /// # Note
     /// This variant cannot be serialized (contains `&'static Rule`).
     /// Used only in compiled calendar definitions.
-    #[serde(skip)]
     Span {
         /// Rule defining the start date(s)
         start: &'static Rule,
@@ -473,7 +476,6 @@ pub enum Rule {
     /// Like [`Span`](Rule::Span) this variant contains `&'static Rule` and so is
     /// not serializable; it is produced only by the compiled calendar
     /// definitions.
-    #[serde(skip)]
     Effective {
         /// Inclusive first year the inner rule applies (`None` = unbounded).
         from_year: Option<i32>,
@@ -513,7 +515,6 @@ pub enum Rule {
     /// Like [`Span`](Rule::Span) this variant contains `&'static Rule` and so is
     /// not serializable; it is produced only by the compiled calendar
     /// definitions.
-    #[serde(skip)]
     ChinaBridge {
         /// Single-day festival rule to expand into a bridged closure block.
         festival: &'static Rule,
@@ -545,26 +546,6 @@ impl Rule {
             month,
             day,
             observed: Observed::None,
-        }
-    }
-
-    /// Convenience for fixed date with Monday substitution.
-    #[inline]
-    pub const fn fixed_next_monday(month: Month, day: u8) -> Self {
-        Rule::Fixed {
-            month,
-            day,
-            observed: Observed::NextMonday,
-        }
-    }
-
-    /// Convenience for US-style Fri/Sat-Mon substitution.
-    #[inline]
-    pub const fn fixed_weekend(month: Month, day: u8) -> Self {
-        Rule::Fixed {
-            month,
-            day,
-            observed: Observed::FriIfSatMonIfSun,
         }
     }
 }
@@ -997,13 +978,6 @@ impl Rule {
                 }
             }
         }
-    }
-}
-
-// Implement HolidayCalendar for &[Rule]
-impl HolidayCalendar for &[Rule] {
-    fn is_holiday(&self, date: Date) -> bool {
-        self.iter().any(|r| r.applies(date))
     }
 }
 

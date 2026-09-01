@@ -2,8 +2,7 @@
 
 use finstack_quant_core::dates::calendar::{GBLO, NYSE, TARGET2};
 use finstack_quant_core::dates::{
-    available_calendars, calendar_by_id, calendars_by_ids, CompositeCalendar, CompositeMode, Date,
-    HolidayCalendar,
+    available_calendars, calendar_by_id, calendars_by_ids, CompositeCalendar, Date, HolidayCalendar,
 };
 use finstack_quant_core::types::CalendarId;
 use time::Month;
@@ -51,7 +50,7 @@ fn strict_many_resolution_preserves_order_and_builds_composite() {
     assert_eq!(calendars[1].metadata().expect("metadata").id, "target2");
     assert_eq!(calendars[2].metadata().expect("metadata").id, "nyse");
 
-    let composite = CompositeCalendar::with_mode(&calendars[..2], CompositeMode::Union);
+    let composite = CompositeCalendar::new(&calendars[..2]);
     assert!(composite.is_holiday(make_date(2025, 1, 1)));
     assert!(composite.is_holiday(make_date(2025, 5, 26)));
 }

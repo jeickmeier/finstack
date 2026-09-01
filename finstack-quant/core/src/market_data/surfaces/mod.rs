@@ -156,32 +156,6 @@ pub(crate) fn fx_smile_pillars(
         Ok((vec![k_put, k_atm, k_call], vec![sigma_put, atm, sigma_call]))
     }
 }
-
-/// Piecewise-linear interpolation on sorted knots with flat extrapolation.
-pub(crate) fn interp_linear_clamp(xs: &[f64], ys: &[f64], x: f64) -> f64 {
-    debug_assert!(!xs.is_empty());
-    debug_assert_eq!(xs.len(), ys.len());
-
-    if !x.is_finite() {
-        return f64::NAN;
-    }
-
-    if x <= xs[0] {
-        return ys[0];
-    }
-    let n = xs.len();
-    if x >= xs[n - 1] {
-        return ys[n - 1];
-    }
-
-    let idx = xs.partition_point(|&xi| xi < x);
-    // idx is now the first index where xs[idx] >= x
-    // idx >= 1 (because we already handled x <= xs[0])
-    // idx < n (because we already handled x >= xs[n-1])
-    let t = (x - xs[idx - 1]) / (xs[idx] - xs[idx - 1]);
-    ys[idx - 1] + t * (ys[idx] - ys[idx - 1])
-}
-
 pub use delta_vol_surface::FxDeltaVolSurfaceBuilder;
 pub use fx_delta_vol_surface::FxDeltaVolSurface;
 pub use sabr_parameter_data::SabrParameterData;

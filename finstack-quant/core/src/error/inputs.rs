@@ -106,15 +106,6 @@ pub enum InputError {
     #[error("Invalid date range: start must be before end")]
     InvalidDateRange,
 
-    /// Schedule range is invalid: start must be strictly before end.
-    #[error("Invalid schedule range: start ({start}) must be before end ({end})")]
-    InvalidScheduleRange {
-        /// Schedule start date.
-        start: time::Date,
-        /// Schedule end date.
-        end: time::Date,
-    },
-
     /// `StubKind::None` was requested but the tenor does not divide evenly
     /// into the schedule range. Use `ShortBack` or `ShortFront` instead.
     #[error(

@@ -111,21 +111,6 @@ pub trait DateExt: Sized {
         cal: &C,
     ) -> crate::Result<Self>;
 
-    /// Returns `true` if the date is a business day according to the provided
-    /// `calendar` (see `HolidayCalendar`).
-    ///
-    /// This is a thin convenience wrapper around
-    /// `HolidayCalendar::is_business_day`, enabling fluent method-style
-    /// calls. See repository examples under `examples/` for usage.
-    fn is_business_day<C: crate::dates::HolidayCalendar + ?Sized>(self, cal: &C) -> bool;
-
-    /// Returns the **next IMM date** (third Wednesday of Mar/Jun/Sep/Dec)
-    /// strictly **after** `self`.
-    ///
-    /// Equivalent to calling [`crate::dates::next_imm`] but available as a
-    /// method for improved discoverability.
-    fn next_imm(self) -> Self;
-
     /// Calculate the number of whole months between two dates.
     ///
     /// Returns the difference as `(other.year - self.year) * 12 + (other.month - self.month)`.
@@ -147,6 +132,10 @@ pub trait DateExt: Sized {
     /// assert_eq!(end.months_until(start), 0);
     /// ```
     fn months_until(self, other: Self) -> u32;
+
+    /// Returns `true` if the date is a business day according to the provided
+    /// `cal` (see `HolidayCalendar`).
+    fn is_business_day<C: crate::dates::HolidayCalendar + ?Sized>(self, cal: &C) -> bool;
 }
 
 impl DateExt for Date {
@@ -291,10 +280,6 @@ impl DateExt for Date {
         cal.is_business_day(self)
     }
 
-    fn next_imm(self) -> Self {
-        crate::dates::next_imm(self)
-    }
-
     fn months_until(self, other: Self) -> u32 {
         let mut months =
             (other.year() - self.year()) * 12 + (other.month() as i32 - self.month() as i32);
@@ -328,15 +313,6 @@ mod tests {
         assert!(sun.is_weekend());
         assert!(!fri.is_weekend());
     }
-
-    #[test]
-    fn test_quarter() {
-        assert_eq!(make_date(2025, 1, 1).quarter(), 1);
-        assert_eq!(make_date(2025, 4, 15).quarter(), 2);
-        assert_eq!(make_date(2025, 8, 1).quarter(), 3);
-        assert_eq!(make_date(2025, 11, 30).quarter(), 4);
-    }
-
     #[test]
     fn test_add_weekdays_forward() {
         let start = make_date(2025, 6, 27); // Friday

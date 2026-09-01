@@ -43,4 +43,4 @@ pub use id::{
     CalendarId, CurveId, DealId, Id, IndexId, InstrumentId, IssuerId, PoolId, PriceId, UnderlyingId,
 };
 pub use rates::{Bps, Percentage, Rate};
-pub use ratings::{CreditRating, RatingLabel};
+pub use ratings::CreditRating;
