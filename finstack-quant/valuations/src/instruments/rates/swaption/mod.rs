@@ -106,8 +106,6 @@ use finstack_quant_core::dates::Date;
 
 /// Bermudan swaption pricing orchestration.
 pub(crate) mod bermudan;
-/// Bermudan swaption pricer using Cheyette + rough stochastic volatility
-pub(crate) mod cheyette_rough_pricer;
 /// Hull-White 1-factor tree pricer for European swaptions
 pub(crate) mod hw_pricer;
 /// Bermudan swaption LMM structure construction and Monte Carlo pricer.

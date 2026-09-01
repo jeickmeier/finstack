@@ -343,12 +343,7 @@ fn standard_pricer_registry_has_exact_expected_coverage() {
         (I::Swaption, vec![M::Black76, M::HullWhite1F, M::Normal]),
         (
             I::BermudanSwaption,
-            vec![
-                M::HullWhite1F,
-                M::MonteCarloHullWhite1F,
-                M::LmmMonteCarlo,
-                M::MonteCarloCheyetteRoughVol,
-            ],
+            vec![M::HullWhite1F, M::MonteCarloHullWhite1F, M::LmmMonteCarlo],
         ),
         (I::BasisSwap, vec![M::Discounting]),
         (I::Basket, vec![M::Discounting]),

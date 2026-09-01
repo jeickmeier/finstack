@@ -19,7 +19,7 @@ rather than repeating it.
 | `basis_swap/` | Float-for-float basis swaps | Spread is added to the **primary** leg by convention; used to calibrate tenor and index basis (Ametrano–Bianchetti 2013; Fujii–Shimada–Takahashi 2010) | no |
 | `xccy_swap/` | Cross-currency swaps | Per-leg projection and discount curves, explicit calendars with no implicit fallback, leg PVs collapsed to a reporting currency at spot FX. `NotionalExchange` = `None`, `Final`, `InitialAndFinal`, `MtmResetting`; `ResettingSide` picks the MtM-resetting leg. Reset lag is applied when building periods; overnight-RFR legs use the shared compounded coupon engine | no |
 | `cap_floor/` | Caps, floors, caplets and floorlets | `CapFloorVolType::Auto` treats quotes as lognormal, using Black-76 for positive forwards/strikes and an equivalent-normal Bachelier fallback otherwise; normal surfaces must select `Normal`. Term schedules use the explicit calendar or the currency-standard rates calendar. Compounded RFR coupons distinguish lookback, observation shift and cutoff, and discount through payment delay. `expiry()` is the final contractual fixing date. An optional dated positive premium is paid by the holder and deducted from NPV while unsettled | no |
-| `swaption/` | European and Bermudan swaptions | Black-76 / Bachelier / SABR for Europeans; HW1F tree, LSMC, LMM-BGM and Cheyette-rough for Bermudans. Fixed and floating legs carry independent conventions. Cash settlement defaults to collateralized cash price; par-yield, ISDA par-par and zero-coupon methods remain explicit alternatives. Physical `value()` prices the pre-exercise option claim; the delivered swap lifecycle is external | no |
+| `swaption/` | European and Bermudan swaptions | Black-76 / Bachelier / SABR for Europeans; HW1F tree, LSMC and LMM-BGM for Bermudans. Fixed and floating legs carry independent conventions. Cash settlement defaults to collateralized cash price; par-yield, ISDA par-par and zero-coupon methods remain explicit alternatives. Physical `value()` prices the pre-exercise option claim; the delivered swap lifecycle is external | no |
 | `deposit/` | Money-market deposits | Simple (uncompounded) interest. Day count and spot lag come from the index convention registry, not from the instrument: ACT/360 and T+2 for USD, EUR and CHF; ACT/365F for GBP (T+0) and JPY (T+2). Calibrates the overnight-to-1Y end of the discount curve | no |
 | `fra/` | Forward rate agreements | Settled at period start with the characteristic `1/(1 + F·τ)` adjustment; "3×6" names a 3-month rate fixing in 3 months | no |
 | `repo/` | Term, open and overnight repurchase agreements | Cash-lender perspective: outflow on the adjusted start date, principal plus simple repo interest on the adjusted maturity date. `CollateralType::Special` may move the repo rate; the haircut sizes required collateral but does not change cashflows or base PV. Implements `Marginable` with an optional `RepoMarginSpec`; margin calls, substitutions and tri-party operations are caller-generated, not modeled here | no |
@@ -72,8 +72,7 @@ Reusable `HullWhiteParams` and Hull-White equations live at
 `VolatilityModel` used by pricing overrides. Do not collapse them.
 
 Inside a leaf, `metrics/`, `types.rs`/`types/`, `pricer.rs`/`pricing/` and the
-model-specific pricers (`hw_pricer.rs`, `lmm_pricer.rs`,
-`cheyette_rough_pricer.rs`, `bermudan/`) are `pub(crate)` or private; supported
+model-specific pricers (`hw_pricer.rs`, `lmm_pricer.rs`, `bermudan/`) are `pub(crate)` or private; supported
 items surface through each leaf's `pub use`. Genuinely public submodules are
 `irs::compounding`, `cms_option::pricer`, `cms_option::replication_pricer`,
 `cms_swap::pricer`, and every module under `hw1f` except `hw1f::fixings`, which

@@ -380,11 +380,6 @@
           "type": "string"
         },
         {
-          "const": "monte_carlo_cheyette_rough_vol",
-          "description": "Monte Carlo with Cheyette + rough volatility (hybrid rates model).\n\nUsed for: swaptions and exotic rate derivatives requiring\nrough vol dynamics in a short-rate framework.",
-          "type": "string"
-        },
-        {
           "const": "pde_crank_nicolson_1d",
           "description": "1D Crank-Nicolson finite difference PDE solver.\n\nUsed for: European/American equity options, barrier options,\nFX options. Names the scheme family: production pricers run\nRannacher-damped CN (implicit start-up steps, Rannacher 1984),\nwith a penalty method for early exercise.",
           "type": "string"

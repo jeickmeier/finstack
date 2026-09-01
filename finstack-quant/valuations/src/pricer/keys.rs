@@ -472,11 +472,6 @@ pub enum ModelKey {
     /// Used for: European equity options with rough Heston dynamics,
     /// using Lewis (2000) single-integral Fourier inversion.
     RoughHestonFourier = 42,
-    /// Monte Carlo with Cheyette + rough volatility (hybrid rates model).
-    ///
-    /// Used for: swaptions and exotic rate derivatives requiring
-    /// rough vol dynamics in a short-rate framework.
-    MonteCarloCheyetteRoughVol = 43,
     /// 1D Crank-Nicolson finite difference PDE solver.
     ///
     /// Used for: European/American equity options, barrier options,
@@ -539,7 +534,6 @@ impl ModelKey {
             ModelKey::MonteCarloRoughBergomi => "monte_carlo_rough_bergomi",
             ModelKey::MonteCarloRoughHeston => "monte_carlo_rough_heston",
             ModelKey::RoughHestonFourier => "rough_heston_fourier",
-            ModelKey::MonteCarloCheyetteRoughVol => "monte_carlo_cheyette_rough_vol",
             ModelKey::PdeCrankNicolson1D => "pde_crank_nicolson_1d",
             ModelKey::PdeAdi2D => "pde_adi_2d",
             ModelKey::BloombergCdso => "bloomberg_cdso",

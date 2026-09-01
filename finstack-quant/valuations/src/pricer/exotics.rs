@@ -141,22 +141,6 @@ pub(crate) fn register_exotic_pricers(
         crate::instruments::rates::swaption::lmm_pricer::BermudanSwaptionLmmPricer::default(),
     )?;
 
-    // Bermudan Swaption - Cheyette Rough Vol Monte Carlo.
-    //
-    // Registered with `enforce_calibration`: kappa, eta, H (Hurst exponent)
-    // and rho are all hardcoded defaults that fully determine the rough-vol
-    // smile. Without calibration the resulting price is arbitrary. The guard
-    // refuses pricing via the registry so callers are directed to a
-    // calibrated model.
-    registry.register(
-        crate::instruments::rates::swaption::cheyette_rough_pricer::BermudanSwaptionCheyetteRoughPricer::with_config(
-            crate::instruments::rates::swaption::cheyette_rough_pricer::CheyetteRoughConfig {
-                enforce_calibration: true,
-                ..Default::default()
-            },
-        ),
-    )?;
-
     // Exotic rate products require explicit stochastic or replication models.
     Ok(())
 }

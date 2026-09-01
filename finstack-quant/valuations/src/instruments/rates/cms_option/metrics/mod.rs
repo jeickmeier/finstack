@@ -143,8 +143,9 @@ impl MetricCalculator for RhoCalculator {
             return Ok(0.0);
         }
 
-        // Bump discount curve by 1bp (0.0001)
-        let bump_bp = 0.0001;
+        // Bump discount curve by 1bp. The helper's argument is already in
+        // basis points, so pass `1.0`, not `0.0001`.
+        let bump_bp = 1.0;
         let curves_bumped =
             bump_discount_curve_parallel(&context.curves, &option.discount_curve_id, bump_bp)?;
 

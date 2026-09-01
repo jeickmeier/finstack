@@ -215,6 +215,50 @@ fn test_vanna_computable() {
 }
 
 #[test]
+fn rho_matches_manual_one_bp_discount_reprice() {
+    // Pin the rho scale: the metric must equal PV(discount curve + 1bp) - PV(base).
+    // A previous version passed `0.0001` to a basis-point bump helper, which
+    // reported a rho ~10^4x too small.
+    use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
+
+    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
+    let market = standard_market(as_of);
+    let inst = CmsOption::example();
+
+    let base_pv = inst.value(&market, as_of).unwrap().amount();
+    let bumped = market
+        .bump([MarketBump::Curve {
+            id: inst.discount_curve_id.clone(),
+            spec: BumpSpec::parallel_bp(1.0),
+        }])
+        .unwrap();
+    let manual_rho = inst.value(&bumped, as_of).unwrap().amount() - base_pv;
+
+    let result = inst
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Rho],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap();
+    let rho = result
+        .measures
+        .get(MetricId::Rho.as_str())
+        .copied()
+        .unwrap();
+
+    assert!(
+        manual_rho.abs() > 1.0,
+        "1bp rho should be material, got {manual_rho}"
+    );
+    assert!(
+        (rho - manual_rho).abs() <= 1e-9 * manual_rho.abs(),
+        "rho {rho} should equal manual 1bp reprice {manual_rho}"
+    );
+}
+
+#[test]
 fn test_cms_option_requires_vol_surface_in_market() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let market = standard_market(as_of);
