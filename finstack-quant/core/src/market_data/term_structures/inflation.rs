@@ -598,6 +598,7 @@ impl InflationCurve {
             .indexation_lag_months(self.indexation_lag_months)
             .base_cpi(new_base_cpi)
             .knots(rolled_points)
+            .interp(self.interp.style())
             .extrapolation(self.interp.extrapolation())
             .build()
     }
@@ -912,5 +913,23 @@ mod tests {
         assert!(rolled.base_date() > base);
         // And knot count should decrease as early knots expire
         assert!(rolled.knots().len() < ic.knots().len());
+    }
+
+    #[test]
+    fn roll_forward_preserves_interp_style_and_extrapolation() {
+        let base =
+            Date::from_calendar_date(2025, time::Month::January, 1).expect("Valid test date");
+        let ic = InflationCurve::builder("CPI-ROLL")
+            .base_date(base)
+            .base_cpi(300.0)
+            .knots([(0.5, 303.0), (1.0, 306.0), (5.0, 330.0)])
+            .interp(InterpStyle::Linear)
+            .extrapolation(ExtrapolationPolicy::FlatZero)
+            .build()
+            .expect("InflationCurve builder should succeed in test");
+
+        let rolled = ic.roll_forward(30).expect("roll_forward should succeed");
+        assert_eq!(rolled.interp_style(), InterpStyle::Linear);
+        assert_eq!(rolled.extrapolation(), ExtrapolationPolicy::FlatZero);
     }
 }

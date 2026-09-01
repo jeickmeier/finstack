@@ -258,6 +258,7 @@ impl CurveStorage {
                         .indexation_lag_months(original.indexation_lag_months())
                         .knots(points)
                         .interp(original.interp_style())
+                        .extrapolation(original.extrapolation())
                         .build()?;
                     *self = Self::Inflation(Arc::new(rebuilt));
                     return Ok(());

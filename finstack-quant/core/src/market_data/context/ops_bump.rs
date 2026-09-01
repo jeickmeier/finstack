@@ -542,6 +542,30 @@ mod tests {
     }
 
     #[test]
+    fn inflation_curve_key_rate_bump_preserves_interp_and_extrapolation() {
+        let curve = InflationCurve::builder("US-CPI")
+            .base_date(as_of())
+            .base_cpi(300.0)
+            .knots([(0.0, 300.0), (1.0, 306.0), (2.0, 312.0)])
+            .interp(InterpStyle::Linear)
+            .extrapolation(ExtrapolationPolicy::FlatZero)
+            .build()
+            .expect("inflation curve");
+        let bumped = MarketContext::new()
+            .insert(curve)
+            .bump([MarketBump::Curve {
+                id: CurveId::new("US-CPI"),
+                spec: BumpSpec::triangular_key_rate_bp(0.0, 1.0, 2.0, 10.0),
+            }])
+            .expect("inflation curve key-rate bump");
+
+        let rebuilt = bumped.get_inflation_curve("US-CPI").expect("bumped curve");
+        assert_eq!(rebuilt.interp_style(), InterpStyle::Linear);
+        assert_eq!(rebuilt.extrapolation(), ExtrapolationPolicy::FlatZero);
+        assert_eq!(rebuilt.id().as_str(), "US-CPI");
+    }
+
+    #[test]
     fn inflation_curve_bump_preserves_extrapolation_policy() {
         let curve = InflationCurve::builder("US-CPI")
             .base_date(as_of())
