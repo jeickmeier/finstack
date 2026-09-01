@@ -165,26 +165,6 @@ pub struct ValidatedInfo {
     pub notes: Option<String>,
 }
 
-/// Optional metadata for individual test cases.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CaseMeta {
-    /// Notes about this specific test case.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-
-    /// Tags for filtering/categorization.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
-
-    /// Override reference source for this case if different from suite.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reference_override: Option<ReferenceSource>,
-
-    /// Extensible metadata.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub extra: HashMap<String, serde_json::Value>,
-}
-
 /// Tolerance specification for numeric comparisons.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", deny_unknown_fields)]
@@ -211,26 +191,19 @@ impl Tolerance {
         (actual - expected).abs() * 10_000.0
     }
 
+    /// The tolerance's own numeric threshold, in its variant's units.
+    fn value(&self) -> f64 {
+        match self {
+            Tolerance::Abs(tol)
+            | Tolerance::Rel(tol)
+            | Tolerance::Bps(tol)
+            | Tolerance::Pct(tol) => *tol,
+        }
+    }
+
     /// Check if actual is within tolerance of expected.
     pub fn is_within(&self, actual: f64, expected: f64) -> bool {
-        match self {
-            Tolerance::Abs(tol) => (actual - expected).abs() <= *tol,
-            Tolerance::Rel(tol) => {
-                if expected.abs() < 1e-15 {
-                    actual.abs() <= *tol
-                } else {
-                    ((actual - expected) / expected).abs() <= *tol
-                }
-            }
-            Tolerance::Bps(tol) => Self::bp_error(actual, expected) <= *tol,
-            Tolerance::Pct(tol) => {
-                if expected.abs() < 1e-15 {
-                    actual.abs() <= *tol
-                } else {
-                    ((actual - expected) / expected).abs() * 100.0 <= *tol
-                }
-            }
-        }
+        self.compute_error(actual, expected) <= self.value()
     }
 
     /// Compute the error between actual and expected.
@@ -286,42 +259,6 @@ pub enum Expectation {
 }
 
 impl Expectation {
-    /// Create an exact expectation with absolute tolerance.
-    pub fn exact(value: f64, tolerance: f64) -> Self {
-        Expectation::Exact {
-            value,
-            tolerance: Some(Tolerance::Abs(tolerance)),
-            notes: None,
-        }
-    }
-
-    /// Create an exact expectation with basis points tolerance.
-    pub fn exact_bp(value: f64, tolerance_bp: f64) -> Self {
-        Expectation::Exact {
-            value,
-            tolerance: Some(Tolerance::Bps(tolerance_bp)),
-            notes: None,
-        }
-    }
-
-    /// Create an exact expectation with percentage tolerance.
-    pub fn exact_pct(value: f64, tolerance_pct: f64) -> Self {
-        Expectation::Exact {
-            value,
-            tolerance: Some(Tolerance::Pct(tolerance_pct)),
-            notes: None,
-        }
-    }
-
-    /// Create a range expectation.
-    pub fn range(min: Option<f64>, max: Option<f64>) -> Self {
-        Expectation::Range {
-            min,
-            max,
-            notes: None,
-        }
-    }
-
     /// Check if actual satisfies this expectation.
     pub fn is_satisfied(&self, actual: f64) -> bool {
         match self {
@@ -388,14 +325,22 @@ mod tests {
 
     #[test]
     fn test_expectation_exact() {
-        let exp = Expectation::exact(100.0, 0.5);
+        let exp = Expectation::Exact {
+            value: 100.0,
+            tolerance: Some(Tolerance::Abs(0.5)),
+            notes: None,
+        };
         assert!(exp.is_satisfied(100.3));
         assert!(!exp.is_satisfied(100.6));
     }
 
     #[test]
     fn test_expectation_range() {
-        let exp = Expectation::range(Some(0.0), Some(100.0));
+        let exp = Expectation::Range {
+            min: Some(0.0),
+            max: Some(100.0),
+            notes: None,
+        };
         assert!(exp.is_satisfied(50.0));
         assert!(!exp.is_satisfied(-1.0));
         assert!(!exp.is_satisfied(101.0));

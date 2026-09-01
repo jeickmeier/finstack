@@ -3,7 +3,7 @@
 //! This module provides assertion helpers that produce actionable error
 //! messages including case identifiers, metric labels, and provenance.
 
-use crate::golden::types::{Expectation, SuiteMeta, Tolerance};
+use crate::golden::types::{Expectation, SuiteMeta};
 use crate::Error;
 
 /// Assertion context for golden test comparisons.
@@ -14,15 +14,17 @@ use crate::Error;
 /// # Example
 ///
 /// ```
-/// use finstack_quant_test_utils::golden::{GoldenAssert, SuiteMeta};
+/// use finstack_quant_test_utils::golden::{Expectation, GoldenAssert, SuiteMeta, Tolerance};
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let meta: SuiteMeta =
 ///     serde_json::from_str(r#"{"suite_id": "black_scholes", "schema_version": 1}"#)?;
 /// let check = GoldenAssert::new(&meta, "case_123");
+/// let tight = Expectation::Exact { value: 10.4500, tolerance: Some(Tolerance::Abs(0.01)), notes: None };
+/// let strict = Expectation::Exact { value: 10.4500, tolerance: Some(Tolerance::Abs(1e-9)), notes: None };
 ///
-/// check.abs("price", 10.4506, 10.4500, 0.01)?;
-/// assert!(check.abs("price", 10.4506, 10.4500, 1e-9).is_err());
+/// check.expected("price", 10.4506, &tight)?;
+/// assert!(check.expected("price", 10.4506, &strict).is_err());
 /// # Ok(())
 /// # }
 /// ```
@@ -44,38 +46,6 @@ impl<'a> GoldenAssert<'a> {
             suite_id: &meta.suite_id,
             case_id,
         }
-    }
-
-    /// Assert with absolute tolerance.
-    ///
-    /// # Arguments
-    ///
-    /// * `metric` - Name of the measured quantity included in diagnostics.
-    /// * `actual` - Observed floating-point value produced by the test.
-    /// * `expected` - Expected floating-point value.
-    /// * `tolerance` - Allowed absolute difference in the same units as
-    ///   `actual` and `expected`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Validation`] when `actual` differs from `expected` by
-    /// more than `tolerance`.
-    pub fn abs(
-        &self,
-        metric: &str,
-        actual: f64,
-        expected: f64,
-        tolerance: f64,
-    ) -> Result<(), Error> {
-        self.expected(
-            metric,
-            actual,
-            &Expectation::Exact {
-                value: expected,
-                tolerance: Some(Tolerance::Abs(tolerance)),
-                notes: None,
-            },
-        )
     }
 
     /// Assert with an [`Expectation`] fixture entry.
@@ -123,7 +93,7 @@ impl<'a> GoldenAssert<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::golden::types::Expectation;
+    use crate::golden::types::{Expectation, Tolerance};
 
     #[test]
     fn golden_assert_context_checks_values_and_diagnostics() {
@@ -132,9 +102,14 @@ mod tests {
             ..Default::default()
         };
         let golden_assert = GoldenAssert::new(&meta, "case_1");
+        let tight = Expectation::Exact {
+            value: 1.0,
+            tolerance: Some(Tolerance::Abs(0.01)),
+            notes: None,
+        };
 
-        assert!(golden_assert.abs("value", 1.005, 1.0, 0.01).is_ok());
-        let mismatch = golden_assert.abs("value", 1.02, 1.0, 0.01);
+        assert!(golden_assert.expected("value", 1.005, &tight).is_ok());
+        let mismatch = golden_assert.expected("value", 1.02, &tight);
         assert!(mismatch.is_err());
         if let Err(error) = mismatch {
             let message = error.to_string();

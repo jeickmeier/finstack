@@ -12,6 +12,7 @@
 #![deny(clippy::unreachable)]
 #![doc(test(attr(allow(clippy::expect_used))))]
 
+pub mod assert;
 pub mod golden;
 
 /// Error type for shared test utility failures.

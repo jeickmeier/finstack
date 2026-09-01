@@ -40,7 +40,7 @@
 //!
 //! # API
 //!
-//! The data model comprises [`GoldenSuite`], [`SuiteMeta`], [`CaseMeta`],
+//! The data model comprises [`GoldenSuite`], [`SuiteMeta`],
 //! [`ReferenceSource`], [`GeneratedInfo`], [`ValidatedInfo`], [`Expectation`],
 //! and [`Tolerance`]. [`load_suite_from_path`] and [`load_suite_from_str`] load
 //! the envelope; [`golden_path`] and `golden_path!` resolve crate-local fixture
@@ -81,8 +81,7 @@ mod loader;
 mod types;
 
 pub use types::{
-    CaseMeta, Expectation, GeneratedInfo, GoldenSuite, ReferenceSource, SuiteMeta, Tolerance,
-    ValidatedInfo,
+    Expectation, GeneratedInfo, GoldenSuite, ReferenceSource, SuiteMeta, Tolerance, ValidatedInfo,
 };
 
 pub use loader::{golden_path, load_suite_from_path, load_suite_from_str};

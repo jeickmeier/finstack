@@ -47,7 +47,6 @@ Everything lives under `finstack_quant_test_utils::golden`, except the
 | `ReferenceSource` | Name / version / vendor / url of the reference values |
 | `GeneratedInfo` | `at`, `by`, optional `command` and `environment` |
 | `ValidatedInfo` | Optional record of who checked the values, how, and when |
-| `CaseMeta` | Optional per-case notes, tags, per-case reference override |
 | `Expectation` | `Exact { value, tolerance?, notes? }` or `Range { min?, max?, notes? }` |
 | `Tolerance` | `Abs`, `Rel`, `Bps`, `Pct` |
 | `load_suite_from_path` | Read + parse a fixture file into `GoldenSuite<T>` |
@@ -62,11 +61,13 @@ variant — match it with a wildcard arm. Assertions return errors rather than
 panicking, so a caller decides whether to accumulate failures or panic on the
 first one.
 
-`Expectation` and `Tolerance` also carry constructors and predicates not listed
-above (`Expectation::exact`, `exact_bp`, `exact_pct`, `range`, `is_satisfied`;
-`Tolerance::is_within`, `compute_error`), useful when a test builds an
-expectation in code instead of reading one from a fixture. Full API detail is in
-the rustdoc.
+`Expectation` and `Tolerance` also carry predicates not listed above
+(`Expectation::is_satisfied`; `Tolerance::is_within`, `compute_error`), useful
+when a test builds an expectation in code instead of reading one from a
+fixture — construct the enum variants directly (e.g. `Expectation::Exact {
+value, tolerance: Some(Tolerance::Abs(tol)), notes: None }`), or use the
+`assert` module's `approx_eq`/`relative_eq`/`in_range` helpers for a
+lighter-weight panicking check. Full API detail is in the rustdoc.
 
 ## Fixture format
 
@@ -97,8 +98,8 @@ Fixtures use one canonical v1 envelope. Arrays and bare objects are rejected.
 ```
 
 `cases` is decoded as the caller's own case type, so each suite defines its own
-input/expected shape. `meta.extra` (and `ReferenceSource.extra`,
-`CaseMeta.extra`) carry suite-specific metadata without changing the envelope.
+input/expected shape. `meta.extra` (and `ReferenceSource.extra`) carry
+suite-specific metadata without changing the envelope.
 
 ### Strictness
 
@@ -223,8 +224,11 @@ A second test asserting on `suite.meta` (suite id, non-empty
 `status`) keeps provenance from rotting away — see
 [`variance_tests.rs`](../core/tests/golden/variance_tests.rs).
 
-`GoldenAssert::abs(metric, actual, expected, tolerance)` is the shortcut when the
-tolerance is hard-coded in the test rather than carried in the fixture.
+`GoldenAssert::expected(metric, actual, &Expectation::Exact { value, tolerance: Some(Tolerance::Abs(tol)), notes: None })`
+is the shortcut when the tolerance is hard-coded in the test rather than
+carried in the fixture; `assert::approx_eq`/`relative_eq`/`in_range` are
+lighter-weight, panicking alternatives for tests that don't need suite/case
+provenance in the failure message.
 
 ## Regenerating fixtures
 
