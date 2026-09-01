@@ -727,27 +727,3 @@ impl From<RawStepUpCouponSpec> for StepUpCouponSpec {
         }
     }
 }
-
-impl StepUpCouponSpec {
-    /// Validate step dates and rates before compilation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when `step_schedule` dates are duplicated or not
-    /// strictly increasing. Rates are applied in their given decimal units;
-    /// this method does not impose a rate floor or cap.
-    pub fn validate(&self) -> finstack_quant_core::Result<()> {
-        for (window, current) in self
-            .step_schedule
-            .windows(2)
-            .zip(self.step_schedule.iter().skip(1))
-        {
-            if window[0].0 >= current.0 {
-                return Err(finstack_quant_core::Error::Validation(
-                    "StepUp step_schedule dates must be strictly increasing".into(),
-                ));
-            }
-        }
-        Ok(())
-    }
-}

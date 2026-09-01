@@ -10,7 +10,7 @@ use crate::builder::{
     Notional, PrincipalExchange, StepUpCouponSpec,
 };
 use crate::primitives::{is_cash_settlement_kind, CFKind};
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{parse_iso_date, Date};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::{Error, Result};
@@ -488,29 +488,10 @@ pub fn build_cashflow_schedule_json(spec_json: &str, market_json: Option<&str>) 
 /// ```
 pub fn validate_cashflow_schedule_json(schedule_json: &str) -> Result<String> {
     let schedule = parse_schedule(schedule_json)?;
-    validate_cashflow_schedule(&schedule)?;
+    schedule.validate()?;
     serialize_json(&schedule, "cashflow schedule")
 }
 
-/// Validate and canonicalize an in-memory schedule for all public consumers.
-///
-/// This delegates to [`CashFlowSchedule::validate`] and does not modify the
-/// schedule. It is the in-memory counterpart to
-/// [`validate_cashflow_schedule_json`].
-///
-/// # Arguments
-///
-/// * `schedule` - In-memory schedule to validate; its notional, flow ordering,
-///   currencies, and cross-flow economic invariants are checked without
-///   modifying it.
-///
-/// # Errors
-///
-/// Returns an error if a notional or flow is invalid, flow dates are out of
-/// order, or the schedule violates a cross-flow economic invariant.
-pub fn validate_cashflow_schedule(schedule: &CashFlowSchedule) -> Result<()> {
-    schedule.validate()
-}
 
 /// Extract dated amounts from a schedule JSON payload.
 ///
@@ -555,7 +536,7 @@ pub fn validate_cashflow_schedule(schedule: &CashFlowSchedule) -> Result<()> {
 /// ```
 pub fn dated_flows_json(schedule_json: &str) -> Result<String> {
     let schedule = parse_schedule(schedule_json)?;
-    validate_cashflow_schedule(&schedule)?;
+    schedule.validate()?;
     let flows: Vec<DatedFlowJson> = schedule
         .flows
         .iter()
@@ -628,7 +609,7 @@ pub fn accrued_interest(
     config_json: Option<&str>,
 ) -> Result<f64> {
     let schedule = parse_schedule(schedule_json)?;
-    validate_cashflow_schedule(&schedule)?;
+    schedule.validate()?;
     let as_of = parse_iso_date(as_of)?;
     let config = match config_json {
         Some(json) => serde_json::from_str::<AccrualConfig>(json)
@@ -650,12 +631,6 @@ fn parse_optional_market(market_json: Option<&str>) -> Result<Option<MarketConte
                 .map_err(|err| Error::Validation(format!("invalid market context JSON: {err}")))
         })
         .transpose()
-}
-
-fn parse_iso_date(value: &str) -> Result<Date> {
-    let format = time::format_description::well_known::Iso8601::DEFAULT;
-    Date::parse(value, &format)
-        .map_err(|err| Error::Validation(format!("invalid ISO date '{value}': {err}")))
 }
 
 fn serialize_json<T: serde::Serialize>(value: &T, label: &str) -> Result<String> {

@@ -32,7 +32,7 @@ pub fn bond_from_cashflows_json(
         serde_json::from_str(schedule_json).map_err(|err| {
             finstack_quant_core::Error::Validation(format!("invalid cashflow schedule JSON: {err}"))
         })?;
-    finstack_quant_cashflows::validate_cashflow_schedule(&schedule)?;
+    schedule.validate()?;
     let bond =
         super::Bond::from_cashflows(instrument_id, schedule, discount_curve_id, quoted_clean)?;
     let instrument = crate::instruments::InstrumentJson::Bond(bond);

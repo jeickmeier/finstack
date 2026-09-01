@@ -297,8 +297,7 @@ impl CashFlowSchedule {
     ///
     /// * `flows` - Classified cash, PIK, and notional rows to sort into
     ///   canonical schedule order. This constructor does not validate
-    ///   economic invariants; call [`Self::validate`] or
-    ///   [`Self::try_from_parts`] for untrusted input.
+    ///   economic invariants; call [`Self::validate`] for untrusted input.
     /// * `notional` - Trade notional amount in the instrument currency's major units
     /// * `day_count` - Day-count convention converting date pairs into year fractions
     /// * `meta` - Schedule-level calendars, facility limit, issue/maturity
@@ -317,40 +316,6 @@ impl CashFlowSchedule {
         };
         sort_schedule_with_metadata(&mut schedule);
         schedule
-    }
-
-    /// Construct and economically validate a schedule from classified flows.
-    ///
-    /// Use this constructor for untrusted or externally supplied state. Internal
-    /// builders that establish invariants while emitting flows may continue to
-    /// use [`Self::from_parts`].
-    ///
-    /// Flows are first put into canonical schedule order, then all row-level,
-    /// notional, ordering, and cross-flow economic invariants are checked.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the notional or a cashflow is invalid, flow dates
-    /// are not in canonical order after construction, or the schedule violates
-    /// its economic funding, balance, or currency invariants.
-    ///
-    /// # Arguments
-    ///
-    /// * `flows` - Classified cash, PIK, and notional rows to sort, then
-    ///   check against funding, balance, and currency invariants
-    /// * `notional` - Trade notional amount in the instrument currency's major units
-    /// * `day_count` - Day-count convention converting date pairs into year fractions
-    /// * `meta` - Schedule-level calendars, facility limit, issue/maturity
-    ///   dates, and representation tag stamped on the result
-    pub fn try_from_parts(
-        flows: Vec<CashFlow>,
-        notional: Notional,
-        day_count: DayCount,
-        meta: CashFlowMeta,
-    ) -> finstack_quant_core::Result<Self> {
-        let schedule = Self::from_parts(flows, notional, day_count, meta);
-        schedule.validate()?;
-        Ok(schedule)
     }
 
     /// Return the canonical ordered cashflows.
@@ -524,7 +489,7 @@ impl CashFlowSchedule {
     /// dates, and the cross-flow economic invariants that reconcile funding,
     /// outstanding balances, currencies, and the recorded schedule metadata.
     /// Use this after low-level mutation or deserializing state that bypassed
-    /// [`Self::try_from_parts`].
+    /// construction-time validation.
     ///
     /// # Errors
     ///
@@ -1367,10 +1332,10 @@ mod tests {
     }
 
     #[test]
-    fn try_from_parts_rejects_over_amortization() {
+    fn validate_rejects_over_amortization() {
         let date = Date::from_calendar_date(2025, Month::January, 15).expect("valid date");
 
-        let result = CashFlowSchedule::try_from_parts(
+        let schedule = CashFlowSchedule::from_parts(
             vec![flow(date, 150.0, CFKind::Amortization)],
             Notional::par(100.0, Currency::USD),
             DayCount::Act365F,
@@ -1378,7 +1343,7 @@ mod tests {
         );
 
         assert!(
-            result.is_err(),
+            schedule.validate().is_err(),
             "validated construction must reject over-amortization"
         );
     }

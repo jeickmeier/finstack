@@ -8,92 +8,8 @@
 use crate::builder::schedule::CashFlowSchedule;
 use crate::primitives::CFKind;
 use finstack_quant_core::dates::calendar::calendar_by_id;
-use finstack_quant_core::dates::HolidayCalendar;
-use finstack_quant_core::dates::{Date, DayCount, DayCountContext, Tenor};
+use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext, Tenor};
 use finstack_quant_core::money::Money;
-
-/// Helper to advance a date by N business days.
-///
-/// # Performance
-///
-/// For large shifts (>5 business days), this function uses week-jumping
-/// optimization: it advances by full weeks (7 calendar days ≈ 5 business days)
-/// to reduce calendar lookups from O(N) to approximately O(N/5) + O(5).
-/// This significantly improves performance for long-dated ex-coupon or
-/// settlement calculations (e.g., 1 year shift becomes ~52 jumps instead of ~260 lookups).
-fn advance_business_days<C: HolidayCalendar + ?Sized>(cal: &C, mut date: Date, days: i32) -> Date {
-    if days == 0 {
-        return date;
-    }
-
-    let forward = days > 0;
-    let mut remaining = days.unsigned_abs();
-
-    // Week-jumping optimization for large shifts.
-    // A standard week has 5 business days (Mon-Fri), so 7 calendar days ≈ 5 business days.
-    // We jump by full weeks to minimize calendar lookups.
-    //
-    // Note: The jump heuristic assumes at most 5 business days per calendar week.
-    // For calendars where a week could contain more business days than `remaining`
-    // (e.g., a hypothetical 6-business-day week), a full-week jump would overshoot;
-    // the guard below reverts such jumps and falls back to step-wise iteration so
-    // the result stays exact for any calendar.
-    const BUSINESS_DAYS_PER_WEEK: u32 = 5;
-    const CALENDAR_DAYS_PER_WEEK: i64 = 7;
-
-    while remaining >= BUSINESS_DAYS_PER_WEEK {
-        // Jump one week in the appropriate direction
-        let jump_days = if forward {
-            CALENDAR_DAYS_PER_WEEK
-        } else {
-            -CALENDAR_DAYS_PER_WEEK
-        };
-        date += time::Duration::days(jump_days);
-
-        // Count actual business days in the week we jumped.
-        // This handles weeks with holidays correctly.
-        let mut week_business_days = 0u32;
-        // For forward: check the 7 days we just traversed (from day after old position to new position)
-        // For backward: check from new position to day before old position
-        let check_start = if forward {
-            date + time::Duration::days(-CALENDAR_DAYS_PER_WEEK + 1)
-        } else {
-            date
-        };
-
-        for i in 0..CALENDAR_DAYS_PER_WEEK {
-            let check_date = check_start + time::Duration::days(i);
-            if cal.is_business_day(check_date) {
-                week_business_days += 1;
-            }
-        }
-
-        // Guard: revert the jump and fall through to step-by-step iteration when
-        // - the week contains no business days (pathological calendar with 7+
-        //   consecutive holidays), or
-        // - the week contains more business days than `remaining` (non-standard
-        //   calendars with >5 business days per week), which would overshoot.
-        if week_business_days == 0 || week_business_days > remaining {
-            date += time::Duration::days(-jump_days);
-            break;
-        }
-
-        // Deduct the business days we actually traversed
-        remaining = remaining.saturating_sub(week_business_days);
-    }
-
-    // Handle remaining days with step-by-step iteration (at most 4 business days
-    // for standard Mon-Fri calendars; more when a week-jump guard triggered above).
-    let step = if forward { 1i64 } else { -1i64 };
-    while remaining > 0 {
-        date += time::Duration::days(step);
-        if cal.is_business_day(date) {
-            remaining -= 1;
-        }
-    }
-
-    date
-}
 
 /// Generic accrual method usable across instruments.
 ///
@@ -201,7 +117,7 @@ impl ExCouponRule {
                     id: cal_id.clone(),
                 })
             })?;
-            Ok(advance_business_days(cal, payment_date, -days))
+            Ok(payment_date.add_business_days(-days, cal)?)
         } else {
             Ok(payment_date - time::Duration::days(i64::from(days)))
         }
