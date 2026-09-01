@@ -76,9 +76,9 @@ fn domain_registries() -> Vec<(&'static str, &'static [SchemaArtifact])> {
 /// ```
 #[must_use]
 pub fn artifacts() -> Vec<&'static SchemaArtifact> {
-    domain_registries()
+    artifacts_with_domain()
         .into_iter()
-        .flat_map(|(_, registry)| registry.iter())
+        .map(|(_, artifact)| artifact)
         .collect()
 }
 
@@ -120,25 +120,41 @@ pub fn documents_by_id() -> Result<BTreeMap<String, Value>> {
 }
 
 /// The whole corpus, rendered once and cached for the process lifetime.
-fn corpus() -> &'static BTreeMap<String, Value> {
-    static CACHE: std::sync::OnceLock<BTreeMap<String, Value>> = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| documents_by_id().unwrap_or_default())
+///
+/// # Errors
+///
+/// Returns [`Error::Internal`] if any single artifact fails to render; a
+/// partial corpus would silently degrade every cross-document `$ref`
+/// resolution and union-failure expansion that depends on it.
+fn corpus() -> Result<&'static BTreeMap<String, Value>> {
+    static CACHE: std::sync::OnceLock<Result<BTreeMap<String, Value>>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(documents_by_id).as_ref().map_err(Clone::clone)
 }
 
 /// Every corpus document as a compiled, in-process resolvable resource.
-fn resources() -> &'static [(String, jsonschema::Resource)] {
-    static CACHE: std::sync::OnceLock<Vec<(String, jsonschema::Resource)>> =
+///
+/// # Errors
+///
+/// Returns [`Error::Internal`] if [`corpus`] fails to render, or if a
+/// rendered document is not a compilable JSON Schema resource.
+fn resources() -> Result<&'static [(String, jsonschema::Resource)]> {
+    static CACHE: std::sync::OnceLock<Result<Vec<(String, jsonschema::Resource)>>> =
         std::sync::OnceLock::new();
-    CACHE.get_or_init(|| {
-        corpus()
-            .iter()
-            .filter_map(|(id, document)| {
-                jsonschema::Resource::from_contents(document.clone())
-                    .ok()
-                    .map(|resource| (id.clone(), resource))
-            })
-            .collect()
-    })
+    CACHE
+        .get_or_init(|| {
+            corpus()?
+                .iter()
+                .map(|(id, document)| {
+                    jsonschema::Resource::from_contents(document.clone())
+                        .map(|resource| (id.clone(), resource))
+                        .map_err(|error| {
+                            Error::Internal(format!("compile resource {id}: {error}"))
+                        })
+                })
+                .collect()
+        })
+        .as_deref()
+        .map_err(Clone::clone)
 }
 
 /// Build a validator for one document, with the whole corpus resolvable.
@@ -156,7 +172,7 @@ fn build_validator(schema: &Value) -> Result<jsonschema::Validator> {
     jsonschema::options()
         .should_validate_formats(true)
         .with_resources(
-            resources()
+            resources()?
                 .iter()
                 .map(|(id, resource)| (id.as_str(), resource.clone())),
         )
@@ -185,7 +201,9 @@ fn build_validator(schema: &Value) -> Result<jsonschema::Validator> {
 /// ```
 pub fn find(selector: &str) -> Result<&'static SchemaArtifact> {
     let anchored = format!("/{selector}");
-    artifacts()
+    let artifacts = artifacts();
+    let count = artifacts.len();
+    artifacts
         .into_iter()
         .find(|artifact| {
             artifact.id == selector
@@ -194,8 +212,7 @@ pub fn find(selector: &str) -> Result<&'static SchemaArtifact> {
         })
         .ok_or_else(|| {
             Error::Internal(format!(
-                "no schema matches {selector:?}; call index() for the {} published artifacts",
-                artifacts().len()
+                "no schema matches {selector:?}; call index() for the {count} published artifacts"
             ))
         })
 }
@@ -221,10 +238,13 @@ pub fn find(selector: &str) -> Result<&'static SchemaArtifact> {
 /// assert!(index["artifacts"].as_array().expect("rows").len() > 100);
 /// ```
 pub fn index() -> Result<Value> {
+    let corpus = corpus()?;
     let mut rows = Vec::new();
     for (domain, artifact) in artifacts_with_domain() {
-        let rendered = artifact.generate()?;
-        let bytes = serde_json::to_vec(&rendered)
+        let rendered = corpus.get(artifact.id).ok_or_else(|| {
+            Error::Internal(format!("{} missing from rendered corpus", artifact.id))
+        })?;
+        let bytes = serde_json::to_vec(rendered)
             .map_err(|error| Error::Internal(format!("measure {}: {error}", artifact.id)))?
             .len();
         rows.push(serde_json::json!({
@@ -258,7 +278,6 @@ pub struct Failure {
 
 impl Failure {
     /// Render as the `{pointer, message}` object the bindings return.
-    #[must_use]
     fn to_value(&self) -> Value {
         serde_json::json!({"pointer": self.pointer, "message": self.message})
     }
@@ -352,7 +371,7 @@ fn follow_reference(target: &str, base: &Value) -> Option<(Value, Value)> {
     let document = if document_id.is_empty() {
         base.clone()
     } else {
-        corpus().get(document_id)?.clone()
+        corpus().ok()?.get(document_id)?.clone()
     };
     let node = if fragment.is_empty() {
         document.clone()
