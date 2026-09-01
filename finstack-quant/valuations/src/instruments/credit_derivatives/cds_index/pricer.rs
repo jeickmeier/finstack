@@ -9,7 +9,7 @@
 //!
 //! Public API mirrors the CDS pricer surface for parity: NPV, par spread,
 //! risky PV01, and leg PVs. Heavy numerical work is delegated to
-//! `crate::instruments::credit_derivatives::cds::pricer::CDSPricer`.
+//! `crate::instruments::credit_derivatives::cds::pricing::CDSPricer`.
 
 use crate::cashflow::builder::schedule::merge_cashflow_schedules;
 use crate::cashflow::builder::{CashFlowSchedule, Notional};
@@ -19,7 +19,7 @@ use crate::cashflow::traits::{
 };
 use crate::constants::{credit, BASIS_POINTS_PER_UNIT};
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::credit_derivatives::cds::pricer::{
+use crate::instruments::credit_derivatives::cds::pricing::{
     date_from_hazard_time, CDSPricer, CDSPricerConfig,
 };
 use crate::instruments::credit_derivatives::cds::{CreditDefaultSwap, PayReceive};

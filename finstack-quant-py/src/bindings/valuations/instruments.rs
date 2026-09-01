@@ -19,7 +19,7 @@ use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson}
 
 /// Parse a canonical typed-instrument envelope through the shared Rust path.
 pub(crate) fn parse_typed_instrument_json(json: &str) -> PyResult<InstrumentJson> {
-    finstack_quant_valuations::pricer::json::parse_instrument_json(json).map_err(core_to_py)
+    finstack_quant_valuations::pricer::json::parse_instrument_from_json(json).map_err(core_to_py)
 }
 
 /// Serialize a typed instrument as the canonical v1 persistence envelope.

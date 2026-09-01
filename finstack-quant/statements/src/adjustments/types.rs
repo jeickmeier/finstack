@@ -164,7 +164,7 @@ impl NormalizationConfig {
     ///
     /// # Arguments
     ///
-    /// * `adjustment` - Adjustment supplied by the caller for this operation
+    /// * `adjustment` - Adjustment used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn add_adjustment(mut self, adjustment: Adjustment) -> crate::error::Result<Self> {
         if self.adjustments.iter().any(|a| a.id == adjustment.id) {
             return Err(crate::error::Error::invalid_input(format!(

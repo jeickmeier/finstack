@@ -18,7 +18,8 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WASM_API_ROOT = REPO_ROOT / "finstack-quant-wasm" / "src" / "api"
 GENERIC_DESCRIPTION_RE = re.compile(
-    r"^(?:the )?(?:input|parameter|value)(?: (?:value|parameter|to use|for the operation))?[.!]?$",
+    r"^(?:(?:the )?(?:input|parameter|value)(?: (?:value|parameter|to use|for the operation))?"
+    r"|.+ supplied by (?:the )?caller for this operation)[.!]?$",
     re.IGNORECASE,
 )
 DOC_COMMENT_RE = re.compile(r"^\s*/// ?(.*)$")

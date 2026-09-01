@@ -118,12 +118,12 @@ impl CumulativeCouponTracker {
     }
 
     /// The period index at which knockout occurred.
-    pub fn knockout_period(&self) -> Option<usize> {
+    pub fn get_knockout_period(&self) -> Option<usize> {
         self.knockout_period
     }
 
     /// Current cumulative coupon level.
-    pub fn cumulative(&self) -> f64 {
+    pub fn get_cumulative(&self) -> f64 {
         self.cumulative_coupon
     }
 
@@ -150,8 +150,8 @@ mod tests {
         let c2 = tracker.add_coupon(0.05);
         assert!((c2 - 0.05).abs() < 1e-12);
         assert!(tracker.is_knocked_out());
-        assert_eq!(tracker.knockout_period(), Some(1));
-        assert!((tracker.cumulative() - 0.10).abs() < 1e-12);
+        assert_eq!(tracker.get_knockout_period(), Some(1));
+        assert!((tracker.get_cumulative() - 0.10).abs() < 1e-12);
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod tests {
         let c2 = tracker.add_coupon(0.07);
         assert!((c2 - 0.04).abs() < 1e-12); // capped to remaining
         assert!(tracker.is_knocked_out());
-        assert!((tracker.cumulative() - 0.10).abs() < 1e-12);
+        assert!((tracker.get_cumulative() - 0.10).abs() < 1e-12);
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod tests {
         tracker.add_coupon(0.08);
         tracker.add_coupon(0.03);
         assert!(!tracker.is_knocked_out());
-        assert!((tracker.cumulative() - 0.16).abs() < 1e-12);
+        assert!((tracker.get_cumulative() - 0.16).abs() < 1e-12);
     }
 
     #[test]
@@ -196,8 +196,8 @@ mod tests {
 
         tracker.reset();
         assert!(!tracker.is_knocked_out());
-        assert!(tracker.knockout_period().is_none());
-        assert!((tracker.cumulative()).abs() < 1e-12);
+        assert!(tracker.get_knockout_period().is_none());
+        assert!((tracker.get_cumulative()).abs() < 1e-12);
     }
 
     #[test]

@@ -22,6 +22,24 @@ pub struct PyVmResult {
 
 #[pymethods]
 impl PyVmResult {
+    /// Deserialize a VM result from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this result to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Gross mark-to-market exposure amount.
     #[getter]
     fn gross_exposure(&self) -> f64 {
@@ -170,12 +188,26 @@ impl PyImResult {
     }
 }
 
-pub(super) fn money_from_amount(amount: f64, currency: Currency) -> PyResult<Money> {
-    Money::try_new(amount, currency).map_err(core_to_py)
-}
-
 #[pymethods]
 impl PyImResult {
+    /// Deserialize an IM result from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this result to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Calculated initial margin amount.
     #[getter]
     fn amount(&self) -> f64 {
@@ -251,9 +283,9 @@ impl PyImResult {
     ///
     /// Columns: ``risk_class``, ``amount``, ``currency``. One row per risk
     /// class (e.g. ``"interest_rate"``, ``"credit"``, ``"equity"``), sorted
-    /// by ``risk_class`` so repeated runs are byte-identical; the underlying
-    /// map is unordered. Methodologies that publish no breakdown yield a
-    /// zero-row frame that still carries all three columns.
+    /// by ``risk_class`` so repeated runs are byte-identical, matching the
+    /// canonical ordered breakdown map. Methodologies that publish no
+    /// breakdown yield a zero-row frame that still carries all three columns.
     ///
     /// Breakdown components do not generally sum to ``amount``: SIMM and
     /// other methodologies aggregate risk classes with correlations.
@@ -295,6 +327,10 @@ impl PyImResult {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+}
+
+pub(super) fn money_from_amount(amount: f64, currency: Currency) -> PyResult<Money> {
+    Money::try_new(amount, currency).map_err(core_to_py)
 }
 
 /// Register calculator classes.

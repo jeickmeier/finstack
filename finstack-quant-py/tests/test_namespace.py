@@ -318,12 +318,12 @@ class TestPortfolioNamespace:
             aggregate_full_cashflows,
             aggregate_metrics,
             build_credit_vol_report,
-            build_portfolio_from_spec,
+            build_portfolio_from_spec_json,
             compute_factor_sensitivities,
             compute_pnl_profiles,
             decompose_factor_risk,
             factor_stress,
-            parse_portfolio_spec,
+            parse_portfolio_spec_json,
             portfolio_result_get_metric,
             portfolio_result_total_value,
             position_what_if,
@@ -353,7 +353,7 @@ class TestPortfolioNamespace:
 
     def test_portfolio_domain_errors_are_typed(self) -> None:
         """Portfolio domain failures should expose a portfolio-specific exception."""
-        from finstack_quant.portfolio import PortfolioError, build_portfolio_from_spec
+        from finstack_quant.portfolio import PortfolioError, build_portfolio_from_spec_json
 
         spec_json = json.dumps({
             "id": "bad_portfolio",
@@ -374,7 +374,7 @@ class TestPortfolioNamespace:
         })
 
         with pytest.raises(PortfolioError):
-            build_portfolio_from_spec(spec_json)
+            build_portfolio_from_spec_json(spec_json)
 
     def test_portfolio_full_cashflows_empty_portfolio(self) -> None:
         """Full cashflow ladder should be exposed and preserve the rich empty shape."""

@@ -4,7 +4,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 
 use crate::instruments::common_impl::traits::Instrument;
 
-use super::pricing::{price_convertible_bond, ConvertibleTreeType};
+use super::engine::{price_convertible_bond, ConvertibleTreeType};
 
 /// Registry pricer for Convertible Bond using Tsiveriotis-Zhang tree-based pricing.
 pub(crate) struct ConvertibleTreePricer;

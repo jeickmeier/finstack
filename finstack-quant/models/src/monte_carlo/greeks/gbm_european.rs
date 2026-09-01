@@ -9,6 +9,7 @@ use crate::monte_carlo::discretization::exact::ExactGbm;
 use crate::monte_carlo::engine::{McEngine, McEngineConfig};
 use crate::monte_carlo::greeks::finite_diff::{
     finite_diff_delta, finite_diff_delta_crn, finite_diff_gamma, finite_diff_gamma_crn,
+    FiniteDiffInputs,
 };
 use crate::monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
 use crate::monte_carlo::process::gbm::GbmProcess;
@@ -185,99 +186,37 @@ fn run_gbm_fd(spec: GbmEuropeanFdSpec, kind: FdKind) -> Result<(f64, f64)> {
 
     if is_call {
         let payoff = EuropeanCall::new(spec.strike, 1.0, num_steps);
+        let inputs = FiniteDiffInputs {
+            engine: &engine,
+            rng: &rng,
+            process: &gbm,
+            disc: &disc,
+            payoff: &payoff,
+            currency,
+            discount_factor,
+        };
         match kind {
-            FdKind::Delta => finite_diff_delta(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
-            FdKind::DeltaCrn => finite_diff_delta_crn(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
-            FdKind::Gamma => finite_diff_gamma(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
-            FdKind::GammaCrn => finite_diff_gamma_crn(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
+            FdKind::Delta => finite_diff_delta(&inputs, spec.spot, bump_size),
+            FdKind::DeltaCrn => finite_diff_delta_crn(&inputs, spec.spot, bump_size),
+            FdKind::Gamma => finite_diff_gamma(&inputs, spec.spot, bump_size),
+            FdKind::GammaCrn => finite_diff_gamma_crn(&inputs, spec.spot, bump_size),
         }
     } else {
         let payoff = EuropeanPut::new(spec.strike, 1.0, num_steps);
+        let inputs = FiniteDiffInputs {
+            engine: &engine,
+            rng: &rng,
+            process: &gbm,
+            disc: &disc,
+            payoff: &payoff,
+            currency,
+            discount_factor,
+        };
         match kind {
-            FdKind::Delta => finite_diff_delta(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
-            FdKind::DeltaCrn => finite_diff_delta_crn(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
-            FdKind::Gamma => finite_diff_gamma(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
-            FdKind::GammaCrn => finite_diff_gamma_crn(
-                &engine,
-                &rng,
-                &gbm,
-                &disc,
-                spec.spot,
-                &payoff,
-                currency,
-                discount_factor,
-                bump_size,
-            ),
+            FdKind::Delta => finite_diff_delta(&inputs, spec.spot, bump_size),
+            FdKind::DeltaCrn => finite_diff_delta_crn(&inputs, spec.spot, bump_size),
+            FdKind::Gamma => finite_diff_gamma(&inputs, spec.spot, bump_size),
+            FdKind::GammaCrn => finite_diff_gamma_crn(&inputs, spec.spot, bump_size),
         }
     }
 }

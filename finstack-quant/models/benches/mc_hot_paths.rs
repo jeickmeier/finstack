@@ -171,8 +171,18 @@ fn bench_rough_heston_step(c: &mut Criterion) {
             .collect();
         let dt = t_max / num_steps as f64;
         let hurst = HurstExponent::new(0.1).expect("valid hurst");
-        let params = RoughHestonParams::new(0.03, 0.0, hurst, 2.0, 0.04, 0.3, -0.7, 0.04)
-            .expect("valid rough Heston params");
+        let params = RoughHestonParams {
+            r: 0.03,
+            q: 0.0,
+            hurst: hurst,
+            kappa: 2.0,
+            theta: 0.04,
+            sigma_v: 0.3,
+            rho: -0.7,
+            v0: 0.04,
+        }
+        .validate()
+        .expect("valid rough Heston params");
         let process = RoughHestonProcess::new(params);
         let scheme = RoughHestonHybrid::new(&times, 0.1).expect("valid scheme");
         let work_size = 2 * num_steps + 1;

@@ -10,7 +10,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
 use super::parameters::CDSTrancheParams;
-use super::pricer;
+use super::pricing;
 use crate::impl_instrument_base;
 
 /// Buyer/seller perspective for CDS tranche premium/protection
@@ -410,7 +410,7 @@ impl CDSTranche {
 
     /// Calculate upfront amount for the tranche
     pub fn upfront(&self, curves: &MarketContext, as_of: Date) -> finstack_quant_core::Result<f64> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_upfront(self, curves, as_of)
     }
 
@@ -420,7 +420,7 @@ impl CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_spread_dv01(self, curves, as_of)
     }
 
@@ -430,13 +430,13 @@ impl CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_par_spread(self, curves, as_of)
     }
 
     /// Calculate expected loss metric
     pub fn expected_loss(&self, curves: &MarketContext) -> finstack_quant_core::Result<f64> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_expected_loss(self, curves)
     }
 
@@ -446,7 +446,7 @@ impl CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_jump_to_default(self, curves, as_of)
     }
 
@@ -457,7 +457,7 @@ impl CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_correlation_delta(self, curves, as_of)
     }
 
@@ -482,7 +482,7 @@ impl CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_accrued_premium(self, curves, as_of)
     }
 
@@ -492,8 +492,8 @@ impl CDSTranche {
     pub fn jump_to_default_detail(
         &self,
         curves: &MarketContext,
-    ) -> finstack_quant_core::Result<pricer::JumpToDefaultResult> {
-        let pricer = pricer::CDSTranchePricer::new();
+    ) -> finstack_quant_core::Result<pricing::JumpToDefaultResult> {
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.calculate_jump_to_default_detail(self, curves)
     }
 
@@ -505,7 +505,7 @@ impl CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<Vec<(Date, f64)>> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.get_expected_loss_curve(self, curves, as_of)
     }
 
@@ -541,7 +541,7 @@ impl Instrument for CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<Money> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         pricer.price_tranche(self, curves, as_of)
     }
 
@@ -566,7 +566,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for CDSTranche {
         curves: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<crate::cashflow::builder::CashFlowSchedule> {
-        let pricer = pricer::CDSTranchePricer::new();
+        let pricer = pricing::CDSTranchePricer::new();
         let schedule = pricer.build_projected_schedule(self, curves, as_of)?;
         Ok(schedule
             .with_representation(crate::cashflow::builder::CashflowRepresentation::Projected))

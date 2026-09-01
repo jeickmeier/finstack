@@ -30,7 +30,7 @@
 //! accrued premium in the JTD to give a more accurate P&L impact.
 
 use crate::constants::BASIS_POINTS_PER_UNIT;
-use crate::instruments::credit_derivatives::cds::pricer::{AccrualDayCountPolicy, CDSPricer};
+use crate::instruments::credit_derivatives::cds::pricing::{AccrualDayCountPolicy, CDSPricer};
 use crate::instruments::credit_derivatives::cds::{CreditDefaultSwap, PayReceive};
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;

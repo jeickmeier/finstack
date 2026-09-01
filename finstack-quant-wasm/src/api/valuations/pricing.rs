@@ -47,8 +47,11 @@ pub(super) fn parse_pricing_instrument_json(
     instrument_json: &str,
     pricing_options: Option<&str>,
 ) -> Result<finstack_quant_valuations::pricer::ParsedInstrument, JsValue> {
-    finstack_quant_valuations::pricer::parse_boxed_instrument_json(instrument_json, pricing_options)
-        .map_err(|e| to_js_error(&e))
+    finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(
+        instrument_json,
+        pricing_options,
+    )
+    .map_err(|e| to_js_error(&e))
 }
 
 pub(super) fn valuation_result_json(result: ValuationResult) -> Result<String, JsValue> {
@@ -307,13 +310,14 @@ pub fn instrument_cashflows_json(
 ) -> Result<String, JsValue> {
     let instrument = parse_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
-    finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
+    let envelope = finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
         &instrument,
         &market,
         as_of,
         model,
     )
-    .map_err(|e| to_js_error(&e))
+    .map_err(|e| to_js_error(&e))?;
+    serde_json::to_string(&envelope).map_err(to_js_err)
 }
 
 /// List all metric IDs in the standard metric registry.
@@ -464,21 +468,22 @@ pub fn price_instrument_with_market(
 /// `model` is unsupported or incompatible with the instrument, required curves
 /// are missing, the schedule mixes currencies, canonical pricing fails, or the
 /// cash-flow envelope cannot be serialized.
-#[wasm_bindgen(js_name = instrumentCashflowsWithMarket)]
-pub fn instrument_cashflows_with_market(
+#[wasm_bindgen(js_name = instrumentCashflowsWithMarketJson)]
+pub fn instrument_cashflows_with_market_json(
     instrument_json: &str,
     market: &JsMarket,
     as_of: &str,
     model: &str,
 ) -> Result<String, JsValue> {
     let instrument = parse_pricing_instrument_json(instrument_json, None)?;
-    finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
+    let envelope = finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
         &instrument,
         market.inner(),
         as_of,
         model,
     )
-    .map_err(|e| to_js_error(&e))
+    .map_err(|e| to_js_error(&e))?;
+    serde_json::to_string(&envelope).map_err(to_js_err)
 }
 
 #[cfg(test)]
@@ -1004,7 +1009,7 @@ mod tests {
         let credit_market_json =
             serde_json::to_string(&revolving_credit_market(true)).expect("market json");
         let credit_market = JsMarket::new(&credit_market_json).expect("market handle");
-        assert!(instrument_cashflows_with_market(
+        assert!(instrument_cashflows_with_market_json(
             &credit_instrument,
             &credit_market,
             "2024-01-01",
@@ -1044,7 +1049,7 @@ mod tests {
         assert!(parsed.is_object());
 
         let cashflows =
-            instrument_cashflows_with_market(&inst, &market, "2024-01-01", "discounting")
+            instrument_cashflows_with_market_json(&inst, &market, "2024-01-01", "discounting")
                 .expect("cashflows");
         let parsed_cashflows: serde_json::Value =
             serde_json::from_str(&cashflows).expect("cashflow json");

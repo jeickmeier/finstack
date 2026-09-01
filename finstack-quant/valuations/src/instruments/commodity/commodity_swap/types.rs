@@ -1056,7 +1056,9 @@ mod tests {
         days
     }
 
-    fn seasoned_swap(realized_fixings: Vec<(Date, f64)>) -> CommoditySwap {
+    fn seasoned_swap(
+        realized_fixings: Vec<(Date, f64)>,
+    ) -> finstack_quant_core::Result<CommoditySwap> {
         CommoditySwap::builder()
             .id(InstrumentId::new("SEASONED-SWAP"))
             .underlying(CommodityUnderlyingParams::new(
@@ -1075,7 +1077,6 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .realized_fixings(realized_fixings)
             .build()
-            .expect("should build")
     }
 
     /// past floating-leg observations read from the
@@ -1092,7 +1093,7 @@ mod tests {
             .into_iter()
             .map(|d| (d, 3.50))
             .collect();
-        let swap = seasoned_swap(fixings);
+        let swap = seasoned_swap(fixings).expect("valid seasoned swap");
 
         let price_curve = PriceCurve::builder("NG-SPOT-AVG")
             .base_date(as_of)
@@ -1128,7 +1129,7 @@ mod tests {
             .filter(|d| *d != missing)
             .map(|d| (d, 3.50))
             .collect();
-        let swap = seasoned_swap(fixings);
+        let swap = seasoned_swap(fixings).expect("valid seasoned swap");
 
         let price_curve = PriceCurve::builder("NG-SPOT-AVG")
             .base_date(as_of)
@@ -1166,24 +1167,7 @@ mod tests {
             Date::from_calendar_date(2025, Month::February, 5).expect("date"),
             3.60,
         ));
-        let swap = seasoned_swap(fixings);
-
-        let price_curve = PriceCurve::builder("NG-SPOT-AVG")
-            .base_date(as_of)
-            .spot_price(3.50)
-            .knots([(0.0, 3.50), (2.0, 3.50)])
-            .build()
-            .expect("price curve");
-        let disc = DiscountCurve::builder("USD-OIS")
-            .base_date(as_of)
-            .knots([(0.0, 1.0), (2.0, 0.90)])
-            .build()
-            .expect("discount curve");
-        let market = MarketContext::new().insert(disc).insert(price_curve);
-
-        let err = swap
-            .value(&market, as_of)
-            .expect_err("duplicate fixing must error");
+        let err = seasoned_swap(fixings).expect_err("duplicate fixing must fail construction");
         assert!(
             err.to_string().contains("duplicate realized fixing"),
             "error should mention the duplicate, got: {err}"

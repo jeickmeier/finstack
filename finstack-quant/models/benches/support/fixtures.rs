@@ -16,10 +16,10 @@ use finstack_quant_models::monte_carlo::discretization::{
     EulerMaruyama, ExactGbm, ExactHullWhite1F, ExactMultiGbmCorrelated, ExactSchwartzSmith, QeCir,
     QeHeston,
 };
-use finstack_quant_models::monte_carlo::engine::{
-    McEngine, McEngineConfig, PathCaptureConfig,
+use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig, PathCaptureConfig};
+use finstack_quant_models::monte_carlo::payoff::asian::{
+    default_fixing_steps, AsianCall, AveragingMethod,
 };
-use finstack_quant_models::monte_carlo::payoff::asian::{default_fixing_steps, AsianCall, AveragingMethod};
 use finstack_quant_models::monte_carlo::payoff::barrier::{BarrierOptionPayoff, OptionKind};
 use finstack_quant_models::monte_carlo::payoff::lookback::{Lookback, LookbackDirection};
 use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
@@ -35,8 +35,8 @@ use finstack_quant_models::monte_carlo::process::schwartz_smith::{
     SchwartzSmithParams, SchwartzSmithProcess,
 };
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff};
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 pub const SPOT: f64 = 100.0;
 pub const STRIKE: f64 = 100.0;
@@ -55,7 +55,9 @@ pub fn heston() -> HestonProcess {
 }
 
 pub fn hw1f() -> HullWhite1FProcess {
-    HullWhite1FProcess::new(HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters"))
+    HullWhite1FProcess::new(
+        HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters"),
+    )
 }
 
 pub fn cir() -> CirProcess {
@@ -185,16 +187,17 @@ pub fn lmm_process(num_forwards: usize) -> LmmProcess {
             [w, 0.05, 0.0]
         })
         .collect();
-    let params = LmmParams::try_new(
+    let params = LmmParams {
         num_forwards,
-        2,
+        num_factors: 2,
         tenors,
-        accruals,
+        accrual_factors: accruals,
         displacements,
-        vec![],
-        vec![loadings],
-        forwards,
-    )
+        vol_times: vec![],
+        vol_values: vec![loadings],
+        initial_forwards: forwards,
+    }
+    .validate()
     .expect("valid LMM");
     LmmProcess::new(params)
 }
@@ -218,9 +221,12 @@ impl IndexedSpotCall {
 }
 
 impl Payoff for IndexedSpotCall {
-    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> { if state.step == self.maturity_step {
-        self.last = state.get("spot_0").unwrap_or(0.0);
-    } Ok(()) }
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
+        if state.step == self.maturity_step {
+            self.last = state.get("spot_0").unwrap_or(0.0);
+        }
+        Ok(())
+    }
 
     fn value(&self, currency: Currency) -> Money {
         Money::new((self.last - self.strike).max(0.0), currency)

@@ -118,7 +118,7 @@ impl StructuredCredit {
         let Some(fees) = self.fees.as_ref() else {
             return Vec::new();
         };
-        let ccy = self.pool.base_currency();
+        let ccy = self.pool.get_base_currency();
         let mut recipients = Vec::new();
 
         fn bp_recipient(id: &str, name: &str, bp: f64) -> Option<Recipient> {
@@ -188,7 +188,7 @@ impl StructuredCredit {
     /// ```
     #[must_use]
     pub fn with_standard_fees(mut self) -> Self {
-        let ccy = self.pool.base_currency();
+        let ccy = self.pool.get_base_currency();
         self.fees = Some(match self.deal_type {
             DealType::Clo | DealType::Cbo => DealFees::clo_standard(ccy),
             DealType::Cmbs => DealFees::cmbs_standard(ccy),
@@ -316,7 +316,7 @@ impl StructuredCredit {
             // Senior transaction fees, paid ahead of every note.
             None => Waterfall::standard_sequential(
                 self.deal_type,
-                self.pool.base_currency(),
+                self.pool.get_base_currency(),
                 &self.tranches,
                 self.fee_recipients(),
             ),
@@ -359,7 +359,7 @@ impl StructuredCredit {
     ///
     /// # Arguments
     ///
-    /// * `waterfall` - Waterfall supplied by the caller for this operation
+    /// * `waterfall` - Waterfall used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn with_waterfall(mut self, waterfall: Waterfall) -> finstack_quant_core::Result<Self> {
         self.waterfall = Some(waterfall);
         self.validate_custom_waterfall()?;
@@ -397,7 +397,7 @@ impl StructuredCredit {
             ));
         }
 
-        let pool_currency = self.pool.base_currency();
+        let pool_currency = self.pool.get_base_currency();
         if waterfall.base_currency != pool_currency {
             return Err(invalid(format!(
                 "custom waterfall base_currency {} does not match pool currency {}",
@@ -531,7 +531,7 @@ impl core::fmt::Display for StructuredCredit {
         let pool_balance = self
             .pool
             .total_balance()
-            .unwrap_or(Money::new(0.0, self.pool.base_currency()));
+            .unwrap_or(Money::new(0.0, self.pool.get_base_currency()));
         let tranche_count = self.tranches.tranches.len();
 
         write!(

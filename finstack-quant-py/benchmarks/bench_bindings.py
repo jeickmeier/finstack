@@ -74,11 +74,11 @@ from finstack_quant.portfolio import (
     aggregate_full_cashflows,
     aggregate_metrics,
     attribute_portfolio_pnl,
-    build_portfolio_from_spec,
+    build_portfolio_from_spec_json,
     build_stress_attribution,
     historical_var_decomposition,
     parametric_var_decomposition,
-    parse_portfolio_spec,
+    parse_portfolio_spec_json,
     replay_portfolio,
     scenario_pnl,
     scenario_pnl_batch,
@@ -101,7 +101,7 @@ from finstack_quant.statements import (
     ModelBuilder,
     NormalizationConfig,
     normalize,
-    parse_formula,
+    parse_formula_text,
     validate_formula,
 )
 from finstack_quant.statements_analytics import (
@@ -759,8 +759,8 @@ class TestStatementsBenchmarks:
         ev = Evaluator()
         benchmark.pedantic(ev.evaluate, args=(_MODEL_SPEC,), rounds=20, warmup_rounds=2)
 
-    def test_parse_formula(self, benchmark) -> None:
-        benchmark(parse_formula, "revenue * 1.05 + cogs")
+    def test_parse_formula_text(self, benchmark) -> None:
+        benchmark(parse_formula_text, "revenue * 1.05 + cogs")
 
     def test_validate_formula(self, benchmark) -> None:
         benchmark(validate_formula, "revenue + cogs")
@@ -940,13 +940,13 @@ class TestPortfolioBenchmarks:
 
     def test_parse_and_build(self, benchmark) -> None:
         def _parse_build():
-            spec = parse_portfolio_spec(PORTFOLIO_SPEC_JSON)
-            return build_portfolio_from_spec(spec)
+            spec = parse_portfolio_spec_json(PORTFOLIO_SPEC_JSON)
+            return build_portfolio_from_spec_json(spec)
 
         benchmark.pedantic(_parse_build, rounds=10, warmup_rounds=1)
 
     def test_portfolio_spec_round_trip(self, benchmark) -> None:
-        benchmark(parse_portfolio_spec, PORTFOLIO_SPEC_JSON)
+        benchmark(parse_portfolio_spec_json, PORTFOLIO_SPEC_JSON)
 
 
 @pytest.mark.perf

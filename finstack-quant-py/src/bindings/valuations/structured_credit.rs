@@ -40,7 +40,8 @@ fn extract_structured_credit(
 ) -> PyResult<StructuredCredit> {
     let instrument_json = extract_instrument_json(instrument)?;
     py.detach(move || {
-        match finstack_quant_valuations::pricer::json::parse_instrument_json(&instrument_json)? {
+        match finstack_quant_valuations::pricer::json::parse_instrument_from_json(&instrument_json)?
+        {
             InstrumentJson::StructuredCredit(deal) => Ok(*deal),
             other => Err(finstack_quant_core::Error::Validation(format!(
                 "expected a structured_credit instrument, got {}",

@@ -184,7 +184,7 @@ impl Registry {
     ///
     /// # Arguments
     ///
-    /// * `registry` - Registry supplied by the caller for this operation
+    /// * `registry` - Registry whose validated definitions are loaded or queried.
     pub fn load_registry(&mut self, registry: MetricRegistry) -> Result<()> {
         let namespace = registry.namespace.clone();
 
@@ -260,7 +260,7 @@ impl Registry {
     pub fn get(&self, qualified_id: &str) -> Result<&StoredMetric> {
         self.metrics.get(qualified_id).ok_or_else(|| {
             let available: Vec<_> = self.metrics.keys().take(5).map(|s| s.as_str()).collect();
-            Error::registry(format!(
+            Error::registry_not_found(format!(
                 "Metric not found: '{}'. Available metrics include: {}{}",
                 qualified_id,
                 available.join(", "),

@@ -27,7 +27,7 @@ fn parse_spec(json: &str) -> Result<CompositeSpec, JsValue> {
 }
 
 fn parse_composite(json: &str) -> Result<CompositeInstrument, JsValue> {
-    match finstack_quant_valuations::pricer::json::parse_instrument_json(json)
+    match finstack_quant_valuations::pricer::json::parse_instrument_from_json(json)
         .map_err(|error| to_js_error(&error))?
     {
         InstrumentJson::Composite(instrument) => Ok(*instrument),

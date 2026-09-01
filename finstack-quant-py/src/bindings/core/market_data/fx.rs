@@ -14,7 +14,7 @@ use pyo3::wrap_pyfunction;
 use crate::bindings::core::currency::{extract_currency, PyCurrency};
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
-use crate::errors::core_to_py;
+use crate::errors::{core_to_py, display_to_py};
 
 /// Parse an [`FxConversionPolicy`] from a string.
 fn parse_fx_policy(s: &str) -> PyResult<FxConversionPolicy> {
@@ -106,6 +106,24 @@ pub struct PyFxRateResult {
 
 #[pymethods]
 impl PyFxRateResult {
+    /// Deserialize an FX lookup result from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this result to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// The FX conversion rate.
     #[getter]
     fn rate(&self) -> f64 {

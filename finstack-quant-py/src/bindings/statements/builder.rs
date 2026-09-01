@@ -914,7 +914,7 @@ impl PyModelBuilder {
         id: &str,
         spec_json: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let spec = finstack_quant_valuations::pricer::json::parse_instrument_json(spec_json)
+        let spec = finstack_quant_valuations::pricer::json::parse_instrument_from_json(spec_json)
             .map_err(core_to_py)?;
         let spec = FinancialStatementInstrument::try_from(spec).map_err(statements_to_py)?;
         let state = slf.take_any()?;

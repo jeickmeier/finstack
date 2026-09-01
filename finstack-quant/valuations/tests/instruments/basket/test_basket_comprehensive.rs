@@ -142,7 +142,16 @@ fn test_basket_creation_with_minimal_fields() {
     // Arrange & Act
     let basket = Basket::builder()
         .id("TEST_BASKET".into())
-        .constituents(vec![])
+        .constituents(vec![BasketConstituent {
+            id: "CASH".to_string(),
+            reference: ConstituentReference::MarketData {
+                price_id: "CASH".into(),
+                asset_type: AssetType::Cash,
+            },
+            weight: 1.0,
+            units: None,
+            ticker: None,
+        }])
         .expense_ratio(0.0)
         .currency(Currency::USD)
         .notional(usd(1_000_000.0))
@@ -159,7 +168,7 @@ fn test_basket_creation_with_minimal_fields() {
     assert_eq!(basket.id.as_str(), "TEST_BASKET");
     assert_eq!(basket.expense_ratio, 0.0);
     assert_eq!(basket.currency, Currency::USD);
-    assert_eq!(basket.constituents.len(), 0);
+    assert_eq!(basket.constituents.len(), 1);
 }
 
 #[test]
@@ -212,20 +221,20 @@ fn test_basket_validation_invalid_weights_sum() {
     basket.constituents[0].weight = 0.8;
     basket.constituents[1].weight = 0.3; // Sum = 1.1
 
-    // Act
+    // Act: weight totals may represent leverage or partial investment.
     let result = basket.validate();
 
     // Assert
     assert!(
-        result.is_err(),
-        "Basket with weights summing to >1.01 should fail validation"
+        result.is_ok(),
+        "Basket validation must permit levered weight totals supported by pricing"
     );
 }
 
 #[test]
 fn test_basket_validation_empty_constituents() {
     // Arrange
-    let basket = Basket::builder()
+    let result = Basket::builder()
         .id("EMPTY_BASKET".into())
         .constituents(vec![])
         .expense_ratio(0.001)
@@ -237,18 +246,12 @@ fn test_basket_validation_empty_constituents() {
         .scenario_pricing_overrides(Default::default())
         .attributes(Attributes::new())
         .pricing_config(BasketPricingConfig::default())
-        .build()
-        .unwrap();
-
-    // Act - empty basket with no constituents should validate (zero weight sum is OK)
-    // Note: The validate() method checks abs(total_weight - 1.0) > 0.01
-    // For empty basket, total_weight = 0, so abs(0 - 1.0) = 1.0 > 0.01
-    let result = basket.validate();
+        .build();
 
     // Assert
     assert!(
         result.is_err(),
-        "Empty basket should fail validation due to zero weight sum"
+        "Empty basket should fail during construction"
     );
 }
 

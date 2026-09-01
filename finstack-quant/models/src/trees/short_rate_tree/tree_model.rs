@@ -234,6 +234,7 @@ impl TreeModel for ShortRateTree {
             vega: 0.0,
             theta: 0.0,
             rho: 0.0,
+            oas01: 0.0,
         };
 
         // Default: relative 10% of the calibrated vol, floored at 1 bp. A
@@ -301,9 +302,38 @@ impl TreeModel for ShortRateTree {
                         market_context,
                         valuator,
                     )?;
-                    greeks.theta = -(base_price - price_tomorrow) / dt_theta;
+                    greeks.theta = price_tomorrow - base_price;
                 }
             }
+
+            // --- Rho (central ±1bp parallel discount-curve bump) -------------
+            use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
+
+            let market_up = market_context.bump([MarketBump::Curve {
+                id: curve_id.clone(),
+                spec: BumpSpec::parallel_bp(1.0),
+            }])?;
+            let market_down = market_context.bump([MarketBump::Curve {
+                id: curve_id.clone(),
+                spec: BumpSpec::parallel_bp(-1.0),
+            }])?;
+
+            let curve_up = market_up.get_discount(curve_id)?;
+            let curve_down = market_down.get_discount(curve_id)?;
+            let mut tree_up = ShortRateTree::new(self.config.clone());
+            let mut tree_down = ShortRateTree::new(self.config.clone());
+            tree_up.calibrate(curve_id, curve_up.as_ref(), time_to_maturity)?;
+            tree_down.calibrate(curve_id, curve_down.as_ref(), time_to_maturity)?;
+
+            let price_up =
+                tree_up.price(initial_vars.clone(), time_to_maturity, &market_up, valuator)?;
+            let price_down = tree_down.price(
+                initial_vars.clone(),
+                time_to_maturity,
+                &market_down,
+                valuator,
+            )?;
+            greeks.rho = (price_up - price_down) / 2.0;
         } else {
             tracing::debug!(
                 "ShortRateTree::calculate_greeks: discount curve '{}' not found; \
@@ -312,7 +342,7 @@ impl TreeModel for ShortRateTree {
             );
         }
 
-        // Rho: OAS sensitivity (price change per 1 bp parallel spread bump).
+        // OAS01: price change per 1bp parallel option-adjusted-spread bump.
         // Note: this measures sensitivity to the option-adjusted spread, not to
         // a parallel shift of the underlying yield curve. For bonds with embedded
         // options the two are not equivalent because an OAS bump does not change
@@ -322,7 +352,7 @@ impl TreeModel for ShortRateTree {
         bumped_vars.insert("oas", base_oas + 1.0);
 
         let bumped_price = self.price(bumped_vars, time_to_maturity, market_context, valuator)?;
-        greeks.rho = bumped_price - base_price;
+        greeks.oas01 = bumped_price - base_price;
 
         Ok(greeks)
     }

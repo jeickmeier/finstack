@@ -82,27 +82,38 @@ mod work_size_contract {
         assert_eq!(RoughBergomiEuler::new(hurst).work_size(&bergomi), 1);
 
         let lmm = LmmProcess::new(
-            LmmParams::try_new(
-                3,
-                2,
-                vec![0.0, 1.0, 2.0, 3.0],
-                vec![1.0, 1.0, 1.0],
-                vec![0.005, 0.005, 0.005],
-                vec![],
-                vec![vec![
+            LmmParams {
+                num_forwards: 3,
+                num_factors: 2,
+                tenors: vec![0.0, 1.0, 2.0, 3.0],
+                accrual_factors: vec![1.0, 1.0, 1.0],
+                displacements: vec![0.005, 0.005, 0.005],
+                vol_times: vec![],
+                vol_values: vec![vec![
                     [0.15, 0.05, 0.0],
                     [0.12, 0.08, 0.0],
                     [0.10, 0.10, 0.0],
                 ]],
-                vec![0.03, 0.03, 0.03],
-            )
+                initial_forwards: vec![0.03, 0.03, 0.03],
+            }
+            .validate()
             .expect("valid lmm"),
         );
         assert_eq!(LmmPredictorCorrector::new().work_size(&lmm), 9);
 
         let heston = RoughHestonProcess::new(
-            RoughHestonParams::new(0.05, 0.02, hurst, 2.0, 0.04, 0.3, -0.7, 0.04)
-                .expect("valid heston"),
+            RoughHestonParams {
+                r: 0.05,
+                q: 0.02,
+                hurst,
+                kappa: 2.0,
+                theta: 0.04,
+                sigma_v: 0.3,
+                rho: -0.7,
+                v0: 0.04,
+            }
+            .validate()
+            .expect("valid heston"),
         );
         let times: Vec<f64> = (0..=50).map(|i| i as f64 / 50.0).collect();
         let hybrid = RoughHestonHybrid::new(&times, 0.1).expect("valid hybrid");

@@ -13,7 +13,7 @@ use pyo3::prelude::*;
 
 /// Parse a portfolio specification from JSON and return the canonical form.
 #[pyfunction]
-pub fn parse_portfolio_spec(py: Python<'_>, json_str: &str) -> PyResult<String> {
+pub fn parse_portfolio_spec_json(py: Python<'_>, json_str: &str) -> PyResult<String> {
     let json_str = json_str.to_owned();
     py.detach(move || {
         let spec: finstack_quant_portfolio::portfolio::PortfolioSpec =
@@ -29,7 +29,7 @@ pub fn parse_portfolio_spec(py: Python<'_>, json_str: &str) -> PyResult<String> 
 /// Prefer :meth:`Portfolio.from_spec` for real work — it returns the typed
 /// object that pipeline functions reuse without rebuilding.
 #[pyfunction]
-pub fn build_portfolio_from_spec(py: Python<'_>, spec_json: &str) -> PyResult<String> {
+pub fn build_portfolio_from_spec_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
     let spec_json = spec_json.to_owned();
     let spec: finstack_quant_portfolio::portfolio::PortfolioSpec = py
         .detach(move || serde_json::from_str(&spec_json))
@@ -142,8 +142,8 @@ pub fn aggregate_metrics_json(
 
 /// Register spec functions on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(pyo3::wrap_pyfunction!(parse_portfolio_spec, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(build_portfolio_from_spec, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(parse_portfolio_spec_json, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(build_portfolio_from_spec_json, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(portfolio_result_total_value, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(portfolio_result_get_metric, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(aggregate_metrics, m)?)?;

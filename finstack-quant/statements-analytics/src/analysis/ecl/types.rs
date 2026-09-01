@@ -485,8 +485,8 @@ impl RawPdCurve {
     ///
     /// # Arguments
     ///
-    /// * `rating` - Rating supplied by the caller for this operation
-    /// * `knots` - Knots supplied by the caller for this operation
+    /// * `rating` - Credit-rating label resolved against the active rating scale.
+    /// * `knots` - Knots used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn new(rating: impl Into<String>, knots: Vec<(f64, f64)>) -> Result<Self> {
         if knots.len() < 2 {
             return Err(InputError::TooFewPoints.into());

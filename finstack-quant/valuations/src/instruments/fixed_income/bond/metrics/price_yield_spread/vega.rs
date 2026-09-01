@@ -98,8 +98,10 @@ impl MetricCalculator for BondVegaCalculator {
             return Ok(0.0);
         }
 
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
         let bump = defaults.vol_bump_pct;
         let base_vol = base_rate_volatility(bond)?;
         // On the rates-credit path the canonical field is itself the source

@@ -311,6 +311,47 @@ class LevelsAtDate:
     ('2024-03-01', 100.0, {'A': 5.0})
     """
 
+    @staticmethod
+    def from_json(json: str) -> LevelsAtDate:
+        """Deserialize a snapshot from canonical JSON.
+
+        Parameters
+        ----------
+        json:
+            Canonical ``LevelsAtDate`` JSON object.
+
+        Returns
+        -------
+        LevelsAtDate
+            Parsed typed decomposition snapshot.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or contains non-finite values.
+
+        Examples
+        --------
+        >>> LevelsAtDate.from_json('{"date":"2024-01-01","generic":0.0,"by_level":[],"adder":{}}').date
+        '2024-01-01'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize this snapshot to compact canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical compact JSON for this snapshot.
+
+        Raises
+        ------
+        ValueError
+            If a numeric field is non-finite or serialization fails.
+        """
+        ...
+
     @property
     def date(self) -> str:
         """
@@ -471,6 +512,48 @@ class PeriodDecomposition:
     >>> (period.from_date, period.to_date, period.d_generic)
     ('2024-03-01', '2024-03-02', 1.5)
     """
+
+    @staticmethod
+    def from_json(json: str) -> PeriodDecomposition:
+        """Deserialize a decomposition from canonical JSON.
+
+        Parameters
+        ----------
+        json:
+            Canonical ``PeriodDecomposition`` JSON object.
+
+        Returns
+        -------
+        PeriodDecomposition
+            Parsed typed period decomposition.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or contains non-finite values.
+
+        Examples
+        --------
+        >>> payload = '{"from":"2024-01-01","to":"2024-01-02","d_generic":0.0,"by_level":[],"d_adder":{}}'
+        >>> PeriodDecomposition.from_json(payload).from_date
+        '2024-01-01'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize this decomposition to compact canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical compact JSON for this decomposition.
+
+        Raises
+        ------
+        ValueError
+            If a numeric field is non-finite or serialization fails.
+        """
+        ...
 
     @property
     def from_date(self) -> str:

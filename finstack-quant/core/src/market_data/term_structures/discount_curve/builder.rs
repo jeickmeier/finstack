@@ -55,7 +55,7 @@ impl DiscountCurveBuilder {
     ///
     /// # Arguments
     ///
-    /// * `day_count` - Dc supplied by the caller for this operation
+    /// * `day_count` - Day-count convention used to convert calendar dates into year fractions.
     pub fn day_count(mut self, day_count: DayCount) -> Self {
         self.day_count = day_count;
         self
@@ -85,7 +85,7 @@ impl DiscountCurveBuilder {
     ///
     /// # Arguments
     ///
-    /// * `mode` - Mode supplied by the caller for this operation
+    /// * `mode` - Execution or interpolation mode selecting the documented algorithm branch.
     pub fn validation(mut self, mode: ValidationMode) -> Self {
         match mode {
             ValidationMode::MarketStandard => {

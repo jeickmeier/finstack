@@ -524,9 +524,11 @@ where
             return Ok(0.0);
         };
 
-        let bump_bp =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
-                .credit_spread_bump_bp;
+        let bump_bp = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?
+        .credit_spread_bump_bp;
 
         let reval = cs01_reval(context);
 
@@ -574,8 +576,10 @@ where
             return Ok(0.0);
         };
 
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
         let bump_bp = defaults.credit_spread_bump_bp;
 
         let reval = cs01_reval(context);
@@ -648,9 +652,11 @@ where
             return Ok(0.0);
         };
 
-        let bump_bp =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
-                .credit_spread_bump_bp;
+        let bump_bp = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?
+        .credit_spread_bump_bp;
 
         let curves = Arc::clone(&context.curves);
         let base_ctx = curves.as_ref();
@@ -732,8 +738,10 @@ where
             return Ok(0.0);
         };
 
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
         let bump_bp = defaults.credit_spread_bump_bp;
 
         let curves = Arc::clone(&context.curves);
@@ -930,7 +938,7 @@ where
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
         with_prepared_cds_risk_context::<I>(context, None, "CS01", |context, prepared| {
             let bump_bp = sens_config::from_context_or_default(
-                context.config(),
+                context.get_config(),
                 context.get_metric_overrides(),
             )?
             .credit_spread_bump_bp;
@@ -977,7 +985,7 @@ where
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
         with_prepared_cds_risk_context::<I>(context, None, "bucketed CS01", |context, prepared| {
             let defaults = sens_config::from_context_or_default(
-                context.config(),
+                context.get_config(),
                 context.get_metric_overrides(),
             )?;
             let bump_bp = defaults.credit_spread_bump_bp;
@@ -987,7 +995,7 @@ where
                     crate::instruments::credit_derivatives::cds::CreditDefaultSwap,
                 >() {
                     Ok(cds) => Some(
-                        crate::instruments::credit_derivatives::cds::pricer::CdsHazardRepriceCache::try_new(
+                        crate::instruments::credit_derivatives::cds::pricing::CdsHazardRepriceCache::try_new(
                             cds,
                             context.curves.as_ref(),
                             context.as_of,

@@ -91,6 +91,7 @@ pub struct ExecutionErrorDetails {
 
 /// Engine error retaining a single structured contract across all stages.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ExecuteError {
     /// Static validation or final fit failure.
     #[error("{error}")]
@@ -98,6 +99,7 @@ pub enum ExecuteError {
         /// Failure stage.
         stage: ExecutionStage,
         /// Structured underlying envelope error.
+        #[source]
         error: EnvelopeError,
     },
     /// Configuration, context, preflight, or target failure.
@@ -187,13 +189,15 @@ impl ExecuteError {
         }
     }
 
-    /// Serialize the stable error payload as pretty JSON.
+    /// Serialize the stable error payload as compact wire JSON.
     pub fn to_json(&self) -> String {
-        serde_json::to_string_pretty(&self.details()).unwrap_or_else(|error| {
-            format!(
-                "{{\"stage\":\"target\",\"category\":\"json_serialize\",\"cause\":{:?}}}",
-                error.to_string()
-            )
+        serde_json::to_string(&self.details()).unwrap_or_else(|error| {
+            serde_json::json!({
+                "stage": "target",
+                "category": "json_serialize",
+                "cause": error.to_string(),
+            })
+            .to_string()
         })
     }
 }
@@ -949,7 +953,9 @@ mod tests {
         assert_eq!(details.step_id.as_deref(), Some("hazard"));
         assert_eq!(details.category, "validation");
         assert!(details.cause.contains("missing discount curve"));
-        assert!(preflight.to_json().contains("\"stage\": \"preflight\""));
+        let wire: serde_json::Value =
+            serde_json::from_str(&preflight.to_json()).expect("compact error JSON");
+        assert_eq!(wire["stage"], "preflight");
 
         let solver = ExecuteError::envelope(
             ExecutionStage::Solver,
@@ -965,6 +971,8 @@ mod tests {
         let details = solver.details();
         assert_eq!(details.stage, ExecutionStage::Solver);
         assert_eq!(details.category, "solver_not_converged");
+        let source = std::error::Error::source(&solver).expect("envelope source must be preserved");
+        assert!(source.to_string().contains("hazard"));
         assert_eq!(
             details
                 .solver_diagnostics

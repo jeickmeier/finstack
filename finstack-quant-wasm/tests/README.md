@@ -30,7 +30,7 @@ contract can be exercised at all.
 | Suite                             | Surface                                                                      |
 | --------------------------------- | ---------------------------------------------------------------------------- |
 | `wasm_analytics.rs`               | the `Performance` panel facade — the whole analytics surface                 |
-| `wasm_attribution.rs`             | `attributePnl` / `attributePnlFromSpec` and the schema gate                  |
+| `wasm_attribution.rs`             | `attributePnl` / `attributePnlJson` and the schema gate                      |
 | `wasm_cashflows.rs`               | `api::cashflows` build/validate/flows/accrual                                |
 | `wasm_core_market_data.rs`        | market-data and date bindings                                                |
 | `wasm_credit_factor_hierarchy.rs` | `CreditFactorModel` round-trip and calibrate → decompose                     |

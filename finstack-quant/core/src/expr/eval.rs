@@ -171,7 +171,7 @@ impl CompiledExpr {
     ///
     /// # Arguments
     ///
-    /// * `ast` - Ast supplied by the caller for this operation
+    /// * `ast` - Ast used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn new(ast: Expr) -> Self {
         Self {
             ast,
@@ -198,7 +198,7 @@ impl CompiledExpr {
     ///
     /// # Arguments
     ///
-    /// * `ast` - Ast supplied by the caller for this operation
+    /// * `ast` - Ast used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn try_new_scalar(ast: Expr) -> crate::Result<Self> {
         super::ast_walk::ensure_scalar_evaluable(&ast)?;
         Ok(Self::new(ast))
@@ -267,9 +267,9 @@ impl CompiledExpr {
     ///
     /// # Arguments
     ///
-    /// * `ctx` - Ctx supplied by the caller for this operation
-    /// * `cols` - Cols supplied by the caller for this operation
-    /// * `opts` - Opts supplied by the caller for this operation
+    /// * `ctx` - Market or evaluation context supplying dependencies required by the calculation.
+    /// * `cols` - Cols used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `opts` - Options controlling validation, interpolation, or execution behavior.
     pub fn eval(
         &self,
         ctx: &SimpleContext,

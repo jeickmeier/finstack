@@ -409,7 +409,7 @@ impl ToggleExerciseModel {
     ///
     /// # Arguments
     ///
-    /// * `state` - State supplied by the caller for this operation
+    /// * `state` - Serializable state used to restore the documented object.
     /// * `rng` - Random-number generator supplying uniform or Gaussian draws for simulation
     pub fn should_pik(&self, state: &CreditState, rng: &mut dyn RandomNumberGenerator) -> bool {
         match self {

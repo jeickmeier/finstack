@@ -467,7 +467,7 @@ impl RoundingContext {
     ///
     /// # Arguments
     ///
-    /// * `ccy` - Ccy supplied by the caller for this operation
+    /// * `ccy` - ISO 4217 currency used for configuration or market-data lookup.
     #[inline]
     pub fn money_epsilon(&self, ccy: crate::currency::Currency) -> f64 {
         let scale = self.output_scale(ccy) as i32;

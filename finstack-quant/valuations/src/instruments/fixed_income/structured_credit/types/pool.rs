@@ -293,7 +293,7 @@ impl PoolAsset {
     }
 
     /// Current yield of the asset
-    pub fn current_yield(&self) -> f64 {
+    pub fn get_current_yield(&self) -> f64 {
         self.rate
     }
 
@@ -605,7 +605,7 @@ impl AssetPool {
         }
 
         let mut rep_lines = Vec::with_capacity(groups.len());
-        let base_currency = self.base_currency();
+        let base_currency = self.get_base_currency();
 
         for (i, (_, group_assets)) in groups.into_iter().enumerate() {
             let total_balance: f64 = group_assets.iter().map(|a| a.balance.amount()).sum();
@@ -809,7 +809,7 @@ impl AssetPool {
     }
 
     /// Base currency of the pool.
-    pub fn base_currency(&self) -> Currency {
+    pub fn get_base_currency(&self) -> Currency {
         self.base_currency
     }
 
@@ -972,7 +972,7 @@ mod tests {
         let pool = AssetPool::new("TEST_POOL", DealType::Clo, Currency::USD);
         assert_eq!(pool.id.as_str(), "TEST_POOL");
         assert_eq!(pool.deal_type, DealType::Clo);
-        assert_eq!(pool.base_currency(), Currency::USD);
+        assert_eq!(pool.get_base_currency(), Currency::USD);
     }
 
     #[test]

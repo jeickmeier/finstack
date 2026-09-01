@@ -26,7 +26,6 @@ use crate::impl_instrument_base;
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = FxSwap::validate)]
 #[serde(deny_unknown_fields, try_from = "FxSwapUnchecked")]
 pub struct FxSwap {
     /// Unique instrument identifier

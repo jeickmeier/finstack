@@ -277,8 +277,18 @@ mod tests {
 
     fn make_process() -> RoughHestonProcess {
         let hurst = HurstExponent::new(0.1).expect("valid hurst");
-        let params =
-            RoughHestonParams::new(0.05, 0.02, hurst, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+        let params = RoughHestonParams {
+            r: 0.05,
+            q: 0.02,
+            hurst,
+            kappa: 2.0,
+            theta: 0.04,
+            sigma_v: 0.3,
+            rho: -0.7,
+            v0: 0.04,
+        }
+        .validate()
+        .expect("valid");
         RoughHestonProcess::new(params)
     }
 
@@ -529,8 +539,18 @@ mod tests {
         let (r, q, kappa, theta, sigma_v, rho, v0) =
             (0.0, 0.0, 2.0_f64, 0.06_f64, 0.15_f64, -0.5, 0.03_f64);
         let hurst = HurstExponent::new(h).expect("valid hurst");
-        let params =
-            RoughHestonParams::new(r, q, hurst, kappa, theta, sigma_v, rho, v0).expect("valid");
+        let params = RoughHestonParams {
+            r,
+            q,
+            hurst,
+            kappa,
+            theta,
+            sigma_v,
+            rho,
+            v0,
+        }
+        .validate()
+        .expect("valid");
         let process = RoughHestonProcess::new(params);
 
         let t_end = 1.0_f64;
@@ -610,8 +630,18 @@ mod tests {
         assert!(reference.is_finite() && reference > 0.0);
 
         let hurst = HurstExponent::new(h).expect("valid hurst");
-        let params =
-            RoughHestonParams::new(r, q, hurst, kappa, theta, sigma_v, rho, v0).expect("valid");
+        let params = RoughHestonParams {
+            r,
+            q,
+            hurst,
+            kappa,
+            theta,
+            sigma_v,
+            rho,
+            v0,
+        }
+        .validate()
+        .expect("valid");
         let process = RoughHestonProcess::new(params);
 
         // The Euler scheme for rough Heston converges slowly in the step

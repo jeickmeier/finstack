@@ -1102,7 +1102,7 @@ impl HullWhiteTree {
     ///
     /// # Arguments
     ///
-    /// * `time` - Time supplied by the caller for this operation
+    /// * `time` - Evaluation time in years from the model origin.
     pub fn step_at_time(&self, time: f64) -> Result<usize> {
         let step = self.time_to_step(time);
         let grid_time = self.time_at_step(step);

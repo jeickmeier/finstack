@@ -80,7 +80,7 @@ impl YtmCalculator {
         context: &MetricContext,
     ) -> finstack_quant_core::Result<YtmCompounding> {
         if let Some(raw) = context
-            .config()
+            .get_config()
             .extensions
             .get(STRUCTURED_CREDIT_YTM_CONFIG_KEY_V1)
         {

@@ -171,10 +171,8 @@ def test_im_result_breakdown_dataframe_is_sorted_by_risk_class() -> None:
     assert list(df.columns) == ["risk_class", "amount", "currency"]
     assert len(df) == len(result.breakdown_keys()) == 3
     risk_classes = list(df["risk_class"])
-    # The frame sorts; `breakdown_keys()` does not. Pinning both is what makes
-    # the sort assertion bite — comparing the frame to its own source order
-    # would agree no matter what either side did.
-    assert result.breakdown_keys() == ["FX_Delta", "Equity_Delta", "IR_Delta"]
+    # The canonical BTreeMap contract makes both access paths deterministic.
+    assert result.breakdown_keys() == ["Equity_Delta", "FX_Delta", "IR_Delta"]
     assert risk_classes == ["Equity_Delta", "FX_Delta", "IR_Delta"]
     assert risk_classes == sorted(risk_classes), "breakdown must be deterministic"
     assert set(risk_classes) == set(result.breakdown_keys())

@@ -3,7 +3,7 @@
 //! Computes present value of the premium leg using discount and hazard curves
 //! via the engine. The value is returned in currency units.
 
-use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
+use crate::instruments::credit_derivatives::cds::pricing::CDSPricer;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;

@@ -6,7 +6,7 @@
 //! parameters are sourced from required market scalars.
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::equity::equity_option::pricer::{
+use crate::instruments::equity::equity_option::pricing::{
     collect_inputs_extended, reject_future_discrete_dividends_for_stochastic_vol,
     resolve_lifecycle_value,
 };

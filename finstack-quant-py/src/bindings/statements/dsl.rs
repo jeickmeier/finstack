@@ -18,7 +18,7 @@ use pyo3::prelude::*;
 ///     Debug representation of the parsed AST.
 #[pyfunction]
 #[pyo3(text_signature = "(formula, /)")]
-fn parse_formula(formula: &str) -> PyResult<String> {
+fn parse_formula_text(formula: &str) -> PyResult<String> {
     let ast = finstack_quant_statements::dsl::parse_formula(formula).map_err(display_to_py)?;
     Ok(format!("{ast:?}"))
 }
@@ -50,7 +50,7 @@ fn validate_formula(formula: &str) -> PyResult<()> {
 
 /// Register DSL functions.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(pyo3::wrap_pyfunction!(parse_formula, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(parse_formula_text, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(validate_formula, m)?)?;
     Ok(())
 }

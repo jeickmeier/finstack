@@ -80,7 +80,7 @@ impl YieldPanel {
     ///
     /// # Arguments
     ///
-    /// * `yield_changes` - Yield changes supplied by the caller for this operation
+    /// * `yield_changes` - Yield changes used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn from_yield_changes(yield_changes: Vec<Vec<f64>>) -> finstack_quant_core::Result<Self> {
         let changes = rows_to_dmatrix(&yield_changes, "yield_changes")?;
         let n = changes.ncols();
@@ -107,8 +107,8 @@ impl YieldPanel {
     ///
     /// # Arguments
     ///
-    /// * `yields` - Yields supplied by the caller for this operation
-    /// * `tenors` - Tenors supplied by the caller for this operation
+    /// * `yields` - Yields used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `tenors` - Strictly ordered tenor coordinates in year-fraction units.
     /// * `dates` - Ascending observation dates aligned with the series or panel rows
     pub fn new(
         yields: DMatrix<f64>,

@@ -732,6 +732,24 @@ mod tests {
     }
 
     #[test]
+    fn builder_rejects_invalid_swap_economics() {
+        let mut swap = InterestRateSwap::example_standard().expect("example swap");
+        swap.fixed.rate = Decimal::MAX;
+
+        let error = InterestRateSwap::builder()
+            .id(swap.id)
+            .notional(swap.notional)
+            .side(swap.side)
+            .fixed(swap.fixed)
+            .float(swap.float)
+            .attributes(swap.attributes)
+            .build()
+            .expect_err("an extreme fixed rate must fail at the builder boundary");
+
+        assert!(error.to_string().contains("fixed rate"));
+    }
+
+    #[test]
     fn validate_allows_small_negative_as_convention_sentinel() {
         // Small negative values (like -1) are allowed as sentinels for "use convention default"
         let mut swap = InterestRateSwap::example_standard().expect("example swap");

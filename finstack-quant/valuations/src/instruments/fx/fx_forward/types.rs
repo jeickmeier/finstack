@@ -66,7 +66,6 @@ use time::macros::date;
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = FxForward::validate)]
 #[serde(deny_unknown_fields, try_from = "FxForwardUnchecked")]
 pub struct FxForward {
     /// Unique instrument identifier.

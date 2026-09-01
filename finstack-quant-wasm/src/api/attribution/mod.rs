@@ -294,8 +294,8 @@ pub fn attribute_pnl_json(params: &JsAttributionParams) -> Result<String, JsValu
 /// method-specific attribution failures; a caught parse or execution panic; or
 /// failure to serialize the result envelope.
 /// @param spec_json - JSON-serialized AttributionParams specification to validate and execute.
-#[wasm_bindgen(js_name = attributePnlFromSpec)]
-pub fn attribute_pnl_from_spec(spec_json: &str) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = attributePnlEnvelopeJson)]
+pub fn attribute_pnl_envelope_json(spec_json: &str) -> Result<String, JsValue> {
     // Wrap serde_json parse too. A JSON-parse panic would otherwise abort
     // the wasm module instance.
     let envelope = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -306,13 +306,14 @@ pub fn attribute_pnl_from_spec(spec_json: &str) -> Result<String, JsValue> {
         Err(panic) => {
             return Err(attribution_error_to_js(
                 finstack_quant_core::Error::Validation(format!(
-                    "attributePnlFromSpec panicked while parsing envelope JSON: {}",
+                    "attributePnlEnvelopeJson panicked while parsing envelope JSON: {}",
                     panic_message(panic.as_ref())
                 )),
             ));
         }
     };
-    let result_envelope = catch_attribution_panic("attributePnlFromSpec", || envelope.execute())?;
+    let result_envelope =
+        catch_attribution_panic("attributePnlEnvelopeJson", || envelope.execute())?;
     serde_json::to_string(&result_envelope).map_err(to_js_err)
 }
 

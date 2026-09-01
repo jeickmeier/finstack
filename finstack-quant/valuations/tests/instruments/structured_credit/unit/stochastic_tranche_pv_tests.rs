@@ -20,7 +20,7 @@ use finstack_quant_valuations::instruments::{
     InstrumentEnvelope, InstrumentJson, InstrumentPricingOverrides,
 };
 use finstack_quant_valuations::metrics::MetricId;
-use finstack_quant_valuations::pricer::price_instrument_json;
+use finstack_quant_valuations::pricer::price_instrument_from_json;
 use finstack_quant_valuations::results::{ValuationDetails, ValuationResult};
 use time::Month;
 
@@ -138,7 +138,7 @@ fn stochastic_single_path(sc: &StructuredCredit, market: &MarketContext) -> Valu
         Box::new(sc.clone()),
     )))
     .expect("instrument envelope JSON");
-    price_instrument_json(finstack_quant_valuations::pricer::JsonPricingRequest {
+    price_instrument_from_json(finstack_quant_valuations::pricer::JsonPricingRequest {
         instrument_json: &json,
         market,
         as_of: "2024-01-01",

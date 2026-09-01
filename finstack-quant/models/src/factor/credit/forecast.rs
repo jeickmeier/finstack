@@ -161,7 +161,7 @@ impl<'a> FactorCovarianceForecast<'a> {
     ///
     /// # Arguments
     ///
-    /// * `horizon` - Horizon supplied by the caller for this operation
+    /// * `horizon` - Horizon used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn covariance_at(
         &self,
         horizon: VolHorizon,

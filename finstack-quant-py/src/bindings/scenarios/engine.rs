@@ -156,6 +156,14 @@ impl PyApplicationResult {
         }
     }
 
+    /// Export the application report as a single-row pandas ``DataFrame``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        PyApplicationReport {
+            inner: self.report.clone(),
+        }
+        .to_dataframe(py)
+    }
+
     /// Serialize to a compact JSON string.
     ///
     /// Emits the canonical

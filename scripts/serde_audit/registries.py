@@ -48,13 +48,6 @@ ONE_WAY_EXCEPTIONS = (
     ),
     *_exception(
         "models",
-        "src/factor/credit/decomposition.rs",
-        ("LevelValuesAtDate", "LevelsAtDate", "LevelValuesDelta", "PeriodDecomposition"),
-        "decomposition-output",
-        "Computed credit decomposition output; reconstructed by rerunning decomposition.",
-    ),
-    *_exception(
-        "models",
         "src/factor/risk/views.rs",
         (
             "PositionEsContributionView",
@@ -359,8 +352,6 @@ RUNTIME_RESULT_EXCEPTIONS = (
         "runtime-spec",
     ),
     *_runtime_exception("core", "src/math/linalg.rs", ("LedoitWolfResult",)),
-    *_runtime_exception("margin", "src/calculators/traits.rs", ("ImResult",)),
-    *_runtime_exception("margin", "src/calculators/vm.rs", ("VmResult",)),
     *_runtime_exception(
         "statements",
         "src/capital_structure/waterfall/mod.rs",
@@ -404,7 +395,7 @@ RUNTIME_RESULT_EXCEPTIONS = (
     ),
     *_runtime_exception(
         "valuations",
-        "src/instruments/fixed_income/revolving_credit/pricer/results.rs",
+        "src/instruments/fixed_income/revolving_credit/pricing/results.rs",
         ("PathResult", "EnhancedMonteCarloResult"),
     ),
     *_runtime_exception(

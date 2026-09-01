@@ -56,11 +56,11 @@ impl CDSIndexParams {
     ///
     /// # Arguments
     ///
-    /// * `index_name` - Index name supplied by the caller for this operation
+    /// * `index_name` - Index name used by the algorithm, subject to the enclosing type invariants and documented units.
     /// * `series` - Time-ordered numeric samples for a single risk factor or price series
-    /// * `version` - Version supplied by the caller for this operation
-    /// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
-    /// * `convention` - Convention supplied by the caller for this operation
+    /// * `version` - Schema or registry version required for compatibility checks.
+    /// * `fixed_coupon_bp` - Fixed coupon rate expressed in basis points per annum.
+    /// * `convention` - Convention used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn new(
         index_name: impl Into<String>,
         series: u16,
@@ -95,8 +95,8 @@ impl CDSIndexParams {
     /// # Arguments
     ///
     /// * `series` - Time-ordered numeric samples for a single risk factor or price series
-    /// * `version` - Version supplied by the caller for this operation
-    /// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
+    /// * `version` - Schema or registry version required for compatibility checks.
+    /// * `fixed_coupon_bp` - Fixed coupon rate expressed in basis points per annum.
     pub fn cdx_na_ig(series: u16, version: u16, fixed_coupon_bp: f64) -> Self {
         Self::new(
             "CDX.NA.IG",
@@ -117,8 +117,8 @@ impl CDSIndexParams {
     /// # Arguments
     ///
     /// * `series` - Time-ordered numeric samples for a single risk factor or price series
-    /// * `version` - Version supplied by the caller for this operation
-    /// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
+    /// * `version` - Schema or registry version required for compatibility checks.
+    /// * `fixed_coupon_bp` - Fixed coupon rate expressed in basis points per annum.
     pub fn cdx_na_hy(series: u16, version: u16, fixed_coupon_bp: f64) -> Self {
         Self::new(
             "CDX.NA.HY",
@@ -138,8 +138,8 @@ impl CDSIndexParams {
     /// # Arguments
     ///
     /// * `series` - Time-ordered numeric samples for a single risk factor or price series
-    /// * `version` - Version supplied by the caller for this operation
-    /// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
+    /// * `version` - Schema or registry version required for compatibility checks.
+    /// * `fixed_coupon_bp` - Fixed coupon rate expressed in basis points per annum.
     pub fn itraxx_europe(series: u16, version: u16, fixed_coupon_bp: f64) -> Self {
         Self::new(
             "iTraxx Europe",

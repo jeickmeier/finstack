@@ -258,7 +258,7 @@ impl<'a> CeclEngine<'a> {
     /// # Arguments
     ///
     /// * `config` - Configuration object controlling validation, rounding, or solver behavior
-    /// * `pd_sources` - Pd sources supplied by the caller for this operation
+    /// * `pd_sources` - Probability-of-default sources keyed to the configured scenarios.
     pub fn new(
         config: CeclConfig,
         pd_sources: Vec<(&'a MacroScenario, &'a dyn PdTermStructure)>,

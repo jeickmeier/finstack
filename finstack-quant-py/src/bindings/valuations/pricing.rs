@@ -2,7 +2,7 @@
 
 use super::PyValuationResult;
 use crate::bindings::extract::{extract_instrument_json, extract_market};
-use crate::errors::core_to_py;
+use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_valuations::instruments::PricingOptions;
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -80,7 +80,7 @@ fn price_instrument(
     let instrument_json = extract_instrument_json(instrument_json)?;
     let pricing_options = pricing_options.map(str::to_owned);
     let instrument = py.detach(move || {
-        finstack_quant_valuations::pricer::parse_boxed_instrument_json(
+        finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(
             &instrument_json,
             pricing_options.as_deref(),
         )
@@ -247,7 +247,7 @@ fn instrument_cashflows_json(
 ) -> PyResult<String> {
     let instrument_json = extract_instrument_json(instrument_json)?;
     let instrument = py.detach(move || {
-        finstack_quant_valuations::pricer::parse_boxed_instrument_json(&instrument_json, None)
+        finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(&instrument_json, None)
             .map_err(core_to_py)
     })?;
     let market = extract_market(py, market)?;
@@ -255,13 +255,15 @@ fn instrument_cashflows_json(
     let model = model.to_owned();
 
     py.detach(move || {
-        finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
-            &instrument,
-            &market,
-            &as_of,
-            &model,
-        )
-        .map_err(core_to_py)
+        let envelope =
+            finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
+                &instrument,
+                &market,
+                &as_of,
+                &model,
+            )
+            .map_err(core_to_py)?;
+        serde_json::to_string(&envelope).map_err(display_to_py)
     })
 }
 

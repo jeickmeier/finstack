@@ -135,6 +135,7 @@ fn tree_greeks_richardson_extrapolation_matches_formula() {
         vega: 3.0,
         theta: 4.0,
         rho: 5.0,
+        oas01: 6.0,
     };
     let fine = TreeGreeks {
         price: 13.0,
@@ -143,6 +144,7 @@ fn tree_greeks_richardson_extrapolation_matches_formula() {
         vega: 3.5,
         theta: 4.5,
         rho: 5.5,
+        oas01: 6.5,
     };
 
     let extrapolated = TreeGreeks::richardson_extrapolate(&coarse, &fine);
@@ -152,6 +154,7 @@ fn tree_greeks_richardson_extrapolation_matches_formula() {
     assert!((extrapolated.vega - (11.0 / 3.0)).abs() < 1e-12);
     assert!((extrapolated.theta - (14.0 / 3.0)).abs() < 1e-12);
     assert!((extrapolated.rho - (17.0 / 3.0)).abs() < 1e-12);
+    assert!((extrapolated.oas01 - (20.0 / 3.0)).abs() < 1e-12);
     assert!((TreeGreeks::richardson_price(10.0, 13.0) - 14.0).abs() < 1e-12);
 }
 
@@ -172,7 +175,7 @@ fn default_tree_model_calculate_greeks_uses_central_differences_and_restores_var
         assert!((greeks.gamma - 2.0).abs() < 1e-12);
         assert!((greeks.vega - 0.1).abs() < 1e-12);
         assert!((greeks.rho - 0.01).abs() < 1e-12);
-        assert!((greeks.theta + 5.0).abs() < 1e-10);
+        assert!((greeks.theta + 5.0 / 365.25).abs() < 1e-10);
     }
 
     let restored_price = model.price(initial_vars, 1.0, &market, &valuator);

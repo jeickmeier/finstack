@@ -167,9 +167,9 @@ impl EnvelopeError {
         }
     }
 
-    /// Serialize to pretty-printed JSON for cross-binding consumption.
+    /// Serialize to compact JSON for cross-binding consumption.
     pub fn to_json(&self) -> String {
-        match serde_json::to_string_pretty(self) {
+        match serde_json::to_string(self) {
             Ok(json) => json,
             Err(err) => serde_json::json!({
                 "kind": "json_serialize",

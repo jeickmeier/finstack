@@ -156,7 +156,6 @@ impl FxDeltaConvention {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = FxOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxOption {
     /// Unique instrument identifier

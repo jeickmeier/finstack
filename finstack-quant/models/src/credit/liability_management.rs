@@ -52,6 +52,7 @@
 use core::fmt;
 use core::str::FromStr;
 
+use finstack_quant_core::validation::validate_f64_non_negative;
 use finstack_quant_core::{Error, Result};
 
 /// Multiple of the hold-out present value that the tender consideration must
@@ -207,10 +208,10 @@ pub fn analyze_exchange_offer(
     equity_sweetener_value: f64,
     exchange_type: ExchangeType,
 ) -> Result<ExchangeOfferAnalysis> {
-    validate_non_negative_finite("old_pv", old_pv)?;
-    validate_non_negative_finite("new_pv", new_pv)?;
-    validate_non_negative_finite("consent_fee", consent_fee)?;
-    validate_non_negative_finite("equity_sweetener_value", equity_sweetener_value)?;
+    validate_f64_non_negative(old_pv, "old_pv")?;
+    validate_f64_non_negative(new_pv, "new_pv")?;
+    validate_f64_non_negative(consent_fee, "consent_fee")?;
+    validate_f64_non_negative(equity_sweetener_value, "equity_sweetener_value")?;
 
     let tender_total = new_pv + consent_fee + equity_sweetener_value;
     let delta_npv = tender_total - old_pv;
@@ -477,16 +478,6 @@ pub fn analyze_lme(
         remaining_holder_impact_pct,
         leverage_impact,
     })
-}
-
-fn validate_non_negative_finite(field: &str, value: f64) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        Ok(())
-    } else {
-        Err(validation_error(format!(
-            "{field} must be finite and non-negative, got {value}"
-        )))
-    }
 }
 
 fn validation_error(message: impl Into<String>) -> Error {

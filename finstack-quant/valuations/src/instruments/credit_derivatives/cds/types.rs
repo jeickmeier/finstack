@@ -64,7 +64,7 @@ use rust_decimal::Decimal;
 use time::macros::date;
 
 use crate::impl_instrument_base;
-use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
+use crate::instruments::credit_derivatives::cds::pricing::CDSPricer;
 
 pub use crate::instruments::common_impl::parameters::legs::PayReceive;
 
@@ -372,7 +372,7 @@ impl CreditDefaultSwap {
         crate::instruments::common_impl::traits::Instrument::validate_for_pricing(self)?;
         let discount = market.get_discount(self.premium.discount_curve_id.as_str())?;
         let hazard = market.get_hazard(self.protection.credit_curve_id.as_str())?;
-        super::pricer::CDSPricer::with_config(super::pricer::CDSPricerConfig::from_cds(self))
+        super::pricing::CDSPricer::with_config(super::pricing::CDSPricerConfig::from_cds(self))
             .par_spread(self, discount.as_ref(), hazard.as_ref(), as_of)
     }
 
@@ -947,6 +947,26 @@ mod tests {
             cds.protection.settlement_delay,
             CdsConvention::IsdaNa.settlement_delay()
         );
+    }
+
+    #[test]
+    fn builder_rejects_invalid_cds_recovery_rate() {
+        let cds = CreditDefaultSwap::example();
+        let mut protection = cds.protection;
+        protection.recovery_rate = 1.1;
+
+        let error = CreditDefaultSwap::builder()
+            .id(cds.id)
+            .notional(cds.notional)
+            .side(cds.side)
+            .convention(cds.convention)
+            .premium(cds.premium)
+            .protection(protection)
+            .attributes(cds.attributes)
+            .build()
+            .expect_err("recovery above one must fail at the builder boundary");
+
+        assert!(error.to_string().to_lowercase().contains("recovery"));
     }
 
     #[test]

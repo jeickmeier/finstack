@@ -4,7 +4,7 @@ export const attribution = {
   AttributionParams: wasm.AttributionParams,
   attributePnl: wasm.attributePnl,
   attributePnlJson: wasm.attributePnlJson,
-  attributePnlFromSpec: wasm.attributePnlFromSpec,
+  attributePnlEnvelopeJson: wasm.attributePnlEnvelopeJson,
   validateAttributionJson: wasm.validateAttributionJson,
   defaultWaterfallOrder: wasm.defaultWaterfallOrder,
   defaultAttributionMetrics: wasm.defaultAttributionMetrics,

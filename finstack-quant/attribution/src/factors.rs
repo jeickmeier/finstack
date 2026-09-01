@@ -280,7 +280,7 @@ impl MarketSnapshot {
     /// # Arguments
     ///
     /// * `market` - Market context providing curves, surfaces, and fixing data for pricing
-    /// * `flags` - Flags supplied by the caller for this operation
+    /// * `flags` - Feature flags controlling optional attribution components.
     pub fn extract(market: &MarketContext, flags: MarketRestoreFlags) -> Self {
         let mut snapshot = Self::default();
 

@@ -589,15 +589,11 @@ fn test_term_forward_with_floor() {
 
 #[test]
 fn test_overdraw_validation() {
-    let val_date = date!(2025 - 01 - 01);
     let commitment_date = date!(2025 - 01 - 01);
     let maturity_date = date!(2026 - 01 - 01);
 
-    let disc_curve = build_flat_discount_curve(0.03, val_date, "USD-OIS");
-    let market = MarketContext::new().insert(disc_curve);
-
     // Create a facility with a draw that would exceed commitment
-    let facility = RevolvingCredit::builder()
+    let result = RevolvingCredit::builder()
         .id("RC-OVERDRAW".into())
         .commitment_amount(Money::new(1_000_000.0, Currency::USD))
         .drawn_amount(Money::new(500_000.0, Currency::USD))
@@ -614,12 +610,9 @@ fn test_overdraw_validation() {
         }]))
         .discount_curve_id("USD-OIS".into())
         .recovery_rate(0.0)
-        .build()
-        .unwrap();
+        .build();
 
-    // This should error due to overdraw
-    let result = facility.value(&market, val_date);
-    assert!(result.is_err(), "Should error on overdraw");
+    assert!(result.is_err(), "Construction should reject an overdraw");
 
     if let Err(e) = result {
         let err_msg = format!("{}", e);

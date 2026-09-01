@@ -54,7 +54,6 @@ pub enum RealEstateValuationMethod {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = RealEstateAsset::validate)]
 #[serde(deny_unknown_fields, try_from = "RealEstateAssetUnchecked")]
 pub struct RealEstateAsset {
     /// Unique instrument identifier.

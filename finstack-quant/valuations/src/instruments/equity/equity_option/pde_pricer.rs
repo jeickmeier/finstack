@@ -4,7 +4,7 @@
 //! grid. Supports both European and American exercise via the penalty method.
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::equity::equity_option::pricer::{
+use crate::instruments::equity::equity_option::pricing::{
     collect_inputs_extended, has_future_discrete_dividends, resolve_lifecycle_value,
 };
 use crate::instruments::equity::equity_option::types::EquityOption;

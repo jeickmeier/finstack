@@ -75,23 +75,24 @@ pub struct LmmParams {
 }
 
 impl LmmParams {
-    /// Validate and construct LMM parameters.
+    /// Validate LMM parameters assembled as a single cohesive configuration.
     ///
     /// # Errors
     ///
     /// Returns an error if dimensions are inconsistent, factor count is out of
     /// range, or any input is non-finite.
-    #[allow(clippy::too_many_arguments)]
-    pub fn try_new(
-        num_forwards: usize,
-        num_factors: usize,
-        tenors: Vec<f64>,
-        accrual_factors: Vec<f64>,
-        displacements: Vec<f64>,
-        vol_times: Vec<f64>,
-        vol_values: Vec<Vec<[f64; MAX_FACTORS]>>,
-        initial_forwards: Vec<f64>,
-    ) -> finstack_quant_core::Result<Self> {
+    #[must_use = "validation returns the validated parameter set"]
+    pub fn validate(self) -> finstack_quant_core::Result<Self> {
+        let Self {
+            num_forwards,
+            num_factors,
+            tenors,
+            accrual_factors,
+            displacements,
+            vol_times,
+            vol_values,
+            initial_forwards,
+        } = self;
         if num_forwards == 0 {
             return Err(finstack_quant_core::Error::Validation(
                 "LMM requires at least one forward rate".to_string(),
@@ -350,20 +351,21 @@ mod tests {
 
     fn simple_2f_params() -> LmmParams {
         // 3 forwards, 2 factors, flat 3% with 0.5% displacement
-        LmmParams::try_new(
-            3,
-            2,
-            vec![0.0, 1.0, 2.0, 3.0],
-            vec![1.0, 1.0, 1.0],
-            vec![0.005, 0.005, 0.005],
-            vec![], // single vol period
-            vec![vec![
+        LmmParams {
+            num_forwards: 3,
+            num_factors: 2,
+            tenors: vec![0.0, 1.0, 2.0, 3.0],
+            accrual_factors: vec![1.0, 1.0, 1.0],
+            displacements: vec![0.005, 0.005, 0.005],
+            vol_times: vec![], // single vol period
+            vol_values: vec![vec![
                 [0.15, 0.05, 0.0],
                 [0.12, 0.08, 0.0],
                 [0.10, 0.10, 0.0],
             ]],
-            vec![0.03, 0.03, 0.03],
-        )
+            initial_forwards: vec![0.03, 0.03, 0.03],
+        }
+        .validate()
         .expect("valid params")
     }
 
@@ -376,16 +378,17 @@ mod tests {
 
     #[test]
     fn test_invalid_factor_count() {
-        let result = LmmParams::try_new(
-            3,
-            5, // invalid
-            vec![0.0, 1.0, 2.0, 3.0],
-            vec![1.0, 1.0, 1.0],
-            vec![0.005, 0.005, 0.005],
-            vec![],
-            vec![vec![[0.1, 0.0, 0.0]; 3]],
-            vec![0.03, 0.03, 0.03],
-        );
+        let result = LmmParams {
+            num_forwards: 3,
+            num_factors: 5, // invalid
+            tenors: vec![0.0, 1.0, 2.0, 3.0],
+            accrual_factors: vec![1.0, 1.0, 1.0],
+            displacements: vec![0.005, 0.005, 0.005],
+            vol_times: vec![],
+            vol_values: vec![vec![[0.1, 0.0, 0.0]; 3]],
+            initial_forwards: vec![0.03, 0.03, 0.03],
+        }
+        .validate();
         assert!(result.is_err());
     }
 
@@ -458,19 +461,20 @@ mod tests {
 
     #[test]
     fn test_vol_period_selection() {
-        let p = LmmParams::try_new(
-            2,
-            2,
-            vec![0.0, 1.0, 2.0],
-            vec![1.0, 1.0],
-            vec![0.005, 0.005],
-            vec![0.5], // breakpoint at 0.5y
-            vec![
+        let p = LmmParams {
+            num_forwards: 2,
+            num_factors: 2,
+            tenors: vec![0.0, 1.0, 2.0],
+            accrual_factors: vec![1.0, 1.0],
+            displacements: vec![0.005, 0.005],
+            vol_times: vec![0.5], // breakpoint at 0.5y
+            vol_values: vec![
                 vec![[0.20, 0.05, 0.0], [0.18, 0.06, 0.0]], // period 0: [0, 0.5)
                 vec![[0.15, 0.04, 0.0], [0.13, 0.05, 0.0]], // period 1: [0.5, ∞)
             ],
-            vec![0.03, 0.03],
-        )
+            initial_forwards: vec![0.03, 0.03],
+        }
+        .validate()
         .expect("valid");
         assert_eq!(p.vol_period(0.25), 0);
         assert_eq!(p.vol_period(0.5), 1);

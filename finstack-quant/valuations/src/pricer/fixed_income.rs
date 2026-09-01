@@ -20,7 +20,7 @@ pub(crate) fn register_fixed_income_pricers(
 
     // Convertible Bond
     registry
-        .register(crate::instruments::fixed_income::convertible::pricer::ConvertibleTreePricer)?;
+        .register(crate::instruments::fixed_income::convertible::pricing::ConvertibleTreePricer)?;
 
     // Inflation Linked Bond
     register_generic!(
@@ -31,13 +31,13 @@ pub(crate) fn register_fixed_income_pricers(
 
     // Revolving Credit
     registry.register(
-        crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer::new(
+        crate::instruments::fixed_income::revolving_credit::pricing::RevolvingCreditPricer::new(
             ModelKey::Discounting,
         ),
     )?;
 
     registry.register(
-        crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer::new(
+        crate::instruments::fixed_income::revolving_credit::pricing::RevolvingCreditPricer::new(
             ModelKey::MonteCarloGBM,
         ),
     )?;

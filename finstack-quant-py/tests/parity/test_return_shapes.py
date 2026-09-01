@@ -40,7 +40,9 @@ ENTRY_SHAPES: list[tuple[str, str, str]] = [
     # attribution
     ("finstack_quant.attribution", "attribute_pnl", "wrapper"),
     ("finstack_quant.attribution", "attribute_return_contribution", "wrapper"),
-    ("finstack_quant.attribution", "attribute_pnl_from_spec", "json"),
+    ("finstack_quant.attribution", "attribute_pnl_envelope_json", "json"),
+    ("finstack_quant.statements", "normalize", "list"),
+    ("finstack_quant.statements", "normalize_json", "json"),
     # scenarios
     ("finstack_quant.scenarios", "parse_scenario_spec", "wrapper"),
     ("finstack_quant.scenarios", "build_scenario_spec", "wrapper"),
@@ -129,6 +131,7 @@ RESULT_CLASSES: list[tuple[str, str]] = [
     ("finstack_quant.margin", "FrtbSbaResult"),
     ("finstack_quant.margin", "EadResult"),
     ("finstack_quant.statements", "StatementResult"),
+    ("finstack_quant.statements", "NormalizationResult"),
     # portfolio attribution/performance result wrappers.
     ("finstack_quant.portfolio", "BrinsonPeriodResult"),
     ("finstack_quant.portfolio", "CarinoLinkedAttribution"),

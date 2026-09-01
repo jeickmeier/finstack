@@ -303,8 +303,8 @@ impl BumpSizeConfig {
     ///
     /// # Arguments
     ///
-    /// * `factor_id` - Factor id supplied by the caller for this operation
-    /// * `factor_type` - Factor type supplied by the caller for this operation
+    /// * `factor_id` - Stable identifier of the market or statistical factor.
+    /// * `factor_type` - Factor classification controlling shock and aggregation semantics.
     #[must_use]
     pub fn bump_size_with_unit_for_factor(
         &self,

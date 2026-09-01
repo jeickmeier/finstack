@@ -159,7 +159,7 @@ fn test_asset_pool_creation() {
     // Assert
     assert_eq!(pool.id.as_str(), "TEST_POOL");
     assert_eq!(pool.deal_type, DealType::Clo);
-    assert_eq!(pool.base_currency(), Currency::USD);
+    assert_eq!(pool.get_base_currency(), Currency::USD);
     assert_eq!(pool.assets.len(), 0);
     assert_eq!(pool.total_balance().unwrap().amount(), 0.0);
 }
@@ -203,7 +203,7 @@ fn test_asset_pool_empty_pool_balance() {
     // Assert
     assert_eq!(total.amount(), 0.0);
     assert_eq!(total.currency(), Currency::EUR);
-    assert_eq!(pool.base_currency(), Currency::EUR);
+    assert_eq!(pool.get_base_currency(), Currency::EUR);
 }
 
 #[test]

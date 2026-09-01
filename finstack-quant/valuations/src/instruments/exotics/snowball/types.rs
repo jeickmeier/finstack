@@ -262,8 +262,8 @@ impl Snowball {
     ///
     /// # Arguments
     ///
-    /// * `floating_rate` - Floating rate supplied by the caller for this operation
-    /// * `prev_coupon` - Prev coupon supplied by the caller for this operation
+    /// * `floating_rate` - Floating rate used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `prev_coupon` - Prev coupon used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn compute_coupon(&self, floating_rate: f64, prev_coupon: f64) -> f64 {
         let raw = match self.variant {
             SnowballVariant::Snowball => prev_coupon + self.fixed_rate - floating_rate,

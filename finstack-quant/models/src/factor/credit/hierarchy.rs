@@ -478,8 +478,8 @@ impl FactorCorrelationMatrix {
     ///
     /// # Arguments
     ///
-    /// * `factor_ids` - Factor ids supplied by the caller for this operation
-    /// * `data` - Data supplied by the caller for this operation
+    /// * `factor_ids` - Factor identifiers aligned with the exposure or loading columns.
+    /// * `data` - Validated market-data payload to insert or transform.
     pub fn new(
         factor_ids: Vec<FactorId>,
         data: Vec<Vec<f64>>,

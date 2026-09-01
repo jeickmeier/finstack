@@ -48,8 +48,8 @@ function assertStructuredError(error) {
   assert.equal(error.name, 'CalibrationEnvelopeError');
   assert.equal(typeof error.kind, 'string');
   assert.equal(typeof error.stage, 'string');
-  assert.ok(error.step_id === null || typeof error.step_id === 'string');
-  assert.ok(error.solver_diagnostics === null || typeof error.solver_diagnostics === 'object');
+  assert.ok(error.step_id === undefined || typeof error.step_id === 'string');
+  assert.ok(error.solver_diagnostics === undefined || typeof error.solver_diagnostics === 'object');
   assert.equal(typeof error.details, 'string');
   assert.deepEqual(error.cause, JSON.parse(error.details));
 }
@@ -72,8 +72,8 @@ test('malformed calibration input exposes canonical ingestion details', () => {
   assertStructuredError(error);
   assert.equal(error.kind, 'strict_load');
   assert.equal(error.stage, 'ingestion');
-  assert.equal(error.step_id, null);
-  assert.equal(error.solver_diagnostics, null);
+  assert.equal(error.step_id, undefined);
+  assert.equal(error.solver_diagnostics, undefined);
   assert.equal(error.cause.category, 'strict_load');
 });
 
@@ -105,7 +105,7 @@ test('step-scoped validation error keeps kind distinct from step id', () => {
   assert.equal(error.stage, 'ingestion');
   assert.equal(error.step_id, 'discount_step');
   assert.notEqual(error.kind, error.step_id);
-  assert.equal(error.solver_diagnostics, null);
+  assert.equal(error.solver_diagnostics, undefined);
   assert.equal(error.cause.category, 'undefined_quote_set');
 });
 

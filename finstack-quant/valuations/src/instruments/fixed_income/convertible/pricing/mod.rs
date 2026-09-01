@@ -13,20 +13,20 @@
 //! - `calculate_conversion_premium`: Conversion premium versus equity value
 //! - `calculate_accrued_interest`: Accrued coupon interest as of valuation date
 
-mod pricing;
+mod engine;
 mod tree_pricer;
 mod tsiveriotis_zhang;
 mod valuator;
 
-pub(crate) use pricing::{build_convertible_schedule, compute_conversion_value};
-pub use pricing::{
+pub(crate) use engine::{build_convertible_schedule, compute_conversion_value};
+pub use engine::{
     calculate_accrued_interest, calculate_conversion_premium, calculate_convertible_greeks,
     calculate_parity, price_convertible_bond, settlement_date, ConvertibleTreeType,
 };
 pub(crate) use tree_pricer::ConvertibleTreePricer;
 
 #[cfg(test)]
-use pricing::prepare_for_pricing;
+use engine::prepare_for_pricing;
 #[cfg(test)]
 use valuator::ConvertibleBondValuator;
 

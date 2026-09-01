@@ -32,7 +32,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET_DOC_DIR = REPO_ROOT / "target" / "doc"
 ARGUMENTS_HEADING_RE = re.compile(r"(?mi)^# Arguments\s*$")
 GENERIC_DESCRIPTION_RE = re.compile(
-    r"^(?:the )?(?:input|parameter|value)(?: (?:value|parameter|to use|for the operation))?[.!]?$",
+    r"^(?:(?:the )?(?:input|parameter|value)(?: (?:value|parameter|to use|for the operation))?"
+    r"|.+ supplied by (?:the )?caller for this operation)[.!]?$",
     re.IGNORECASE,
 )
 

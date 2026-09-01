@@ -79,7 +79,6 @@ use finstack_quant_core::Result;
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
-#[builder(validate = CommoditySwaption::validate)]
 pub struct CommoditySwaption {
     /// Unique instrument identifier.
     pub id: InstrumentId,

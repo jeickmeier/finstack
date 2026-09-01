@@ -41,11 +41,11 @@ pub(crate) fn register_equity_pricers(
 
     // Equity Option
     registry.register(
-        crate::instruments::equity::equity_option::pricer::SimpleEquityOptionBlackPricer,
+        crate::instruments::equity::equity_option::pricing::SimpleEquityOptionBlackPricer,
     )?;
 
     registry.register(
-        crate::instruments::equity::equity_option::pricer::EquityOptionHestonFourierPricer,
+        crate::instruments::equity::equity_option::pricing::EquityOptionHestonFourierPricer,
     )?;
 
     // Equity TRS

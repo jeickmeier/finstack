@@ -50,9 +50,9 @@ Every class is marked `perf`. Selection within the suite is by class or by the
 | `TestCorrelationBenchmarks` | `models.correlation`: `CopulaSpec`, `CorrelatedBernoulli`, `RecoverySpec`, `LatentFactorSpec`/`LatentSingleFactor`, `correlation_bounds`, `validate_correlation_matrix` |
 | `TestMonteCarloBenchmarks` | Closed-form `black_scholes_call`/`_put`, plus `EuropeanPricer`, `LsmcPricer`, and `PathDependentPricer` at 5,000–10,000 paths |
 | `TestMarginBenchmarks` | `CsaSpec.usd_regulatory`, `VmCalculator.calculate`, `NettingSetId`, `XvaConfig`, `FundingConfig`, `MarginUtilization` |
-| `TestStatementsBenchmarks` | `FinancialModelSpec.from_json`, `ModelBuilder`, `Evaluator.evaluate`, `parse_formula`, `validate_formula`, `normalize` |
+| `TestStatementsBenchmarks` | `FinancialModelSpec.from_json`, `ModelBuilder`, `Evaluator.evaluate`, `parse_formula_text`, `validate_formula`, `normalize` |
 | `TestStatementsAnalyticsBenchmarks` | Sensitivity, variance, scenario sets, goal seek, dependency tracing, `explain_formula` — each benched **twice**, once on the JSON path and once on the typed path, so the serialization overhead of the wire surface is directly visible. `backtest_forecast` is the one unpaired case |
-| `TestPortfolioBenchmarks` | `Portfolio.from_materialization` (cold-unique, cold-dedup, warm-dedup) and `parse_portfolio_spec` / `build_portfolio_from_spec` |
+| `TestPortfolioBenchmarks` | `Portfolio.from_materialization` (cold-unique, cold-dedup, warm-dedup) and `parse_portfolio_spec_json` / `build_portfolio_from_spec_json` |
 | `TestPortfolioCompoundWorkflow` | The realistic calling pattern (value + metrics + cashflows) over 500 positions, JSON path vs. typed `Portfolio`/`MarketContext` path |
 | `TestPortfolioReleaseControls` | Release-scale controls: metrics attribution (40/120 positions), `scenario_pnl_batch` vs. repeated `scenario_pnl` (10/100 scenarios), 20-snapshot `replay_portfolio`, standard-risk valuation at 3,000 positions, PV-only valuation at 3,000 and 25,000 positions |
 | `TestPortfolioRiskInputBenchmarks` | `parametric_var_decomposition` (256×256), `historical_var_decomposition` and `build_stress_attribution` (200×1,000), each with `list` and contiguous NumPy inputs — this pair exists to measure the zero-copy path, so keep both |

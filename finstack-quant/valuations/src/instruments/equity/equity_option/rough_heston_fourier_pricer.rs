@@ -4,7 +4,7 @@
 //! to price European equity options under the rough Heston model (El Euch & Rosenbaum 2019).
 //! Model parameters are sourced from required market scalars.
 
-use super::pricer::{
+use super::pricing::{
     collect_inputs_extended, reject_future_discrete_dividends_for_stochastic_vol, require_european,
     resolve_lifecycle_value,
 };

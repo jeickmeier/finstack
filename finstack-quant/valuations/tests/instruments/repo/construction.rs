@@ -101,7 +101,7 @@ fn test_builder_with_all_fields() {
         .haircut(0.025)
         .day_count(DayCount::Act365F)
         .business_day_convention(BusinessDayConvention::ModifiedFollowing)
-        .calendar_id_opt(Some("nyc".into()))
+        .calendar_id_opt(Some("nyse".into()))
         .triparty(true)
         .discount_curve_id("USD-OIS".into())
         .attributes(

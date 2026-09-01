@@ -605,7 +605,7 @@ fn test_structured_credit_instrument_envelope_roundtrip() {
 
 /// Binding-parity: a deal configured with the new `waterfall_rules` round-trips
 /// through the canonical instrument envelope the Python/WASM bindings use, and prices
-/// through the same `price_instrument_json` entry point. Proves the structural
+/// through the same `price_instrument_from_json` entry point. Proves the structural
 /// features are reachable from the JSON bindings without any binding code change
 /// (validation and deserialization are serde-based on the Rust type).
 #[test]
@@ -616,7 +616,7 @@ fn waterfall_rules_round_trip_and_price_through_json() {
     use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
         AfcSpec, WaterfallRules,
     };
-    use finstack_quant_valuations::pricer::price_instrument_json;
+    use finstack_quant_valuations::pricer::price_instrument_from_json;
 
     let closing = Date::from_calendar_date(2024, Month::January, 1).unwrap();
     let mat = Date::from_calendar_date(2027, Month::January, 1).unwrap();
@@ -686,7 +686,7 @@ fn waterfall_rules_round_trip_and_price_through_json() {
             .build()
             .unwrap(),
     );
-    price_instrument_json(finstack_quant_valuations::pricer::JsonPricingRequest {
+    price_instrument_from_json(finstack_quant_valuations::pricer::JsonPricingRequest {
         instrument_json: &json,
         market: &market,
         as_of: "2024-01-01",

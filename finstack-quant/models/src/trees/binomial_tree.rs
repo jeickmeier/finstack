@@ -214,7 +214,7 @@ impl BinomialTree {
     ///
     /// # Arguments
     ///
-    /// * `steps` - Steps supplied by the caller for this operation
+    /// * `steps` - Steps used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn leisen_reimer_odd(steps: usize) -> Self {
         let odd_steps = if steps.is_multiple_of(2) {
             steps + 1
@@ -1026,6 +1026,7 @@ impl TreeModel for BinomialTree {
             vega: 0.0,
             theta: 0.0,
             rho: 0.0,
+            oas01: 0.0,
         };
 
         // Calculate Delta and Gamma (spot sensitivity)
@@ -1063,7 +1064,7 @@ impl TreeModel for BinomialTree {
             greeks.vega = (price_vol_up - price_vol_down) / 2.0;
         }
 
-        // Calculate Rho (rate sensitivity)
+        // Calculate Rho (rate sensitivity) with a central ±1bp stencil.
         if let Some(&rate) = initial_vars.get(state_keys::INTEREST_RATE) {
             let h = 0.0001; // 1bp rate bump
 
@@ -1072,7 +1073,12 @@ impl TreeModel for BinomialTree {
             let price_rate_up =
                 self.price(vars_rate_up, time_to_maturity, market_context, valuator)?;
 
-            greeks.rho = price_rate_up - base_price;
+            let mut vars_rate_down = initial_vars.clone();
+            vars_rate_down.insert(state_keys::INTEREST_RATE, rate - h);
+            let price_rate_down =
+                self.price(vars_rate_down, time_to_maturity, market_context, valuator)?;
+
+            greeks.rho = (price_rate_up - price_rate_down) / 2.0;
         }
 
         // Calculate Theta (time decay) - use 1 day bump
@@ -1084,7 +1090,7 @@ impl TreeModel for BinomialTree {
                 market_context,
                 valuator,
             )?;
-            greeks.theta = -(base_price - price_tomorrow) / dt;
+            greeks.theta = price_tomorrow - base_price;
         }
 
         Ok(greeks)

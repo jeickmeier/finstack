@@ -2,13 +2,13 @@
 
 use finstack_quant_models::credit::pd::{
     central_tendency as core_central_tendency, pit_to_ttc as core_pit_to_ttc,
-    ttc_to_pit as core_ttc_to_pit, MasterScale, MasterScaleGrade, PdCycleParams,
+    ttc_to_pit as core_ttc_to_pit, MasterScale, MasterScaleGrade, MasterScaleResult, PdCycleParams,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
 use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
-use crate::errors::{core_to_py, pd_calibration_to_py};
+use crate::errors::{core_to_py, display_to_py, pd_calibration_to_py};
 
 /// Convert a Point-in-Time PD to a Through-the-Cycle PD.
 ///
@@ -124,36 +124,51 @@ impl PyMasterScaleGrade {
 )]
 #[derive(Clone)]
 pub struct PyMasterScaleResult {
-    grade: String,
-    central_pd: f64,
-    input_pd: f64,
-    grade_index: usize,
+    inner: MasterScaleResult,
 }
 
 #[pymethods]
 impl PyMasterScaleResult {
+    /// Deserialize a mapped-grade result from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this result to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Label of the grade the PD mapped into.
     #[getter]
     fn grade(&self) -> &str {
-        &self.grade
+        &self.inner.grade
     }
 
     /// Central PD of the assigned grade — the notched value.
     #[getter]
     fn central_pd(&self) -> f64 {
-        self.central_pd
+        self.inner.central_pd
     }
 
     /// The PD that was mapped, before notching.
     #[getter]
     fn input_pd(&self) -> f64 {
-        self.input_pd
+        self.inner.input_pd
     }
 
     /// Zero-based index of the assigned grade in the scale.
     #[getter]
     fn grade_index(&self) -> usize {
-        self.grade_index
+        self.inner.grade_index
     }
 
     /// Export as a single-row pandas ``DataFrame``.
@@ -168,10 +183,10 @@ impl PyMasterScaleResult {
         // rather than holding an `inner`, so there is no Serialize impl to
         // reuse — the row literal is built from the stored fields directly.
         let row = serde_json::json!({
-            "grade": self.grade,
-            "grade_index": self.grade_index,
-            "input_pd": self.input_pd,
-            "central_pd": self.central_pd,
+            "grade": self.inner.grade,
+            "grade_index": self.inner.grade_index,
+            "input_pd": self.inner.input_pd,
+            "central_pd": self.inner.central_pd,
         });
         serde_object_to_single_row_dataframe_with_schema(
             py,
@@ -183,7 +198,7 @@ impl PyMasterScaleResult {
     fn __repr__(&self) -> String {
         format!(
             "MasterScaleResult(grade='{}', central_pd={}, input_pd={})",
-            self.grade, self.central_pd, self.input_pd
+            self.inner.grade, self.inner.central_pd, self.inner.input_pd
         )
     }
 
@@ -265,12 +280,7 @@ impl PyMasterScale {
     #[pyo3(text_signature = "(pd)")]
     fn map_pd(&self, pd: f64) -> PyResult<PyMasterScaleResult> {
         let result = self.inner.map_pd(pd).map_err(pd_calibration_to_py)?;
-        Ok(PyMasterScaleResult {
-            grade: result.grade,
-            central_pd: result.central_pd,
-            input_pd: result.input_pd,
-            grade_index: result.grade_index,
-        })
+        Ok(PyMasterScaleResult { inner: result })
     }
 
     /// Number of grades in the scale.

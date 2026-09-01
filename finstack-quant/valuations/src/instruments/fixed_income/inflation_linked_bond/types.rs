@@ -271,7 +271,6 @@ impl InflationSource {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = InflationLinkedBond::validate)]
 #[serde(deny_unknown_fields)]
 pub struct InflationLinkedBond {
     /// Unique instrument identifier
@@ -579,10 +578,10 @@ impl InflationLinkedBond {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `bond_params` - Bond params supplied by the caller for this operation
-    /// * `base_date` - Base date supplied by the caller for this operation
-    /// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
-    /// * `inflation_index_id` - Inflation index id supplied by the caller for this operation
+    /// * `bond_params` - Bond params used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `base_date` - Curve or model anchor date from which times are measured.
+    /// * `discount_curve_id` - Identifier of the discount curve used for present-value calculations.
+    /// * `inflation_index_id` - Identifier of the inflation index used for fixing lookup.
     pub fn new_uk_linker(
         id: impl Into<InstrumentId>,
         bond_params: &InflationLinkedBondParams,
@@ -682,9 +681,9 @@ impl InflationLinkedBond {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `bond_params` - Bond params supplied by the caller for this operation
-    /// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
-    /// * `inflation_index_id` - Inflation index id supplied by the caller for this operation
+    /// * `bond_params` - Bond params used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `discount_curve_id` - Identifier of the discount curve used for present-value calculations.
+    /// * `inflation_index_id` - Identifier of the inflation index used for fixing lookup.
     pub fn new_uk_linker_modern(
         id: impl Into<InstrumentId>,
         bond_params: &InflationLinkedBondParams,

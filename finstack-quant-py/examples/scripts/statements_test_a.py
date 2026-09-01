@@ -31,7 +31,7 @@ from finstack_quant.statements import (
     ForecastSpec,
     ModelBuilder,
     NormalizationConfig,
-    normalize,
+    normalize_json,
 )
 
 WORKSPACE_ROOT: Final = Path(__file__).resolve().parents[3]
@@ -278,7 +278,7 @@ def run_checks() -> TestAEvidence:
     _validate_schema(config_document, NORMALIZATION_SCHEMA_PATH, "A2 normalization")
 
     results = Evaluator().evaluate(round_tripped_model)
-    normalized = json.loads(normalize(results, config))
+    normalized = json.loads(normalize_json(results, config))
     _require(isinstance(normalized, list), "A1 normalize did not return a JSON list")
     _assert_normalization(normalized)
 

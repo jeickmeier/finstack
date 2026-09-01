@@ -861,7 +861,6 @@ impl JsPerformance {
     ///
     /// Rejects an unsupported frequency or a failure to create a point
     /// property on the JavaScript result object.
-    /// @param frequency - Optional calendar frequency token: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"semiannual"`, or `"annual"`; defaults to `"monthly"`.
     /// @returns Ticker-major nested arrays of chronological period-end points with simple decimal returns.
     #[wasm_bindgen(js_name = periodicReturns)]
     pub fn periodic_returns(&self, frequency: Option<String>) -> Result<JsValue, JsValue> {

@@ -74,7 +74,7 @@ const fxVolFromTyped = new core.FxDeltaVolSurface(
   new Float64Array([0.008, 0.009])
 );
 
-const projectionGrid: Float64Array | null = forwardFromTyped.projectionGrid;
+const projectionGrid: Float64Array | undefined = forwardFromTyped.projectionGrid;
 const expiries: Float64Array = fxVolFromTyped.expiries;
 const pillarVols: Float64Array = models.volatility.getFxDeltaPillarVols(fxVolFromArrays, 0);
 const factorReturns = analytics.constrainedLeastSquares([1], 1, [0.01], [1]);

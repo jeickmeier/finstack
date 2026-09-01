@@ -44,7 +44,7 @@ fn pretty_json(json: &str) -> Result<String, JsValue> {
 /// instrument identifier through the canonical `Instrument` trait, matching
 /// the Python typed wrappers' `id` property.
 fn instrument_id_from_json(json: &str) -> Result<String, JsValue> {
-    finstack_quant_valuations::pricer::parse_boxed_instrument_json(json, None)
+    finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(json, None)
         .map(|instrument| instrument.as_instrument().id().to_string())
         .map_err(|e| to_js_error(&e))
 }

@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 /// Metric-registration configuration errors.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum MetricRegistryError {
     /// A default or instrument-specific calculator already owns the key.
     #[error(

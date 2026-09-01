@@ -8,12 +8,12 @@ use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::pricer::{
-    price_instrument_json as canonical_price_instrument_json, JsonPricingRequest,
+    price_instrument_from_json as canonical_price_instrument_from_json, JsonPricingRequest,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-fn price_instrument_json(
+fn price_instrument_from_json(
     instrument_json: &str,
     market: &MarketContext,
     as_of: &str,
@@ -22,7 +22,7 @@ fn price_instrument_json(
     instrument_pricing_overrides_json: Option<&str>,
     market_history_json: Option<&str>,
 ) -> finstack_quant_core::Result<finstack_quant_valuations::results::ValuationResult> {
-    canonical_price_instrument_json(JsonPricingRequest {
+    canonical_price_instrument_from_json(JsonPricingRequest {
         instrument_json,
         market,
         as_of,
@@ -94,7 +94,7 @@ pub(crate) fn run_pricing_fixture(
         .map_err(|err| format!("serialize instrument: {err}"))?;
     let metrics = requested_metrics(fixture);
 
-    let result = price_instrument_json(
+    let result = price_instrument_from_json(
         &instrument_json,
         &market,
         &fixture.metadata.valuation_date,
@@ -193,7 +193,7 @@ mod tests {
         instrument_json: &str,
     ) -> f64 {
         let pricing = fixture.pricing().expect("pricing body");
-        let result = price_instrument_json(
+        let result = price_instrument_from_json(
             instrument_json,
             market,
             &fixture.metadata.valuation_date,
@@ -343,7 +343,7 @@ mod tests {
             &[CurveId::new("USD-SOFR-DISC"), CurveId::new("SOFR-3M")],
         );
 
-        let registry_result = price_instrument_json(
+        let registry_result = price_instrument_from_json(
             &instrument_json,
             &market,
             &fixture.metadata.valuation_date,

@@ -386,7 +386,7 @@ pub fn statements_to_py(e: finstack_quant_statements::Error) -> PyErr {
     use finstack_quant_statements::Error as SErr;
     match e {
         SErr::Core(core) => core_to_py(core),
-        err @ (SErr::NodeNotFound(_) | SErr::MissingData(_) | SErr::Registry(_)) => {
+        err @ (SErr::NodeNotFound(_) | SErr::MissingData(_) | SErr::RegistryNotFound(_)) => {
             PyKeyError::new_err(format_chain(&err))
         }
         // `Serde` is malformed *input*, not an operational failure: bad JSON at

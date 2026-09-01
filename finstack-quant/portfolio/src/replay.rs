@@ -126,7 +126,7 @@ impl ReplayTimeline {
     ///
     /// # Arguments
     ///
-    /// * `snapshots` - Snapshots supplied by the caller for this operation
+    /// * `snapshots` - Chronologically ordered portfolio snapshots to replay.
     pub fn new(snapshots: Vec<(Date, MarketContext)>) -> Result<Self> {
         if snapshots.is_empty() {
             return Err(Error::InvalidInput(

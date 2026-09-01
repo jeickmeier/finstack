@@ -392,7 +392,7 @@ impl Marginable for CreditDefaultSwap {
     }
 
     fn mtm_for_vm(&self, market: &MarketContext, as_of: Date) -> Result<Money> {
-        use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
+        use crate::instruments::credit_derivatives::cds::pricing::CDSPricer;
 
         let disc = market.get_discount(self.premium.discount_curve_id.as_str())?;
         let surv = market.get_hazard(self.protection.credit_curve_id.as_str())?;

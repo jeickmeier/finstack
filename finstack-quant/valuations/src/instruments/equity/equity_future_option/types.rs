@@ -14,7 +14,6 @@ use finstack_quant_core::types::InstrumentId;
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = EquityFutureOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct EquityFutureOption {
     /// Unique instrument identifier.

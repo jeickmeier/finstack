@@ -160,7 +160,7 @@ impl Money {
     ///
     /// # Arguments
     ///
-    /// * `opts` - Opts supplied by the caller for this operation
+    /// * `opts` - Options controlling validation, interpolation, or execution behavior.
     pub fn format_with(&self, opts: FormatOpts) -> String {
         use super::rounding::round_decimal;
         let dp = opts
@@ -472,7 +472,7 @@ impl Money {
     ///
     /// # Arguments
     ///
-    /// * `rhs` - Rhs supplied by the caller for this operation
+    /// * `rhs` - Right-hand operand combined with this value under the documented arithmetic rules.
     #[must_use = "returns new Money if currencies match"]
     #[inline]
     pub fn checked_add(self, rhs: Self) -> Result<Self, Error> {
@@ -511,7 +511,7 @@ impl Money {
     ///
     /// # Arguments
     ///
-    /// * `rhs` - Rhs supplied by the caller for this operation
+    /// * `rhs` - Right-hand operand combined with this value under the documented arithmetic rules.
     #[must_use = "returns new Money if currencies match"]
     #[inline]
     pub fn checked_sub(self, rhs: Self) -> Result<Self, Error> {
@@ -551,7 +551,7 @@ impl Money {
     ///
     /// # Arguments
     ///
-    /// * `rhs` - Rhs supplied by the caller for this operation
+    /// * `rhs` - Right-hand operand combined with this value under the documented arithmetic rules.
     #[must_use = "returns new Money on success"]
     #[inline]
     pub fn checked_mul_f64(self, rhs: f64) -> Result<Self, Error> {
@@ -591,7 +591,7 @@ impl Money {
     ///
     /// # Arguments
     ///
-    /// * `rhs` - Rhs supplied by the caller for this operation
+    /// * `rhs` - Right-hand operand combined with this value under the documented arithmetic rules.
     #[must_use = "returns new Money on success"]
     #[inline]
     pub fn checked_div_f64(self, rhs: f64) -> Result<Self, Error> {

@@ -151,8 +151,8 @@ fn test_validation_maturity_after_commitment() {
         .recovery_rate(0.0)
         .build();
 
-    // Assert - builder currently does not validate date ordering
-    assert!(facility.is_ok());
+    // Assert - invalid date ordering is rejected during construction.
+    assert!(facility.is_err());
 }
 
 #[test]
@@ -173,6 +173,6 @@ fn test_validation_drawn_within_commitment() {
         .recovery_rate(0.0)
         .build();
 
-    // Assert - builder currently does not validate drawn vs commitment
-    assert!(facility.is_ok());
+    // Assert - overdrawn facilities are rejected during construction.
+    assert!(facility.is_err());
 }

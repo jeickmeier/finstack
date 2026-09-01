@@ -39,7 +39,8 @@ use finstack_quant_core::types::IssuerId;
 ///
 /// The `values` map is keyed by the dotted bucket path (e.g. `"IG.EU.FIN"`),
 /// matching the convention used elsewhere in the credit hierarchy artifact.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LevelValuesAtDate {
     /// Zero-based index of this level inside [`crate::factor::credit::hierarchy::CreditHierarchySpec::levels`].
     pub level_index: usize,
@@ -52,9 +53,11 @@ pub struct LevelValuesAtDate {
 
 /// Snapshot of all hierarchy-level factor values at a single date,
 /// produced from observed issuer spreads.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LevelsAtDate {
     /// Date the spreads were observed.
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub date: Date,
     /// Generic (PC) factor value at `date`. Equal to the input
     /// `observed_generic` and propagated unchanged.
@@ -66,7 +69,8 @@ pub struct LevelsAtDate {
 }
 
 /// Per-level bucket-value deltas produced by [`decompose_period`].
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LevelValuesDelta {
     /// Zero-based level index, mirroring [`LevelValuesAtDate::level_index`].
     pub level_index: usize,
@@ -81,11 +85,14 @@ pub struct LevelValuesDelta {
 ///
 /// Only issuers and buckets present in **both** snapshots are included so that
 /// the linear reconciliation invariant on `ΔS_i` holds for every entry.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PeriodDecomposition {
     /// Earlier snapshot date.
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub from: Date,
     /// Later snapshot date.
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub to: Date,
     /// `to.generic - from.generic`.
     pub d_generic: f64,

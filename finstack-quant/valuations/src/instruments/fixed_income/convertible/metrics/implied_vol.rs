@@ -15,7 +15,7 @@
 use std::cell::Cell;
 
 use crate::instruments::fixed_income::convertible::market_inputs::volatility_candidate_ids;
-use crate::instruments::fixed_income::convertible::pricer::{
+use crate::instruments::fixed_income::convertible::pricing::{
     calculate_accrued_interest, price_convertible_bond, settlement_date, ConvertibleTreeType,
 };
 use crate::instruments::fixed_income::convertible::ConvertibleBond;
@@ -286,7 +286,7 @@ mod tests {
     /// the solved vol and forward-valuing must recover the dirty target.
     #[test]
     fn implied_vol_forward_values_to_settlement_date() {
-        use crate::instruments::fixed_income::convertible::pricer::{
+        use crate::instruments::fixed_income::convertible::pricing::{
             calculate_accrued_interest, price_convertible_bond, settlement_date,
             ConvertibleTreeType,
         };

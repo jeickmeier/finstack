@@ -72,6 +72,7 @@ pub trait TreeModel: Send + Sync {
             vega: 0.0,
             theta: 0.0,
             rho: 0.0,
+            oas01: 0.0,
         };
 
         if let Some(&spot) = vars.get(state_keys::SPOT) {
@@ -124,7 +125,7 @@ pub trait TreeModel: Send + Sync {
         if time_to_maturity > dt {
             let price_tomorrow =
                 self.price(vars, time_to_maturity - dt, market_context, valuator)?;
-            greeks.theta = -(base_price - price_tomorrow) / dt;
+            greeks.theta = price_tomorrow - base_price;
         }
 
         Ok(greeks)
@@ -140,6 +141,7 @@ pub trait TreeModel: Send + Sync {
 /// - **Vega**: Per 1% absolute volatility move (e.g., 20% → 21%)
 /// - **Theta**: Per day (negative for long positions typically)
 /// - **Rho**: Per 1 basis point (0.01%) interest rate move
+/// - **OAS01**: Per 1 basis point option-adjusted-spread move
 #[derive(Debug, Clone)]
 pub struct TreeGreeks {
     /// Instrument price
@@ -154,6 +156,8 @@ pub struct TreeGreeks {
     pub theta: f64,
     /// Rho (interest rate sensitivity per 1bp rate move)
     pub rho: f64,
+    /// OAS01 (option-adjusted-spread sensitivity per 1bp spread move)
+    pub oas01: f64,
 }
 
 impl TreeGreeks {
@@ -197,6 +201,7 @@ impl TreeGreeks {
     ///     vega: 0.30,
     ///     theta: -0.010,
     ///     rho: 0.040,
+    ///     oas01: 0.0,
     /// };
     /// let fine = TreeGreeks {
     ///     price: 10.10,
@@ -205,6 +210,7 @@ impl TreeGreeks {
     ///     vega: 0.31,
     ///     theta: -0.011,
     ///     rho: 0.041,
+    ///     oas01: 0.0,
     /// };
     ///
     /// let improved = TreeGreeks::richardson_extrapolate(&coarse, &fine);
@@ -229,6 +235,7 @@ impl TreeGreeks {
             vega: (4.0 * fine.vega - coarse.vega) / 3.0,
             theta: (4.0 * fine.theta - coarse.theta) / 3.0,
             rho: (4.0 * fine.rho - coarse.rho) / 3.0,
+            oas01: (4.0 * fine.oas01 - coarse.oas01) / 3.0,
         }
     }
 

@@ -689,7 +689,7 @@ impl TrancheStructure {
     ///
     /// # Arguments
     ///
-    /// * `tranches` - Tranches supplied by the caller for this operation
+    /// * `tranches` - Tranches used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn new(mut tranches: Vec<Tranche>) -> finstack_quant_core::Result<Self> {
         if tranches.is_empty() {
             return Err(finstack_quant_core::InputError::TooFewPoints.into());

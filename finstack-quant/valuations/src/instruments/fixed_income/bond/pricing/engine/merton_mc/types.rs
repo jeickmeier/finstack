@@ -294,7 +294,7 @@ impl MertonMcConfig {
     ///
     /// # Arguments
     ///
-    /// * `c` - C supplied by the caller for this operation
+    /// * `c` - C used by the algorithm, subject to the enclosing type invariants and documented units.
     #[must_use]
     pub fn calibration(mut self, c: MertonMcCalibrationSpec) -> Self {
         self.calibration = Some(c);

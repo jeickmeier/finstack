@@ -20,7 +20,7 @@ Nothing here reads a `MarketContext`.
 Consumed by the Merton MC engine at
 `instruments/fixed_income/bond/pricing/engine/merton_mc/`; by
 `market::credit_option_vol` and the revolving-credit path generator
-(`instruments/fixed_income/revolving_credit/pricer/path_generator.rs`), which
+(`instruments/fixed_income/revolving_credit/pricing/path_generator.rs`), which
 both route through `market_anchored`; and by both host bindings — see
 [Binding exposure](#binding-exposure).
 

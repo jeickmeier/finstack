@@ -3,7 +3,7 @@
 //! Computes present value of the protection leg using the configured curves
 //! and the engine's implementation. The measure is returned in currency units.
 
-use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
+use crate::instruments::credit_derivatives::cds::pricing::CDSPricer;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;

@@ -14,7 +14,7 @@ from finstack_quant.features import (
     rolling_regression_residual,
     transform_cross_sectional,
     transform_cross_sectional_grouped,
-    transform_panel,
+    transform_panel_json,
     transform_timeseries,
     transform_timeseries_pairwise,
 )
@@ -185,7 +185,7 @@ def test_transform_panel_json_entrypoint() -> None:
         ],
     }
 
-    result = json.loads(transform_panel(json.dumps(spec)))
+    result = json.loads(transform_panel_json(json.dumps(spec)))
     assert result["columns"][0]["name"] == "ret1"
     assert result["columns"][0]["values"][1] == pytest.approx(0.2)
     assert result["columns"][1]["name"] == "rank"

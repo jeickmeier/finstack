@@ -647,21 +647,22 @@ mod tests {
     use super::*;
 
     fn test_lmm_params() -> LmmParams {
-        LmmParams::try_new(
-            4,
-            2,
-            vec![0.0, 1.0, 2.0, 3.0, 4.0],
-            vec![1.0, 1.0, 1.0, 1.0],
-            vec![0.005; 4],
-            vec![],
-            vec![vec![
+        LmmParams {
+            num_forwards: 4,
+            num_factors: 2,
+            tenors: vec![0.0, 1.0, 2.0, 3.0, 4.0],
+            accrual_factors: vec![1.0, 1.0, 1.0, 1.0],
+            displacements: vec![0.005; 4],
+            vol_times: vec![],
+            vol_values: vec![vec![
                 [0.12, 0.04, 0.0],
                 [0.11, 0.05, 0.0],
                 [0.10, 0.06, 0.0],
                 [0.09, 0.07, 0.0],
             ]],
-            vec![0.03, 0.032, 0.034, 0.036],
-        )
+            initial_forwards: vec![0.03, 0.032, 0.034, 0.036],
+        }
+        .validate()
         .expect("valid params")
     }
 

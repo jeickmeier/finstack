@@ -911,7 +911,7 @@ impl ForwardCurveBuilder {
     ///
     /// # Arguments
     ///
-    /// * `lag` - Lag supplied by the caller for this operation
+    /// * `lag` - Non-negative fixing or publication lag under the documented tenor convention.
     pub fn reset_lag(mut self, lag: i32) -> Self {
         self.reset_lag = lag;
         self
@@ -921,7 +921,7 @@ impl ForwardCurveBuilder {
     ///
     /// # Arguments
     ///
-    /// * `day_count` - Dc supplied by the caller for this operation
+    /// * `day_count` - Day-count convention used to convert calendar dates into year fractions.
     pub fn day_count(mut self, day_count: DayCount) -> Self {
         self.day_count = day_count;
         self
@@ -965,7 +965,7 @@ impl ForwardCurveBuilder {
     ///
     /// # Arguments
     ///
-    /// * `min_rate` - Min rate supplied by the caller for this operation
+    /// * `min_rate` - Minimum permitted rate in decimal units.
     pub fn min_forward_rate(mut self, min_rate: f64) -> Self {
         self.min_forward_rate = Some(min_rate);
         self

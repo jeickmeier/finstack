@@ -112,7 +112,7 @@ pub fn calculate_tranche_metrics(
             pv += amount.amount() * curve.df_between_dates(as_of, *date)?;
         }
     }
-    let pv_money = Money::new(pv, deal.pool.base_currency());
+    let pv_money = Money::new(pv, deal.pool.get_base_currency());
     let price_pct = if original_balance > 0.0 {
         pv / original_balance * 100.0
     } else {

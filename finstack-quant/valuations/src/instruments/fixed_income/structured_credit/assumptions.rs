@@ -13,7 +13,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::{Error, HashMap, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 const EMBEDDED_STRUCTURED_CREDIT_ASSUMPTIONS: &str =
@@ -274,27 +274,39 @@ impl StructuredCreditAssumptionRegistry {
                 self.schema
             )));
         }
-        validate_unit_interval(self.market_conditions.refi_rate, "refi rate")?;
-        validate_unit_interval(self.market_conditions.seasonal_factor, "seasonal factor")?;
-        validate_unit_interval(
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.market_conditions.refi_rate,
+            "refi rate",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.market_conditions.seasonal_factor,
+            "seasonal factor",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
             self.credit_model_defaults.prepayment_cpr_annual,
             "default prepayment CPR",
         )?;
-        validate_unit_interval(self.credit_model_defaults.default_cdr_annual, "default CDR")?;
-        validate_unit_interval(
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.credit_model_defaults.default_cdr_annual,
+            "default CDR",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
             self.credit_model_defaults.recovery_rate,
             "default recovery rate",
         )?;
-        validate_unit_interval(self.cmo_collateral_defaults.wac, "CMO collateral WAC")?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.cmo_collateral_defaults.wac,
+            "CMO collateral WAC",
+        )?;
         validate_nonzero_u32(
             self.cmo_collateral_defaults.wam_months,
             "CMO collateral WAM",
         )?;
-        validate_unit_interval(
+        finstack_quant_core::validation::validate_f64_unit_interval(
             self.cmo_collateral_defaults.servicing_fee_rate,
             "CMO collateral servicing fee rate",
         )?;
-        validate_unit_interval(
+        finstack_quant_core::validation::validate_f64_unit_interval(
             self.cmo_collateral_defaults.guarantee_fee_rate,
             "CMO collateral guarantee fee rate",
         )?;
@@ -308,7 +320,7 @@ impl StructuredCreditAssumptionRegistry {
             self.simulation.pool_balance_cleanup_threshold,
             "pool balance cleanup threshold",
         )?;
-        validate_unit_interval(
+        finstack_quant_core::validation::validate_f64_unit_interval(
             self.simulation.baseline_unemployment_rate,
             "baseline unemployment rate",
         )?;
@@ -322,8 +334,11 @@ impl StructuredCreditAssumptionRegistry {
             "burnout threshold months",
         )?;
         validate_nonzero_u32(self.prepayment_models.psa.ramp_months, "PSA ramp months")?;
-        validate_unit_interval(self.prepayment_models.psa.terminal_cpr, "PSA terminal CPR")?;
-        validate_unit_interval(
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.prepayment_models.psa.terminal_cpr,
+            "PSA terminal CPR",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
             self.prepayment_models.auto_abs.monthly_speed,
             "auto ABS monthly speed",
         )?;
@@ -332,35 +347,45 @@ impl StructuredCreditAssumptionRegistry {
             "auto ABS ramp months",
         )?;
         validate_nonzero_u32(self.default_models.sda.peak_month, "SDA peak month")?;
-        validate_unit_interval(self.default_models.sda.peak_cdr, "SDA peak CDR")?;
-        validate_unit_interval(self.default_models.sda.terminal_cdr, "SDA terminal CDR")?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.default_models.sda.peak_cdr,
+            "SDA peak CDR",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.default_models.sda.terminal_cdr,
+            "SDA terminal CDR",
+        )?;
         validate_grid("standard PSA speed", &self.scenario_grids.psa_speeds)?;
         validate_grid("standard CDR rate", &self.scenario_grids.cdr_rates)?;
         validate_grid(
             "standard severity rate",
             &self.scenario_grids.severity_rates,
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "structured-credit assumptions registry",
             "structured-credit deal profile",
             self.deal_profiles
                 .iter()
                 .map(|profile| profile.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "structured-credit assumptions registry",
             "RMBS stochastic calibration",
             self.stochastic_calibrations
                 .rmbs_profiles
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "structured-credit assumptions registry",
             "CLO stochastic calibration",
             self.stochastic_calibrations
                 .clo_profiles
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "structured-credit assumptions registry",
             "CMBS stochastic calibration",
             self.stochastic_calibrations
                 .cmbs_profiles
@@ -369,7 +394,10 @@ impl StructuredCreditAssumptionRegistry {
         )?;
 
         for haircut in &self.coverage_haircuts {
-            validate_unit_interval(haircut.haircut, "coverage haircut")?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                haircut.haircut,
+                "coverage haircut",
+            )?;
         }
         for record in &self.stochastic_calibrations.rmbs_profiles {
             validate_rmbs_stochastic_record(record)?;
@@ -393,7 +421,10 @@ impl StructuredCreditAssumptionRegistry {
                     "structured-credit asset-type assumption has blank asset type".to_string(),
                 ));
             }
-            validate_unit_interval(point.value, "asset-type assumption")?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                point.value,
+                "asset-type assumption",
+            )?;
         }
         for profile in &self.deal_profiles {
             validate_assumption_record(&profile.assumptions)?;
@@ -841,9 +872,18 @@ fn month_array(values: &[f64]) -> [f64; 12] {
 }
 
 fn validate_assumption_record(record: &AssumptionRecord) -> Result<()> {
-    validate_unit_interval(record.base_cdr_annual, "base CDR")?;
-    validate_unit_interval(record.base_recovery_rate, "base recovery rate")?;
-    validate_unit_interval(record.base_cpr_annual, "base CPR")?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cdr_annual,
+        "base CDR",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_recovery_rate,
+        "base recovery rate",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cpr_annual,
+        "base CPR",
+    )?;
     if let Some(speed) = record.psa_speed {
         validate_nonnegative_finite(speed, "PSA speed")?;
     }
@@ -851,23 +891,32 @@ fn validate_assumption_record(record: &AssumptionRecord) -> Result<()> {
         validate_nonnegative_finite(speed, "SDA speed")?;
     }
     if let Some(speed) = record.abs_speed_monthly {
-        validate_unit_interval(speed, "ABS monthly speed")?;
+        finstack_quant_core::validation::validate_f64_unit_interval(speed, "ABS monthly speed")?;
     }
     Ok(())
 }
 
 fn validate_rmbs_stochastic_record(record: &RmbsStochasticRecord) -> Result<()> {
-    validate_unit_interval(record.base_cdr, "RMBS stochastic base CDR")?;
-    validate_unit_interval(
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cdr,
+        "RMBS stochastic base CDR",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
         record.default_correlation,
         "RMBS stochastic default correlation",
     )?;
-    validate_unit_interval(record.base_cpr, "RMBS stochastic base CPR")?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cpr,
+        "RMBS stochastic base CPR",
+    )?;
     validate_factor_loading(
         record.prepay_factor_loading,
         "RMBS stochastic prepay factor loading",
     )?;
-    validate_unit_interval(record.cpr_volatility, "RMBS stochastic CPR volatility")?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.cpr_volatility,
+        "RMBS stochastic CPR volatility",
+    )?;
     validate_nonnegative_finite(
         record.default_factor_sensitivity,
         "RMBS stochastic default factor sensitivity",
@@ -881,21 +930,33 @@ fn validate_rmbs_stochastic_record(record: &RmbsStochasticRecord) -> Result<()> 
         "RMBS stochastic default volatility",
     )?;
     validate_nonnegative_finite(record.refi_sensitivity, "RMBS stochastic refi sensitivity")?;
-    validate_unit_interval(record.burnout_rate, "RMBS stochastic burnout rate")
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.burnout_rate,
+        "RMBS stochastic burnout rate",
+    )
 }
 
 fn validate_clo_stochastic_record(record: &CloStochasticRecord) -> Result<()> {
-    validate_unit_interval(record.base_cdr, "CLO stochastic base CDR")?;
-    validate_unit_interval(
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cdr,
+        "CLO stochastic base CDR",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
         record.default_correlation,
         "CLO stochastic default correlation",
     )?;
-    validate_unit_interval(record.base_cpr, "CLO stochastic base CPR")?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cpr,
+        "CLO stochastic base CPR",
+    )?;
     validate_factor_loading(
         record.prepay_factor_loading,
         "CLO stochastic prepay factor loading",
     )?;
-    validate_unit_interval(record.cpr_volatility, "CLO stochastic CPR volatility")?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.cpr_volatility,
+        "CLO stochastic CPR volatility",
+    )?;
     validate_nonnegative_finite(
         record.default_factor_sensitivity,
         "CLO stochastic default factor sensitivity",
@@ -911,32 +972,53 @@ fn validate_clo_stochastic_record(record: &CloStochasticRecord) -> Result<()> {
 }
 
 fn validate_cmbs_stochastic_record(record: &CmbsStochasticRecord) -> Result<()> {
-    validate_unit_interval(record.base_cdr, "CMBS stochastic base CDR")?;
-    validate_unit_interval(
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cdr,
+        "CMBS stochastic base CDR",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
         record.default_correlation,
         "CMBS stochastic default correlation",
     )?;
-    validate_unit_interval(record.base_cpr, "CMBS stochastic base CPR")?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.base_cpr,
+        "CMBS stochastic base CPR",
+    )?;
     validate_factor_loading(
         record.prepay_factor_loading,
         "CMBS stochastic prepay factor loading",
     )?;
-    validate_unit_interval(record.cpr_volatility, "CMBS stochastic CPR volatility")
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.cpr_volatility,
+        "CMBS stochastic CPR volatility",
+    )
 }
 
 fn validate_concentration_limits(record: &ConcentrationLimitsRecord) -> Result<()> {
-    validate_unit_interval(
+    finstack_quant_core::validation::validate_f64_unit_interval(
         record.max_obligor_concentration,
         "maximum obligor concentration",
     )?;
-    validate_unit_interval(record.max_top5_concentration, "maximum top 5 concentration")?;
-    validate_unit_interval(
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.max_top5_concentration,
+        "maximum top 5 concentration",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
         record.max_top10_concentration,
         "maximum top 10 concentration",
     )?;
-    validate_unit_interval(record.max_second_lien, "maximum second lien concentration")?;
-    validate_unit_interval(record.max_cov_lite, "maximum covenant-lite concentration")?;
-    validate_unit_interval(record.max_dip, "maximum DIP concentration")
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.max_second_lien,
+        "maximum second lien concentration",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.max_cov_lite,
+        "maximum covenant-lite concentration",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.max_dip,
+        "maximum DIP concentration",
+    )
 }
 
 fn validate_fee_record(record: &FeeRecord) -> Result<()> {
@@ -973,10 +1055,16 @@ fn validate_constructor_record(record: &ConstructorRecord) -> Result<()> {
             "CMBS lockout constructor prepayment must include lockout_months".to_string(),
         ));
     }
-    validate_unit_interval(record.default_cdr_annual, "constructor default CDR")?;
-    validate_unit_interval(record.recovery_rate, "constructor recovery rate")?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.default_cdr_annual,
+        "constructor default CDR",
+    )?;
+    finstack_quant_core::validation::validate_f64_unit_interval(
+        record.recovery_rate,
+        "constructor recovery rate",
+    )?;
     if let Some(ltv) = record.ltv {
-        validate_unit_interval(ltv, "constructor LTV")?;
+        finstack_quant_core::validation::validate_f64_unit_interval(ltv, "constructor LTV")?;
     }
     Ok(())
 }
@@ -1012,16 +1100,6 @@ fn validate_nonzero_u32(value: u32, label: &str) -> Result<()> {
     }
 }
 
-fn validate_unit_interval(value: f64, label: &str) -> Result<()> {
-    if value.is_finite() && (0.0..=1.0).contains(&value) {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!(
-            "structured-credit assumptions registry has invalid {label} {value}"
-        )))
-    }
-}
-
 fn validate_nonnegative_finite(value: f64, label: &str) -> Result<()> {
     if value.is_finite() && value >= 0.0 {
         Ok(())
@@ -1040,30 +1118,6 @@ fn validate_factor_loading(value: f64, label: &str) -> Result<()> {
             "structured-credit assumptions registry has invalid {label} {value}"
         )))
     }
-}
-
-fn validate_ids<'a>(kind: &str, records: impl Iterator<Item = &'a [String]>) -> Result<()> {
-    let mut seen = BTreeSet::new();
-    for ids in records {
-        if ids.is_empty() {
-            return Err(Error::Validation(format!(
-                "structured-credit assumptions registry contains {kind} without an id"
-            )));
-        }
-        for id in ids {
-            if id.trim().is_empty() {
-                return Err(Error::Validation(format!(
-                    "structured-credit assumptions registry contains blank {kind} id"
-                )));
-            }
-            if !seen.insert(id.clone()) {
-                return Err(Error::Validation(format!(
-                    "structured-credit assumptions registry contains duplicate {kind} id '{id}'"
-                )));
-            }
-        }
-    }
-    Ok(())
 }
 
 fn has_id(ids: &[String], id: &str) -> bool {

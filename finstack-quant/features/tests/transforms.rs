@@ -4,7 +4,7 @@ use finstack_quant_features::{
     clean_signal, neutralize, neutralize_and_zscore, normalize_signal, rank_to_weights,
     risk_scaled_weights, rolling_regression_residual, transform_cross_sectional,
     transform_cross_sectional_grouped, transform_cross_sectional_with_op, transform_panel,
-    transform_panel_spec, transform_timeseries, transform_timeseries_pairwise,
+    transform_panel_json, transform_timeseries, transform_timeseries_pairwise,
     transform_timeseries_with_op, CrossSectionalOp, PanelOperation, PanelTransformSpec,
     TimeSeriesOp,
 };
@@ -487,7 +487,7 @@ fn transform_cross_sectional_rejects_removed_aliases() {
                 {"name": "removed", "family": "cross_sectional", "op": alias}
             ]
         });
-        let err = transform_panel(&spec.to_string())
+        let err = transform_panel_json(&spec.to_string())
             .expect_err("removed alias must be rejected in panel JSON");
         assert!(err.to_string().contains(alias));
     }
@@ -783,7 +783,7 @@ fn typed_transform_entrypoints_avoid_string_dispatch() {
 }
 
 #[test]
-fn transform_panel_runs_multiple_named_operations() {
+fn transform_panel_json_runs_multiple_named_operations() {
     let spec = json!({
         "values": [10.0, 12.0, 20.0, 21.0],
         "entity": ["A", "A", "B", "B"],
@@ -795,7 +795,7 @@ fn transform_panel_runs_multiple_named_operations() {
         ]
     });
 
-    let out = transform_panel(&spec.to_string()).expect("panel");
+    let out = transform_panel_json(&spec.to_string()).expect("panel");
     let result: serde_json::Value = serde_json::from_str(&out).expect("panel JSON");
     assert_eq!(result["columns"][0]["name"], "ret1");
     assert!((result["columns"][0]["values"][1].as_f64().expect("ret1") - 0.2).abs() < 1e-12);
@@ -804,7 +804,7 @@ fn transform_panel_runs_multiple_named_operations() {
 }
 
 #[test]
-fn typed_transform_panel_preserves_operation_order() {
+fn typed_transform_panel_json_preserves_operation_order() {
     let spec = PanelTransformSpec {
         values: vec![Some(10.0), Some(12.0), Some(20.0), Some(21.0)],
         entity: Some(vec![
@@ -841,14 +841,14 @@ fn typed_transform_panel_preserves_operation_order() {
         ],
     };
 
-    let result = transform_panel_spec(&spec).expect("typed panel");
+    let result = transform_panel(&spec).expect("typed panel");
     assert_eq!(result.columns[0].name, "rank");
     assert_eq!(result.columns[1].name, "ret1");
     assert_eq!(result.get_column("rank").expect("rank")[2], Some(1.0));
 }
 
 #[test]
-fn transform_panel_rejects_duplicate_operation_names() {
+fn transform_panel_json_rejects_duplicate_operation_names() {
     let spec = json!({
         "values": [10.0, 12.0],
         "entity": ["A", "A"],
@@ -859,7 +859,7 @@ fn transform_panel_rejects_duplicate_operation_names() {
         ]
     });
 
-    let err = transform_panel(&spec.to_string()).expect_err("duplicate operation names");
+    let err = transform_panel_json(&spec.to_string()).expect_err("duplicate operation names");
     assert!(err.to_string().contains("duplicate"));
 }
 
@@ -878,7 +878,7 @@ fn assert_close_options(actual: &[Option<f64>], expected: &[Option<f64>]) {
 }
 
 #[test]
-fn transform_panel_rejects_duplicate_operation_names_before_evaluation() {
+fn transform_panel_json_rejects_duplicate_operation_names_before_evaluation() {
     let spec = json!({
         "values": [10.0, 12.0],
         "operations": [
@@ -887,12 +887,12 @@ fn transform_panel_rejects_duplicate_operation_names_before_evaluation() {
         ]
     });
 
-    let err = transform_panel(&spec.to_string()).expect_err("duplicate operation names");
+    let err = transform_panel_json(&spec.to_string()).expect_err("duplicate operation names");
     assert!(err.to_string().contains("duplicate"));
 }
 
 #[test]
-fn transform_panel_applies_operations_sequentially() {
+fn transform_panel_json_applies_operations_sequentially() {
     let spec = json!({
         "values": [10.0, 12.0, 20.0, 21.0],
         "entity": ["A", "A", "B", "B"],
@@ -904,7 +904,7 @@ fn transform_panel_applies_operations_sequentially() {
         ]
     });
 
-    let out = transform_panel(&spec.to_string()).expect("sequential panel");
+    let out = transform_panel_json(&spec.to_string()).expect("sequential panel");
     let result: serde_json::Value = serde_json::from_str(&out).expect("panel JSON");
     assert_eq!(result["columns"][1]["name"], "z");
     assert!(result["columns"][1]["values"][0].is_null());
@@ -914,7 +914,7 @@ fn transform_panel_applies_operations_sequentially() {
 }
 
 #[test]
-fn transform_panel_rejects_unknown_input_column() {
+fn transform_panel_json_rejects_unknown_input_column() {
     let spec = json!({
         "values": [10.0, 12.0],
         "time_key": ["2026-01-01", "2026-01-01"],
@@ -923,13 +923,13 @@ fn transform_panel_rejects_unknown_input_column() {
         ]
     });
 
-    let err = transform_panel(&spec.to_string()).expect_err("unknown input");
+    let err = transform_panel_json(&spec.to_string()).expect_err("unknown input");
     assert!(err.to_string().contains("unknown"));
     assert!(err.to_string().contains("missing"));
 }
 
 #[test]
-fn transform_panel_rejects_reserved_values_operation_name() {
+fn transform_panel_json_rejects_reserved_values_operation_name() {
     let spec = json!({
         "values": [10.0, 12.0],
         "time_key": ["2026-01-01", "2026-01-01"],
@@ -938,6 +938,6 @@ fn transform_panel_rejects_reserved_values_operation_name() {
         ]
     });
 
-    let err = transform_panel(&spec.to_string()).expect_err("reserved name");
+    let err = transform_panel_json(&spec.to_string()).expect_err("reserved name");
     assert!(err.to_string().contains("reserved"));
 }

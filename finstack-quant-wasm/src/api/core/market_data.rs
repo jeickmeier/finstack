@@ -478,12 +478,12 @@ impl JsForwardCurve {
         date_to_iso(self.inner.base_date())
     }
 
-    /// Contractual projection boundaries, or `null` for legacy tenor stepping.
+    /// Contractual projection boundaries, or `undefined` for legacy tenor stepping.
     #[wasm_bindgen(getter, js_name = projectionGrid)]
     pub fn projection_grid(&self) -> JsValue {
         self.inner
             .projection_grid()
-            .map_or(JsValue::NULL, |grid| Float64Array::from(grid).into())
+            .map_or(JsValue::UNDEFINED, |grid| Float64Array::from(grid).into())
     }
 
     /// Business days from fixing to spot.

@@ -157,7 +157,7 @@ impl GeneratorMatrix {
     ///
     /// # Arguments
     ///
-    /// * `p` - P supplied by the caller for this operation
+    /// * `p` - Probability or model parameter in the range required by the enclosing calculation.
     pub fn from_transition_matrix(p: &TransitionMatrix) -> Result<Self, MigrationError> {
         Self::from_transition_matrix_with_tol(p, 1e-2)
     }
@@ -173,8 +173,8 @@ impl GeneratorMatrix {
     ///
     /// # Arguments
     ///
-    /// * `p` - P supplied by the caller for this operation
-    /// * `round_trip_tol` - Round trip tol supplied by the caller for this operation
+    /// * `p` - Probability or model parameter in the range required by the enclosing calculation.
+    /// * `round_trip_tol` - Non-negative numerical tolerance for round-trip consistency checks.
     pub fn from_transition_matrix_with_tol(
         p: &TransitionMatrix,
         round_trip_tol: f64,

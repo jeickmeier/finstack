@@ -400,7 +400,7 @@ impl NewtonSolver {
     ///
     /// # Arguments
     ///
-    /// * `residual_scale` - Residual scale supplied by the caller for this operation
+    /// * `residual_scale` - Positive scale used to normalize solver residuals.
     #[must_use]
     pub fn residual_scale(mut self, residual_scale: f64) -> Self {
         self.residual_scale = residual_scale;

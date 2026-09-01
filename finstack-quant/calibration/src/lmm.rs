@@ -321,7 +321,8 @@ pub fn calibrate_bermudan_lmm_base_vol_from_json(
     market: &MarketContext,
     as_of: Date,
 ) -> Result<f64> {
-    let instrument = finstack_quant_valuations::pricer::parse_instrument_json(instrument_json)?;
+    let instrument =
+        finstack_quant_valuations::pricer::parse_instrument_from_json(instrument_json)?;
     let finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) =
         instrument
     else {

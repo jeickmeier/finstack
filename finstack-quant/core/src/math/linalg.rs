@@ -311,8 +311,8 @@ impl CorrelationFactor {
     ///
     /// # Arguments
     ///
-    /// * `independent` - Independent supplied by the caller for this operation
-    /// * `correlated` - Correlated supplied by the caller for this operation
+    /// * `independent` - Independent standard-normal samples to transform in place.
+    /// * `correlated` - Output buffer receiving correlated normal samples.
     pub fn apply(
         &self,
         independent: &[f64],

@@ -48,7 +48,7 @@
 
 mod market_inputs;
 pub(crate) mod metrics;
-pub(crate) mod pricer;
+pub(crate) mod pricing;
 mod types;
 
 pub use types::{
@@ -56,7 +56,7 @@ pub use types::{
     ConvertibleBondBuilder, ConvertibleGreeks, DilutionEvent, DividendAdjustment, SoftCallTrigger,
 };
 
-pub use pricer::{
+pub use pricing::{
     calculate_accrued_interest, calculate_conversion_premium, calculate_convertible_greeks,
     calculate_parity, price_convertible_bond, settlement_date, ConvertibleTreeType,
 };

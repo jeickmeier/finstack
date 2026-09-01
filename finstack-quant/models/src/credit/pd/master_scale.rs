@@ -89,7 +89,7 @@ impl MasterScale {
     ///
     /// # Arguments
     ///
-    /// * `grades` - Grades supplied by the caller for this operation
+    /// * `grades` - Ordered credit grades from strongest to weakest.
     pub fn new(grades: Vec<MasterScaleGrade>) -> Result<Self, PdCalibrationError> {
         if grades.is_empty() {
             return Err(PdCalibrationError::EmptyInput);
@@ -136,7 +136,7 @@ impl MasterScale {
     ///
     /// # Arguments
     ///
-    /// * `pd` - Pd supplied by the caller for this operation
+    /// * `pd` - Default probability represented as a decimal in the closed unit interval.
     pub fn map_pd(&self, pd: f64) -> Result<MasterScaleResult, PdCalibrationError> {
         if !pd.is_finite() {
             return Err(PdCalibrationError::NonFiniteValue { value: pd });

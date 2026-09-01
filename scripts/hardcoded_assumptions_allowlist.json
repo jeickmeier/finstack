@@ -1898,7 +1898,7 @@
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds/pricer/integration.rs",
+      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds/pricing/integration.rs",
       "category": "credit_assumption",
       "contains": "let lgd = 1.0 - recovery;",
       "reason": "Financial formula or unit conversion, not an external default to configure."
@@ -2012,19 +2012,19 @@
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds_tranche/pricer/heterogeneous.rs",
+      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds_tranche/pricing/heterogeneous.rs",
       "category": "credit_assumption",
       "contains": "lgd_i = vec![(1.0 - index_data.recovery_rate).max(self.params.lgd_floor); count];",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds_tranche/pricer/sensitivities.rs",
+      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds_tranche/pricing/sensitivities.rs",
       "category": "credit_assumption",
       "contains": "let individual_loss = individual_weight * (1.0 - recovery);",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds_tranche/pricer/sensitivities.rs",
+      "path": "finstack-quant/valuations/src/instruments/credit_derivatives/cds_tranche/pricing/sensitivities.rs",
       "category": "credit_assumption",
       "contains": "let loss_given_default = 1.0 - recovery_rate;",
       "reason": "Financial formula or unit conversion, not an external default to configure."
@@ -2198,7 +2198,7 @@
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/convertible/pricer/valuator.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/convertible/pricing/valuator.rs",
       "category": "credit_assumption",
       "contains": "let risky_fwd = raw_risky_fwd * (1.0 - recovery) + rf_fwd * recovery;",
       "reason": "Financial formula or unit conversion, not an external default to configure."
@@ -2306,19 +2306,19 @@
       "reason": "Market-convention plumbing, validation, or canonical constructor label; mutable convention tables live in registries."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/revolving_credit/pricer/path_generator.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/revolving_credit/pricing/path_generator.rs",
       "category": "credit_assumption",
       "contains": "let one_minus_r = (1.0 - facility.recovery_rate).max(1e-6);",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/revolving_credit/pricer/unified.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/revolving_credit/pricing/unified.rs",
       "category": "credit_assumption",
       "contains": "if facility.recovery_rate > 0.0 {",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/fixed_income/revolving_credit/pricer/unified.rs",
+      "path": "finstack-quant/valuations/src/instruments/fixed_income/revolving_credit/pricing/unified.rs",
       "category": "credit_assumption",
       "contains": "let hazard_rate = credit_spreads[i] / (1.0 - recovery_rate).max(1e-6);",
       "reason": "Financial formula or unit conversion, not an external default to configure."

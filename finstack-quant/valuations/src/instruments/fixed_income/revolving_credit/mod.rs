@@ -69,7 +69,7 @@
 
 pub mod cashflow_engine;
 pub(crate) mod metrics;
-pub(crate) mod pricer;
+pub(crate) mod pricing;
 pub(crate) mod types;
 
 mod utils;
@@ -97,9 +97,9 @@ pub const MIN_CIR_SPREAD: f64 = 1e-8;
 pub const MAX_RECOVERY_RATE: f64 = 1.0;
 
 pub use cashflow_engine::{PathAwareCashflowSchedule, ThreeFactorPathData};
-pub use pricer::unified::EnhancedMonteCarloResult;
-pub use pricer::unified::PathResult;
-pub use pricer::unified::RevolvingCreditPricer;
+pub use pricing::unified::EnhancedMonteCarloResult;
+pub use pricing::unified::PathResult;
+pub use pricing::unified::RevolvingCreditPricer;
 pub use types::{
     BaseRateSpec, DrawRepayEvent, DrawRepaySpec, RevolvingCredit, RevolvingCreditFees,
     UtilizationProcess,

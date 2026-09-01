@@ -97,7 +97,7 @@ __all__ = [
     "brinson_fachler",
     "brinson_fachler_json",
     "build_credit_vol_report",
-    "build_portfolio_from_spec",
+    "build_portfolio_from_spec_json",
     "campisi_attribution",
     "campisi_attribution_json",
     "campisi_carino_link",
@@ -127,7 +127,7 @@ __all__ = [
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
-    "parse_portfolio_spec",
+    "parse_portfolio_spec_json",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
     "position_what_if",
@@ -2223,7 +2223,7 @@ class ScenarioPnlBatchItem:
         """
         ...
 
-def parse_portfolio_spec(json_str: str) -> str:
+def parse_portfolio_spec_json(json_str: str) -> str:
     """
     Parse and canonicalize a ``PortfolioSpec`` from JSON.
 
@@ -2246,14 +2246,14 @@ def parse_portfolio_spec(json_str: str) -> str:
     Examples
     --------
     >>> import json
-    >>> from finstack_quant.portfolio import parse_portfolio_spec
+    >>> from finstack_quant.portfolio import parse_portfolio_spec_json
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
-    >>> json.loads(parse_portfolio_spec(spec))["id"]
+    >>> json.loads(parse_portfolio_spec_json(spec))["id"]
     'empty'
     """
     ...
 
-def build_portfolio_from_spec(spec_json: str) -> str:
+def build_portfolio_from_spec_json(spec_json: str) -> str:
     """
     Build a runtime portfolio from JSON and return the round-tripped spec.
 
@@ -2281,9 +2281,9 @@ def build_portfolio_from_spec(spec_json: str) -> str:
     Examples
     --------
     >>> import json
-    >>> from finstack_quant.portfolio import build_portfolio_from_spec
+    >>> from finstack_quant.portfolio import build_portfolio_from_spec_json
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
-    >>> json.loads(build_portfolio_from_spec(spec))["positions"]
+    >>> json.loads(build_portfolio_from_spec_json(spec))["positions"]
     []
     """
     ...

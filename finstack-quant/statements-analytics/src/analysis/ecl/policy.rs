@@ -6,7 +6,6 @@ use super::{
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 const EMBEDDED_ECL_POLICY: &str = include_str!("../../../data/accounting/ecl_policy.v1.json");
@@ -56,13 +55,15 @@ impl EclPolicyRegistry {
                 self.schema
             )));
         }
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "ECL policy registry",
             "IFRS 9 policy",
             self.ifrs9_policies
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "ECL policy registry",
             "CECL policy",
             self.cecl_policies
                 .iter()
@@ -93,8 +94,15 @@ struct Ifrs9PolicyRecord {
 
 impl Ifrs9PolicyRecord {
     fn validate(&self) -> Result<()> {
-        validate_metadata("IFRS 9 policy", &self.source, &self.source_version)?;
-        validate_nonblank("IFRS 9 policy effective date", &self.effective_date)?;
+        finstack_quant_core::validation::validate_source_metadata(
+            "IFRS 9 policy",
+            &self.source,
+            &self.source_version,
+        )?;
+        finstack_quant_core::validation::validate_non_blank(
+            &self.effective_date,
+            "IFRS 9 policy effective date",
+        )?;
         self.ecl.validate()?;
         self.staging.validate()
     }
@@ -112,11 +120,23 @@ struct Ifrs9EclRecord {
 
 impl Ifrs9EclRecord {
     fn validate(&self) -> Result<()> {
-        validate_positive(self.bucket_width_years, "IFRS 9 bucket width years")?;
-        validate_nonblank("IFRS 9 base scenario id", &self.base_scenario_id)?;
-        validate_unit_interval(self.base_scenario_weight, "IFRS 9 base scenario weight")?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.bucket_width_years,
+            "IFRS 9 bucket width years",
+        )?;
+        finstack_quant_core::validation::validate_non_blank(
+            &self.base_scenario_id,
+            "IFRS 9 base scenario id",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.base_scenario_weight,
+            "IFRS 9 base scenario weight",
+        )?;
         if let Some(lgd) = self.base_scenario_lgd_override {
-            validate_unit_interval(lgd, "IFRS 9 base scenario LGD override")?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                lgd,
+                "IFRS 9 base scenario LGD override",
+            )?;
         }
         Ok(())
     }
@@ -140,8 +160,14 @@ struct StagingPolicyRecord {
 
 impl StagingPolicyRecord {
     fn validate(&self) -> Result<()> {
-        validate_unit_interval(self.pd_delta_absolute, "PD absolute delta threshold")?;
-        validate_positive(self.pd_delta_relative, "PD relative threshold")?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.pd_delta_absolute,
+            "PD absolute delta threshold",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.pd_delta_relative,
+            "PD relative threshold",
+        )?;
         Ok(())
     }
 
@@ -188,22 +214,50 @@ struct CeclPolicyRecord {
 
 impl CeclPolicyRecord {
     fn validate(&self) -> Result<()> {
-        validate_metadata("CECL policy", &self.source, &self.source_version)?;
-        validate_nonblank("CECL policy effective date", &self.effective_date)?;
-        validate_positive(self.bucket_width_years, "CECL bucket width years")?;
-        validate_nonnegative(self.forecast_horizon_years, "CECL forecast horizon years")?;
-        validate_unit_interval(self.historical_annual_pd, "CECL historical annual PD")?;
-        validate_nonnegative(
+        finstack_quant_core::validation::validate_source_metadata(
+            "CECL policy",
+            &self.source,
+            &self.source_version,
+        )?;
+        finstack_quant_core::validation::validate_non_blank(
+            &self.effective_date,
+            "CECL policy effective date",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.bucket_width_years,
+            "CECL bucket width years",
+        )?;
+        finstack_quant_core::validation::validate_f64_non_negative(
+            self.forecast_horizon_years,
+            "CECL forecast horizon years",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.historical_annual_pd,
+            "CECL historical annual PD",
+        )?;
+        finstack_quant_core::validation::validate_f64_non_negative(
             self.impaired_time_to_recovery_years,
             "CECL impaired time to recovery years",
         )?;
-        validate_nonblank("CECL base scenario id", &self.base_scenario_id)?;
-        validate_unit_interval(self.base_scenario_weight, "CECL base scenario weight")?;
+        finstack_quant_core::validation::validate_non_blank(
+            &self.base_scenario_id,
+            "CECL base scenario id",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.base_scenario_weight,
+            "CECL base scenario weight",
+        )?;
         if let Some(lgd) = self.base_scenario_lgd_override {
-            validate_unit_interval(lgd, "CECL base scenario LGD override")?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                lgd,
+                "CECL base scenario LGD override",
+            )?;
         }
         if let ReversionMethod::Linear { reversion_years } = self.reversion_method {
-            validate_positive(reversion_years, "CECL linear reversion years")?;
+            finstack_quant_core::validation::validate_f64_positive(
+                reversion_years,
+                "CECL linear reversion years",
+            )?;
         }
         Ok(())
     }
@@ -375,76 +429,6 @@ fn parse_registry_json(raw: &str) -> Result<EclPolicyRegistry> {
 fn validate_registry(registry: EclPolicyRegistry) -> Result<EclPolicyRegistry> {
     registry.validate()?;
     Ok(registry)
-}
-
-fn validate_ids<'a>(kind: &str, records: impl Iterator<Item = &'a [String]>) -> Result<()> {
-    let mut seen = BTreeSet::new();
-    for ids in records {
-        if ids.is_empty() {
-            return Err(Error::Validation(format!(
-                "ECL policy registry contains {kind} without an id"
-            )));
-        }
-        for id in ids {
-            let trimmed = id.trim();
-            if trimmed.is_empty() {
-                return Err(Error::Validation(format!(
-                    "ECL policy registry contains blank {kind} id"
-                )));
-            }
-            if !seen.insert(trimmed.to_string()) {
-                return Err(Error::Validation(format!(
-                    "ECL policy registry contains duplicate {kind} id '{trimmed}'"
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_metadata(label: &str, source: &str, source_version: &str) -> Result<()> {
-    validate_nonblank(label, source)?;
-    validate_nonblank(label, source_version)
-}
-
-fn validate_nonblank(label: &str, value: &str) -> Result<()> {
-    if value.trim().is_empty() {
-        Err(Error::Validation(format!(
-            "ECL policy registry has blank {label}"
-        )))
-    } else {
-        Ok(())
-    }
-}
-
-fn validate_positive(value: f64, label: &str) -> Result<()> {
-    if value.is_finite() && value > 0.0 {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!(
-            "ECL policy registry has invalid {label} {value}"
-        )))
-    }
-}
-
-fn validate_nonnegative(value: f64, label: &str) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!(
-            "ECL policy registry has invalid {label} {value}"
-        )))
-    }
-}
-
-fn validate_unit_interval(value: f64, label: &str) -> Result<()> {
-    if value.is_finite() && (0.0..=1.0).contains(&value) {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!(
-            "ECL policy registry has invalid {label} {value}"
-        )))
-    }
 }
 
 fn has_id(ids: &[String], id: &str) -> bool {

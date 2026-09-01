@@ -4,7 +4,7 @@ Feature engineering: panel-data transformations for signal research.
 Bindings for the ``finstack-quant-features`` crate
 (``finstack_quant.features``). Provides time-series, cross-sectional, and
 pairwise transforms (z-score, rank, rolling mean, neutralization, risk-scaled
-weights) plus a general panel dispatcher :func:`transform_panel`.
+weights) plus a general panel dispatcher :func:`transform_panel_json`.
 
 Examples
 --------
@@ -31,7 +31,7 @@ __all__ = [
     "rolling_regression_residual",
     "transform_cross_sectional",
     "transform_cross_sectional_grouped",
-    "transform_panel",
+    "transform_panel_json",
     "transform_timeseries",
     "transform_timeseries_pairwise",
 ]
@@ -644,7 +644,7 @@ def neutralize_and_zscore(
     """
     ...
 
-def transform_panel(spec_json: str) -> str:
+def transform_panel_json(spec_json: str) -> str:
     """
     Apply a JSON panel transform pipeline and return JSON result columns.
 
@@ -691,13 +691,13 @@ def transform_panel(spec_json: str) -> str:
     Examples
     --------
     >>> import json
-    >>> from finstack_quant.features import transform_panel
+    >>> from finstack_quant.features import transform_panel_json
     >>> spec = {
     ...     "values": [10.0, 12.0, 20.0, 21.0],
     ...     "time_key": ["1", "2", "1", "2"],
     ...     "operations": [{"name": "rank", "family": "cross_sectional", "op": "rank"}],
     ... }
-    >>> json.loads(transform_panel(json.dumps(spec)))["columns"][0]["values"]
+    >>> json.loads(transform_panel_json(json.dumps(spec)))["columns"][0]["values"]
     [0.0, 0.0, 1.0, 1.0]
     """
     ...

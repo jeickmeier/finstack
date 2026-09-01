@@ -319,8 +319,7 @@ mod deterministic_tests {
 
     #[test]
     fn test_zero_commitment_invalid() {
-        // Zero commitment should still be constructible but have zero utilization
-        let facility = RevolvingCredit::builder()
+        let result = RevolvingCredit::builder()
             .id("ZERO".into())
             .commitment_amount(Money::new(0.0, Currency::USD))
             .drawn_amount(Money::new(0.0, Currency::USD))
@@ -333,10 +332,9 @@ mod deterministic_tests {
             .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
             .discount_curve_id("USD-OIS".into())
             .recovery_rate(0.0)
-            .build()
-            .unwrap();
+            .build();
 
-        assert_eq!(facility.utilization_rate(), 0.0);
+        assert!(result.is_err(), "zero commitment must fail construction");
     }
 
     #[test]

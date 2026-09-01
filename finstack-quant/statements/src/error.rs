@@ -67,6 +67,10 @@ pub enum Error {
     #[error("Registry error: {0}")]
     Registry(String),
 
+    /// Requested registry entry was not found.
+    #[error("Registry entry not found: {0}")]
+    RegistryNotFound(String),
+
     /// Capital structure error
     #[error("Capital structure error: {0}")]
     CapitalStructure(String),
@@ -138,6 +142,11 @@ impl Error {
     /// Create a registry error with context
     pub fn registry(msg: impl Into<String>) -> Self {
         Self::Registry(msg.into())
+    }
+
+    /// Create an error for an absent registry entry.
+    pub fn registry_not_found(msg: impl Into<String>) -> Self {
+        Self::RegistryNotFound(msg.into())
     }
 
     /// Create a forecast error with context

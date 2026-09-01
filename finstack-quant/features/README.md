@@ -29,8 +29,8 @@ type of its own.
 | `transform_timeseries_with_op` | Rust typed-op variant of `transform_timeseries` |
 | `transform_cross_sectional` | Transform a value column across entities within each time partition |
 | `transform_cross_sectional_with_op` | Rust typed-op variant of `transform_cross_sectional` |
-| `transform_panel` | Apply a JSON-specified pipeline of named time-series and cross-sectional operations |
-| `transform_panel_spec` | Rust typed-spec variant of `transform_panel` with ordered result columns |
+| `transform_panel_json` | Apply a JSON-specified pipeline of named time-series and cross-sectional operations |
+| `transform_panel` | Rust typed-spec variant of `transform_panel_json` with ordered result columns |
 
 These entry points return `finstack_quant_core::Result`. Outputs preserve input
 order and length; element `i` of the output corresponds to element `i` of
@@ -215,19 +215,19 @@ Ok(())
 
 ### JSON pipeline
 
-`transform_panel` runs a list of named operations **sequentially**. Each
+`transform_panel_json` runs a list of named operations **sequentially**. Each
 operation reads the previous column by default; set `input` to `"values"` to
 branch from the raw column, or to an earlier operation name. The result is a
 JSON object with a single `columns` array, one entry per operation in request
 order, each carrying that operation's `name` and its output `values`.
-`transform_panel_spec` accepts the same model as Rust structs and returns the
+`transform_panel` accepts the same model as Rust structs and returns the
 equivalent `PanelTransformResult`, whose `get_column(name)` looks a column up
 by name. `entity`/`order` are required for `timeseries` operations; `time_key`
 is required for `cross_sectional` operations. Operation names must be unique,
 non-empty, and must not be the reserved name `values`.
 
 ```rust
-use finstack_quant_features::transform_panel;
+use finstack_quant_features::transform_panel_json;
 use serde_json::json;
 
 fn example() -> finstack_quant_core::Result<()> {
@@ -242,7 +242,7 @@ let spec = json!({
     ]
 });
 
-let result_json = transform_panel(&spec.to_string())?;
+let result_json = transform_panel_json(&spec.to_string())?;
 // result_json => {"columns": [{"name": "ret1", "values": [...]}, ...]}
 let _ = result_json;
 Ok(())
@@ -273,7 +273,7 @@ The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
 - `rolling_sharpe` is a period feature `(mean - risk_free) / sample_std` on
   returns, not the annualized `analytics` / GIPS Sharpe. `risk_free` defaults
   to `0.0` in the same units as the return series.
-- `transform_panel` is sequential. Use `input: "values"` to branch from the
+- `transform_panel_json` is sequential. Use `input: "values"` to branch from the
   raw column.
 
 ## Bindings
@@ -284,13 +284,13 @@ The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
   [`parity_contract.toml`](../../finstack-quant-py/parity_contract.toml).
 - **WASM** — the same entry points in camelCase through the `features`
   namespace ([`exports/features.js`](../../finstack-quant-wasm/exports/features.js)):
-  `transformTimeseries`, `transformCrossSectional`, `transformPanel`,
+  `transformTimeseries`, `transformCrossSectional`, `transformPanelJson`,
   `transformTimeseriesPairwise`, `transformCrossSectionalGrouped`,
   `neutralize`, `neutralizeAndZscore`, `normalizeSignal`, `cleanSignal`,
   `rankToWeights`, `riskScaledWeights`, `rollingRegressionResidual`. JavaScript
   callers pass `number | null` arrays for values and plain objects for params.
 
-The typed-op Rust variants (`*_with_op`) and `transform_panel_spec` have no
+The typed-op Rust variants (`*_with_op`) and `transform_panel` have no
 host twin; both bindings go through the string/JSON entry points.
 
 ## Related

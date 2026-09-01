@@ -14,7 +14,7 @@ from finstack_quant.finstack_quant import attribution as _attribution
 PnlAttribution = _attribution.PnlAttribution
 ReturnContributionResult = _attribution.ReturnContributionResult
 attribute_pnl = _attribution.attribute_pnl
-attribute_pnl_from_spec = _attribution.attribute_pnl_from_spec
+attribute_pnl_envelope_json = _attribution.attribute_pnl_envelope_json
 attribute_return_contribution = _attribution.attribute_return_contribution
 validate_attribution_json = _attribution.validate_attribution_json
 validate_return_contribution_json = _attribution.validate_return_contribution_json
@@ -31,7 +31,7 @@ __all__: list[str] = [
     "PnlAttribution",
     "ReturnContributionResult",
     "attribute_pnl",
-    "attribute_pnl_from_spec",
+    "attribute_pnl_envelope_json",
     "attribute_return_contribution",
     "default_attribution_metrics",
     "default_waterfall_order",

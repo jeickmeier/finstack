@@ -88,10 +88,10 @@ pub fn tarn_coupon_profile(
         let period_coupon = raw * day_count_fraction;
         let actual = tracker.add_coupon(period_coupon);
         coupons_paid.push(actual);
-        cumulative.push(tracker.cumulative());
+        cumulative.push(tracker.get_cumulative());
     }
 
-    let (redemption_index, redeemed_early) = match tracker.knockout_period() {
+    let (redemption_index, redeemed_early) = match tracker.get_knockout_period() {
         Some(idx) => (Some(idx), idx + 1 < n),
         None => (None, false),
     };

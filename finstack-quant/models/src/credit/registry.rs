@@ -6,7 +6,6 @@ use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::{Error, HashMap, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 /// Configuration extension key for replacing the embedded credit assumptions registry.
@@ -146,26 +145,36 @@ impl CreditAssumptionRegistry {
             )));
         }
 
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "credit assumptions registry",
             "rating factor table",
             self.rating_factor_tables
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "credit assumptions registry",
             "seniority calibration",
             self.seniority_calibrations
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
-        validate_pd_master_scale_ids(&self.pd_master_scales)?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "credit assumptions registry",
+            "PD master scale",
+            self.pd_master_scales
+                .iter()
+                .map(|record| record.ids.as_slice()),
+        )?;
+        finstack_quant_core::validation::validate_unique_ids(
+            "credit assumptions registry",
             "downturn LGD preset",
             self.downturn_lgd_presets
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "credit assumptions registry",
             "workout LGD defaults",
             self.workout_lgd_defaults
                 .iter()
@@ -222,8 +231,14 @@ impl CreditAssumptionRegistry {
                     record.method
                 )));
             }
-            validate_unit_interval(record.add_on, "downturn LGD add-on")?;
-            validate_unit_interval(record.floor, "downturn LGD floor")?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                record.add_on,
+                "downturn LGD add-on",
+            )?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                record.floor,
+                "downturn LGD floor",
+            )?;
         }
 
         for record in &self.workout_lgd_defaults {
@@ -234,9 +249,18 @@ impl CreditAssumptionRegistry {
                     record.workout_years
                 )));
             }
-            validate_unit_interval(record.discount_rate, "workout discount rate")?;
-            validate_unit_interval(record.direct_cost_rate, "direct workout cost rate")?;
-            validate_unit_interval(record.indirect_cost_rate, "indirect workout cost rate")?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                record.discount_rate,
+                "workout discount rate",
+            )?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                record.direct_cost_rate,
+                "direct workout cost rate",
+            )?;
+            finstack_quant_core::validation::validate_f64_unit_interval(
+                record.indirect_cost_rate,
+                "indirect workout cost rate",
+            )?;
         }
 
         Ok(())
@@ -320,64 +344,6 @@ fn not_found(kind: &str, id: &str) -> Error {
     Error::Validation(format!(
         "credit assumptions registry does not contain {kind} '{id}'"
     ))
-}
-
-fn validate_ids<'a>(kind: &str, records: impl Iterator<Item = &'a [String]>) -> Result<()> {
-    let mut seen = BTreeSet::new();
-    for ids in records {
-        if ids.is_empty() {
-            return Err(Error::Validation(format!(
-                "credit assumptions registry contains {kind} without an id"
-            )));
-        }
-        for id in ids {
-            if id.trim().is_empty() {
-                return Err(Error::Validation(format!(
-                    "credit assumptions registry contains blank {kind} id"
-                )));
-            }
-            if !seen.insert(id.clone()) {
-                return Err(Error::Validation(format!(
-                    "credit assumptions registry contains duplicate {kind} id '{id}'"
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_pd_master_scale_ids(records: &[PdMasterScaleRecord]) -> Result<()> {
-    let mut seen = BTreeSet::new();
-    for record in records {
-        if record.ids.is_empty() {
-            return Err(Error::Validation(
-                "credit assumptions registry contains PD master scale without an id".to_string(),
-            ));
-        }
-        for id in &record.ids {
-            if id.trim().is_empty() {
-                return Err(Error::Validation(
-                    "credit assumptions registry contains blank PD master scale id".to_string(),
-                ));
-            }
-            if !seen.insert(id.clone()) {
-                return Err(Error::Validation(format!(
-                    "credit assumptions registry contains duplicate PD master scale id '{id}'"
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_unit_interval(value: f64, label: &str) -> Result<()> {
-    if (0.0..=1.0).contains(&value) {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!(
-            "credit assumptions registry has invalid {label} {value}"
-        )))
-    }
 }
 
 #[derive(Clone, Debug)]

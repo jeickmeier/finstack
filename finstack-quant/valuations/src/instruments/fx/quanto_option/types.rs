@@ -21,7 +21,6 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = QuantoOption::validate)]
 #[serde(deny_unknown_fields, try_from = "QuantoOptionUnchecked")]
 pub struct QuantoOption {
     /// Unique instrument identifier

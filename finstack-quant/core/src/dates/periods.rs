@@ -309,8 +309,8 @@ impl PeriodId {
     ///
     /// # Arguments
     ///
-    /// * `year` - Year supplied by the caller for this operation
-    /// * `ordinal` - Ordinal supplied by the caller for this operation
+    /// * `year` - Calendar or fiscal year used to construct the period identifier.
+    /// * `ordinal` - One-based day ordinal valid for the supplied Gregorian year.
     pub fn try_day(year: i32, ordinal: u16) -> crate::Result<Self> {
         Self::try_new(year, ordinal, PeriodKind::Daily, days_in_year(year))
     }
@@ -337,8 +337,8 @@ impl PeriodId {
     ///
     /// # Arguments
     ///
-    /// * `year` - Year supplied by the caller for this operation
-    /// * `q` - Continuous dividend yield in decimal annual units
+    /// * `year` - Calendar or fiscal year containing the quarter.
+    /// * `q` - One-based quarter number in the inclusive range `1..=4`.
     pub fn try_quarter(year: i32, q: u8) -> crate::Result<Self> {
         Self::try_new(year, u16::from(q), PeriodKind::Quarterly, 4)
     }
@@ -365,8 +365,8 @@ impl PeriodId {
     ///
     /// # Arguments
     ///
-    /// * `year` - Year supplied by the caller for this operation
-    /// * `m` - M supplied by the caller for this operation
+    /// * `year` - Calendar or fiscal year used to construct the period identifier.
+    /// * `m` - One-based month number in the inclusive range `1..=12`.
     pub fn try_month(year: i32, m: u8) -> crate::Result<Self> {
         Self::try_new(year, u16::from(m), PeriodKind::Monthly, 12)
     }
@@ -400,8 +400,8 @@ impl PeriodId {
     ///
     /// # Arguments
     ///
-    /// * `year` - Year supplied by the caller for this operation
-    /// * `w` - W supplied by the caller for this operation
+    /// * `year` - Calendar or fiscal year used to construct the period identifier.
+    /// * `w` - One-based ISO week number valid for the supplied ISO week-year.
     pub fn try_week(year: i32, w: u8) -> crate::Result<Self> {
         Self::try_new(
             year,
@@ -433,8 +433,8 @@ impl PeriodId {
     ///
     /// # Arguments
     ///
-    /// * `year` - Year supplied by the caller for this operation
-    /// * `h` - H supplied by the caller for this operation
+    /// * `year` - Calendar or fiscal year used to construct the period identifier.
+    /// * `h` - One-based half-year number in the inclusive range `1..=2`.
     pub fn try_half(year: i32, h: u8) -> crate::Result<Self> {
         Self::try_new(year, u16::from(h), PeriodKind::SemiAnnual, 2)
     }

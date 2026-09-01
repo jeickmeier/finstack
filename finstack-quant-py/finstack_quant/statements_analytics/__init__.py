@@ -37,8 +37,8 @@ dcf_sensitivity = _sa.dcf_sensitivity
 evaluate_lbo = _sa.evaluate_lbo
 wacc = _sa.wacc
 run_corporate_analysis = _sa.run_corporate_analysis
-pl_summary_report = _sa.pl_summary_report
-credit_assessment_report = _sa.credit_assessment_report
+pl_summary_report_text = _sa.pl_summary_report_text
+credit_assessment_report_text = _sa.credit_assessment_report_text
 credit_assessment = _sa.credit_assessment
 DependencyTracer = _sa.DependencyTracer
 direct_dependencies = _sa.direct_dependencies
@@ -152,7 +152,7 @@ __all__: list[str] = [
     "compute_ecl_weighted",
     "compute_multiple",
     "credit_assessment",
-    "credit_assessment_report",
+    "credit_assessment_report_text",
     "dcf_sensitivity",
     "dependents",
     "direct_dependencies",
@@ -165,7 +165,7 @@ __all__: list[str] = [
     "goal_seek",
     "peer_stats",
     "percentile_rank",
-    "pl_summary_report",
+    "pl_summary_report_text",
     "regression_fair_value",
     "render_check_report_html",
     "render_check_report_text",

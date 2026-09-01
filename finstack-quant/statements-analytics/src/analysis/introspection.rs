@@ -75,7 +75,7 @@ impl<'a> DependencyTracer<'a> {
         let deps = self
             .graph
             .get_dependencies(node_id)
-            .ok_or_else(|| Error::invalid_input(format!("Node '{}' not found", node_id)))?;
+            .ok_or_else(|| Error::node_not_found(node_id))?;
 
         Ok(deps.iter().map(|s| s.as_str()).collect())
     }
@@ -166,7 +166,7 @@ impl<'a> DependencyTracer<'a> {
             .graph
             .dependents
             .get(node_id)
-            .ok_or_else(|| Error::invalid_input(format!("Node '{}' not found", node_id)))?;
+            .ok_or_else(|| Error::node_not_found(node_id))?;
 
         Ok(deps.iter().map(|s| s.as_str()).collect())
     }
@@ -197,7 +197,7 @@ impl<'a> DependencyTracer<'a> {
             .model
             .nodes
             .get(node_id)
-            .ok_or_else(|| Error::invalid_input(format!("Node '{}' not found", node_id)))?;
+            .ok_or_else(|| Error::node_not_found(node_id))?;
 
         let formula = node_spec.formula_text.clone();
         let deps = self.direct_dependencies(node_id)?;
@@ -505,10 +505,10 @@ impl<'a> FormulaExplainer<'a> {
             .model
             .nodes
             .get(node_id)
-            .ok_or_else(|| Error::invalid_input(format!("Node '{}' not found", node_id)))?;
+            .ok_or_else(|| Error::node_not_found(node_id))?;
 
         let final_value = self.results.get(node_id, period).ok_or_else(|| {
-            Error::invalid_input(format!(
+            Error::missing_data(format!(
                 "No result for node '{}' in period '{}'",
                 node_id, period
             ))

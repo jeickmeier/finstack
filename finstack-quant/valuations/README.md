@@ -162,7 +162,7 @@ marker (`finstack_quant.instrument/1`, `finstack_quant.calibration/1`). See
 
 **Result-return contract.** Computation entry points return typed results — a
 Rust struct, a `Py*` wrapper, or a plain JS object — not JSON strings.
-`pricer::price_instrument_json` takes JSON input but returns a typed
+`pricer::price_instrument_from_json` takes JSON input but returns a typed
 `ValuationResult`; only explicit validation and formatting surfaces return JSON
 strings. See `.agents/rules/project-rules.md`.
 

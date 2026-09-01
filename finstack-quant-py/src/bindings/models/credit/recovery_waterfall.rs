@@ -2,7 +2,7 @@
 
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
 use crate::bindings::pandas_utils::ColumnSchema;
-use crate::errors::core_to_py;
+use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_models::credit::recovery_waterfall::{
     self as waterfall, RecoveryAllocation, RecoveryClaim, RecoveryWaterfallResult,
 };
@@ -224,6 +224,24 @@ pub struct PyRecoveryWaterfallResult {
 
 #[pymethods]
 impl PyRecoveryWaterfallResult {
+    /// Deserialize a waterfall result from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this result to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Sum of every claim's `total_recovery`.
     #[getter]
     fn total_distributed(&self) -> f64 {

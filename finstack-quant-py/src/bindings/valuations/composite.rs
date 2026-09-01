@@ -8,6 +8,8 @@
 use crate::bindings::core::currency::PyCurrency;
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::extract::{extract_instrument_json, extract_market};
+use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
+use crate::bindings::pandas_utils::ColumnSchema;
 use crate::errors::core_to_py;
 use finstack_quant_core::types::InstrumentId;
 use finstack_quant_valuations::instruments::composite::{
@@ -20,6 +22,35 @@ use finstack_quant_valuations::metrics::MetricId;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
+const COMPOSITE_TRADE_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("instrument_id", "str"),
+    ("instrument_type", "str"),
+    ("quantity_delta", "float64"),
+];
+
+const COMPOSITE_AGGREGATE_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("instrument_id", "str"),
+    ("instrument_type", "str"),
+    ("net_quantity", "float64"),
+    ("gross_quantity", "float64"),
+    ("net_value", "float64"),
+    ("gross_value", "float64"),
+    ("currency", "str"),
+];
+
+const COMPOSITE_HISTORY_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("date", "str"),
+    ("value", "float64"),
+    ("cashflows", "float64"),
+    ("pnl", "float64"),
+    ("currency", "str"),
+    ("period_return", "float64"),
+    ("return_index", "float64"),
+    ("held_state_effective_date", "str"),
+    ("next_state_effective_date", "str"),
+    ("rebalance_trade_count", "int64"),
+];
+
 fn parse_json<T: serde::de::DeserializeOwned>(json: &str, what: &str) -> PyResult<T> {
     serde_json::from_str(json)
         .map_err(|err| crate::errors::serde_json_to_py(err, &format!("invalid {what} JSON")))
@@ -31,7 +62,7 @@ fn to_json<T: serde::Serialize>(value: &T, what: &str) -> PyResult<String> {
 }
 
 fn parse_composite_envelope(json: &str) -> PyResult<CompositeInstrument> {
-    match finstack_quant_valuations::pricer::json::parse_instrument_json(json)
+    match finstack_quant_valuations::pricer::json::parse_instrument_from_json(json)
         .map_err(core_to_py)?
     {
         InstrumentJson::Composite(instrument) => Ok(*instrument),
@@ -86,8 +117,9 @@ impl PyCompositeLegSpec {
     #[pyo3(text_signature = "(instrument_id, instrument, weight)")]
     fn new(instrument_id: &str, instrument: &Bound<'_, PyAny>, weight: f64) -> PyResult<Self> {
         let envelope = extract_instrument_json(instrument)?;
-        let instrument = finstack_quant_valuations::pricer::json::parse_instrument_json(&envelope)
-            .map_err(core_to_py)?;
+        let instrument =
+            finstack_quant_valuations::pricer::json::parse_instrument_from_json(&envelope)
+                .map_err(core_to_py)?;
         Ok(Self {
             inner: CompositeLegSpec::new(instrument_id, instrument, weight),
         })
@@ -1146,6 +1178,11 @@ impl PyCompositeRebalanceResult {
         to_json(&self.inner.trades, "composite rebalance trades")
     }
 
+    /// Export primitive execution deltas as a pandas ``DataFrame``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_rows_to_dataframe_with_schema(py, &self.inner.trades, COMPOSITE_TRADE_COLUMNS)
+    }
+
     /// Serialize the complete rebalance result.
     ///
     /// Returns
@@ -1165,6 +1202,14 @@ impl PyCompositeRebalanceResult {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CompositeRebalanceResult(instrument_id={:?}, trades={})",
+            self.inner.instrument.id(),
+            self.inner.trades.len()
+        )
     }
 }
 
@@ -1209,6 +1254,45 @@ impl PyCompositeExposureReport {
         parse_json(json, "CompositeExposureReport").map(|inner| Self { inner })
     }
 
+    /// Reporting currency shared by all aggregate values.
+    #[getter]
+    fn reporting_currency(&self) -> PyCurrency {
+        PyCurrency::from_inner(self.inner.reporting_currency)
+    }
+
+    /// Number of primitive paths before overlap netting.
+    #[getter]
+    fn path_count(&self) -> usize {
+        self.inner.paths.len()
+    }
+
+    /// Number of net/gross primitive aggregates.
+    #[getter]
+    fn aggregate_count(&self) -> usize {
+        self.inner.aggregates.len()
+    }
+
+    /// Export net and gross primitive aggregates as a pandas ``DataFrame``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = self
+            .inner
+            .aggregates
+            .iter()
+            .map(|aggregate| {
+                serde_json::json!({
+                    "instrument_id": aggregate.instrument_id.as_str(),
+                    "instrument_type": aggregate.instrument_type,
+                    "net_quantity": aggregate.net_quantity,
+                    "gross_quantity": aggregate.gross_quantity,
+                    "net_value": aggregate.net_value.amount(),
+                    "gross_value": aggregate.gross_value.amount(),
+                    "currency": aggregate.net_value.currency().to_string(),
+                })
+            })
+            .collect::<Vec<_>>();
+        serde_rows_to_dataframe_with_schema(py, &rows, COMPOSITE_AGGREGATE_COLUMNS)
+    }
+
     /// Serialize paths and aggregate quantity, value, and additive risk.
     ///
     /// Returns
@@ -1228,6 +1312,15 @@ impl PyCompositeExposureReport {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CompositeExposureReport(currency={}, paths={}, aggregates={})",
+            self.inner.reporting_currency,
+            self.inner.paths.len(),
+            self.inner.aggregates.len()
+        )
     }
 }
 
@@ -1280,6 +1373,35 @@ impl PyCompositeHistoryResult {
         self.inner.len()
     }
 
+    /// Observation dates in chronological order.
+    #[getter]
+    fn dates(&self) -> Vec<String> {
+        self.inner.iter().map(|row| row.date.to_string()).collect()
+    }
+
+    /// Export chronological value, cashflow, P&L, return, and state metadata.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = self
+            .inner
+            .iter()
+            .map(|row| {
+                serde_json::json!({
+                    "date": row.date.to_string(),
+                    "value": row.value.amount(),
+                    "cashflows": row.cashflows.amount(),
+                    "pnl": row.pnl.amount(),
+                    "currency": row.value.currency().to_string(),
+                    "period_return": row.period_return,
+                    "return_index": row.return_index,
+                    "held_state_effective_date": row.held_state_effective_date.to_string(),
+                    "next_state_effective_date": row.next_state_effective_date.map(|date| date.to_string()),
+                    "rebalance_trade_count": row.rebalance_trades.len(),
+                })
+            })
+            .collect::<Vec<_>>();
+        serde_rows_to_dataframe_with_schema(py, &rows, COMPOSITE_HISTORY_COLUMNS)
+    }
+
     /// Serialize one zero-based dated history row.
     ///
     /// Parameters
@@ -1326,6 +1448,10 @@ impl PyCompositeHistoryResult {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("CompositeHistoryResult(rows={})", self.inner.len())
     }
 }
 

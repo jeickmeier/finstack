@@ -46,8 +46,8 @@ __all__ = [
     "evaluate_lbo",
     "wacc",
     "run_corporate_analysis",
-    "pl_summary_report",
-    "credit_assessment_report",
+    "pl_summary_report_text",
+    "credit_assessment_report_text",
     "credit_assessment",
     "DependencyTracer",
     "direct_dependencies",
@@ -1825,7 +1825,7 @@ def run_corporate_analysis(
     """
     ...
 
-def pl_summary_report(
+def pl_summary_report_text(
     results: StatementResult | str,
     line_items: list[str],
     periods: list[str],
@@ -1855,18 +1855,18 @@ def pl_summary_report(
     Examples
     --------
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
-    >>> from finstack_quant.statements_analytics import pl_summary_report
+    >>> from finstack_quant.statements_analytics import pl_summary_report_text
     >>> builder = ModelBuilder("demo")
     >>> _ = builder.periods("2025Q1..Q1")
     >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> result = Evaluator().evaluate(builder.build())
-    >>> "revenue" in pl_summary_report(result, ["revenue"], ["2025Q1"])
+    >>> "revenue" in pl_summary_report_text(result, ["revenue"], ["2025Q1"])
     True
 
     """
     ...
 
-def credit_assessment_report(results: StatementResult | str, as_of: str) -> str:
+def credit_assessment_report_text(results: StatementResult | str, as_of: str) -> str:
     """
     Render a credit assessment report as formatted text.
 
@@ -1891,7 +1891,7 @@ def credit_assessment_report(results: StatementResult | str, as_of: str) -> str:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import credit_assessment_report
+    >>> from finstack_quant.statements_analytics import credit_assessment_report_text
     >>> from finstack_quant.statements import Evaluator, ModelBuilder
     >>> periods = ["2025Q1", "2025Q2", "2025Q3", "2025Q4"]
     >>> builder = ModelBuilder("credit")
@@ -1900,7 +1900,7 @@ def credit_assessment_report(results: StatementResult | str, as_of: str) -> str:
     >>> _ = builder.value("interest_expense", list(zip(periods, [1.0, 2.0, 3.0, 4.0], strict=True)))
     >>> _ = builder.value("total_debt", list(zip(periods, [300.0] * 4, strict=True)))
     >>> results = Evaluator().evaluate(builder.build())
-    >>> len(credit_assessment_report(results, "2025Q4").splitlines()) > 1
+    >>> len(credit_assessment_report_text(results, "2025Q4").splitlines()) > 1
     True
 
     """

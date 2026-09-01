@@ -197,6 +197,23 @@ impl BasisSpreadCurve {
         &self.spreads
     }
 
+    /// Number of spread knots in the curve.
+    #[must_use]
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.knots.len()
+    }
+
+    /// Whether the curve contains no spread knots.
+    ///
+    /// Valid constructed curves are non-empty; this method completes the
+    /// collection-style API paired with [`Self::len`].
+    #[must_use]
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.knots.is_empty()
+    }
+
     /// Roll the curve forward by `days` calendar days.
     ///
     /// The time shift uses the curve's own `day_count`, matching

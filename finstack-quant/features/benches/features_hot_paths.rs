@@ -16,7 +16,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use finstack_quant_features::{
     clean_signal, neutralize, neutralize_and_zscore, normalize_signal, rank_to_weights,
     risk_scaled_weights, rolling_regression_residual, transform_cross_sectional_grouped_with_op,
-    transform_cross_sectional_with_op, transform_panel, transform_panel_spec,
+    transform_cross_sectional_with_op, transform_panel, transform_panel_json,
     transform_timeseries_pairwise_with_op, transform_timeseries_with_op, CrossSectionalOp,
     PairwiseOp, PanelOperation, PanelTransformSpec, TimeSeriesOp,
 };
@@ -367,10 +367,10 @@ fn bench_panel_pipeline(c: &mut Criterion) {
     let spec_json = serde_json::to_string(&spec).expect("spec json");
 
     c.bench_function("panel_spec returns+std+rank 100x252", |b| {
-        b.iter(|| black_box(transform_panel_spec(&spec).expect("panel spec")));
+        b.iter(|| black_box(transform_panel(&spec).expect("panel spec")));
     });
     c.bench_function("panel_json returns+std+rank 100x252", |b| {
-        b.iter(|| black_box(transform_panel(&spec_json).expect("panel json")));
+        b.iter(|| black_box(transform_panel_json(&spec_json).expect("panel json")));
     });
 }
 

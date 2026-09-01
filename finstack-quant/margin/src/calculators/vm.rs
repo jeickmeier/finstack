@@ -10,9 +10,12 @@ use finstack_quant_core::Result;
 use tracing::{debug, warn};
 
 /// Variation margin calculation result.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
 pub struct VmResult {
     /// Calculation date
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub date: Date,
 
     /// Gross mark-to-market exposure
@@ -28,6 +31,7 @@ pub struct VmResult {
     pub return_amount: Money,
 
     /// Settlement date for the margin transfer
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub settlement_date: Date,
 }
 

@@ -5,7 +5,7 @@
 use finstack_quant_wasm::api::features::{
     clean_signal, neutralize, neutralize_and_zscore, normalize_signal, rank_to_weights,
     risk_scaled_weights, transform_cross_sectional, transform_cross_sectional_grouped,
-    transform_panel, transform_timeseries, transform_timeseries_pairwise,
+    transform_panel_json, transform_timeseries, transform_timeseries_pairwise,
 };
 use serde_json::json;
 use wasm_bindgen_test::*;
@@ -201,7 +201,7 @@ fn pipeline_helper_feature_ops_return_js_arrays() {
 }
 
 #[wasm_bindgen_test]
-fn transform_panel_returns_json_result() {
+fn transform_panel_json_returns_json_result() {
     let spec = json!({
         "values": [10.0, 12.0, 20.0, 21.0],
         "entity": ["A", "A", "B", "B"],
@@ -213,7 +213,7 @@ fn transform_panel_returns_json_result() {
         ]
     });
 
-    let out = transform_panel(&spec.to_string()).expect("panel");
+    let out = transform_panel_json(&spec.to_string()).expect("panel");
     let result: serde_json::Value = serde_json::from_str(&out).expect("panel JSON");
     assert_eq!(result["columns"][0]["name"], "ret1");
     assert!((result["columns"][0]["values"][1].as_f64().expect("ret1") - 0.2).abs() < 1e-12);

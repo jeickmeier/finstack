@@ -163,13 +163,13 @@ pub(crate) fn attribute_pnl(
 /// str
 ///     JSON-serialized ``AttributionResultEnvelope``.
 #[pyfunction]
-pub(crate) fn attribute_pnl_from_spec(py: Python<'_>, spec_json: &str) -> PyResult<String> {
+pub(crate) fn attribute_pnl_envelope_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
     use finstack_quant_attribution::AttributionEnvelope;
 
     let envelope: AttributionEnvelope = serde_json::from_str(spec_json)
         .map_err(|e| serde_json_to_py(e, "invalid attribution envelope JSON"))?;
     let result_envelope =
-        detach_catch_attribution_panic(py, "attribute_pnl_from_spec", || envelope.execute())?;
+        detach_catch_attribution_panic(py, "attribute_pnl_envelope_json", || envelope.execute())?;
     serde_json::to_string(&result_envelope).map_err(display_to_py)
 }
 

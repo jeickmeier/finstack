@@ -980,9 +980,9 @@ impl Waterfall {
     ///
     /// * `deal_type` - Deal family that selects CLO-style junior-interest
     ///   diversion versus passthrough coupons
-    /// * `base_currency` - Base currency supplied by the caller for this operation
-    /// * `tranches` - Tranches supplied by the caller for this operation
-    /// * `fee_recipients` - Fee recipients supplied by the caller for this operation
+    /// * `base_currency` - Currency into which portfolio values are converted and aggregated.
+    /// * `tranches` - Tranches used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `fee_recipients` - Fee recipients used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn standard_sequential(
         deal_type: super::DealType,
         base_currency: Currency,

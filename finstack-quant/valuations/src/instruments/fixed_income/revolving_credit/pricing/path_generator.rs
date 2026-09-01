@@ -19,8 +19,8 @@ use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 
-use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_discretization::RevolvingCreditDiscretization;
-use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_process::{
+use crate::instruments::fixed_income::revolving_credit::pricing::monte_carlo_discretization::RevolvingCreditDiscretization;
+use crate::instruments::fixed_income::revolving_credit::pricing::monte_carlo_process::{
     CreditSpreadParams, InterestRateSpec, RevolvingCreditProcess, RevolvingCreditProcessParams,
     UtilizationParams,
 };
@@ -232,7 +232,7 @@ pub fn generate_three_factor_paths(
     // with σ > 0). The pricer uses this to choose pathwise bank-account
     // discounting over the static curve.
     let stochastic_rates = matches!(
-        &process.params().interest_rate,
+        &process.get_params().interest_rate,
         InterestRateSpec::Floating { params, .. } if params.sigma_at_time(0.0) > 0.0
     );
 
@@ -272,10 +272,12 @@ pub fn generate_three_factor_paths(
     let num_steps = time_grid.num_steps();
     let num_factors = process.num_factors();
     let initial_state = if sim_start == 0.0 {
-        process.params().initial_state(facility.utilization_rate())
+        process
+            .get_params()
+            .initial_state(facility.utilization_rate())
     } else {
         process
-            .params()
+            .get_params()
             .initial_state_at(facility.utilization_rate(), sim_start)
     };
     let num_payment_dates = payment_dates.len();

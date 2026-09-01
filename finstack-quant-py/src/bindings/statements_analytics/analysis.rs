@@ -16,7 +16,7 @@ use crate::bindings::statements_analytics::typed::{
     PyBridgeChart, PyScenarioDiff, PyScenarioResults, PyScenarioSet, PySensitivityConfig,
     PySensitivityResult, PyTornadoEntry, PyVarianceConfig, PyVarianceReport,
 };
-use crate::errors::display_to_py;
+use crate::errors::{display_to_py, statements_to_py};
 use finstack_quant_statements_analytics::analysis::CorporateValuationResult;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -248,7 +248,7 @@ fn scenario_diff(
     py.detach(move || {
         let inner = scenario_set
             .diff(&results, &baseline, &comparison, &metrics, &periods)
-            .map_err(display_to_py)?;
+            .map_err(statements_to_py)?;
         Ok(PyScenarioDiff { inner })
     })
 }
@@ -1024,13 +1024,11 @@ fn run_corporate_analysis<'py>(
 /// str
 ///     Formatted P&L summary report text.
 #[pyfunction]
-fn pl_summary_report(
+fn pl_summary_report_text(
     results: &Bound<'_, PyAny>,
     line_items: Vec<String>,
     periods: Vec<String>,
 ) -> PyResult<String> {
-    use finstack_quant_statements_analytics::analysis::Report;
-
     let results = extract_results_ref(results)?;
     let period_ids: Vec<finstack_quant_core::dates::PeriodId> = periods
         .iter()
@@ -1059,9 +1057,7 @@ fn pl_summary_report(
 /// str
 ///     Formatted credit assessment report text.
 #[pyfunction]
-fn credit_assessment_report(results: &Bound<'_, PyAny>, as_of: &str) -> PyResult<String> {
-    use finstack_quant_statements_analytics::analysis::Report;
-
+fn credit_assessment_report_text(results: &Bound<'_, PyAny>, as_of: &str) -> PyResult<String> {
     let results = extract_results_ref(results)?;
     let period: finstack_quant_core::dates::PeriodId = as_of.parse().map_err(display_to_py)?;
     let report = finstack_quant_statements_analytics::analysis::CreditAssessmentReport::new(
@@ -1143,7 +1139,7 @@ impl PyDependencyTracer {
             &self.model,
             &self.graph,
         );
-        let tree = tracer.dependency_tree(node_id).map_err(display_to_py)?;
+        let tree = tracer.dependency_tree(node_id).map_err(statements_to_py)?;
         Ok(finstack_quant_statements_analytics::analysis::render_tree_ascii(&tree))
     }
 
@@ -1160,7 +1156,7 @@ impl PyDependencyTracer {
             &self.model,
             &self.graph,
         );
-        let tree = tracer.dependency_tree(node_id).map_err(display_to_py)?;
+        let tree = tracer.dependency_tree(node_id).map_err(statements_to_py)?;
         Ok(
             finstack_quant_statements_analytics::analysis::render_tree_detailed(
                 &tree, &results, &pid,
@@ -1174,7 +1170,9 @@ impl PyDependencyTracer {
             &self.model,
             &self.graph,
         );
-        let deps = tracer.direct_dependencies(node_id).map_err(display_to_py)?;
+        let deps = tracer
+            .direct_dependencies(node_id)
+            .map_err(statements_to_py)?;
         Ok(deps.into_iter().map(String::from).collect())
     }
 
@@ -1184,7 +1182,7 @@ impl PyDependencyTracer {
             &self.model,
             &self.graph,
         );
-        tracer.all_dependencies(node_id).map_err(display_to_py)
+        tracer.all_dependencies(node_id).map_err(statements_to_py)
     }
 
     /// Node IDs that depend on this node.
@@ -1193,7 +1191,7 @@ impl PyDependencyTracer {
             &self.model,
             &self.graph,
         );
-        let deps = tracer.dependents(node_id).map_err(display_to_py)?;
+        let deps = tracer.dependents(node_id).map_err(statements_to_py)?;
         Ok(deps.into_iter().map(String::from).collect())
     }
 
@@ -1219,10 +1217,12 @@ impl PyDependencyTracer {
 fn direct_dependencies(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> {
     let model = extract_model_ref(model)?;
     let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
-        .map_err(display_to_py)?;
+        .map_err(statements_to_py)?;
     let tracer =
         finstack_quant_statements_analytics::analysis::DependencyTracer::new(&model, &graph);
-    let deps = tracer.direct_dependencies(node_id).map_err(display_to_py)?;
+    let deps = tracer
+        .direct_dependencies(node_id)
+        .map_err(statements_to_py)?;
     Ok(deps.into_iter().map(String::from).collect())
 }
 
@@ -1243,10 +1243,10 @@ fn direct_dependencies(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<
 fn all_dependencies(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> {
     let model = extract_model_ref(model)?;
     let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
-        .map_err(display_to_py)?;
+        .map_err(statements_to_py)?;
     let tracer =
         finstack_quant_statements_analytics::analysis::DependencyTracer::new(&model, &graph);
-    tracer.all_dependencies(node_id).map_err(display_to_py)
+    tracer.all_dependencies(node_id).map_err(statements_to_py)
 }
 
 /// Get nodes that depend on this node (reverse dependencies).
@@ -1266,10 +1266,10 @@ fn all_dependencies(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<Str
 fn dependents(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> {
     let model = extract_model_ref(model)?;
     let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
-        .map_err(display_to_py)?;
+        .map_err(statements_to_py)?;
     let tracer =
         finstack_quant_statements_analytics::analysis::DependencyTracer::new(&model, &graph);
-    let deps = tracer.dependents(node_id).map_err(display_to_py)?;
+    let deps = tracer.dependents(node_id).map_err(statements_to_py)?;
     Ok(deps.into_iter().map(String::from).collect())
 }
 
@@ -1309,7 +1309,7 @@ fn explain_formula<'py>(
 
     let explainer =
         finstack_quant_statements_analytics::analysis::FormulaExplainer::new(&model, &results);
-    let explanation = explainer.explain(node_id, &pid).map_err(display_to_py)?;
+    let explanation = explainer.explain(node_id, &pid).map_err(statements_to_py)?;
 
     // Canonical serde form — identical to the WASM twin, so node_type casing
     // and the optional `operation` key cannot drift between hosts, and new
@@ -1347,7 +1347,7 @@ fn explain_formula_text(
 
     let explainer =
         finstack_quant_statements_analytics::analysis::FormulaExplainer::new(&model, &results);
-    let explanation = explainer.explain(node_id, &pid).map_err(display_to_py)?;
+    let explanation = explainer.explain(node_id, &pid).map_err(statements_to_py)?;
     Ok(explanation.to_string_detailed())
 }
 
@@ -1523,8 +1523,8 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(evaluate_lbo, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(wacc, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_corporate_analysis, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(pl_summary_report, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(credit_assessment_report, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(pl_summary_report_text, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(credit_assessment_report_text, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(credit_assessment, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(direct_dependencies, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(all_dependencies, m)?)?;

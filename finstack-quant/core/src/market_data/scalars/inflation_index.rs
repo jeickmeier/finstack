@@ -312,7 +312,7 @@ impl InflationIndex {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `observations` - Observations supplied by the caller for this operation
+    /// * `observations` - Dated index observations used to build the inflation time series.
     /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     pub fn new(
         id: impl Into<String>,

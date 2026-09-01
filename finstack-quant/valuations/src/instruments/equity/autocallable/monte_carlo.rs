@@ -76,7 +76,7 @@ pub struct AutocallablePayoff {
 impl AutocallablePayoff {
     /// Get the final spot value (for testing/debugging).
     #[cfg(test)]
-    pub fn final_spot(&self) -> f64 {
+    pub fn get_final_spot(&self) -> f64 {
         self.final_spot
     }
 
@@ -457,7 +457,7 @@ mod tests {
             (value.amount() - 90_000.0).abs() < 1e-6,
             "Expected 90_000.0 but got {}. final_spot={}",
             value.amount(),
-            payoff.final_spot()
+            payoff.get_final_spot()
         );
     }
 

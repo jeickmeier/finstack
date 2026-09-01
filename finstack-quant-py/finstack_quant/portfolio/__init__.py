@@ -12,7 +12,7 @@ contract about how disruptive future changes are likely to be.
 
 * ``Portfolio``, ``PortfolioValuation``, ``PortfolioResult``,
   ``PortfolioCashflows`` (the typed handles)
-* ``parse_portfolio_spec``, ``build_portfolio_from_spec``
+* ``parse_portfolio_spec_json``, ``build_portfolio_from_spec_json``
 * ``value_portfolio``, ``aggregate_full_cashflows``,
   ``apply_scenario_and_revalue``
 * ``aggregate_metrics``, ``portfolio_result_total_value``,
@@ -90,8 +90,8 @@ LinkedReturn = _portfolio.LinkedReturn
 ReplayResult = _portfolio.ReplayResult
 WeightAllocationResult = _portfolio.WeightAllocationResult
 
-parse_portfolio_spec = _portfolio.parse_portfolio_spec
-build_portfolio_from_spec = _portfolio.build_portfolio_from_spec
+parse_portfolio_spec_json = _portfolio.parse_portfolio_spec_json
+build_portfolio_from_spec_json = _portfolio.build_portfolio_from_spec_json
 portfolio_result_total_value = _portfolio.portfolio_result_total_value
 portfolio_result_get_metric = _portfolio.portfolio_result_get_metric
 aggregate_metrics = _portfolio.aggregate_metrics
@@ -254,7 +254,7 @@ __all__: list[str] = [
     "brinson_fachler",
     "brinson_fachler_json",
     "build_credit_vol_report",
-    "build_portfolio_from_spec",
+    "build_portfolio_from_spec_json",
     "campisi_attribution",
     "campisi_attribution_json",
     "campisi_carino_link",
@@ -284,7 +284,7 @@ __all__: list[str] = [
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
-    "parse_portfolio_spec",
+    "parse_portfolio_spec_json",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
     "position_what_if",

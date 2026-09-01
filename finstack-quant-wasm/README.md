@@ -54,7 +54,7 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `core`                 | `Currency`, `Money`, `Rate`/`Bps`/`Percentage`, `DayCount`, `Tenor`, date helpers, `DiscountCurve`/`HazardCurve`/`ForwardCurve`, `VolCube`, `FxDeltaVolSurface`, `FxMatrix`, and the `math` helpers (Cholesky, statistics, special functions, stable summation) |
 | `analytics`            | `Performance` panel engine, `constrainedLeastSquares`                                                                                                                                                                                                           |
-| `attribution`          | `attributePnl`, `attributePnlFromSpec`, waterfall/metric defaults, schema validation                                                                                                                                                                            |
+| `attribution`          | `attributePnl`, `attributePnlJson`, waterfall/metric defaults, schema validation                                                                                                                                                                                |
 | `calibration`          | quote ingestion, market construction, plan validation, dependency graphs, and explicit Bermudan LMM base-vol fitting                                                                                                                                            |
 | `cashflows`            | schedule build/validate, `accruedInterest`, dated flows, CPR↔SMM and CDR↔MDR conversions                                                                                                                                                                        |
 | `covenants`            | spec/report/engine validation, `evaluateEngine`, preset covenant packages                                                                                                                                                                                       |
@@ -167,12 +167,9 @@ bite JavaScript callers specifically:
 **Return shapes.** The intended contract is that computation entry points return
 structured JavaScript values, `*Json`-suffixed exports return JSON strings,
 `*Text`-suffixed exports return prose, and numeric vectors cross as `Float64Array`.
-It is pinned per-export against an allowlist, not across the whole surface: about
-seventeen exports still return a JSON string under an unsuffixed name — `dryRun`,
-`parseScenarioSpec`, `composeScenarios`, `buildScenarioSpec`,
-`attributePnlFromSpec`, `transformPanel`, `traceDependencies`, `runChecks`,
-`instrumentCashflowsWithMarket` among them — so read the declared return type in
-`index.d.ts` before assuming an object.
+The declaration surface pins each return shape explicitly. Wire entry points use
+the `*Json` suffix, including `attributePnlEnvelopeJson`, `transformPanelJson`, and
+`instrumentCashflowsWithMarketJson`; read `index.d.ts` for the authoritative type.
 
 Map-shaped results are plain objects, never ES2015 `Map`s — bindings must serialize
 through `crate::utils::to_js_value`, never `serde_wasm_bindgen::to_value`, whose

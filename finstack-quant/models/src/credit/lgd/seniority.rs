@@ -126,8 +126,8 @@ impl BetaRecovery {
     ///
     /// # Arguments
     ///
-    /// * `mean` - Mean supplied by the caller for this operation
-    /// * `std_dev` - Std dev supplied by the caller for this operation
+    /// * `mean` - Finite distribution mean in the same units as the modeled variable.
+    /// * `std_dev` - Non-negative distribution standard deviation in modeled-variable units.
     pub fn new(mean: f64, std_dev: f64) -> Result<Self> {
         if !mean.is_finite() || mean <= 0.0 || mean >= 1.0 {
             return Err(InputError::Invalid.into());
@@ -247,7 +247,7 @@ impl BetaRecovery {
     ///
     /// # Arguments
     ///
-    /// * `p` - P supplied by the caller for this operation
+    /// * `p` - Probability or model parameter in the range required by the enclosing calculation.
     pub fn quantile(&self, p: f64) -> Result<f64> {
         use statrs::distribution::{Beta, ContinuousCDF};
         if !p.is_finite() || !(0.0..=1.0).contains(&p) {
@@ -301,7 +301,7 @@ impl SeniorityCalibration {
     ///
     /// # Arguments
     ///
-    /// * `agency` - Agency supplied by the caller for this operation
+    /// * `agency` - Agency used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn from_agency(agency: &str) -> Result<Self> {
         let norm = agency.trim().to_ascii_lowercase().replace(['&', '.'], "");
         match norm.as_str() {

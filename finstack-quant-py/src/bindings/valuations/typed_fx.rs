@@ -43,7 +43,7 @@ fn price_envelope(
     let pricing_options = pricing_options.map(str::to_owned);
     let market_history = market_history.map(str::to_owned);
     let instrument = py.detach(move || {
-        finstack_quant_valuations::pricer::parse_boxed_instrument_json(
+        finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(
             &envelope_json,
             pricing_options.as_deref(),
         )
@@ -78,8 +78,10 @@ fn envelope_metric_value(
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
     py.detach(move || {
-        let instrument =
-            finstack_quant_valuations::pricer::parse_boxed_instrument_json(&envelope_json, None)?;
+        let instrument = finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(
+            &envelope_json,
+            None,
+        )?;
         finstack_quant_valuations::pricer::metric_value(
             &instrument,
             &market,
@@ -109,7 +111,7 @@ fn envelope_option_greeks<'py>(
     let model = model.to_owned();
     let pairs = py
         .detach(move || {
-            let instrument = finstack_quant_valuations::pricer::parse_boxed_instrument_json(
+            let instrument = finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(
                 &envelope_json,
                 None,
             )?;

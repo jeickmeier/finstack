@@ -131,6 +131,97 @@ pub fn validate_f64_non_negative(value: f64, context: &str) -> crate::Result<()>
     })
 }
 
+/// Validate that a floating-point value is finite and lies in `[0, 1]`.
+///
+/// # Arguments
+///
+/// * `value` - Floating-point proportion represented as a decimal fraction.
+/// * `context` - Field or calculation label included in validation diagnostics.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `value` is non-finite or outside
+/// the closed unit interval.
+#[inline]
+pub fn validate_f64_unit_interval(value: f64, context: &str) -> crate::Result<()> {
+    require_with(value.is_finite() && (0.0..=1.0).contains(&value), || {
+        format!("Invalid {context}: must be finite and in [0, 1], got {value}")
+    })
+}
+
+/// Validate that a text field contains at least one non-whitespace character.
+///
+/// # Arguments
+///
+/// * `value` - Text whose trimmed representation must not be empty.
+/// * `context` - Field or registry label included in validation diagnostics.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `value` is empty or whitespace.
+#[inline]
+pub fn validate_non_blank(value: &str, context: &str) -> crate::Result<()> {
+    require_with(!value.trim().is_empty(), || {
+        format!("Invalid {context}: must not be blank")
+    })
+}
+
+/// Validate the source label and source version attached to registry records.
+///
+/// # Arguments
+///
+/// * `label` - Human-readable record kind used in validation diagnostics.
+/// * `source` - Non-blank provenance name for the record.
+/// * `source_version` - Non-blank version or publication date for `source`.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when either metadata value is blank.
+pub fn validate_source_metadata(
+    label: &str,
+    source: &str,
+    source_version: &str,
+) -> crate::Result<()> {
+    validate_non_blank(source, &format!("{label} source"))?;
+    validate_non_blank(source_version, &format!("{label} source version"))
+}
+
+/// Validate non-empty, non-blank, globally unique alias lists.
+///
+/// # Arguments
+///
+/// * `registry` - Human-readable registry name used in validation diagnostics.
+/// * `kind` - Record kind whose aliases are being validated.
+/// * `records` - Alias slices, one per registry record; aliases are compared
+///   after trimming surrounding whitespace.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when a record has no aliases, an alias
+/// is blank, or the same trimmed alias occurs more than once.
+pub fn validate_unique_ids<'a>(
+    registry: &str,
+    kind: &str,
+    records: impl Iterator<Item = &'a [String]>,
+) -> crate::Result<()> {
+    let mut seen = std::collections::BTreeSet::new();
+    for ids in records {
+        require_with(!ids.is_empty(), || {
+            format!("{registry} contains {kind} without an id")
+        })?;
+        for id in ids {
+            let trimmed = id.trim();
+            require_with(!trimmed.is_empty(), || {
+                format!("{registry} contains blank {kind} id")
+            })?;
+            require_with(seen.insert(trimmed.to_string()), || {
+                format!("{registry} contains duplicate {kind} id '{trimmed}'")
+            })?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +250,13 @@ mod tests {
         let err =
             require_with(false, || "lazy failure".to_string()).expect_err("false should fail");
         assert!(matches!(err, Error::Validation(message) if message == "lazy failure"));
+    }
+
+    #[test]
+    fn unique_ids_reject_trimmed_duplicates() {
+        let records = [vec!["primary".to_string()], vec![" primary ".to_string()]];
+        let err = validate_unique_ids("test registry", "record", records.iter().map(Vec::as_slice))
+            .expect_err("trimmed aliases must be unique");
+        assert!(matches!(err, Error::Validation(message) if message.contains("duplicate")));
     }
 }

@@ -690,8 +690,8 @@ impl SimmSensitivities {
     /// # Errors
     ///
     /// Returns a validation error if serialization fails.
-    pub fn to_json_pretty(&self) -> finstack_quant_core::Result<String> {
-        serde_json::to_string_pretty(&SimmSensitivitiesJson::from(self)).map_err(|e| {
+    pub fn to_json(&self) -> finstack_quant_core::Result<String> {
+        serde_json::to_string(&SimmSensitivitiesJson::from(self)).map_err(|e| {
             finstack_quant_core::Error::Validation(format!(
                 "failed to serialize SIMM sensitivities: {e}"
             ))
@@ -1090,7 +1090,7 @@ mod tests {
         sens.add_commodity_delta("energy", 10.0);
         sens.add_curvature(SimmRiskClass::Equity, 5.0);
 
-        let json = sens.to_json_pretty().expect("serialize sensitivities");
+        let json = sens.to_json().expect("serialize sensitivities");
         let round_tripped = SimmSensitivities::from_json(&json).expect("deserialize sensitivities");
 
         assert_eq!(
@@ -1117,8 +1117,8 @@ mod tests {
     fn simm_pretty_json_sorts_every_sensitivity_family() {
         let first = populated_simm_sensitivities(false);
         let second = populated_simm_sensitivities(true);
-        let first_json = first.to_json_pretty().expect("first order serializes");
-        let second_json = second.to_json_pretty().expect("reverse order serializes");
+        let first_json = first.to_json().expect("first order serializes");
+        let second_json = second.to_json().expect("reverse order serializes");
         assert_eq!(first_json, second_json);
 
         let json: SimmSensitivitiesJson =
@@ -1218,7 +1218,7 @@ mod tests {
         sens.add_credit_non_qualifying_vega("RMBS_A", "3Y", 125.0);
         sens.add_commodity_vega("Crude", 75.0);
 
-        let json = sens.to_json_pretty().expect("serialize sensitivities");
+        let json = sens.to_json().expect("serialize sensitivities");
         let round_tripped = SimmSensitivities::from_json(&json).expect("deserialize sensitivities");
 
         assert_eq!(

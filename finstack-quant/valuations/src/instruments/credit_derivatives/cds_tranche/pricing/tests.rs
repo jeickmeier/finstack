@@ -1135,7 +1135,7 @@ fn test_smooth_correlation_boundary_transitions() {
 #[test]
 fn test_smooth_correlation_boundary_c1_at_seams() {
     let model = CDSTranchePricer::new();
-    let cfg = model.config();
+    let cfg = model.get_config();
     let (min_c, max_c, w) = (
         cfg.min_correlation,
         cfg.max_correlation,
@@ -1782,7 +1782,7 @@ fn test_stochastic_recovery_default_is_deterministic() {
     // Verify that default configuration uses deterministic (constant) recovery
     let pricer = CDSTranchePricer::new();
     assert!(
-        pricer.config().recovery_spec.is_none(),
+        pricer.get_config().recovery_spec.is_none(),
         "Default recovery_spec should be None (deterministic)"
     );
 }

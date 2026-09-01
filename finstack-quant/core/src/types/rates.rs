@@ -94,7 +94,7 @@ impl Rate {
     ///
     /// # Arguments
     ///
-    /// * `decimal` - Decimal supplied by the caller for this operation
+    /// * `decimal` - Rate represented as a decimal, where one percent is `0.01`.
     pub fn try_from_decimal(decimal: f64) -> Result<Self> {
         if !decimal.is_finite() {
             return Err(InputError::NonFiniteValue {
@@ -128,7 +128,7 @@ impl Rate {
     ///
     /// # Arguments
     ///
-    /// * `percent` - Percent supplied by the caller for this operation
+    /// * `percent` - Rate represented in percentage points, where one percent is `1.0`.
     pub fn try_from_percent(percent: f64) -> Result<Self> {
         Self::try_from_decimal(percent / 100.0)
     }

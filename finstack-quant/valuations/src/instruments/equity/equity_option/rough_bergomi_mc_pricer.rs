@@ -9,7 +9,7 @@
 //! hybrid scheme (`RiemannLiouvilleVolterra`). This differs from the rough
 //! Heston model, which uses standard Brownian motion with a singular kernel.
 
-use super::pricer::{collect_inputs_extended, require_european, resolve_lifecycle_value};
+use super::pricing::{collect_inputs_extended, require_european, resolve_lifecycle_value};
 use super::types::EquityOption;
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::traits::Instrument;

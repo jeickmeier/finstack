@@ -379,7 +379,7 @@ impl ReturnFloorSpec {
     ///
     /// # Arguments
     ///
-    /// * `window` - Window supplied by the caller for this operation
+    /// * `window` - Positive rolling-window length measured in observations.
     #[must_use]
     pub fn window(mut self, window: ProtectionWindow) -> Self {
         self.window = window;
@@ -396,7 +396,7 @@ impl ReturnFloorSpec {
     ///
     /// # Arguments
     ///
-    /// * `day_count` - Dc supplied by the caller for this operation
+    /// * `day_count` - Day-count convention used to convert calendar dates into year fractions.
     #[must_use]
     pub fn day_count(mut self, day_count: DayCount) -> Self {
         self.day_count = Some(day_count);

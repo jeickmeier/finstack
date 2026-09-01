@@ -333,24 +333,31 @@ impl Basket {
         self.constituents.len()
     }
 
-    /// Validate basket consistency (weights sum to ~1.0, currency consistency, etc.)
+    /// Validate basket consistency.
     ///
-    /// Weight tolerance is 10bp (0.001), which is tighter than the common 1%
-    /// tolerance to catch misconfigured baskets early. A basket with weights
-    /// summing to 0.999 or 1.001 is accepted; 0.99 or 1.01 is rejected.
+    /// Weight totals are intentionally unrestricted: the pricing contract
+    /// supports partially invested and levered weight baskets, as well as
+    /// unit-only and mixed unit/weight baskets. Validation instead enforces
+    /// the structural invariants shared by all of those modes.
     pub fn validate(&self) -> Result<()> {
-        // Check weight sum (10bp tolerance)
-        let total_weight: f64 = self.constituents.iter().map(|c| c.weight).sum();
-        validation::require_or(
-            (total_weight - 1.0).abs() <= 0.001,
-            finstack_quant_core::InputError::Invalid,
+        validation::require(
+            !self.constituents.is_empty(),
+            "basket must contain at least one constituent",
+        )?;
+        validation::require(
+            self.constituents.iter().all(|constituent| {
+                constituent.weight.is_finite() && constituent.units.is_none_or(f64::is_finite)
+            }),
+            "basket constituent weights and units must be finite",
+        )?;
+        validation::require(
+            self.pricing_config.days_in_year.is_finite() && self.pricing_config.days_in_year > 0.0,
+            "basket pricing days_in_year must be finite and positive",
         )?;
 
-        // Validate each constituent's currency compatibility would happen
-        // during pricing through the existing instrument validation
-        validation::require_or(
+        validation::require(
             self.notional.currency() == self.currency,
-            finstack_quant_core::InputError::Invalid,
+            "basket notional currency must match basket currency",
         )?;
 
         Ok(())
@@ -471,19 +478,17 @@ mod tests {
             boxed_constituents: BoxedConstituentCache::default(),
         };
 
-        // Should pass with weights summing to 1.0
+        // Fully invested, partially invested, and levered baskets are valid.
         assert!(basket.validate().is_ok());
 
-        // Should fail with weights not summing to ~1.0 (10bp tolerance)
         basket.constituents[0].weight = 0.8;
-        assert!(basket.validate().is_err());
-
-        // Edge: just within 10bp tolerance should pass
-        basket.constituents[0].weight = 0.6005;
         assert!(basket.validate().is_ok());
 
-        // Edge: just outside 10bp tolerance should fail
-        basket.constituents[0].weight = 0.602;
+        basket.constituents[0].weight = 1.2;
+        assert!(basket.validate().is_ok());
+
+        // Non-finite allocations cannot produce a meaningful value.
+        basket.constituents[0].weight = f64::NAN;
         assert!(basket.validate().is_err());
     }
 

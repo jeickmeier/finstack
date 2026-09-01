@@ -20,7 +20,6 @@ use rust_decimal::Decimal;
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = CmsOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct CmsOption {
     /// Unique instrument identifier

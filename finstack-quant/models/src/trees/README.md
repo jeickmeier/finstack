@@ -367,12 +367,12 @@ reach anything else. Helper builders `single_factor_equity_state` and
 
 | Instrument | Model | Location |
 |------------|-------|----------|
-| American / Bermudan equity options | `BinomialTree::leisen_reimer` | `instruments/equity/equity_option/pricer.rs` |
+| American / Bermudan equity options | `BinomialTree::leisen_reimer` | `instruments/equity/equity_option/pricing/black.rs` |
 | Commodity options | `BinomialTree::leisen_reimer_odd` | `instruments/commodity/commodity_option/types.rs` |
 | Callable / putable bonds | `ShortRateTree`, `RatesCreditTree`, `HullWhiteTree` | `instruments/fixed_income/bond/pricing/engine/tree/` |
 | Term loans | `ShortRateTree`, `RatesCreditTree` | `instruments/fixed_income/term_loan/pricing/tree_engine.rs` |
 | Bermudan swaptions | `HullWhiteTree::calibrate_with_times` | `instruments/rates/swaption/` |
-| Convertible bonds | Tsiveriotis-Zhang engine over `EvolutionParams` (binomial or trinomial) | `instruments/fixed_income/convertible/pricer/` |
+| Convertible bonds | Tsiveriotis-Zhang engine over `EvolutionParams` (binomial or trinomial) | `instruments/fixed_income/convertible/pricing/` |
 
 ## Serialization
 

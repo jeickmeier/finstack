@@ -245,7 +245,7 @@ impl HullWhite1FParams {
     /// # Arguments
     ///
     /// * `t` - Year-fraction time from the curve or surface base date to the query point
-    /// * `dt` - Dt supplied by the caller for this operation
+    /// * `dt` - Positive time-step width in year-fraction units.
     pub fn theta_average(&self, t: f64, dt: f64) -> f64 {
         if dt <= 0.0 {
             return self.theta_at_time(t);

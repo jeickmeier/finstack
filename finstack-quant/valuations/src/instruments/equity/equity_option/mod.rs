@@ -88,7 +88,7 @@ pub(crate) mod metrics;
 pub(crate) mod parameters;
 pub(crate) mod pde2d_pricer;
 pub(crate) mod pde_pricer;
-pub(crate) mod pricer;
+pub(crate) mod pricing;
 mod types;
 
 pub(crate) mod heston_market;

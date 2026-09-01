@@ -466,6 +466,7 @@ pub fn calculate_convertible_greeks(
         vega: 0.0,
         theta: 0.0,
         rho: 0.0,
+        oas01: 0.0,
     };
 
     // ---- Delta & Gamma: bump equity spot (central differences) ----

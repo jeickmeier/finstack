@@ -275,7 +275,9 @@ All four require a splittable RNG and fail closed with `SobolRng`.
 use finstack_quant_core::currency::Currency;
 use finstack_quant_models::monte_carlo::discretization::ExactGbm;
 use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
-use finstack_quant_models::monte_carlo::greeks::finite_diff::finite_diff_delta_crn;
+use finstack_quant_models::monte_carlo::greeks::finite_diff::{
+    finite_diff_delta_crn, FiniteDiffInputs,
+};
 use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
 use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
@@ -290,15 +292,18 @@ let gbm = GbmProcess::with_params(0.05, 0.0, 0.2).expect("valid GBM parameters")
 let disc = ExactGbm::new();
 let call = EuropeanCall::new(100.0, 1.0, 50);
 
+let inputs = FiniteDiffInputs {
+    engine: &engine,
+    rng: &rng,
+    process: &gbm,
+    disc: &disc,
+    payoff: &call,
+    currency: Currency::USD,
+    discount_factor: (-0.05_f64).exp(),
+};
 let (delta, paired_stderr) = finite_diff_delta_crn(
-    &engine,
-    &rng,
-    &gbm,
-    &disc,
+    &inputs,
     /* initial_spot   = */ 100.0,
-    &call,
-    Currency::USD,
-    /* discount_factor= */ (-0.05_f64).exp(),
     /* relative bump  = */ 0.01,
 )
 .expect("CRN delta should succeed");

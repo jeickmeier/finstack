@@ -24,8 +24,8 @@ impl Grid1D {
     ///
     /// # Arguments
     ///
-    /// * `x_min` - X min supplied by the caller for this operation
-    /// * `x_max` - X max supplied by the caller for this operation
+    /// * `x_min` - Finite lower bound of the numerical state grid.
+    /// * `x_max` - Finite upper bound of the numerical state grid.
     /// * `n` - Count of elements, paths, or periods requested by the caller
     pub fn uniform(x_min: f64, x_max: f64, n: usize) -> Result<Self, PdeGridError> {
         if n < 3 {
