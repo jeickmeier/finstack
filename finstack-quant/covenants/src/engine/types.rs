@@ -1,8 +1,7 @@
-use crate::metric::{CovenantMetricId, CovenantMetricSource};
+use crate::metric::CovenantMetricId;
 use crate::schedule::ThresholdSchedule;
 use finstack_quant_core::dates::Date;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// Whether a covenant is tested periodically or only upon an action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -434,20 +433,6 @@ pub enum CovenantConsequence {
     },
 }
 
-/// Whether the covenant test is triggered by a scheduled maintenance check or
-/// a specific incurrence action. The engine uses this to filter specs by scope.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub enum EvaluationTrigger {
-    /// Scheduled periodic test (e.g., quarterly compliance).
-    Maintenance,
-    /// Test triggered by a specific action (e.g., new debt issuance).
-    Incurrence {
-        /// Description of the triggering action.
-        action: String,
-    },
-}
-
 /// A covenant waiver or amendment granted by lenders.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -465,28 +450,8 @@ pub struct CovenantWaiver {
     pub description: String,
 }
 
-/// Covenant evaluation context passed to custom evaluators and metric calculators.
-pub struct CovenantEvalCtx<'a> {
-    /// Metric source for operating metrics such as EBITDA, leverage, or DSCR.
-    pub metrics: &'a mut (dyn CovenantMetricSource + 'a),
-    /// Covenant evaluation date.
-    pub as_of: Date,
-}
-
-/// Type alias for custom evaluator functions.
-pub(crate) type CustomEvaluator = Arc<
-    dyn for<'a> Fn(&mut CovenantEvalCtx<'a>) -> finstack_quant_core::Result<bool> + Send + Sync,
->;
-
-/// Type alias for custom metric calculators.
-pub(crate) type CustomMetricCalculator =
-    Arc<dyn for<'a> Fn(&mut CovenantEvalCtx<'a>) -> finstack_quant_core::Result<f64> + Send + Sync>;
-
 /// Covenant evaluation specification.
-///
-/// Note: The `custom_evaluator` field is not serialized as it contains
-/// a function pointer. When deserializing, it will be set to `None`.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CovenantSpec {
     /// The covenant to evaluate
@@ -497,22 +462,6 @@ pub struct CovenantSpec {
     /// [`CovenantType`] when present. Enables leverage step-down schedules.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub threshold_schedule: Option<ThresholdSchedule>,
-    /// Custom evaluation function (for complex covenants).
-    /// Not serializable - will be `None` after deserialization.
-    #[serde(skip)]
-    pub custom_evaluator: Option<CustomEvaluator>,
-}
-
-// Derive-based Clone now works because custom_evaluator uses Arc
-
-impl std::fmt::Debug for CovenantSpec {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CovenantSpec")
-            .field("covenant", &self.covenant)
-            .field("metric_id", &self.metric_id)
-            .field("custom_evaluator", &self.custom_evaluator.is_some())
-            .finish()
-    }
 }
 
 impl CovenantSpec {
@@ -522,23 +471,6 @@ impl CovenantSpec {
             covenant,
             metric_id: Some(metric_id.into()),
             threshold_schedule: None,
-            custom_evaluator: None,
-        }
-    }
-
-    /// Create a new covenant spec with a custom evaluator.
-    pub fn with_evaluator<F>(covenant: Covenant, evaluator: F) -> Self
-    where
-        F: for<'a> Fn(&mut CovenantEvalCtx<'a>) -> finstack_quant_core::Result<bool>
-            + Send
-            + Sync
-            + 'static,
-    {
-        Self {
-            covenant,
-            metric_id: None,
-            threshold_schedule: None,
-            custom_evaluator: Some(Arc::new(evaluator)),
         }
     }
 

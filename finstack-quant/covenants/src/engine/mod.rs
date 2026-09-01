@@ -34,8 +34,8 @@ pub(crate) use helpers::{
 };
 pub use types::{
     BoundKind, ConsequenceApplication, Covenant, CovenantBreach, CovenantConsequence,
-    CovenantEvalCtx, CovenantScope, CovenantSpec, CovenantType, CovenantWaiver, CovenantWindow,
-    EvaluationTrigger, SpringingCondition, ThresholdTest,
+    CovenantScope, CovenantSpec, CovenantType, CovenantWaiver, CovenantWindow, SpringingCondition,
+    ThresholdTest,
 };
 
 #[cfg(test)]
@@ -77,11 +77,11 @@ mod tests {
         // Healthy underlying metric: activation is still the correct outcome, and
         // the covenant then legitimately passes on its own merits (3.2 < 4.5).
         // What must NOT happen is the covenant being skipped as "inactive".
-        let mut metrics = HashMapMetricSource::from_pairs([
+        let metrics = HashMapMetricSource::from_pairs([
             ("revolver_utilization", f64::NAN),
             ("debt_to_ebitda", 3.2),
         ]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["springing_leverage"];
         assert_eq!(
             report.actual_value,
@@ -97,11 +97,11 @@ mod tests {
 
         // Breaching underlying metric: activation now surfaces a real breach that
         // the old behaviour hid entirely behind a passing "inactive" report.
-        let mut breaching = HashMapMetricSource::from_pairs([
+        let breaching = HashMapMetricSource::from_pairs([
             ("revolver_utilization", f64::NAN),
             ("debt_to_ebitda", 5.0),
         ]);
-        let reports = engine.evaluate(&mut breaching, date(2024, 3, 31)).unwrap();
+        let reports = engine.evaluate(&breaching, date(2024, 3, 31)).unwrap();
         let report = &reports["springing_leverage"];
         assert!(
             !report.passed,
@@ -125,11 +125,11 @@ mod tests {
             let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
             let mut engine = CovenantEngine::new();
             engine.add_spec(spec);
-            let mut metrics = HashMapMetricSource::from_pairs([
+            let metrics = HashMapMetricSource::from_pairs([
                 ("revolver_utilization", utilization),
                 ("debt_to_ebitda", 5.0),
             ]);
-            let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+            let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
             reports["springing_leverage"].clone()
         };
 
@@ -154,8 +154,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.2)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.2)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(report.passed);
         assert_eq!(report.actual_value, Some(3.2));
@@ -172,8 +172,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(!report.passed);
         assert_eq!(report.actual_value, Some(5.0));
@@ -189,8 +189,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", -1.0)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", -1.0)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(!report.passed);
     }
@@ -205,8 +205,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "interest_coverage");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("interest_coverage", 3.5)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("interest_coverage", 3.5)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["min_interest_coverage"];
         assert!(report.passed);
     }
@@ -221,8 +221,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "interest_coverage");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("interest_coverage", 1.5)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("interest_coverage", 1.5)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["min_interest_coverage"];
         assert!(!report.passed);
     }
@@ -238,8 +238,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 99.0)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 99.0)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(report.passed);
     }
@@ -261,8 +261,8 @@ mod tests {
             amended_threshold: None,
             description: "Full waiver".to_string(),
         });
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 10.0)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 6, 30)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 10.0)]);
+        let reports = engine.evaluate(&metrics, date(2024, 6, 30)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(report.passed);
     }
@@ -284,8 +284,8 @@ mod tests {
             amended_threshold: Some(6.0),
             description: "Amended to 6.0x".to_string(),
         });
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.5)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 6, 30)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.5)]);
+        let reports = engine.evaluate(&metrics, date(2024, 6, 30)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(report.passed);
         assert_eq!(report.threshold, Some(6.0));
@@ -301,8 +301,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(report.passed);
         let headroom = report.headroom.unwrap();
@@ -319,8 +319,8 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         let report = &reports["max_debt_ebitda"];
         assert!(!report.passed);
         let headroom = report.headroom.unwrap();
@@ -344,8 +344,8 @@ mod tests {
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec1);
         engine.add_spec(spec2);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]);
-        let result = engine.evaluate(&mut metrics, date(2024, 3, 31));
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]);
+        let result = engine.evaluate(&metrics, date(2024, 3, 31));
         assert!(result.is_err());
     }
 
@@ -366,8 +366,8 @@ mod tests {
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec1);
         engine.add_spec(spec2);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
-        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
+        let reports = engine.evaluate(&metrics, date(2024, 3, 31)).unwrap();
         assert!(reports.contains_key("senior"));
         assert!(reports.contains_key("total"));
         assert!(!reports["senior"].passed);
@@ -430,9 +430,9 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
         let reports = engine
-            .evaluate_and_track(&mut metrics, date(2024, 3, 31))
+            .evaluate_and_track(&metrics, date(2024, 3, 31))
             .unwrap();
         assert!(!reports["max_debt_ebitda"].passed);
         assert_eq!(engine.breach_history.len(), 1);
@@ -451,15 +451,15 @@ mod tests {
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
         let mut engine = CovenantEngine::new();
         engine.add_spec(spec);
-        let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
+        let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]);
         engine
-            .evaluate_and_track(&mut metrics, date(2024, 3, 31))
+            .evaluate_and_track(&metrics, date(2024, 3, 31))
             .unwrap();
         assert_eq!(engine.breach_history.len(), 1);
         assert!(!engine.breach_history[0].is_cured);
-        let mut metrics2 = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]);
+        let metrics2 = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]);
         engine
-            .evaluate_and_track(&mut metrics2, date(2024, 5, 15))
+            .evaluate_and_track(&metrics2, date(2024, 5, 15))
             .unwrap();
         assert!(engine.breach_history[0].is_cured);
     }

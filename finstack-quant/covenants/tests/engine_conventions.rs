@@ -68,7 +68,7 @@ fn project_finance_lockup_breach_blocks_distributions_without_default() {
     }
 
     // DSCR 1.15: above the 1.05 default trigger, below the 1.25 lockup.
-    let mut metrics = HashMapMetricSource::from_pairs([
+    let metrics = HashMapMetricSource::from_pairs([
         ("dscr", 1.15),
         ("liquidity", 10_000_000.0),
         ("net_debt_to_ebitda", 3.0),
@@ -76,7 +76,7 @@ fn project_finance_lockup_breach_blocks_distributions_without_default() {
 
     let test_date = d(2025, 3, 31);
     let reports = engine
-        .evaluate_and_track(&mut metrics, test_date)
+        .evaluate_and_track(&metrics, test_date)
         .expect("evaluation should succeed");
 
     // Both MinDscr covenants are present under distinct keys.
@@ -137,9 +137,9 @@ fn duplicate_instance_keys_are_rejected_at_evaluation() {
         CovenantMetricId::from("dscr"),
     ));
 
-    let mut metrics = HashMapMetricSource::from_pairs([("dscr", 1.15)]);
+    let metrics = HashMapMetricSource::from_pairs([("dscr", 1.15)]);
     let err = engine
-        .evaluate(&mut metrics, d(2025, 3, 31))
+        .evaluate(&metrics, d(2025, 3, 31))
         .expect_err("duplicate instance keys must be a validation error");
     assert!(
         err.to_string().contains("duplicate covenant instance key"),
@@ -160,9 +160,9 @@ fn negative_ebitda_leverage_breaches_max_ratio_covenant() {
     ));
 
     // Negative EBITDA → negative ratio. Naively -10 <= 4 would "pass".
-    let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", -10.0)]);
+    let metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", -10.0)]);
     let reports = engine
-        .evaluate(&mut metrics, d(2025, 3, 31))
+        .evaluate(&metrics, d(2025, 3, 31))
         .expect("evaluation should succeed");
 
     let report = &reports["max_debt_ebitda"];
@@ -193,9 +193,9 @@ fn negative_metric_still_passes_custom_maximum() {
         CovenantMetricId::from("net_exposure"),
     ));
 
-    let mut metrics = HashMapMetricSource::from_pairs([("net_exposure", -0.2)]);
+    let metrics = HashMapMetricSource::from_pairs([("net_exposure", -0.2)]);
     let reports = engine
-        .evaluate(&mut metrics, d(2025, 3, 31))
+        .evaluate(&metrics, d(2025, 3, 31))
         .expect("evaluation should succeed");
     assert!(reports["custom"].passed);
 }
@@ -218,9 +218,9 @@ fn relative_headroom_keeps_sign_for_negative_threshold() {
         CovenantMetricId::from("net_position"),
     ));
 
-    let mut metrics = HashMapMetricSource::from_pairs([("net_position", -2.0)]);
+    let metrics = HashMapMetricSource::from_pairs([("net_position", -2.0)]);
     let reports = engine
-        .evaluate(&mut metrics, d(2025, 3, 31))
+        .evaluate(&metrics, d(2025, 3, 31))
         .expect("evaluation should succeed");
     let report = &reports["custom"];
     assert!(report.passed);
@@ -233,9 +233,9 @@ fn relative_headroom_keeps_sign_for_negative_threshold() {
     assert!((headroom - 1.0).abs() < 1e-12);
 
     // And a failing value above the cap reports negative headroom.
-    let mut metrics = HashMapMetricSource::from_pairs([("net_position", -0.5)]);
+    let metrics = HashMapMetricSource::from_pairs([("net_position", -0.5)]);
     let reports = engine
-        .evaluate(&mut metrics, d(2025, 3, 31))
+        .evaluate(&metrics, d(2025, 3, 31))
         .expect("evaluation should succeed");
     let report = &reports["custom"];
     assert!(!report.passed);
@@ -260,13 +260,13 @@ fn persistent_breach_is_one_episode_with_one_consequence_application() {
     let second_date = d(2025, 6, 30);
     engine
         .evaluate_and_track(
-            &mut HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]),
+            &HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]),
             first_date,
         )
         .expect("first breach should track");
     engine
         .evaluate_and_track(
-            &mut HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.5)]),
+            &HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.5)]),
             second_date,
         )
         .expect("persistent breach should evaluate");
@@ -310,13 +310,13 @@ fn recovery_before_cure_deadline_marks_breach_cured() {
 
     engine
         .evaluate_and_track(
-            &mut HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]),
+            &HashMapMetricSource::from_pairs([("debt_to_ebitda", 5.0)]),
             d(2025, 3, 31),
         )
         .expect("breach should track");
     engine
         .evaluate_and_track(
-            &mut HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.5)]),
+            &HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.5)]),
             d(2025, 4, 15),
         )
         .expect("recovery should evaluate");
@@ -405,7 +405,7 @@ fn window_fallback_to_base_specs_is_explicit() {
 
     let reports = engine
         .evaluate(
-            &mut HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]),
+            &HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.0)]),
             d(2025, 6, 30),
         )
         .expect("outside all windows should fall back to base specs");

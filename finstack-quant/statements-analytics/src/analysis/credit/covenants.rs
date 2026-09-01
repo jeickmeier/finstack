@@ -463,7 +463,6 @@ mod tests {
             ),
             metric_id: Some(CovenantMetricId::from("NetDebtEbitda")),
             threshold_schedule: None,
-            custom_evaluator: None,
         });
 
         let p1 = PeriodId::quarter(2025, 1);
@@ -504,7 +503,6 @@ mod tests {
             covenant,
             metric_id: Some(CovenantMetricId::from("NetDebtEbitda")),
             threshold_schedule: None,
-            custom_evaluator: None,
         };
         engine.add_spec(spec);
 

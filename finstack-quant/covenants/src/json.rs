@@ -158,8 +158,8 @@ pub fn evaluate_engine_map(
             .map(|number| (key, number))
     })
     .collect::<Result<_>>()?;
-    let mut source = HashMapMetricSource::from_pairs(metrics);
-    engine.evaluate(&mut source, parse_iso_date(as_of)?)
+    let source = HashMapMetricSource::from_pairs(metrics);
+    engine.evaluate(&source, parse_iso_date(as_of)?)
 }
 
 /// Build the standard leveraged-buyout covenant package as compact JSON.

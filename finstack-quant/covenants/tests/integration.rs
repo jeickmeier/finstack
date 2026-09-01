@@ -147,7 +147,7 @@ fn same_type_covenants_with_distinct_labels_do_not_collide() {
     metrics.insert("debt_to_ebitda", 5.0); // breaches the 4.0 max
 
     let test_date = Date::from_calendar_date(2025, time::Month::March, 31).unwrap();
-    let reports = engine.evaluate(&mut metrics, test_date).expect("evaluate");
+    let reports = engine.evaluate(&metrics, test_date).expect("evaluate");
 
     // Both covenants must be reported under their distinct labels — no collision.
     assert_eq!(

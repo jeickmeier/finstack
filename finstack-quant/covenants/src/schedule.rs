@@ -56,21 +56,6 @@ impl ThresholdSchedule {
         }
         Ok(Self(entries))
     }
-
-    /// Check if the threshold schedule is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Number of threshold entries.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Read-only access to the sorted schedule entries.
-    pub fn entries(&self) -> &[(Date, f64)] {
-        &self.0
-    }
 }
 
 /// Resolve threshold for a given test date from a piecewise-constant schedule.

@@ -3,24 +3,19 @@ use super::helpers::{
     InstrumentMutator, SpecEvaluation,
 };
 use super::types::{
-    ConsequenceApplication, CovenantBreach, CovenantConsequence, CovenantEvalCtx, CovenantScope,
-    CovenantSpec, CovenantWaiver, CovenantWindow, CustomMetricCalculator, EvaluationTrigger,
+    ConsequenceApplication, CovenantBreach, CovenantConsequence, CovenantSpec, CovenantWaiver,
+    CovenantWindow,
 };
 use crate::metric::{CovenantMetricId, CovenantMetricSource};
 use crate::schedule::threshold_for_date;
 use crate::CovenantReport;
 use finstack_quant_core::dates::Date;
-use finstack_quant_core::HashMap;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 /// Covenant engine for evaluation and consequence application.
-///
-/// Note: The `custom_metrics` field is not serialized as it contains
-/// function pointers. When deserializing, it will be set to default (empty).
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CovenantEngine {
     /// Active covenant specifications
@@ -32,25 +27,6 @@ pub struct CovenantEngine {
     /// Active waivers and amendments
     #[serde(default)]
     pub waivers: Vec<CovenantWaiver>,
-    /// Custom metric calculators.
-    /// Not serializable - will be empty after deserialization.
-    #[serde(skip)]
-    pub custom_metrics: HashMap<String, CustomMetricCalculator>,
-}
-
-impl std::fmt::Debug for CovenantEngine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CovenantEngine")
-            .field("specs", &self.specs)
-            .field("breach_history", &self.breach_history)
-            .field("windows", &self.windows)
-            .field("waivers", &self.waivers)
-            .field(
-                "custom_metrics",
-                &self.custom_metrics.keys().collect::<Vec<_>>(),
-            )
-            .finish()
-    }
 }
 
 impl Default for CovenantEngine {
@@ -67,7 +43,6 @@ impl CovenantEngine {
             breach_history: Vec::new(),
             windows: Vec::new(),
             waivers: Vec::new(),
-            custom_metrics: HashMap::default(),
         }
     }
 
@@ -166,29 +141,10 @@ impl CovenantEngine {
         self
     }
 
-    /// Register a custom metric calculator.
-    pub fn register_metric<CalcFn>(
-        &mut self,
-        name: impl Into<String>,
-        calculator: CalcFn,
-    ) -> &mut Self
-    where
-        CalcFn: for<'a> Fn(&mut CovenantEvalCtx<'a>) -> finstack_quant_core::Result<f64>
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.custom_metrics
-            .insert(name.into(), Arc::new(calculator));
-        self
-    }
-
     /// Evaluate every applicable covenant against current metrics.
     ///
-    /// This evaluates both maintenance and incurrence specifications. Use
-    /// [`evaluate_for_trigger`](Self::evaluate_for_trigger) when an event type
-    /// matters, so incurrence covenants are not accidentally tested as routine
-    /// maintenance tests. At `test_date`, a matching covenant window replaces
+    /// This evaluates both maintenance and incurrence specifications. At
+    /// `test_date`, a matching covenant window replaces
     /// the engine's top-level specification set. Results are keyed by stable
     /// covenant instance key, preserving separate labels for same-type tests.
     ///
@@ -200,8 +156,8 @@ impl CovenantEngine {
     ///
     /// Returns an error when the engine configuration is invalid, applicable
     /// specifications have duplicate instance keys, the metric source cannot
-    /// provide a required input, a custom metric or custom evaluator fails, or
-    /// a covenant cannot compute its test value from the supplied metrics.
+    /// provide a required input, or a covenant cannot compute its test value
+    /// from the supplied metrics.
     ///
     /// # Arguments
     ///
@@ -209,7 +165,7 @@ impl CovenantEngine {
     /// * `test_date` - Calendar date at which the documented condition is evaluated.
     pub fn evaluate(
         &self,
-        context: &mut dyn CovenantMetricSource,
+        context: &dyn CovenantMetricSource,
         test_date: Date,
     ) -> finstack_quant_core::Result<IndexMap<String, CovenantReport>> {
         self.validate()?;
@@ -220,7 +176,7 @@ impl CovenantEngine {
     fn evaluate_specs(
         &self,
         specs: &[&CovenantSpec],
-        context: &mut dyn CovenantMetricSource,
+        context: &dyn CovenantMetricSource,
         test_date: Date,
     ) -> finstack_quant_core::Result<IndexMap<String, CovenantReport>> {
         tracing::debug!(spec_count = specs.len(), %test_date, "evaluating covenants");
@@ -320,47 +276,6 @@ impl CovenantEngine {
         Ok(reports)
     }
 
-    /// Evaluate applicable covenants that match one event trigger scope.
-    ///
-    /// `Maintenance` triggers test covenants with [`CovenantScope::Maintenance`].
-    /// `Incurrence` triggers test covenants with [`CovenantScope::Incurrence`].
-    /// This avoids the common error of testing incurrence covenants on a
-    /// periodic schedule when they should only fire on specific actions. A
-    /// matching test window still replaces the top-level specification set, and
-    /// reports retain their stable covenant instance keys.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same configuration, duplicate-instance-key, metric-source,
-    /// custom-evaluator, and calculation errors as [`evaluate`](Self::evaluate)
-    /// for the filtered set of covenants.
-    ///
-    /// # Arguments
-    ///
-    /// * `context` - Market or evaluation context supplying dependencies required by the calculation.
-    /// * `test_date` - Calendar date at which the documented condition is evaluated.
-    /// * `trigger` - Trigger used by the algorithm, subject to the enclosing type invariants and documented units.
-    pub fn evaluate_for_trigger(
-        &self,
-        context: &mut dyn CovenantMetricSource,
-        test_date: Date,
-        trigger: &EvaluationTrigger,
-    ) -> finstack_quant_core::Result<IndexMap<String, CovenantReport>> {
-        self.validate()?;
-        let required_scope = match trigger {
-            EvaluationTrigger::Maintenance => CovenantScope::Maintenance,
-            EvaluationTrigger::Incurrence { .. } => CovenantScope::Incurrence,
-        };
-
-        let applicable_specs = self.get_applicable_specs_internal(test_date);
-        let filtered: Vec<&CovenantSpec> = applicable_specs
-            .into_iter()
-            .filter(|s| s.covenant.scope == required_scope)
-            .collect();
-
-        self.evaluate_specs(&filtered, context, test_date)
-    }
-
     /// Evaluate covenants and update the engine's breach history.
     ///
     /// Combines [`evaluate`](Self::evaluate) with breach tracking: any failing
@@ -384,7 +299,7 @@ impl CovenantEngine {
     /// * `test_date` - Calendar date at which the documented condition is evaluated.
     pub fn evaluate_and_track(
         &mut self,
-        context: &mut dyn CovenantMetricSource,
+        context: &dyn CovenantMetricSource,
         test_date: Date,
     ) -> finstack_quant_core::Result<IndexMap<String, CovenantReport>> {
         let reports = self.evaluate(context, test_date)?;
@@ -575,13 +490,12 @@ impl CovenantEngine {
     fn evaluate_spec(
         &self,
         spec: &CovenantSpec,
-        context: &mut dyn CovenantMetricSource,
+        context: &dyn CovenantMetricSource,
         test_date: Date,
     ) -> finstack_quant_core::Result<SpecEvaluation> {
         // Springing conditions: skip evaluation until activation criteria met.
         if let Some(condition) = &spec.covenant.springing_condition {
-            let condition_value =
-                self.get_metric_value(context, &condition.metric_id, test_date)?;
+            let condition_value = context.get_metric(&condition.metric_id)?;
             if !springing_condition_met(
                 condition.metric_id.as_str(),
                 condition_value,
@@ -600,22 +514,6 @@ impl CovenantEngine {
                     detail: Some("Springing condition not met".to_string()),
                 });
             }
-        }
-
-        // Use custom evaluator if provided
-        if let Some(ref evaluator) = spec.custom_evaluator {
-            let mut eval_ctx = CovenantEvalCtx {
-                metrics: context,
-                as_of: test_date,
-            };
-            let passed = evaluator(&mut eval_ctx)?;
-            return Ok(SpecEvaluation {
-                passed,
-                actual_value: None,
-                threshold: None,
-                headroom: None,
-                detail: None,
-            });
         }
 
         let covenant_type = &spec.covenant.covenant_type;
@@ -646,23 +544,18 @@ impl CovenantEngine {
         let Some(metric_name) = spec_metric_names(spec).into_iter().next() else {
             unreachable!("Non-numeric covenants return early above");
         };
-        let metric_value =
-            self.get_metric_value(context, &CovenantMetricId::from(metric_name), test_date)?;
+        let metric_value = context.get_metric(&CovenantMetricId::from(metric_name))?;
 
-        let mut detail = None;
-        let passed = if covenant_type.is_ratio_max() && metric_value < 0.0 {
-            // Negative leverage-type ratio: the denominator (EBITDA) has gone
-            // negative, so the ratio is not meaningful. Treat as a breach
-            // rather than letting `value <= threshold` pass with huge
-            // apparent headroom. See [`CovenantType::is_ratio_max`].
-            detail = Some(
-                "Negative ratio value (negative denominator) — not meaningful, treated as breach"
-                    .to_string(),
-            );
-            false
-        } else {
-            !is_covenant_breached(covenant_type, metric_value, threshold)
-        };
+        // Negative leverage-type ratio: the denominator (EBITDA) has gone
+        // negative, so the ratio is not meaningful. `is_covenant_breached`
+        // already treats this as a breach rather than letting
+        // `value <= threshold` pass with huge apparent headroom. See
+        // [`CovenantType::is_ratio_max`].
+        let detail = (covenant_type.is_ratio_max() && metric_value < 0.0).then(|| {
+            "Negative ratio value (negative denominator) — not meaningful, treated as breach"
+                .to_string()
+        });
+        let passed = !is_covenant_breached(covenant_type, metric_value, threshold);
 
         let headroom = Some(headroom_for(
             covenant_type.bound_kind(),
@@ -677,23 +570,6 @@ impl CovenantEngine {
             headroom,
             detail,
         })
-    }
-
-    fn get_metric_value(
-        &self,
-        source: &mut dyn CovenantMetricSource,
-        metric_id: &CovenantMetricId,
-        as_of: Date,
-    ) -> finstack_quant_core::Result<f64> {
-        if let Some(calculator) = self.custom_metrics.get(metric_id.as_str()) {
-            let mut eval_ctx = CovenantEvalCtx {
-                metrics: source,
-                as_of,
-            };
-            return calculator(&mut eval_ctx);
-        }
-
-        source.get_metric(metric_id)
     }
 
     fn active_waiver(&self, covenant_id: &str, as_of: Date) -> Option<&CovenantWaiver> {

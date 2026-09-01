@@ -80,8 +80,8 @@ pub mod templates;
 
 pub use engine::{
     BoundKind, ConsequenceApplication, Covenant, CovenantBreach, CovenantConsequence,
-    CovenantEngine, CovenantEvalCtx, CovenantScope, CovenantSpec, CovenantType, CovenantWaiver,
-    CovenantWindow, EvaluationTrigger, InstrumentMutator, SpringingCondition, ThresholdTest,
+    CovenantEngine, CovenantScope, CovenantSpec, CovenantType, CovenantWaiver, CovenantWindow,
+    InstrumentMutator, SpringingCondition, ThresholdTest,
 };
 pub use forward::{
     forecast_breaches_generic, forecast_covenant_generic, CovenantForecast, CovenantForecastConfig,

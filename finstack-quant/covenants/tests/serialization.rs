@@ -154,10 +154,8 @@ fn covenant_spec_roundtrip() {
     );
 
     let rt = roundtrip(&spec);
-    // Note: custom_evaluator is skipped during serialization
     assert_eq!(spec.covenant, rt.covenant);
     assert_eq!(spec.metric_id, rt.metric_id);
-    assert!(rt.custom_evaluator.is_none());
 }
 
 #[test]
@@ -243,12 +241,10 @@ fn covenant_engine_roundtrip() {
     });
 
     let rt = roundtrip(&engine);
-    // Note: custom_metrics is skipped during serialization
     assert_eq!(engine.specs.len(), rt.specs.len());
     assert_eq!(engine.windows.len(), rt.windows.len());
     assert_eq!(engine.breach_history.len(), rt.breach_history.len());
     assert_eq!(engine.breach_history[0], rt.breach_history[0]);
-    assert!(rt.custom_metrics.is_empty());
 }
 
 #[test]
@@ -444,16 +440,6 @@ fn threshold_schedule_roundtrip() {
 
     let rt = roundtrip(&schedule);
     assert_eq!(schedule, rt);
-}
-
-#[test]
-fn threshold_schedule_is_empty_helper() {
-    let empty = ThresholdSchedule::new(vec![]).expect("empty schedule is valid");
-    assert!(empty.is_empty());
-
-    let populated = ThresholdSchedule::new(vec![(date(2025, 1, 1), 5.0)])
-        .expect("single-entry schedule is valid");
-    assert!(!populated.is_empty());
 }
 
 #[test]

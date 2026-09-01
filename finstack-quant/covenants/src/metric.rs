@@ -73,7 +73,7 @@ pub trait CovenantMetricSource: Send + Sync {
     /// # Errors
     ///
     /// Returns an error when the metric is unavailable.
-    fn get_metric(&mut self, metric: &CovenantMetricId) -> finstack_quant_core::Result<f64>;
+    fn get_metric(&self, metric: &CovenantMetricId) -> finstack_quant_core::Result<f64>;
 }
 
 /// Map-backed metric source for tests, bindings, and simple callers.
@@ -106,7 +106,7 @@ impl HashMapMetricSource {
 }
 
 impl CovenantMetricSource for HashMapMetricSource {
-    fn get_metric(&mut self, metric: &CovenantMetricId) -> finstack_quant_core::Result<f64> {
+    fn get_metric(&self, metric: &CovenantMetricId) -> finstack_quant_core::Result<f64> {
         self.metrics
             .get(metric)
             .copied()

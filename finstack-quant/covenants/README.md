@@ -108,8 +108,8 @@ rather than silently overwriting.
 
 ### Scope, windows, waivers, springing conditions
 
-- `CovenantScope` / `EvaluationTrigger` separate scheduled `Maintenance` tests
-  from action-driven `Incurrence` tests; `evaluate_for_trigger` filters on it.
+- `CovenantScope` distinguishes scheduled `Maintenance` tests from
+  action-driven `Incurrence` tests on `Covenant`.
 - `CovenantWindow` restricts which specs apply between `start` and `end`. The
   first window containing the test date wins outright and replaces the base
   specs; if windows exist but none contains the test date, evaluation falls back

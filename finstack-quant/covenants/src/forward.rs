@@ -293,8 +293,7 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
         .iter()
         .zip(thresholds.iter())
         .map(|(&v, &t)| {
-            let breached =
-                v.is_nan() || is_covenant_breached(&covenant.covenant.covenant_type, v, t);
+            let breached = is_covenant_breached(&covenant.covenant.covenant_type, v, t);
             breached as u8 as f64
         })
         .collect();
@@ -355,8 +354,7 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
             // base is indeterminate and follows the engine convention
             // (NaN ⇒ breached, probability 1).
             if !base.is_finite() || base <= 0.0 {
-                let breached = base.is_nan()
-                    || is_covenant_breached(&covenant.covenant.covenant_type, base, thr);
+                let breached = is_covenant_breached(&covenant.covenant.covenant_type, base, thr);
                 breach_probability[i] = if breached { 1.0 } else { 0.0 };
                 continue;
             }
@@ -414,7 +412,7 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
         if !activation_flags[i] {
             return None;
         }
-        let breached = v.is_nan() || is_covenant_breached(&covenant.covenant.covenant_type, v, t);
+        let breached = is_covenant_breached(&covenant.covenant.covenant_type, v, t);
         breached.then_some(test_dates[i])
     });
 
@@ -1047,7 +1045,6 @@ mod tests {
             covenant,
             metric_id: Some(crate::CovenantMetricId::from("NetDebtEbitda")),
             threshold_schedule: None,
-            custom_evaluator: None,
         };
         engine.add_spec(spec);
 
