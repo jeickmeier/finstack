@@ -889,7 +889,7 @@ mod tests {
         let collateral = CollateralSpec::new("BOND", 100.0, "BOND_PX");
 
         // Build repo without calendar
-        let repo = Repo::builder()
+        let result = Repo::builder()
             .id(InstrumentId::from("REPO-NO-CAL"))
             .cash_amount(Money::new(1_000_000.0, Currency::USD))
             .collateral(collateral)
@@ -905,11 +905,8 @@ mod tests {
             .discount_curve_id(CurveId::from("USD-OIS"))
             .margin_spec_opt(None)
             .attributes(Attributes::default())
-            .build()
-            .expect("Builder should succeed");
+            .build();
 
-        // adjusted_dates() should error because calendar_id is required
-        let result = repo.adjusted_dates();
         assert!(result.is_err(), "Missing calendar_id should error");
 
         let err = result
@@ -927,7 +924,7 @@ mod tests {
     fn repo_unknown_calendar_errors() {
         let collateral = CollateralSpec::new("BOND", 100.0, "BOND_PX");
 
-        let repo = Repo::builder()
+        let result = Repo::builder()
             .id(InstrumentId::from("REPO-BAD-CAL"))
             .cash_amount(Money::new(1_000_000.0, Currency::USD))
             .collateral(collateral)
@@ -943,10 +940,7 @@ mod tests {
             .discount_curve_id(CurveId::from("USD-OIS"))
             .margin_spec_opt(None)
             .attributes(Attributes::default())
-            .build()
-            .expect("Builder should succeed");
-
-        let result = repo.adjusted_dates();
+            .build();
         assert!(result.is_err(), "Unknown calendar should error");
     }
 

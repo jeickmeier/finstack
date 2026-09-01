@@ -43,6 +43,24 @@ use finstack_quant_core::Result;
 const MIN_SPOT_FOR_BUMP: f64 = 1.0e-12;
 const MIN_BUMP_AMOUNT: f64 = 1.0e-8;
 
+/// Shared Monte Carlo inputs for finite-difference Greek calculations.
+pub struct FiniteDiffInputs<'a, R, P, D, F> {
+    /// Monte Carlo engine that controls paths and time steps.
+    pub engine: &'a McEngine,
+    /// Splittable random stream used for common random numbers.
+    pub rng: &'a R,
+    /// Stochastic process whose initial state is bumped.
+    pub process: &'a P,
+    /// Discretization scheme compatible with `process`.
+    pub disc: &'a D,
+    /// Payoff evaluated on each simulated path.
+    pub payoff: &'a F,
+    /// Currency tag assigned to simulated payoff amounts.
+    pub currency: Currency,
+    /// Discount factor from the payoff horizon to valuation.
+    pub discount_factor: f64,
+}
+
 /// Guard that the supplied RNG supports deterministic splitting, which is a
 /// prerequisite for CRN across bump-and-revalue calls.
 fn require_splittable_rng<R: RandomStream>(rng: &R, routine: &str) -> Result<()> {
@@ -110,17 +128,10 @@ fn validate_central_bump(initial_spot: f64, bump_size: f64) -> Result<(f64, f64,
 ///
 /// # Arguments
 ///
-/// * `engine` - MC engine (borrowed, used for the two price runs)
-/// * `rng` - Random number generator; must support splitting
-/// * `process` - Stochastic process
-/// * `disc` - Discretization scheme
+/// * `inputs` - Shared engine, splittable RNG, process, discretization, payoff,
+///   currency, and discount factor used for every stencil valuation.
 /// * `initial_spot` - Finite positive initial spot price (S₀). The down-bumped
 ///   state must remain at least `1e-12`.
-/// * `payoff` - Payoff specification
-/// * `currency` - Currency tag assigned to each simulated payoff and resulting
-///   price estimate.
-/// * `discount_factor` - Discount factor from the payoff horizon to valuation;
-///   it must use the same pricing convention as `payoff`.
 /// * `bump_size` - Finite positive relative bump (e.g. `0.01` for 1 %). The
 ///   absolute bump is `max(|S₀| * bump_size, 1e-8)`.
 ///
@@ -137,16 +148,9 @@ fn validate_central_bump(initial_spot: f64, bump_size: f64) -> Result<(f64, f64,
 /// `bump_size` is non-finite or non-positive, the symmetric down-bump is below
 /// `1e-12`, the supplied RNG does not support splitting, or either
 /// `engine.price` call fails.
-#[allow(clippy::too_many_arguments)]
 pub fn finite_diff_delta<R, P, D, F>(
-    engine: &McEngine,
-    rng: &R,
-    process: &P,
-    disc: &D,
+    inputs: &FiniteDiffInputs<'_, R, P, D, F>,
     initial_spot: f64,
-    payoff: &F,
-    currency: Currency,
-    discount_factor: f64,
     bump_size: f64,
 ) -> Result<(f64, f64)>
 where
@@ -155,6 +159,13 @@ where
     D: Discretization<P> + Clone,
     F: Payoff,
 {
+    let engine = inputs.engine;
+    let rng = inputs.rng;
+    let process = inputs.process;
+    let disc = inputs.disc;
+    let payoff = inputs.payoff;
+    let currency = inputs.currency;
+    let discount_factor = inputs.discount_factor;
     require_splittable_rng(rng, "finite_diff_delta")?;
     let (initial_down, _initial_base, initial_up, h) =
         validate_central_bump(initial_spot, bump_size)?;
@@ -212,17 +223,10 @@ where
 ///
 /// # Arguments
 ///
-/// * `engine` - Monte Carlo engine used for the base, up-bumped, and
-///   down-bumped valuation runs.
-/// * `rng` - Splittable random stream; matching child streams provide common
-///   random numbers across all stencil points.
-/// * `process` - Stochastic process that evolves the bumped initial state.
-/// * `disc` - Cloneable discretization scheme compatible with `process`.
+/// * `inputs` - Shared engine, splittable RNG, process, discretization, payoff,
+///   currency, and discount factor used for every stencil valuation.
 /// * `initial_spot` - Finite positive base underlying spot level in the
 ///   payoff's price units. The down-bumped state must remain at least `1e-12`.
-/// * `payoff` - Payoff evaluated on each simulated path.
-/// * `currency` - Currency tag assigned to each simulated payoff and price.
-/// * `discount_factor` - Discount factor from payoff horizon to valuation.
 /// * `bump_size` - Finite positive relative spot bump, such as `0.01` for one
 ///   percent. The absolute bump is `max(|S₀| * bump_size, 1e-8)`.
 ///
@@ -232,16 +236,9 @@ where
 /// `bump_size` is non-finite or non-positive, the symmetric down-bump is below
 /// `1e-12`, or `rng` cannot split deterministically. Propagates errors from any
 /// of the three [`McEngine::price`] runs.
-#[allow(clippy::too_many_arguments)]
 pub fn finite_diff_gamma<R, P, D, F>(
-    engine: &McEngine,
-    rng: &R,
-    process: &P,
-    disc: &D,
+    inputs: &FiniteDiffInputs<'_, R, P, D, F>,
     initial_spot: f64,
-    payoff: &F,
-    currency: Currency,
-    discount_factor: f64,
     bump_size: f64,
 ) -> Result<(f64, f64)>
 where
@@ -250,6 +247,13 @@ where
     D: Discretization<P> + Clone,
     F: Payoff,
 {
+    let engine = inputs.engine;
+    let rng = inputs.rng;
+    let process = inputs.process;
+    let disc = inputs.disc;
+    let payoff = inputs.payoff;
+    let currency = inputs.currency;
+    let discount_factor = inputs.discount_factor;
     require_splittable_rng(rng, "finite_diff_gamma")?;
     let (initial_down, initial_base, initial_up, h) =
         validate_central_bump(initial_spot, bump_size)?;
@@ -313,16 +317,9 @@ where
 /// Returns a `Vec<Vec<f64>>` of length `n_states` where each inner vector has
 /// length `engine.config.num_paths` and contains discounted payoff amounts
 /// (currency stripped via `MoneyEstimate`-style conversion).
-#[allow(clippy::too_many_arguments)]
 fn paired_per_path_payoffs<R, P, D, F>(
-    engine: &McEngine,
-    rng: &R,
-    process: &P,
-    disc: &D,
+    inputs: &FiniteDiffInputs<'_, R, P, D, F>,
     initial_states: &[Vec<f64>],
-    payoff: &F,
-    currency: Currency,
-    discount_factor: f64,
 ) -> Result<Vec<Vec<f64>>>
 where
     R: RandomStream,
@@ -330,6 +327,13 @@ where
     D: Discretization<P> + Clone,
     F: Payoff,
 {
+    let engine = inputs.engine;
+    let rng = inputs.rng;
+    let process = inputs.process;
+    let disc = inputs.disc;
+    let payoff = inputs.payoff;
+    let currency = inputs.currency;
+    let discount_factor = inputs.discount_factor;
     let n_states = initial_states.len();
     debug_assert!(
         n_states >= 1,
@@ -422,17 +426,10 @@ where
 ///
 /// # Arguments
 ///
-/// * `engine` - Monte Carlo engine that supplies deterministic serial path
-///   valuation for the paired estimator.
-/// * `rng` - Splittable random stream providing common random numbers for the
-///   up and down paths.
-/// * `process` - Stochastic process that evolves the bumped initial state.
-/// * `disc` - Cloneable discretization scheme compatible with `process`.
+/// * `inputs` - Shared engine, splittable RNG, process, discretization, payoff,
+///   currency, and discount factor used for every paired path valuation.
 /// * `initial_spot` - Finite positive base underlying spot level in the
 ///   payoff's price units. The down-bumped state must remain at least `1e-12`.
-/// * `payoff` - Payoff evaluated path by path at the simulation horizon.
-/// * `currency` - Currency tag assigned to path payoff amounts.
-/// * `discount_factor` - Discount factor from payoff horizon to valuation.
 /// * `bump_size` - Finite positive relative spot bump, such as `0.01` for one
 ///   percent. The absolute bump is `max(|S₀| * bump_size, 1e-8)`.
 ///
@@ -446,16 +443,9 @@ where
 /// `bump_size` is non-finite or non-positive, the symmetric down-bump is below
 /// `1e-12`, the RNG is not splittable, configuration is invalid, or any path
 /// simulation fails (e.g., non-finite payoff).
-#[allow(clippy::too_many_arguments)]
 pub fn finite_diff_delta_crn<R, P, D, F>(
-    engine: &McEngine,
-    rng: &R,
-    process: &P,
-    disc: &D,
+    inputs: &FiniteDiffInputs<'_, R, P, D, F>,
     initial_spot: f64,
-    payoff: &F,
-    currency: Currency,
-    discount_factor: f64,
     bump_size: f64,
 ) -> Result<(f64, f64)>
 where
@@ -464,21 +454,12 @@ where
     D: Discretization<P> + Clone,
     F: Payoff,
 {
-    require_splittable_rng(rng, "finite_diff_delta_crn")?;
+    require_splittable_rng(inputs.rng, "finite_diff_delta_crn")?;
     let (initial_down, _initial_base, initial_up, h) =
         validate_central_bump(initial_spot, bump_size)?;
 
     let initial_states = vec![vec![initial_up], vec![initial_down]];
-    let per_state = paired_per_path_payoffs(
-        engine,
-        rng,
-        process,
-        disc,
-        &initial_states,
-        payoff,
-        currency,
-        discount_factor,
-    )?;
+    let per_state = paired_per_path_payoffs(inputs, &initial_states)?;
 
     let v_up = &per_state[0];
     let v_down = &per_state[1];
@@ -498,17 +479,10 @@ where
 ///
 /// # Arguments
 ///
-/// * `engine` - Monte Carlo engine that supplies deterministic serial path
-///   valuation for the paired estimator.
-/// * `rng` - Splittable random stream providing common random numbers for all
-///   three stencil valuations.
-/// * `process` - Stochastic process that evolves the bumped initial state.
-/// * `disc` - Cloneable discretization scheme compatible with `process`.
+/// * `inputs` - Shared engine, splittable RNG, process, discretization, payoff,
+///   currency, and discount factor used for every paired path valuation.
 /// * `initial_spot` - Finite positive base underlying spot level in the
 ///   payoff's price units. The down-bumped state must remain at least `1e-12`.
-/// * `payoff` - Payoff evaluated path by path at the simulation horizon.
-/// * `currency` - Currency tag assigned to path payoff amounts.
-/// * `discount_factor` - Discount factor from payoff horizon to valuation.
 /// * `bump_size` - Finite positive relative spot bump, such as `0.01` for one
 ///   percent. The absolute bump is `max(|S₀| * bump_size, 1e-8)`.
 ///
@@ -521,16 +495,9 @@ where
 /// Returns [`finstack_quant_core::Error::Validation`] for the invalid central
 /// stencils documented by [`finite_diff_delta_crn`], or when path simulation
 /// fails.
-#[allow(clippy::too_many_arguments)]
 pub fn finite_diff_gamma_crn<R, P, D, F>(
-    engine: &McEngine,
-    rng: &R,
-    process: &P,
-    disc: &D,
+    inputs: &FiniteDiffInputs<'_, R, P, D, F>,
     initial_spot: f64,
-    payoff: &F,
-    currency: Currency,
-    discount_factor: f64,
     bump_size: f64,
 ) -> Result<(f64, f64)>
 where
@@ -539,21 +506,12 @@ where
     D: Discretization<P> + Clone,
     F: Payoff,
 {
-    require_splittable_rng(rng, "finite_diff_gamma_crn")?;
+    require_splittable_rng(inputs.rng, "finite_diff_gamma_crn")?;
     let (initial_down, initial_base, initial_up, h) =
         validate_central_bump(initial_spot, bump_size)?;
 
     let initial_states = vec![vec![initial_up], vec![initial_base], vec![initial_down]];
-    let per_state = paired_per_path_payoffs(
-        engine,
-        rng,
-        process,
-        disc,
-        &initial_states,
-        payoff,
-        currency,
-        discount_factor,
-    )?;
+    let per_state = paired_per_path_payoffs(inputs, &initial_states)?;
 
     let v_up = &per_state[0];
     let v_base = &per_state[1];
@@ -692,55 +650,24 @@ mod tests {
         let discount_factor = (-RATE * EXPIRY).exp();
         let bump_size = 0.01;
         let (reference_delta, reference_gamma) = deterministic_stencil(bump_size);
+        let inputs = FiniteDiffInputs {
+            engine: &engine,
+            rng: &rng,
+            process: &gbm,
+            disc: &disc,
+            payoff: &call,
+            currency: Currency::USD,
+            discount_factor,
+        };
 
-        let (delta_independent, delta_independent_stderr) = finite_diff_delta(
-            &engine,
-            &rng,
-            &gbm,
-            &disc,
-            SPOT,
-            &call,
-            Currency::USD,
-            discount_factor,
-            bump_size,
-        )
-        .expect("independence-bound delta");
-        let (delta_crn, delta_crn_stderr) = finite_diff_delta_crn(
-            &engine,
-            &rng,
-            &gbm,
-            &disc,
-            SPOT,
-            &call,
-            Currency::USD,
-            discount_factor,
-            bump_size,
-        )
-        .expect("paired delta");
-        let (gamma_independent, gamma_independent_stderr) = finite_diff_gamma(
-            &engine,
-            &rng,
-            &gbm,
-            &disc,
-            SPOT,
-            &call,
-            Currency::USD,
-            discount_factor,
-            bump_size,
-        )
-        .expect("independence-bound gamma");
-        let (gamma_crn, gamma_crn_stderr) = finite_diff_gamma_crn(
-            &engine,
-            &rng,
-            &gbm,
-            &disc,
-            SPOT,
-            &call,
-            Currency::USD,
-            discount_factor,
-            bump_size,
-        )
-        .expect("paired gamma");
+        let (delta_independent, delta_independent_stderr) =
+            finite_diff_delta(&inputs, SPOT, bump_size).expect("independence-bound delta");
+        let (delta_crn, delta_crn_stderr) =
+            finite_diff_delta_crn(&inputs, SPOT, bump_size).expect("paired delta");
+        let (gamma_independent, gamma_independent_stderr) =
+            finite_diff_gamma(&inputs, SPOT, bump_size).expect("independence-bound gamma");
+        let (gamma_crn, gamma_crn_stderr) =
+            finite_diff_gamma_crn(&inputs, SPOT, bump_size).expect("paired gamma");
 
         assert_within_reported_error("paired delta", delta_crn, reference_delta, delta_crn_stderr);
         assert_within_reported_error(
@@ -778,6 +705,15 @@ mod tests {
         let disc = ExactGbm::new();
         let call = EuropeanCall::new(STRIKE, EXPIRY, 1);
         let discount_factor = (-RATE * EXPIRY).exp();
+        let inputs = FiniteDiffInputs {
+            engine: &engine,
+            rng: &rng,
+            process: &gbm,
+            disc: &disc,
+            payoff: &call,
+            currency: Currency::USD,
+            discount_factor,
+        };
         let cases = [
             (0.0, 0.01, "initial_spot"),
             (-1.0, 0.01, "initial_spot"),
@@ -792,62 +728,10 @@ mod tests {
         ];
 
         for (spot, bump_size, expected) in cases {
-            assert_validation_contains(
-                finite_diff_delta(
-                    &engine,
-                    &rng,
-                    &gbm,
-                    &disc,
-                    spot,
-                    &call,
-                    Currency::USD,
-                    discount_factor,
-                    bump_size,
-                ),
-                expected,
-            );
-            assert_validation_contains(
-                finite_diff_delta_crn(
-                    &engine,
-                    &rng,
-                    &gbm,
-                    &disc,
-                    spot,
-                    &call,
-                    Currency::USD,
-                    discount_factor,
-                    bump_size,
-                ),
-                expected,
-            );
-            assert_validation_contains(
-                finite_diff_gamma(
-                    &engine,
-                    &rng,
-                    &gbm,
-                    &disc,
-                    spot,
-                    &call,
-                    Currency::USD,
-                    discount_factor,
-                    bump_size,
-                ),
-                expected,
-            );
-            assert_validation_contains(
-                finite_diff_gamma_crn(
-                    &engine,
-                    &rng,
-                    &gbm,
-                    &disc,
-                    spot,
-                    &call,
-                    Currency::USD,
-                    discount_factor,
-                    bump_size,
-                ),
-                expected,
-            );
+            assert_validation_contains(finite_diff_delta(&inputs, spot, bump_size), expected);
+            assert_validation_contains(finite_diff_delta_crn(&inputs, spot, bump_size), expected);
+            assert_validation_contains(finite_diff_gamma(&inputs, spot, bump_size), expected);
+            assert_validation_contains(finite_diff_gamma_crn(&inputs, spot, bump_size), expected);
         }
     }
 }

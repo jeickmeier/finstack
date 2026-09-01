@@ -69,7 +69,7 @@ impl MetricId {
     /// # Arguments
     ///
     /// * `base` - Base date or base currency anchoring relative quotes and curves
-    /// * `metrics` - Metrics supplied by the caller for this operation
+    /// * `metrics` - Requested metric identifiers evaluated and returned in order.
     pub fn decode_series_components<'a>(
         base: &MetricId,
         metrics: impl IntoIterator<Item = &'a MetricId>,

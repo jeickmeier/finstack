@@ -297,13 +297,13 @@ impl CraigSneydStepper {
     ///
     /// # Arguments
     ///
-    /// * `problem` - Problem supplied by the caller for this operation
-    /// * `grid` - Grid supplied by the caller for this operation
-    /// * `u_full` - U full supplied by the caller for this operation
-    /// * `u_int` - U int supplied by the caller for this operation
-    /// * `t_from` - T from supplied by the caller for this operation
-    /// * `t_to` - T to supplied by the caller for this operation
-    /// * `step_index` - Step index supplied by the caller for this operation
+    /// * `problem` - PDE problem supplying coefficients, payoff data, and boundary conditions.
+    /// * `grid` - Numerical grid defining the state-space discretization.
+    /// * `u_full` - Full PDE solution buffer including boundary nodes.
+    /// * `u_int` - Interior PDE solution buffer excluding boundary nodes.
+    /// * `t_from` - Start time of the backward PDE step in model-year units.
+    /// * `t_to` - End time of the backward PDE step in model-year units.
+    /// * `step_index` - Zero-based index of the current numerical time step.
     #[allow(clippy::too_many_arguments)]
     pub fn step(
         &self,
@@ -333,14 +333,14 @@ impl CraigSneydStepper {
     ///
     /// # Arguments
     ///
-    /// * `problem` - Problem supplied by the caller for this operation
-    /// * `grid` - Grid supplied by the caller for this operation
-    /// * `u_full` - U full supplied by the caller for this operation
-    /// * `u_int` - U int supplied by the caller for this operation
-    /// * `t_from` - T from supplied by the caller for this operation
-    /// * `t_to` - T to supplied by the caller for this operation
-    /// * `step_index` - Step index supplied by the caller for this operation
-    /// * `buffers` - Buffers supplied by the caller for this operation
+    /// * `problem` - PDE problem supplying coefficients, payoff data, and boundary conditions.
+    /// * `grid` - Numerical grid defining the state-space discretization.
+    /// * `u_full` - Full PDE solution buffer including boundary nodes.
+    /// * `u_int` - Interior PDE solution buffer excluding boundary nodes.
+    /// * `t_from` - Start time of the backward PDE step in model-year units.
+    /// * `t_to` - End time of the backward PDE step in model-year units.
+    /// * `step_index` - Zero-based index of the current numerical time step.
+    /// * `buffers` - Reusable work buffers sized for the supplied numerical grid.
     #[allow(clippy::too_many_arguments)]
     pub fn step_with_buffers(
         &self,

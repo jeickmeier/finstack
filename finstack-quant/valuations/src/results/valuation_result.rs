@@ -528,7 +528,7 @@ impl ValuationResult {
     ///
     /// # Arguments
     ///
-    /// * `details` - Details supplied by the caller for this operation
+    /// * `details` - Details used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn with_details(mut self, details: ValuationDetails) -> Self {
         self.details = Some(details);
         self

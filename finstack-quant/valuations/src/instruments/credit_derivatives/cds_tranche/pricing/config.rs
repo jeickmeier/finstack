@@ -511,7 +511,7 @@ impl Default for CDSTranchePricer {
 
 impl CDSTranchePricer {
     /// Get the current configuration.
-    pub fn config(&self) -> &CDSTranchePricerConfig {
+    pub fn get_config(&self) -> &CDSTranchePricerConfig {
         &self.params
     }
 }

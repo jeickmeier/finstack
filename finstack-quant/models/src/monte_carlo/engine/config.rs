@@ -141,7 +141,7 @@ impl McEngineConfig {
     ///
     /// # Arguments
     ///
-    /// * `enabled` - Enabled supplied by the caller for this operation
+    /// * `enabled` - Whether the optional execution feature is enabled.
     #[must_use]
     pub fn antithetic(mut self, enabled: bool) -> Self {
         self.antithetic = enabled;

@@ -3,7 +3,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use std::collections::HashMap;
-use syn::{parse_macro_input, Data, DeriveInput, Expr, Fields};
+use syn::{parse_macro_input, Data, DeriveInput, Expr, Fields, Lit, Meta};
 
 /// Implementation of the FinancialBuilder derive macro.
 ///
@@ -63,26 +63,21 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
     let mut required_fields: Vec<(syn::Ident, syn::Type)> = Vec::new();
     let mut optional_fields: Vec<(syn::Ident, syn::Type)> = Vec::new();
     let mut defaults: HashMap<syn::Ident, Expr> = HashMap::new();
-    let mut custom_validator: Option<Expr> = None;
-    // Heuristics for post-build validations
-    let mut has_start_date: bool = false;
-    let mut has_issue: bool = false;
+    let mut field_docs: HashMap<syn::Ident, String> = HashMap::new();
     let mut issue_field_ident: Option<syn::Ident> = None;
-    let mut has_maturity: bool = false;
-    let mut has_strike_variance: bool = false;
-    let mut has_optional_notional: bool = false;
-    let mut has_optional_spot_rate: bool = false;
-    let mut has_base_currency: bool = false;
-    let mut has_quote_currency: bool = false;
 
+    let mut custom_validator: Option<Expr> = None;
     for attr in &input.attrs {
         if attr.path().is_ident("builder") {
-            let _ = attr.parse_nested_meta(|meta| {
+            let parsed = attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("validate") {
                     custom_validator = Some(meta.value()?.parse()?);
                 }
                 Ok(())
             });
+            if let Err(error) = parsed {
+                return error.to_compile_error().into();
+            }
         }
     }
 
@@ -107,6 +102,34 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
                     .into();
             };
             let ty = f.ty.clone();
+
+            let docs = f
+                .attrs
+                .iter()
+                .filter_map(|attr| {
+                    if !attr.path().is_ident("doc") {
+                        return None;
+                    }
+                    match &attr.meta {
+                        Meta::NameValue(value) => match &value.value {
+                            Expr::Lit(expr) => match &expr.lit {
+                                Lit::Str(text) => Some(text.value().trim().to_owned()),
+                                _ => None,
+                            },
+                            _ => None,
+                        },
+                        _ => None,
+                    }
+                })
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let docs = if docs.is_empty() {
+                format!("Replacement value for `{ident}`.")
+            } else {
+                docs
+            };
+            field_docs.insert(ident.clone(), docs);
 
             let mut has_optional_attr = false;
             let mut default_expr: Option<Expr> = None;
@@ -138,31 +161,8 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
 
             let is_option_ty = matches!(ty, syn::Type::Path(ref tp) if tp.path.segments.last().map(|s| s.ident == "Option").unwrap_or(false));
 
-            // Track presence of well-known fields for generic validations
-            if ident == format_ident!("start_date") {
-                has_start_date = true;
-            }
             if ident == format_ident!("issue") || ident == format_ident!("issue_date") {
-                has_issue = true;
                 issue_field_ident = Some(ident.clone());
-            }
-            if ident == format_ident!("maturity") || ident == format_ident!("maturity_date") {
-                has_maturity = true;
-            }
-            if ident == format_ident!("strike_variance") {
-                has_strike_variance = true;
-            }
-            if ident == format_ident!("base_currency") {
-                has_base_currency = true;
-            }
-            if ident == format_ident!("quote_currency") {
-                has_quote_currency = true;
-            }
-            if ident == format_ident!("notional") && is_option_ty {
-                has_optional_notional = true;
-            }
-            if ident == format_ident!("spot_rate") && is_option_ty {
-                has_optional_spot_rate = true;
             }
             // Optional if Option<T> or the field is `attributes`
             if is_option_ty || ident == format_ident!("attributes") {
@@ -204,16 +204,28 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
 
     // Setter methods
     let setter_req = required_fields.iter().map(|(id, ty)| {
-        let doc_text = format!("Sets the `{}` field.", id);
+        let summary = format!("Sets the `{id}` field.");
+        let argument = field_docs
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| format!("Replacement value for `{id}`."));
+        let doc_text = format!("{summary}\n\n# Arguments\n\n* `value` - {argument}");
         quote! {
             #[doc = #doc_text]
+            #[must_use]
             pub fn #id(mut self, value: #ty) -> Self { self.#id = ::core::option::Option::Some(value); self }
         }
     });
 
     let setter_opt = optional_fields.iter().map(|(id, ty)| {
-        let doc_text = format!("Sets the `{}` field.", id);
-        let doc_text_opt = format!("Sets the `{}` field as an option.", id);
+        let argument = field_docs
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| format!("Replacement value for `{id}`."));
+        let doc_text = format!("Sets the `{id}` field.\n\n# Arguments\n\n* `value` - {argument}");
+        let doc_text_opt = format!(
+            "Sets the `{id}` field from an optional value.\n\n# Arguments\n\n* `value` - Optional field value. Pass `None` to leave `{id}` unset."
+        );
         if let syn::Type::Path(ref tp) = ty {
             if let Some(seg) = tp.path.segments.last() {
                 if seg.ident == "Option" {
@@ -228,31 +240,37 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
                         let set_opt = format_ident!("{}_opt", id);
                         quote! {
                             #[doc = #doc_text]
+                            #[must_use]
                             pub fn #id(mut self, value: #inner) -> Self { self.#id = ::core::option::Option::Some(value); self }
                             #[doc = #doc_text_opt]
+                            #[must_use]
                             pub fn #set_opt(mut self, value: #ty) -> Self { self.#id = value; self }
                         }
                     } else {
                         quote! {
                             #[doc = #doc_text]
+                            #[must_use]
                             pub fn #id(mut self, value: #ty) -> Self { self.#id = value; self }
                         }
                     }
                 } else {
                     quote! {
                         #[doc = #doc_text]
+                        #[must_use]
                         pub fn #id(mut self, value: #ty) -> Self { self.#id = ::core::option::Option::Some(value); self }
                     }
                 }
             } else {
                 quote! {
                     #[doc = #doc_text]
+                    #[must_use]
                     pub fn #id(mut self, value: #ty) -> Self { self.#id = ::core::option::Option::Some(value); self }
                 }
             }
         } else {
             quote! {
                 #[doc = #doc_text]
+                #[must_use]
                 pub fn #id(mut self, value: #ty) -> Self { self.#id = ::core::option::Option::Some(value); self }
             }
         }
@@ -317,79 +335,20 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
         }
     });
 
-    // Post-build validation snippets based on field presence
-    let mut post_build_checks = proc_macro2::TokenStream::new();
-    if has_start_date && has_maturity {
-        // Check if the struct has maturity or maturity_date field
-        let maturity_field = if required_fields.iter().any(|(id, _)| id == "maturity")
-            || optional_fields.iter().any(|(id, _)| id == "maturity")
-        {
-            quote! { __built.maturity }
-        } else {
-            quote! { __built.maturity_date }
-        };
-        post_build_checks.extend(quote! {
-            if __built.start_date >= #maturity_field {
-                return ::core::result::Result::Err(finstack_quant_core::InputError::InvalidDateRange.into());
-            }
-        });
-    }
-    // Also validate issue < maturity for instruments with issue date
-    if has_issue && has_maturity {
-        if let Some(issue_field) = issue_field_ident.as_ref() {
-            let maturity_field = if required_fields.iter().any(|(id, _)| id == "maturity")
-                || optional_fields.iter().any(|(id, _)| id == "maturity")
-            {
-                quote! { __built.maturity }
-            } else {
-                quote! { __built.maturity_date }
-            };
-            post_build_checks.extend(quote! {
-                if __built.#issue_field >= #maturity_field {
-                    return ::core::result::Result::Err(finstack_quant_core::InputError::InvalidDateRange.into());
-                }
-            });
-        }
-    }
-    if has_strike_variance {
-        post_build_checks.extend(quote! {
-            if __built.strike_variance < 0.0 {
-                return ::core::result::Result::Err(finstack_quant_core::InputError::NegativeValue.into());
-            }
-        });
-    }
-    if has_optional_notional && has_optional_spot_rate {
-        post_build_checks.extend(quote! {
-            if __built.notional.is_none() && __built.spot_rate.is_none() {
-                return ::core::result::Result::Err(finstack_quant_core::Error::Validation(
-                    "Builder validation failed: at least one of `notional` or `spot_rate` must be set".to_string()
-                ));
-            }
-        });
-    }
-    if has_base_currency && has_quote_currency {
-        post_build_checks.extend(quote! {
-            if __built.base_currency == __built.quote_currency {
-                return ::core::result::Result::Err(finstack_quant_core::Error::Validation(format!(
-                    "Builder validation failed: base_currency ({}) must differ from quote_currency ({})",
-                    __built.base_currency,
-                    __built.quote_currency
-                )));
-            }
-        });
-    }
-    if let Some(validator) = custom_validator {
-        post_build_checks.extend(quote! {
-            #validator(&__built)?;
-        });
-    }
-
     let builder_doc = format!("Builder for `{}`.", struct_name);
     let new_doc = "Creates a new builder instance.";
     let build_doc = "Builds the final instance.";
     let builder_method_doc = "Creates a new builder.";
+    let validation = if let Some(validator) = custom_validator {
+        quote! { #validator(&__built)?; }
+    } else {
+        quote! {
+            finstack_quant_valuations::instruments::Instrument::validate_invariants(&__built)?;
+        }
+    };
     let expanded = quote! {
         #[doc = #builder_doc]
+        #[must_use]
         #[allow(non_camel_case_types)]
         #[derive(Default)]
         pub struct #builder_name {
@@ -408,8 +367,7 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
                     #(#assign_req,)*
                     #(#assign_opt,)*
                 };
-                // Generic sanity checks for common domain fields
-                #post_build_checks
+                #validation
                 Ok(__built)
             }
         }

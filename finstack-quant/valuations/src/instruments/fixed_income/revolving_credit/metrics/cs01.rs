@@ -19,7 +19,7 @@
 //! CS01 is a validation error — a silent `0.0` would mask unmonitored credit
 //! exposure. Supply a `credit_curve_id` to obtain hazard-based CS01.
 //!
-//! [`RevolvingCreditPricer`]: crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer
+//! [`RevolvingCreditPricer`]: crate::instruments::fixed_income::revolving_credit::pricing::RevolvingCreditPricer
 //! [`GenericParallelCs01`]: crate::metrics::GenericParallelCs01
 //! [`ZSpreadParallelCs01`]: crate::metrics::ZSpreadParallelCs01
 //! [`ZSpreadBucketedCs01`]: crate::metrics::ZSpreadBucketedCs01

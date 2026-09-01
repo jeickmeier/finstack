@@ -193,7 +193,7 @@ pub use distributions::{
     log_factorial,
 };
 pub use integration::{
-    gauss_legendre_integrate, gauss_legendre_integrate_adaptive,
+    gauss_legendre_grid, gauss_legendre_integrate, gauss_legendre_integrate_adaptive,
     gauss_legendre_integrate_composite, GaussHermiteQuadrature, GaussLaguerreQuadrature,
 };
 pub use interp::{

@@ -146,8 +146,8 @@ impl FutureOptionExercise {
     serde::Serialize,
     serde::Deserialize,
 )]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FutureOptionTerms::validate)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FutureOptionTerms {
     /// Underlying futures identifier or descriptive label.

@@ -32,6 +32,6 @@ impl MetricCalculator for ConversionValueCalculator {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(value) => *value,
         };
 
-        crate::instruments::fixed_income::convertible::pricer::compute_conversion_value(bond, spot)
+        crate::instruments::fixed_income::convertible::pricing::compute_conversion_value(bond, spot)
     }
 }

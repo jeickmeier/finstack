@@ -63,8 +63,8 @@ impl SensitivityMatrix {
     ///
     /// # Arguments
     ///
-    /// * `position_idx` - Position idx supplied by the caller for this operation
-    /// * `factor_idx` - Factor idx supplied by the caller for this operation
+    /// * `position_idx` - Position idx used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `factor_idx` - Zero-based factor column index.
     pub fn delta(&self, position_idx: usize, factor_idx: usize) -> f64 {
         assert!(
             position_idx < self.n_positions(),

@@ -17,7 +17,7 @@ use finstack_quant_valuations::instruments::InstrumentJson;
 use wasm_bindgen::prelude::*;
 
 fn parse_structured_credit(instrument_json: &str) -> Result<StructuredCredit, JsValue> {
-    match finstack_quant_valuations::pricer::json::parse_instrument_json(instrument_json)
+    match finstack_quant_valuations::pricer::json::parse_instrument_from_json(instrument_json)
         .map_err(|error| to_js_error(&error))?
     {
         InstrumentJson::StructuredCredit(deal) => Ok(*deal),

@@ -241,7 +241,7 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `bumps` - Bumps supplied by the caller for this operation
+    /// * `bumps` - Bumps used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn bump<I>(&self, bumps: I) -> Result<Self>
     where
         I: IntoIterator<Item = MarketBump>,

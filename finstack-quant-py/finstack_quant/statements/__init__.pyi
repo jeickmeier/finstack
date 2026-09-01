@@ -42,11 +42,14 @@ __all__ = [
     "MonteCarloResults",
     "StatementResult",
     "Evaluator",
-    "parse_formula",
+    "parse_formula_text",
     "run_monte_carlo",
     "validate_formula",
+    "AppliedAdjustment",
     "NormalizationConfig",
+    "NormalizationResult",
     "normalize",
+    "normalize_json",
     "CheckSuiteSpec",
     "CheckReport",
     "EcfSweepSpec",
@@ -3246,7 +3249,7 @@ class Evaluator:
         """
         ...
 
-def parse_formula(formula: str) -> str:
+def parse_formula_text(formula: str) -> str:
     """
     Parse a DSL formula and return a debug string for its AST.
 
@@ -3267,8 +3270,8 @@ def parse_formula(formula: str) -> str:
 
     Examples
     --------
-    >>> from finstack_quant.statements import parse_formula
-    >>> "revenue" in parse_formula("revenue - cogs")
+    >>> from finstack_quant.statements import parse_formula_text
+    >>> "revenue" in parse_formula_text("revenue - cogs")
     True
 
     """
@@ -3302,6 +3305,89 @@ def validate_formula(formula: str) -> None:
 
     """
     ...
+
+class AppliedAdjustment:
+    """One adjustment applied to a normalized statement metric.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import NormalizationResult
+    >>> payload = '{"period":"2025Q1","base_value":10.0,"adjustments":[{"adjustment_id":"a1","name":"Add-back","raw_amount":2.0,"capped_amount":1.5,"is_capped":true}],"final_value":11.5}'
+    >>> NormalizationResult.from_json(payload).adjustments[0].capped_amount
+    1.5
+    """
+
+    @property
+    def adjustment_id(self) -> str:
+        """Return the stable adjustment identifier.
+
+        Returns
+        -------
+        str
+            Identifier supplied by the normalization configuration.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    @property
+    def name(self) -> str:
+        """Return the human-readable adjustment name.
+
+        Returns
+        -------
+        str
+            Display name stored with the applied adjustment.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    @property
+    def raw_amount(self) -> float:
+        """Return the uncapped signed adjustment amount.
+
+        Returns
+        -------
+        float
+            Amount in the normalized metric's reporting units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    @property
+    def capped_amount(self) -> float:
+        """Return the signed adjustment amount after cap enforcement.
+
+        Returns
+        -------
+        float
+            Applied amount in the normalized metric's reporting units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    @property
+    def is_capped(self) -> bool:
+        """Report whether a configured cap changed the raw amount.
+
+        Returns
+        -------
+        bool
+            ``True`` when ``capped_amount`` differs from ``raw_amount``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    def __repr__(self) -> str: ...
 
 class NormalizationConfig:
     """
@@ -3431,9 +3517,156 @@ class NormalizationConfig:
         """
         ...
 
-def normalize(results: StatementResult, config: NormalizationConfig) -> str:
+class NormalizationResult:
+    """Normalized value and adjustment detail for one reporting period.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import NormalizationResult
+    >>> result = NormalizationResult.from_json(
+    ...     '{"period":"2025Q1","base_value":10.0,"adjustments":[],"final_value":10.0}'
+    ... )
+    >>> (result.period, result.final_value)
+    ('2025Q1', 10.0)
     """
-    Run normalization and return a JSON list of ``NormalizationResult`` objects.
+
+    @staticmethod
+    def from_json(json: str) -> NormalizationResult:
+        """Deserialize one result from canonical JSON.
+
+        Parameters
+        ----------
+        json:
+            Canonical normalization-result JSON object.
+
+        Returns
+        -------
+        NormalizationResult
+            Parsed typed result for one statement period.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or has the wrong shape.
+
+        Examples
+        --------
+        >>> NormalizationResult.from_json(
+        ...     '{"period":"2025Q1","base_value":10.0,"adjustments":[],"final_value":10.0}'
+        ... ).final_value
+        10.0
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize this result to compact canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical compact JSON for this period result.
+
+        Raises
+        ------
+        ValueError
+            If a numeric field is non-finite or serialization fails.
+        """
+        ...
+
+    @property
+    def period(self) -> str:
+        """Return the canonical statement-period identifier.
+
+        Returns
+        -------
+        str
+            Period such as ``"2025Q1"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    @property
+    def base_value(self) -> float:
+        """Return the metric value before normalization adjustments.
+
+        Returns
+        -------
+        float
+            Base amount in the statement metric's reporting units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    @property
+    def adjustments(self) -> list[AppliedAdjustment]:
+        """Return the ordered adjustments applied to the base value.
+
+        Returns
+        -------
+        list[AppliedAdjustment]
+            Adjustment detail in engine application order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    @property
+    def final_value(self) -> float:
+        """Return the normalized value after all capped adjustments.
+
+        Returns
+        -------
+        float
+            Final amount in the statement metric's reporting units.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored result data.
+        """
+        ...
+    def __repr__(self) -> str: ...
+
+def normalize(results: StatementResult, config: NormalizationConfig) -> list[NormalizationResult]:
+    """
+    Run normalization and return typed period results.
+
+    Parameters
+    ----------
+    results:
+        Evaluated statement output.
+    config:
+        Target node and adjustment definitions.
+
+    Returns
+    -------
+    list[NormalizationResult]
+        Chronologically ordered period results.
+
+    Raises
+    ------
+    ValueError
+        If the engine fails.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder, NormalizationConfig, normalize
+    >>> builder = ModelBuilder("demo")
+    >>> _ = builder.periods("2025Q1..Q1")
+    >>> _ = builder.value("ebitda", [("2025Q1", 25.0)])
+    >>> result = Evaluator().evaluate(builder.build())
+    >>> normalize(result, NormalizationConfig("ebitda"))[0].final_value
+    25.0
+
+    """
+    ...
+
+def normalize_json(results: StatementResult, config: NormalizationConfig) -> str:
+    """Run normalization and return compact canonical JSON.
 
     Parameters
     ----------
@@ -3450,19 +3683,17 @@ def normalize(results: StatementResult, config: NormalizationConfig) -> str:
     Raises
     ------
     ValueError
-        If the engine fails.
+        If normalization or serialization fails.
 
     Examples
     --------
-    >>> from finstack_quant.statements import Evaluator, ModelBuilder, NormalizationConfig, normalize
+    >>> from finstack_quant.statements import Evaluator, ModelBuilder, NormalizationConfig, normalize_json
     >>> builder = ModelBuilder("demo")
     >>> _ = builder.periods("2025Q1..Q1")
     >>> _ = builder.value("ebitda", [("2025Q1", 25.0)])
     >>> result = Evaluator().evaluate(builder.build())
-    >>> import json
-    >>> json.loads(normalize(result, NormalizationConfig("ebitda")))[0]["final_value"]
-    25.0
-
+    >>> '"final_value":25.0' in normalize_json(result, NormalizationConfig("ebitda"))
+    True
     """
     ...
 

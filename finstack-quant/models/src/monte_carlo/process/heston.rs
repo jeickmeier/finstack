@@ -183,7 +183,7 @@ impl HestonProcess {
     ///
     /// # Arguments
     ///
-    /// * `params` - Params supplied by the caller for this operation
+    /// * `params` - Validated model or algorithm parameters controlling this calculation.
     pub fn new(params: HestonPricingParams) -> Self {
         // Warn when Feller condition is violated (variance may hit zero)
         if !params.satisfies_feller() {

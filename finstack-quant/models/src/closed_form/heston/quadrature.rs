@@ -1,93 +1,9 @@
 use super::characteristic_fn::{heston_pj_characteristic_function, HestonCfStatus};
 use super::strip_pricer::HESTON_STRIP_MAX_CORRUPT_FRACTION;
 use super::{HestonFourierSettings, HestonPricingParams};
-use finstack_quant_core::math::gauss_legendre_integrate_composite;
+use finstack_quant_core::math::{gauss_legendre_grid, gauss_legendre_integrate_composite};
 use num_complex::Complex;
 use std::f64::consts::PI;
-
-fn gl_nodes_weights(order: usize) -> Option<(&'static [f64], &'static [f64])> {
-    match order {
-        2 => Some((
-            &[-0.577_350_269_189_625_7, 0.577_350_269_189_625_7],
-            &[1.0, 1.0],
-        )),
-        4 => Some((
-            &[
-                -0.861_136_311_594_052_6,
-                -0.339_981_043_584_856_3,
-                0.339_981_043_584_856_3,
-                0.861_136_311_594_052_6,
-            ],
-            &[
-                0.347_854_845_137_453_85,
-                0.652_145_154_862_546_1,
-                0.652_145_154_862_546_1,
-                0.347_854_845_137_453_85,
-            ],
-        )),
-        8 => Some((
-            &[
-                -0.960_289_856_497_536_3,
-                -0.796_666_477_413_626_7,
-                -0.525_532_409_916_329,
-                -0.183_434_642_495_649_8,
-                0.183_434_642_495_649_8,
-                0.525_532_409_916_329,
-                0.796_666_477_413_626_7,
-                0.960_289_856_497_536_3,
-            ],
-            &[
-                0.101_228_536_290_376_26,
-                0.222_381_034_453_374_48,
-                0.313_706_645_877_887_27,
-                0.362_683_783_378_361_96,
-                0.362_683_783_378_361_96,
-                0.313_706_645_877_887_27,
-                0.222_381_034_453_374_48,
-                0.101_228_536_290_376_26,
-            ],
-        )),
-        16 => Some((
-            &[
-                -0.989_400_934_991_649_9,
-                -0.944_575_023_073_232_6,
-                -0.865_631_202_387_831_8,
-                -0.755_404_408_355_003,
-                -0.617_876_244_402_643_8,
-                -0.458_016_777_657_227_37,
-                -0.281_603_550_779_258_9,
-                -0.095_012_509_837_637_44,
-                0.095_012_509_837_637_44,
-                0.281_603_550_779_258_9,
-                0.458_016_777_657_227_37,
-                0.617_876_244_402_643_8,
-                0.755_404_408_355_003,
-                0.865_631_202_387_831_8,
-                0.944_575_023_073_232_6,
-                0.989_400_934_991_649_9,
-            ],
-            &[
-                0.027_152_459_411_754_095,
-                0.062_253_523_938_647_894,
-                0.095_158_511_682_492_78,
-                0.124_628_971_255_533_88,
-                0.149_595_988_816_576_73,
-                0.169_156_519_395_002_54,
-                0.182_603_415_044_923_58,
-                0.189_450_610_455_068_5,
-                0.189_450_610_455_068_5,
-                0.182_603_415_044_923_58,
-                0.169_156_519_395_002_54,
-                0.149_595_988_816_576_73,
-                0.124_628_971_255_533_88,
-                0.095_158_511_682_492_78,
-                0.062_253_523_938_647_894,
-                0.027_152_459_411_754_095,
-            ],
-        )),
-        _ => None,
-    }
-}
 
 pub(super) fn composite_gauss_legendre_grid(
     a: f64,
@@ -95,26 +11,7 @@ pub(super) fn composite_gauss_legendre_grid(
     order: usize,
     panels: usize,
 ) -> Option<Vec<(f64, f64)>> {
-    if panels == 0 || !(a.is_finite() && b.is_finite()) || b <= a {
-        return None;
-    }
-
-    let (xs, ws) = gl_nodes_weights(order)?;
-    let h = (b - a) / panels as f64;
-    let mut grid = Vec::with_capacity(xs.len() * panels);
-
-    for panel_idx in 0..panels {
-        let panel_start = a + panel_idx as f64 * h;
-        let panel_end = panel_start + h;
-        let half = 0.5 * (panel_end - panel_start);
-        let mid = panel_start + half;
-
-        for (x, w) in xs.iter().zip(ws.iter()) {
-            grid.push((mid + half * x, half * w));
-        }
-    }
-
-    Some(grid)
+    gauss_legendre_grid(a, b, order, panels).ok()
 }
 
 /// Fraction of the upper integration range whose absolute integrand mass is

@@ -92,7 +92,7 @@ impl Calendar {
     ///
     /// # Arguments
     ///
-    /// * `rule` - Rule supplied by the caller for this operation
+    /// * `rule` - Rule used by the algorithm, subject to the enclosing type invariants and documented units.
     pub const fn with_weekend_rule(mut self, rule: WeekendRule) -> Self {
         self.weekend_rule = rule;
         self

@@ -62,7 +62,7 @@ impl YieldPca {
     ///
     /// # Arguments
     ///
-    /// * `panel` - Panel supplied by the caller for this operation
+    /// * `panel` - Aligned feature panel whose observations are transformed.
     pub fn fit(panel: &YieldPanel) -> finstack_quant_core::Result<Self> {
         let n = panel.num_tenors();
         let t = panel.num_dates();
@@ -192,7 +192,7 @@ impl YieldPca {
     ///
     /// # Arguments
     ///
-    /// * `yield_changes` - Yield changes supplied by the caller for this operation
+    /// * `yield_changes` - Yield changes used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn fit_yield_changes(yield_changes: Vec<Vec<f64>>) -> finstack_quant_core::Result<Self> {
         let panel = YieldPanel::from_yield_changes(yield_changes)?;
         Self::fit(&panel)

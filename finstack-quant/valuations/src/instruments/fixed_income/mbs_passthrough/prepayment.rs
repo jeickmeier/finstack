@@ -137,7 +137,7 @@ impl AgencyPrepaymentModel {
     }
 
     /// Get base prepayment spec.
-    pub fn base_spec(&self) -> &PrepaymentModelSpec {
+    pub fn get_base_spec(&self) -> &PrepaymentModelSpec {
         &self.base_spec
     }
 

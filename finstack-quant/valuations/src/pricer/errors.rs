@@ -331,8 +331,8 @@ impl PricingError {
     ///
     /// # Arguments
     ///
-    /// * `err` - Err supplied by the caller for this operation
-    /// * `context` - Context supplied by the caller for this operation
+    /// * `err` - Err used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `context` - Market or evaluation context supplying dependencies required by the calculation.
     pub fn from_core(err: finstack_quant_core::Error, context: PricingErrorContext) -> Self {
         match err {
             finstack_quant_core::Error::Input(input) => match input {

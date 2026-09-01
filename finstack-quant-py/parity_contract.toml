@@ -986,7 +986,7 @@ public = [
     "PnlAttribution",
     "ReturnContributionResult",
     "attribute_pnl",
-    "attribute_pnl_from_spec",
+    "attribute_pnl_envelope_json",
     "attribute_return_contribution",
     "default_attribution_metrics",
     "default_waterfall_order",
@@ -1016,8 +1016,8 @@ js_export_file   = "../finstack-quant-wasm/exports/attribution.js"
 root_exports = [
     "AttributionParams",
     "attributePnl",
-    "attributePnlFromSpec",
     "attributePnlJson",
+    "attributePnlEnvelopeJson",
     "defaultAttributionMetrics",
     "defaultWaterfallOrder",
     "validateAttributionJson",
@@ -1037,7 +1037,7 @@ python_only = [
 
 [wasm_attribution_subset.python_js_map]
 attribute_pnl = "attributePnl"
-attribute_pnl_from_spec = "attributePnlFromSpec"
+attribute_pnl_envelope_json = "attributePnlEnvelopeJson"
 default_attribution_metrics = "defaultAttributionMetrics"
 default_waterfall_order = "defaultWaterfallOrder"
 validate_attribution_json = "validateAttributionJson"
@@ -1081,6 +1081,7 @@ utils            = { python = "finstack_quant.statements.utils",             sta
 
 [crates.statements.symbols]
 public = [
+    "AppliedAdjustment",
     "CheckReport",
     "CheckSuiteSpec",
     "EcfSweepSpec",
@@ -1096,13 +1097,15 @@ public = [
     "NodeId",
     "NodeType",
     "NormalizationConfig",
+    "NormalizationResult",
     "NumericMode",
     "PaymentClassSpec",
     "PikToggleSpec",
     "StatementResult",
     "WaterfallSpec",
     "normalize",
-    "parse_formula",
+    "normalize_json",
+    "parse_formula_text",
     "run_monte_carlo",
     "validate_formula",
 ]
@@ -1207,7 +1210,7 @@ public = [
     "compute_ecl_weighted",
     "compute_multiple",
     "credit_assessment",
-    "credit_assessment_report",
+    "credit_assessment_report_text",
     "dcf_sensitivity",
     "dependents",
     "direct_dependencies",
@@ -1220,7 +1223,7 @@ public = [
     "goal_seek",
     "peer_stats",
     "percentile_rank",
-    "pl_summary_report",
+    "pl_summary_report_text",
     "regression_fair_value",
     "render_check_report_html",
     "render_check_report_text",
@@ -1267,6 +1270,7 @@ root_exports = [
 # normalization pair, and the compiled `schema` submodule. WASM covers the
 # same Rust calls through its JSON-first root exports above.
 python_only = [
+    "AppliedAdjustment",
     "CheckReport",
     "CheckSuiteSpec",
     "EcfSweepSpec",
@@ -1282,17 +1286,19 @@ python_only = [
     "NodeId",
     "NodeType",
     "NormalizationConfig",
+    "NormalizationResult",
     "NumericMode",
     "PaymentClassSpec",
     "PikToggleSpec",
     "StatementResult",
     "WaterfallSpec",
     "normalize",
+    "normalize_json",
     "schema",
 ]
 
 [wasm_statements_subset.python_js_map]
-parse_formula = "parseFormulaText"
+parse_formula_text = "parseFormulaText"
 run_monte_carlo = "runMonteCarlo"
 validate_formula = "validateFormula"
 
@@ -1422,8 +1428,8 @@ evaluate_lbo = "evaluateLbo"
 wacc = "wacc"
 explain_formula = "explainFormula"
 explain_formula_text = "explainFormulaText"
-pl_summary_report = "plSummaryReportText"
-credit_assessment_report = "creditAssessmentReportText"
+pl_summary_report_text = "plSummaryReportText"
+credit_assessment_report_text = "creditAssessmentReportText"
 credit_assessment = "creditAssessment"
 run_checks = "runChecks"
 run_three_statement_checks = "runThreeStatementChecks"
@@ -1468,7 +1474,7 @@ public = [
     "rolling_regression_residual",
     "transform_cross_sectional",
     "transform_cross_sectional_grouped",
-    "transform_panel",
+    "transform_panel_json",
     "transform_timeseries",
     "transform_timeseries_pairwise",
 ]
@@ -1495,7 +1501,7 @@ root_exports = [
     "rollingRegressionResidual",
     "transformCrossSectional",
     "transformCrossSectionalGrouped",
-    "transformPanel",
+    "transformPanelJson",
     "transformTimeseries",
     "transformTimeseriesPairwise",
 ]
@@ -1510,7 +1516,7 @@ risk_scaled_weights = "riskScaledWeights"
 rolling_regression_residual = "rollingRegressionResidual"
 transform_cross_sectional = "transformCrossSectional"
 transform_cross_sectional_grouped = "transformCrossSectionalGrouped"
-transform_panel = "transformPanel"
+transform_panel_json = "transformPanelJson"
 transform_timeseries = "transformTimeseries"
 transform_timeseries_pairwise = "transformTimeseriesPairwise"
 
@@ -1640,7 +1646,7 @@ public = [
     "brinson_fachler",
     "brinson_fachler_json",
     "build_credit_vol_report",
-    "build_portfolio_from_spec",
+    "build_portfolio_from_spec_json",
     "campisi_attribution",
     "campisi_attribution_json",
     "campisi_carino_link",
@@ -1670,7 +1676,7 @@ public = [
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
-    "parse_portfolio_spec",
+    "parse_portfolio_spec_json",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
     "position_what_if",
@@ -1871,7 +1877,7 @@ Portfolio = [
 [wasm_portfolio_subset.python_js_map]
 InstrumentArtifactCache = "InstrumentArtifactCache"
 Portfolio = "Portfolio"
-parse_portfolio_spec = "parsePortfolioSpecJson"
+parse_portfolio_spec_json = "parsePortfolioSpecJson"
 brinson_fachler = "brinsonFachler"
 carino_link = "carinoLink"
 campisi_attribution = "campisiAttribution"
@@ -1887,7 +1893,7 @@ factor_brinson_attribution = "factorBrinsonAttribution"
 twrr_modified_dietz = "twrrModifiedDietz"
 twrr_linked = "twrrLinked"
 mwr_xirr = "mwrXirr"
-build_portfolio_from_spec = "buildPortfolioFromSpecJson"
+build_portfolio_from_spec_json = "buildPortfolioFromSpecJson"
 portfolio_result_total_value = "portfolioResultTotalValue"
 portfolio_result_get_metric = "portfolioResultGetMetric"
 aggregate_metrics = "aggregateMetrics"
@@ -2750,7 +2756,7 @@ instruments = [
     "TermLoan",
     "bondFromCashflowsJson",
     "instrumentCashflowsJson",
-    "instrumentCashflowsWithMarket",
+    "instrumentCashflowsWithMarketJson",
     "listModels",
     "listModelsGrouped",
     "listStandardMetrics",
@@ -2790,7 +2796,7 @@ fx = [
 # re-parsing market JSON per call; Python passes a typed MarketContext to the
 # base entry points instead, so no snake_case twins exist.
 instruments = [
-    "instrumentCashflowsWithMarket",
+    "instrumentCashflowsWithMarketJson",
     "priceInstrumentWithMarket",
 ]
 

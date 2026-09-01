@@ -393,7 +393,7 @@ impl VarianceSwap {
     }
 
     /// Get the discount curve ID for this variance swap.
-    pub fn discount_curve_id(&self) -> &CurveId {
+    pub fn get_discount_curve_id(&self) -> &CurveId {
         &self.discount_curve_id
     }
 

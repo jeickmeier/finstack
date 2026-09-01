@@ -425,7 +425,7 @@ pub fn goal_seek(
     // asked for the update; otherwise `model` is unchanged and the JSON is
     // wasted work + a confusing `updated_model_json` on non-updating calls.
     let out = if update_model {
-        let updated_json = serde_json::to_string_pretty(&model).map_err(to_js_err)?;
+        let updated_json = serde_json::to_string(&model).map_err(to_js_err)?;
         serde_json::json!({
             "solved_value": result,
             "updated_model_json": updated_json,
@@ -547,8 +547,6 @@ pub fn pl_summary_report_text(
     line_items: JsValue,
     periods: JsValue,
 ) -> Result<String, JsValue> {
-    use finstack_quant_statements_analytics::analysis::Report;
-
     let results: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(results_json).map_err(to_js_err)?;
     let items: Vec<String> = serde_wasm_bindgen::from_value(line_items).map_err(to_js_err)?;
@@ -570,11 +568,9 @@ pub fn pl_summary_report_text(
 /// Rejects malformed `results_json` or an `as_of` value that is not a valid
 /// statement period identifier.
 /// @param results_json - Evaluated statement-result JSON.
-/// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
+/// @param as_of - Statement period identifier, such as `2025Q4` or `2025A`.
 #[wasm_bindgen(js_name = creditAssessmentReportText)]
 pub fn credit_assessment_report_text(results_json: &str, as_of: &str) -> Result<String, JsValue> {
-    use finstack_quant_statements_analytics::analysis::Report;
-
     let results: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(results_json).map_err(to_js_err)?;
     let period: finstack_quant_core::dates::PeriodId = as_of.parse().map_err(to_js_err)?;
@@ -594,7 +590,7 @@ pub fn credit_assessment_report_text(results_json: &str, as_of: &str) -> Result<
 /// statement period identifier, or failure to serialize the assessment to
 /// JavaScript.
 /// @param results_json - Evaluated statement-result JSON.
-/// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
+/// @param as_of - Statement period identifier, such as `2025Q4` or `2025A`.
 #[wasm_bindgen(js_name = creditAssessment)]
 pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<JsValue, JsValue> {
     let results: finstack_quant_statements::evaluator::StatementResult =

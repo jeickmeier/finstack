@@ -20,7 +20,7 @@ use wasm_bindgen::prelude::*;
 
 /// Parse a canonical instrument envelope through the shared JSON-loader path.
 fn parse_envelope(json: &str) -> Result<InstrumentJson, JsValue> {
-    finstack_quant_valuations::pricer::json::parse_instrument_json(json).map_err(to_js_err)
+    finstack_quant_valuations::pricer::json::parse_instrument_from_json(json).map_err(to_js_err)
 }
 
 /// Typed wrapper for the Rust `Bond` instrument.

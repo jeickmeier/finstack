@@ -500,7 +500,7 @@ impl ScheduleImCalculator {
     ///
     /// # Arguments
     ///
-    /// * `asset_class` - Asset class supplied by the caller for this operation
+    /// * `asset_class` - SIMM asset class selecting the applicable schedule or risk weights.
     #[must_use]
     pub fn ngr_breakdown_key(asset_class: &ScheduleAssetClass) -> String {
         format!("{asset_class}_ngr")

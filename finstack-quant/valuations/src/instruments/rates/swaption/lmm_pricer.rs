@@ -226,16 +226,17 @@ impl BermudanSwaptionLmmPricer {
         let vol_values = vec![vol_row]; // single vol period (no breakpoints)
         let vol_times: Vec<f64> = vec![]; // empty => single period
 
-        LmmParams::try_new(
+        LmmParams {
             num_forwards,
-            2, // 2-factor model
+            num_factors: 2,
             tenors,
             accrual_factors,
             displacements,
             vol_times,
             vol_values,
             initial_forwards,
-        )
+        }
+        .validate()
         .map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })

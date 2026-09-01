@@ -12,6 +12,7 @@
 use std::collections::HashSet;
 
 use finstack_quant_core::math::NeumaierAccumulator;
+use finstack_quant_core::validation::validate_f64_non_negative;
 use finstack_quant_core::{Error, Result};
 
 const CONSERVATION_REL_TOLERANCE: f64 = 64.0 * f64::EPSILON;
@@ -109,7 +110,7 @@ pub fn allocate_recovery(
     estate_value: f64,
     claims: &[RecoveryClaim],
 ) -> Result<RecoveryWaterfallResult> {
-    validate_non_negative_finite("estate_value", estate_value)?;
+    validate_f64_non_negative(estate_value, "estate_value")?;
 
     let mut ordered = Vec::with_capacity(claims.len());
     let mut seen_ids = HashSet::new();
@@ -345,11 +346,11 @@ fn validate_claim(claim: &RecoveryClaim) -> Result<()> {
             "recovery claim seniority must not be empty",
         ));
     }
-    validate_non_negative_finite("principal", claim.principal)?;
-    validate_non_negative_finite("accrued", claim.accrued)?;
-    validate_non_negative_finite("penalties", claim.penalties)?;
+    validate_f64_non_negative(claim.principal, "principal")?;
+    validate_f64_non_negative(claim.accrued, "accrued")?;
+    validate_f64_non_negative(claim.penalties, "penalties")?;
     if let Some(collateral_value) = claim.collateral_value {
-        validate_non_negative_finite("collateral_value", collateral_value)?;
+        validate_f64_non_negative(collateral_value, "collateral_value")?;
     }
     if !claim.collateral_haircut.is_finite() || !(0.0..=1.0).contains(&claim.collateral_haircut) {
         return Err(validation_error(format!(
@@ -358,16 +359,6 @@ fn validate_claim(claim: &RecoveryClaim) -> Result<()> {
         )));
     }
     Ok(())
-}
-
-fn validate_non_negative_finite(field: &str, value: f64) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        Ok(())
-    } else {
-        Err(validation_error(format!(
-            "{field} must be finite and non-negative, got {value}"
-        )))
-    }
 }
 
 fn validation_error(message: impl Into<String>) -> Error {

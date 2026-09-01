@@ -73,7 +73,6 @@ pub enum FinalPayoffType {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = Autocallable::validate)]
 #[serde(deny_unknown_fields, try_from = "AutocallableUnchecked")]
 pub struct Autocallable {
     /// Unique instrument identifier

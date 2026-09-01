@@ -188,12 +188,12 @@ fn attach_host_error(host: &HostExecuteError) -> Result<JsValue, String> {
         let step_value = host
             .step_id
             .as_deref()
-            .map_or(JsValue::NULL, JsValue::from_str);
+            .map_or(JsValue::UNDEFINED, JsValue::from_str);
         let _ = js_sys::Reflect::set(&error, &JsValue::from_str("step_id"), &step_value);
         let solver_value = match host.solver_diagnostics.as_deref() {
             Some(json) => js_sys::JSON::parse(json)
                 .map_err(|_| "failed to parse serialized solver diagnostics".to_string())?,
-            None => JsValue::NULL,
+            None => JsValue::UNDEFINED,
         };
         let _ = js_sys::Reflect::set(
             &error,
@@ -210,7 +210,7 @@ fn attach_host_error(host: &HostExecuteError) -> Result<JsValue, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let _ = host;
-        Ok(JsValue::NULL)
+        Ok(JsValue::UNDEFINED)
     }
 }
 
@@ -306,7 +306,7 @@ mod tests {
         assert_eq!(details.stage.as_str(), "ingestion");
         assert_eq!(details.category, "strict_load");
         assert!(!details.cause.is_empty());
-        assert!(error.to_json().contains("\"stage\": \"ingestion\""));
+        assert!(error.to_json().contains("\"stage\":\"ingestion\""));
     }
 
     #[test]

@@ -35,8 +35,8 @@
 //     'solver_not_converged'
 //   - stage: 'ingestion', 'configuration', 'context', 'preflight', 'target',
 //     or 'solver'
-//   - step_id: offending step ID, or null for plan-wide failures
-//   - solver_diagnostics: structured fit diagnostics, or null when unavailable
+//   - step_id: offending step ID, or undefined for plan-wide failures
+//   - solver_diagnostics: structured fit diagnostics, or undefined when unavailable
 //   - details: JSON-serialized stable execution-error payload
 //   - cause: the same stable execution-error payload as a structured object
 // `kind` and `step_id` are independent: never use a step ID as the category.
@@ -1241,7 +1241,7 @@ export interface ForwardCurve extends WasmOwned {
   /**
    * Contractual projection boundaries, or `null` for legacy tenor stepping.
    */
-  readonly projectionGrid: Float64Array | null;
+  readonly projectionGrid: Float64Array | undefined;
   /**
    * Business days from fixing to spot.
    */
@@ -1301,7 +1301,7 @@ export interface ForwardCurveConstructor {
     dayCount?: string,
     interp?: string,
     extrapolation?: string,
-    projectionGrid?: NumericArray | null,
+    projectionGrid?: NumericArray,
     resetLag?: number | null
   ): ForwardCurve;
   /**
@@ -1348,7 +1348,7 @@ export interface ForwardCurveOptions {
   /**
    * Projection-grid specification that defines the curve's forward-rate intervals.
    */
-  projectionGrid?: NumericArray | null;
+  projectionGrid?: NumericArray;
   /**
    * Reset lag applied when projecting the index or forward rate.
    */
@@ -2951,7 +2951,7 @@ export declare class Performance {
    * Dates for one ticker's active return series as ISO date strings.
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @returns ISO-8601 dates for that ticker's active return series, in chronological order.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns.
    */
   activeDatesForTicker(tickerIdx: number): string[];
   /**
@@ -3216,7 +3216,7 @@ export declare class Performance {
    * Per-period simple returns for one asset, as decimal fractions (0.01 = +1%).
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @returns Simple decimal returns for the selected ticker, in date order.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns.
    */
   returnsForTicker(tickerIdx: number): Float64Array;
   /**
@@ -3303,7 +3303,7 @@ export declare class Performance {
    * @param window - Observation window length; defaults to 63 periods.
    * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
    * @returns `{ dates, alphas, betas }` series for the selected ticker.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingGreeks(tickerIdx: number, window?: number, riskFreeRate?: number): RollingGreeksResult;
   /**
@@ -3311,7 +3311,7 @@ export declare class Performance {
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @param window - Observation window length; defaults to 63 periods.
    * @returns `{ dates, volatility }` series for the selected ticker.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingVolatility(tickerIdx: number, window?: number): DatedSeries;
   /**
@@ -3320,7 +3320,7 @@ export declare class Performance {
    * @param window - Observation window length; defaults to 63 periods.
    * @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
    * @returns `{ dates, sortino }` series for the selected ticker.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingSortino(tickerIdx: number, window?: number, mar?: number): DatedSeries;
   /**
@@ -3329,7 +3329,7 @@ export declare class Performance {
    * @param window - Observation window length; defaults to 63 periods.
    * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
    * @returns `{ dates, sharpe }` series for the selected ticker.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingSharpe(tickerIdx: number, window?: number, riskFreeRate?: number): DatedSeries;
   /**
@@ -3337,7 +3337,7 @@ export declare class Performance {
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @param window - Positive number of observations to compound in each window.
    * @returns `{ dates, return }` series for the selected ticker.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created. A zero or overlong `window` returns an empty series rather than rejecting.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created. A zero or overlong `window` returns an empty series rather than rejecting.
    */
   rollingReturns(tickerIdx: number, window: number): DatedSeries;
   /**
@@ -3345,7 +3345,7 @@ export declare class Performance {
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @param n - Number of largest drawdown episodes to return; defaults to 5.
    * @returns Drawdown episode objects for the selected ticker, largest first.
-   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the drawdown details cannot be serialized to JavaScript.
+   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the drawdown details cannot be serialized to JavaScript.
    */
   drawdownDetails(tickerIdx: number, n?: number): DrawdownEpisode[];
   /**
@@ -3359,7 +3359,7 @@ export declare class Performance {
    * @param returnKind - `"excess"` or `"total"`; defaults to `"excess"`.
    * @param riskFreeRate - Annualized decimal risk-free rate used when `returnKind` is `"total"`; defaults to 0.0.
    * @returns `{ alpha, betas, r_squared, adjusted_r_squared, residual_vol }` for the selected ticker.
-   * @throws Error - Rejects a non-numeric `factor_returns` matrix, an unknown `returnKind`, an out-of-range `tickerIdx`, no factors, too few observations, non-finite or length-mismatched inputs, a singular factor design, or a result that cannot be serialized to JavaScript.
+   * @throws Error - Rejects a non-numeric `factor_returns` matrix, an unknown `returnKind`, an out-of-range `ticker_idx`, no factors, too few observations, non-finite or length-mismatched inputs, a singular factor design, or a result that cannot be serialized to JavaScript.
    */
   multiFactorGreeks(tickerIdx: number, factorReturns: NumericMatrix, returnKind?: string, riskFreeRate?: number): MultiFactorResult;
   /**
@@ -3389,7 +3389,7 @@ export declare class Performance {
    * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12.
    * @param fiscalYearStartDay - Optional fiscal-year start day within the selected month.
    * @returns Period statistics object for the selected ticker at the requested frequency.
-   * @throws Error - Rejects an unsupported `aggregation_frequency`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an out-of-range `tickerIdx`, or period statistics that cannot be serialized to JavaScript.
+   * @throws Error - Rejects an unsupported `aggregation_frequency`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an out-of-range `ticker_idx`, or period statistics that cannot be serialized to JavaScript.
    */
   periodStats(
     tickerIdx: number,
@@ -3475,7 +3475,12 @@ export declare class CreditFactorModel {
    */
   static fromJson(s: string): CreditFactorModel;
   /**
-   * Serialize to pretty-printed JSON.
+   * Exact namespaced credit-factor-model schema marker.
+   * @returns The string `"finstack_quant.credit_factor_model/1"`.
+   */
+  readonly schema: string;
+  /**
+   * Serialize to compact canonical JSON.
    * @returns Canonical JSON string.
    * @throws Error - Throws a JavaScript exception if the model cannot be serialized to JSON.
    */
@@ -3520,7 +3525,41 @@ export declare class CreditCalibrator {
 export declare class LevelsAtDate {
   private constructor();
   /**
-   * Serialize the snapshot to pretty-printed JSON.
+   * Deserialize a hierarchy-level snapshot from canonical JSON.
+   * @param json - Canonical `LevelsAtDate` JSON containing `date`, `generic`, `by_level`, and `adder` fields.
+   * @param json - Canonical `LevelsAtDate` JSON.
+   * @returns A validated `LevelsAtDate` handle.
+   * @throws Error - Throws when the JSON is malformed or a numeric field is non-finite.
+   */
+  static fromJson(json: string): LevelsAtDate;
+  /**
+   * Observation date as an ISO-8601 string.
+   */
+  readonly date: string;
+  /**
+   * Generic factor level in basis points.
+   */
+  readonly generic: number;
+  /**
+   * Number of hierarchy levels.
+   */
+  readonly nLevels: number;
+  /**
+   * Return bucket values for a zero-based hierarchy level.
+   * @param levelIndex - Zero-based hierarchy level index, which must be less than `nLevels`.
+   * @param levelIndex - Zero-based hierarchy level index.
+   * @returns A bucket-name to factor-level mapping in basis points.
+   * @throws Error - Throws when `level_index` is outside the available levels or the map cannot be converted to a JavaScript object.
+   */
+  levelValues(levelIndex: number): Record<string, number>;
+  /**
+   * Return per-issuer residual adders in basis points.
+   * @returns An issuer-ID to residual-adder mapping.
+   * @throws Error - Throws when the mapping cannot be converted to a JavaScript object.
+   */
+  adder(): Record<string, number>;
+  /**
+   * Serialize the snapshot to compact canonical JSON.
    * @returns Canonical JSON string.
    * @throws Error - Throws if any numeric output field is non-finite (NaN/Inf), naming the offending field instead of silently serializing `null`.
    */
@@ -3539,7 +3578,45 @@ export declare class LevelsAtDate {
 export declare class PeriodDecomposition {
   private constructor();
   /**
-   * Serialize the decomposition to pretty-printed JSON.
+   * Deserialize a period decomposition from canonical JSON.
+   * @param json - Canonical `PeriodDecomposition` JSON containing `from`, `to`, `d_generic`, `by_level`, and `d_adder` fields.
+   * @param json - Canonical `PeriodDecomposition` JSON.
+   * @returns A validated `PeriodDecomposition` handle.
+   * @throws Error - Throws when the JSON is malformed or a numeric field is non-finite.
+   */
+  static fromJson(json: string): PeriodDecomposition;
+  /**
+   * Earlier snapshot date as an ISO-8601 string.
+   */
+  readonly fromDate: string;
+  /**
+   * Later snapshot date as an ISO-8601 string.
+   */
+  readonly toDate: string;
+  /**
+   * Change in the generic factor in basis points.
+   */
+  readonly dGeneric: number;
+  /**
+   * Number of hierarchy levels.
+   */
+  readonly nLevels: number;
+  /**
+   * Return bucket deltas for a zero-based hierarchy level.
+   * @param levelIndex - Zero-based hierarchy level index, which must be less than `nLevels`.
+   * @param levelIndex - Zero-based hierarchy level index.
+   * @returns A bucket-name to factor-change mapping in basis points.
+   * @throws Error - Throws when `level_index` is outside the available levels or the map cannot be converted to a JavaScript object.
+   */
+  levelDeltas(levelIndex: number): Record<string, number>;
+  /**
+   * Return per-issuer residual-adder deltas in basis points.
+   * @returns An issuer-ID to residual-adder-change mapping.
+   * @throws Error - Throws when the mapping cannot be converted to a JavaScript object.
+   */
+  dAdder(): Record<string, number>;
+  /**
+   * Serialize the decomposition to compact canonical JSON.
    * @returns Canonical JSON string.
    * @throws Error - Throws if any numeric output field is non-finite (NaN/Inf), naming the offending field instead of silently serializing `null`.
    */
@@ -4200,7 +4277,7 @@ export interface FeaturesNamespace {
    * @param specJson - Canonical panel-transformation JSON. Each operation may set optional `input` (`undefined` default: previous column, or raw `values` for the first op).
    * @throws Error - Rejects malformed JSON or panel specifications, blank, reserved (`values`), or duplicate operation names, unknown `input` columns, missing partition columns, unequal row counts, malformed operation parameters, operations that cannot be evaluated, or a result that cannot be serialized to JSON.
    */
-  transformPanel(specJson: string): string;
+  transformPanelJson(specJson: string): string;
 }
 
 /**
@@ -5564,7 +5641,7 @@ export interface ValuationInstrumentsNamespace {
    * @param model - Must be `"discounting"` or `"hazard_rate"`; `"default"` is not accepted.
    * @throws Error - Throws a JavaScript exception if `instrumentJson` or `asOf` is invalid, `model` is unsupported or incompatible with the instrument, required curves are missing, the schedule mixes currencies, canonical pricing fails, or the cash-flow envelope cannot be serialized.
    */
-  instrumentCashflowsWithMarket(
+  instrumentCashflowsWithMarketJson(
     instrumentJson: string,
     market: Market,
     asOf: string,
@@ -7461,7 +7538,7 @@ export interface LiquidityNamespace {
    * @param permanentImpactCoef - Non-negative finite multiplier on permanent impact.
    * @param temporaryImpactCoef - Positive finite multiplier on temporary impact.
    * @param referencePrice - Optional positive finite price for notional and basis-point scaling.
-   * @returns The canonical `ImpactEstimate` fields.
+   * @returns Permanent, temporary, total, basis-point, and execution-risk impact fields.
    * @throws Error - Throws a JavaScript exception if an input violates the stated finiteness, sign, or range contract, calculation fails, or conversion fails.
    */
   almgrenChrissImpact(
@@ -8330,7 +8407,7 @@ export interface AttributionNamespace {
    * @param specJson - JSON-serialized AttributionParams specification to validate and execute.
    * @throws Error - Rejects malformed, schema-incompatible, or unsupported-version `spec_json`; instrument or market reconstruction, pricing, FX, rounding, metric, or method-specific attribution failures; a caught parse or execution panic; or failure to serialize the result envelope.
    */
-  attributePnlFromSpec(specJson: string): string;
+  attributePnlEnvelopeJson(specJson: string): string;
   /**
    * Validate an attribution specification JSON.
    *
@@ -9028,7 +9105,7 @@ export interface StatementsAnalyticsNamespace {
    * Generate a credit assessment report as formatted text.
    * @returns Returns a human-readable text report, not JSON.
    * @param resultsJson - Evaluated statement-result JSON.
-   * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
+   * @param asOf - Statement period identifier, such as `2025Q4` or `2025A`.
    * @throws Error - Rejects malformed `results_json` or an `as_of` value that is not a valid statement period identifier.
    */
   creditAssessmentReportText(resultsJson: string, asOf: string): string;
@@ -9036,7 +9113,7 @@ export interface StatementsAnalyticsNamespace {
    * Compute a credit assessment from statement results (JSON in/out).
    * @returns Credit-assessment result object from the statement results.
    * @param resultsJson - Evaluated statement-result JSON.
-   * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
+   * @param asOf - Statement period identifier, such as `2025Q4` or `2025A`.
    * @throws Error - Rejects malformed `results_json`, an `as_of` value that is not a valid statement period identifier, or failure to serialize the assessment to JavaScript.
    */
   creditAssessment(resultsJson: string, asOf: string): Record<string, unknown>;

@@ -87,7 +87,7 @@ impl PySimmSensitivities {
 
     /// Serialize to a JSON string.
     fn to_json(&self) -> PyResult<String> {
-        self.inner.to_json_pretty().map_err(core_to_py)
+        self.inner.to_json().map_err(core_to_py)
     }
 
     /// Add an interest-rate delta sensitivity (DV01-style currency amount).

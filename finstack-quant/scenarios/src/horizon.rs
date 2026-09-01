@@ -269,10 +269,10 @@ impl HorizonAnalysis {
     ///
     /// # Arguments
     ///
-    /// * `instrument` - Instrument supplied by the caller for this operation
-    /// * `market_t0` - Market t0 supplied by the caller for this operation
-    /// * `as_of_t0` - As of t0 supplied by the caller for this operation
-    /// * `scenario` - Scenario supplied by the caller for this operation
+    /// * `instrument` - Instrument whose cash flows, dependencies, or value are evaluated.
+    /// * `market_t0` - Opening market snapshot used as the attribution or scenario baseline.
+    /// * `as_of_t0` - Opening ISO-8601 valuation date for the attribution interval.
+    /// * `scenario` - Scenario definition applied to the baseline model or market state.
     pub fn compute(
         &self,
         instrument: &Arc<dyn Instrument>,

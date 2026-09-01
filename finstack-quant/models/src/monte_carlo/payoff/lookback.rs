@@ -112,11 +112,11 @@ impl Lookback {
     ///
     /// # Arguments
     ///
-    /// * `direction` - Direction supplied by the caller for this operation
+    /// * `direction` - Payoff direction selecting call/upside or put/downside behavior.
     /// * `strike` - Option strike in the surface's quote units (absolute or relative)
     /// * `notional` - Trade notional amount in the instrument currency's major units
-    /// * `maturity_step` - Maturity step supplied by the caller for this operation
-    /// * `initial_extremum` - Initial extremum supplied by the caller for this operation
+    /// * `maturity_step` - Zero-based simulation step at which the payoff matures.
+    /// * `initial_extremum` - Observed pre-simulation extremum in underlying price units.
     pub fn with_initial_extremum(
         direction: LookbackDirection,
         strike: f64,
@@ -215,8 +215,8 @@ impl FloatingStrikeLookbackCall {
     /// # Arguments
     ///
     /// * `notional` - Trade notional amount in the instrument currency's major units
-    /// * `maturity_step` - Maturity step supplied by the caller for this operation
-    /// * `initial_min` - Initial min supplied by the caller for this operation
+    /// * `maturity_step` - Zero-based simulation step at which the payoff matures.
+    /// * `initial_min` - Observed pre-simulation minimum in underlying price units.
     pub fn with_initial_min(notional: f64, maturity_step: usize, initial_min: f64) -> Self {
         Self {
             notional,
@@ -309,8 +309,8 @@ impl FloatingStrikeLookbackPut {
     /// # Arguments
     ///
     /// * `notional` - Trade notional amount in the instrument currency's major units
-    /// * `maturity_step` - Maturity step supplied by the caller for this operation
-    /// * `initial_max` - Initial max supplied by the caller for this operation
+    /// * `maturity_step` - Zero-based simulation step at which the payoff matures.
+    /// * `initial_max` - Observed pre-simulation maximum in underlying price units.
     pub fn with_initial_max(notional: f64, maturity_step: usize, initial_max: f64) -> Self {
         Self {
             notional,

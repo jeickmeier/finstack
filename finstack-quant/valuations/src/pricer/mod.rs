@@ -36,11 +36,11 @@ pub use errors::{PricingError, PricingErrorContext};
 pub use json::{
     instrument_envelope_from_spec, list_models, list_models_grouped, list_standard_metrics,
     list_standard_metrics_grouped, metric_value, metric_value_from_instrument_json,
-    parse_boxed_instrument_json, parse_instrument_json, parse_model_key, present_metric_values,
-    present_metric_values_from_instrument_json, present_standard_option_greeks,
-    present_standard_option_greeks_from_instrument_json, pretty_instrument_json, price_instrument,
-    price_instrument_json, validate_instrument_json, validate_typed_instrument_json,
-    JsonPricingRequest, ParsedInstrument, STANDARD_OPTION_GREEKS,
+    parse_boxed_instrument_from_json, parse_instrument_from_json, parse_model_key,
+    present_metric_values, present_metric_values_from_instrument_json,
+    present_standard_option_greeks, present_standard_option_greeks_from_instrument_json,
+    pretty_instrument_json, price_instrument, price_instrument_from_json, validate_instrument_json,
+    validate_typed_instrument_json, JsonPricingRequest, ParsedInstrument, STANDARD_OPTION_GREEKS,
 };
 pub use keys::{InstrumentType, ModelKey, PricerKey};
 pub use registry::{expect_inst, Pricer, PricerRegistry, PricingDispatch};

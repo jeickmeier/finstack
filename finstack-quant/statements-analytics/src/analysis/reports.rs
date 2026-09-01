@@ -20,26 +20,23 @@
 //! let line_items = vec!["revenue", "cogs"];
 //! let periods = vec![PeriodId::quarter(2025, 1)];
 //! let report = PLSummaryReport::new(&results, line_items, periods);
-//! println!("{}", report.to_string());
+//! println!("{report}");
 //! ```
 
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::evaluator::StatementResult;
 use serde::Serialize;
-use std::fmt::Write as FmtWrite;
+use std::fmt::{self, Write as FmtWrite};
 
 // Report Trait
 
 /// Core reporting trait.
 ///
 /// Implement this trait to provide multiple output formats for a report.
-pub trait Report {
-    /// Convert report to string format.
-    fn to_string(&self) -> String;
-
+pub trait Report: fmt::Display {
     /// Print report to stdout.
     fn print(&self) {
-        println!("{}", self.to_string());
+        println!("{self}");
     }
 
     /// Convert report to Markdown format.
@@ -318,7 +315,7 @@ impl Default for TableBuilder {
 /// # let mut evaluator = Evaluator::new();
 /// # let results = evaluator.evaluate(&model)?;
 /// let report = PLSummaryReport::new(&results, vec!["revenue", "cogs"], vec![period]);
-/// println!("{}", report.to_string());
+/// println!("{report}");
 /// # Ok(())
 /// # }
 /// ```
@@ -349,8 +346,8 @@ impl<'a> PLSummaryReport<'a> {
     }
 }
 
-impl Report for PLSummaryReport<'_> {
-    fn to_string(&self) -> String {
+impl fmt::Display for PLSummaryReport<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut table = TableBuilder::new();
 
         // Header row with periods
@@ -374,9 +371,11 @@ impl Report for PLSummaryReport<'_> {
             table.add_row(row);
         }
 
-        format!("P&L Summary\n\n{}", table.build())
+        write!(formatter, "P&L Summary\n\n{}", table.build())
     }
 }
+
+impl Report for PLSummaryReport<'_> {}
 
 // Shared credit metric helpers
 
@@ -539,7 +538,7 @@ impl CreditAssessment {
 /// # let mut evaluator = Evaluator::new();
 /// # let results = evaluator.evaluate(&model)?;
 /// let report = CreditAssessmentReport::new(&results, period);
-/// println!("{}", report.to_string());
+/// println!("{report}");
 /// # Ok(())
 /// # }
 /// ```
@@ -563,8 +562,8 @@ impl<'a> CreditAssessmentReport<'a> {
     }
 }
 
-impl Report for CreditAssessmentReport<'_> {
-    fn to_string(&self) -> String {
+impl fmt::Display for CreditAssessmentReport<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut output = format!("Credit Assessment as of {}\n\n", self.as_of);
 
         if let Some(leverage) = self.calculate_leverage_ratio() {
@@ -582,9 +581,11 @@ impl Report for CreditAssessmentReport<'_> {
             ));
         }
 
-        output
+        formatter.write_str(&output)
     }
 }
+
+impl Report for CreditAssessmentReport<'_> {}
 
 #[cfg(test)]
 mod tests {
@@ -665,7 +666,7 @@ mod tests {
             .insert(q1, 1234.5);
 
         let report = PLSummaryReport::new(&results, vec!["revenue"], vec![q1, q2]);
-        let output = Report::to_string(&report);
+        let output = report.to_string();
 
         assert!(
             output.contains("1234.50"),

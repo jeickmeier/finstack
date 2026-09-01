@@ -52,8 +52,8 @@ impl TreeCompounding {
     ///
     /// # Arguments
     ///
-    /// * `rate` - Rate supplied by the caller for this operation
-    /// * `dt` - Dt supplied by the caller for this operation
+    /// * `rate` - Rate applied by the operation; representation and compounding follow the receiving type convention.
+    /// * `dt` - Positive time-step width in year-fraction units.
     #[inline]
     pub fn df(self, rate: f64, dt: f64) -> f64 {
         const FLOOR: f64 = 1e-15;
@@ -383,7 +383,7 @@ impl ShortRateTreeConfig {
     ///
     /// # Arguments
     ///
-    /// * `steps` - Steps supplied by the caller for this operation
+    /// * `steps` - Steps used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn default_bdt(steps: usize) -> Self {
         Self::bdt(steps, DEFAULT_LOGNORMAL_VOL, 0.0)
     }

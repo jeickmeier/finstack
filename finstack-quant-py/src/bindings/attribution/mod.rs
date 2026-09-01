@@ -12,7 +12,7 @@ pub(crate) use pnl_attribution::PyPnlAttribution;
 pub(crate) use return_contribution::PyReturnContributionResult;
 
 use entry::{
-    attribute_pnl, attribute_pnl_from_spec, attribute_return_contribution,
+    attribute_pnl, attribute_pnl_envelope_json, attribute_return_contribution,
     default_attribution_metrics, default_waterfall_order, validate_attribution_json,
     validate_return_contribution_json,
 };
@@ -26,7 +26,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPnlAttribution>()?;
     m.add_class::<PyReturnContributionResult>()?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_pnl, &m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(attribute_pnl_from_spec, &m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(attribute_pnl_envelope_json, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_return_contribution, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(validate_attribution_json, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(
@@ -43,7 +43,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "PnlAttribution",
             "ReturnContributionResult",
             "attribute_pnl",
-            "attribute_pnl_from_spec",
+            "attribute_pnl_envelope_json",
             "attribute_return_contribution",
             "default_attribution_metrics",
             "default_waterfall_order",

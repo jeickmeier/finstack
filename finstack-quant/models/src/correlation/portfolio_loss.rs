@@ -10,6 +10,7 @@ use std::collections::HashSet;
 
 use super::{Copula, CopulaSpec, RecoveryModel, RecoverySpec};
 use finstack_quant_core::math::{standard_normal_inv_cdf, student_t_inv_cdf, NeumaierAccumulator};
+use finstack_quant_core::validation::{validate_f64_non_negative, validate_f64_unit_interval};
 use finstack_quant_core::{Error, Result};
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::RandomStream;
@@ -130,7 +131,7 @@ impl PortfolioLossResult {
     ///
     /// # Arguments
     ///
-    /// * `losses` - Losses supplied by the caller for this operation
+    /// * `losses` - Loss observations in portfolio-value units used by the risk calculation.
     /// * `confidence` - Tail confidence level in (0.5, 1), for example 0.99 for 99% VaR
     pub fn from_losses(losses: Vec<f64>, confidence: f64) -> Result<Self> {
         validate_confidence(confidence)?;
@@ -239,8 +240,8 @@ impl PortfolioLossResult {
         detachment: f64,
         pool_notional: f64,
     ) -> Result<TrancheLossStatistics> {
-        validate_unit_interval("tranche attachment", attachment)?;
-        validate_unit_interval("tranche detachment", detachment)?;
+        validate_f64_unit_interval(attachment, "tranche attachment")?;
+        validate_f64_unit_interval(detachment, "tranche detachment")?;
         if attachment >= detachment {
             return Err(validation_error(format!(
                 "tranche attachment must be strictly below detachment, got {attachment} >= {detachment}"
@@ -546,9 +547,9 @@ fn validate_exposures(exposures: &[CreditExposure]) -> Result<Vec<f64>> {
                 "duplicate credit exposure id after trimming: '{trimmed_id}'"
             )));
         }
-        validate_non_negative_finite("notional", exposure.notional)?;
-        validate_unit_interval("default_probability", exposure.default_probability)?;
-        validate_unit_interval("lgd", exposure.lgd)?;
+        validate_f64_non_negative(exposure.notional, "notional")?;
+        validate_f64_unit_interval(exposure.default_probability, "default_probability")?;
+        validate_f64_unit_interval(exposure.lgd, "lgd")?;
         if exposure.factor_loadings.is_empty() {
             return Err(validation_error(format!(
                 "credit exposure '{}' must have at least one factor loading",
@@ -595,26 +596,6 @@ fn validate_confidence(confidence: f64) -> Result<()> {
     } else {
         Err(validation_error(format!(
             "portfolio loss confidence must be finite and strictly between 0 and 1, got {confidence}"
-        )))
-    }
-}
-
-fn validate_non_negative_finite(field: &str, value: f64) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        Ok(())
-    } else {
-        Err(validation_error(format!(
-            "{field} must be finite and non-negative, got {value}"
-        )))
-    }
-}
-
-fn validate_unit_interval(field: &str, value: f64) -> Result<()> {
-    if value.is_finite() && (0.0..=1.0).contains(&value) {
-        Ok(())
-    } else {
-        Err(validation_error(format!(
-            "{field} must be finite and in [0, 1], got {value}"
         )))
     }
 }

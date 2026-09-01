@@ -372,9 +372,9 @@ pub fn neutralize_and_zscore(
 /// columns, unequal row counts, malformed operation parameters, operations
 /// that cannot be evaluated, or a result that cannot be serialized to JSON.
 /// @param spec_json - Canonical panel-transformation JSON. Each operation may set optional `input` (`undefined` default: previous column, or raw `values` for the first op).
-#[wasm_bindgen(js_name = transformPanel)]
-pub fn transform_panel(spec_json: &str) -> Result<String, JsValue> {
-    finstack_quant_features::transform_panel(spec_json).map_err(to_js_err)
+#[wasm_bindgen(js_name = transformPanelJson)]
+pub fn transform_panel_json(spec_json: &str) -> Result<String, JsValue> {
+    finstack_quant_features::transform_panel_json(spec_json).map_err(to_js_err)
 }
 
 fn parse_params(params: Option<JsValue>) -> Result<Option<Value>, JsValue> {

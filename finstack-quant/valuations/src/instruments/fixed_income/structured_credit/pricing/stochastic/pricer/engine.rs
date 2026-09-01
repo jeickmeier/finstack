@@ -1263,7 +1263,7 @@ impl ScenarioCollector {
             ));
         }
         Ok(Self {
-            currency: instrument.pool.base_currency(),
+            currency: instrument.pool.get_base_currency(),
             num_paths,
             antithetic,
             deal_pv_stats: OnlineStats::new(),

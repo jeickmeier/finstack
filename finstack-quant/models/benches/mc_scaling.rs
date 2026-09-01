@@ -23,7 +23,9 @@ use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
 use finstack_quant_models::monte_carlo::pricer::european::EuropeanPricer;
 use finstack_quant_models::monte_carlo::pricer::lsmc::{AmericanPut, LsmcConfig, LsmcPricer};
 use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
-use finstack_quant_models::monte_carlo::process::rough_heston::{RoughHestonParams, RoughHestonProcess};
+use finstack_quant_models::monte_carlo::process::rough_heston::{
+    RoughHestonParams, RoughHestonProcess,
+};
 use finstack_quant_models::monte_carlo::rng::fbm::FractionalNoiseGenerator;
 use finstack_quant_models::monte_carlo::rng::volterra::RiemannLiouvilleVolterra;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
@@ -171,8 +173,18 @@ fn scaling_rough_heston_steps(c: &mut Criterion) {
             .collect();
         let dt = t_max / num_steps as f64;
         let hurst = HurstExponent::new(0.1).expect("valid hurst");
-        let params = RoughHestonParams::new(0.03, 0.0, hurst, 2.0, 0.04, 0.3, -0.7, 0.04)
-            .expect("valid rough Heston params");
+        let params = RoughHestonParams {
+            r: 0.03,
+            q: 0.0,
+            hurst: hurst,
+            kappa: 2.0,
+            theta: 0.04,
+            sigma_v: 0.3,
+            rho: -0.7,
+            v0: 0.04,
+        }
+        .validate()
+        .expect("valid rough Heston params");
         let process = RoughHestonProcess::new(params);
         let scheme = RoughHestonHybrid::new(&times, 0.1).expect("valid scheme");
         let work_size = 2 * num_steps + 1;

@@ -36,7 +36,7 @@ impl MetricCalculator for Dv01Calculator {
                 .calculate(context);
             }
             let bump_bp = sens_config::from_context_or_default(
-                context.config(),
+                context.get_config(),
                 context.get_metric_overrides(),
             )?
             .rate_bump_bp;
@@ -58,9 +58,11 @@ impl MetricCalculator for Dv01Calculator {
             .calculate(context);
         }
 
-        let bump_bp =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
-                .rate_bump_bp;
+        let bump_bp = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?
+        .rate_bump_bp;
 
         let discount_id = &cap_floor.discount_curve_id;
         let forward_id = &cap_floor.forward_curve_id;

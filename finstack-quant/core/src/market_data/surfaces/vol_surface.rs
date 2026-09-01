@@ -229,6 +229,7 @@ impl VolSurface {
     ///
     /// * `id` - Stable identifier used for market-context lookup and
     ///   serialization.
+    #[must_use]
     pub fn builder(id: impl Into<CurveId>) -> VolSurfaceBuilder {
         VolSurfaceBuilder {
             id: id.into(),
@@ -298,7 +299,7 @@ impl VolSurface {
     ///
     /// # Arguments
     ///
-    /// * `interpolation_mode` - Interpolation mode supplied by the caller for this operation
+    /// * `interpolation_mode` - Interpolation policy used between volatility grid nodes.
     #[must_use]
     pub fn with_interpolation_mode(mut self, interpolation_mode: VolInterpolationMode) -> Self {
         self.interpolation_mode = interpolation_mode;
@@ -336,7 +337,7 @@ impl VolSurface {
     ///
     /// # Arguments
     ///
-    /// * `expected` - Expected supplied by the caller for this operation
+    /// * `expected` - Expected dimension or reference value used for validation.
     pub fn require_quote_type(&self, expected: VolQuoteType) -> crate::Result<()> {
         if self.quote_type == expected {
             return Ok(());
@@ -515,7 +516,7 @@ impl VolSurface {
     ///
     /// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
     /// * `strike` - Option strike in the surface's quote units (absolute or relative)
-    /// * `original_vol` - Original vol supplied by the caller for this operation
+    /// * `original_vol` - Original annualized volatility restored after the temporary bump.
     pub fn unbump_point_in_place(&mut self, expiry: f64, strike: f64, original_vol: f64) {
         let clamped_expiry = match (self.expiries.first(), self.expiries.last()) {
             (Some(&min), Some(&max)) => expiry.clamp(min, max),
@@ -824,10 +825,10 @@ impl VolSurface {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `expiries` - Expiries supplied by the caller for this operation
-    /// * `strikes` - Strikes supplied by the caller for this operation
-    /// * `vols_row_major` - Vols row major supplied by the caller for this operation
-    /// * `opts` - Opts supplied by the caller for this operation
+    /// * `expiries` - Strictly increasing option expiries in year-fraction units.
+    /// * `strikes` - Strictly ordered strike coordinates in underlying price units.
+    /// * `vols_row_major` - Annualized decimal volatilities flattened in expiry-major row order.
+    /// * `opts` - Options controlling validation, interpolation, or execution behavior.
     pub fn from_grid_opts(
         id: impl AsRef<str>,
         expiries: &[f64],
@@ -876,9 +877,9 @@ impl VolSurface {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `expiries` - Expiries supplied by the caller for this operation
-    /// * `strikes` - Strikes supplied by the caller for this operation
-    /// * `vols_row_major` - Vols row major supplied by the caller for this operation
+    /// * `expiries` - Strictly increasing option expiries in year-fraction units.
+    /// * `strikes` - Strictly ordered strike coordinates in underlying price units.
+    /// * `vols_row_major` - Annualized decimal volatilities flattened in expiry-major row order.
     pub fn from_grid(
         id: impl AsRef<str>,
         expiries: &[f64],

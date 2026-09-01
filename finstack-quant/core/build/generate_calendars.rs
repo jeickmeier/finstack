@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize)]
 struct CalendarDef {
@@ -365,6 +365,7 @@ pub(crate) fn generate() -> io::Result<()> {
 
     // Collect all calendar definitions
     let mut calendars = BTreeMap::new();
+    let mut calendar_sources: BTreeMap<String, PathBuf> = BTreeMap::new();
 
     for entry in fs::read_dir(calendar_dir)? {
         let path = entry?.path();
@@ -376,6 +377,18 @@ pub(crate) fn generate() -> io::Result<()> {
                     format!("Failed to parse {}: {}", path.display(), e),
                 )
             })?;
+            if let Some(previous_path) = calendar_sources.get(&cal.id) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Duplicate calendar id '{}': {} and {}",
+                        cal.id,
+                        previous_path.display(),
+                        path.display()
+                    ),
+                ));
+            }
+            calendar_sources.insert(cal.id.clone(), path.clone());
             calendars.insert(cal.id.to_owned(), cal);
         }
     }

@@ -5,7 +5,7 @@ use crate::golden::schema::{Body, GoldenFixture, Market, SCHEMA};
 use finstack_quant_calibration::api::schema::CalibrationEnvelope;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::metrics::MetricId;
-use finstack_quant_valuations::pricer::parse_boxed_instrument_json;
+use finstack_quant_valuations::pricer::parse_boxed_instrument_from_json;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -244,7 +244,7 @@ fn validate_pricing_body(fixture: &GoldenFixture) -> Result<(), String> {
     validate_swaption_underlying_tenor(&pricing.instrument)?;
     let instrument_json = serde_json::to_string(&pricing.instrument)
         .map_err(|err| format!("serialize instrument: {err}"))?;
-    parse_boxed_instrument_json(&instrument_json, None)
+    parse_boxed_instrument_from_json(&instrument_json, None)
         .map_err(|err| format!("instrument is not a valid instrument: {err}"))?;
 
     for metric in requested_metrics(fixture) {
@@ -730,7 +730,7 @@ fn stripped_default_instrument_parse_error(path: &Path) -> Option<String> {
         Err(err) => return Some(format!("serialize stripped instrument: {err}")),
     };
 
-    parse_boxed_instrument_json(&instrument_json, None)
+    parse_boxed_instrument_from_json(&instrument_json, None)
         .err()
         .map(|err| format!("stripped default instrument inputs failed to parse: {err}"))
 }

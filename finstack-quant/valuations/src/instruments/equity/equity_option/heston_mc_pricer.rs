@@ -5,7 +5,7 @@
 //! scheme.
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::equity::equity_option::pricer::{
+use crate::instruments::equity::equity_option::pricing::{
     collect_inputs_extended, require_european, resolve_lifecycle_value,
 };
 use crate::instruments::equity::equity_option::types::EquityOption;

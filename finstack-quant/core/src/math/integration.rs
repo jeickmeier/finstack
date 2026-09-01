@@ -890,6 +890,48 @@ where
     Ok(acc * half)
 }
 
+/// Build a composite Gauss-Legendre grid over a finite interval.
+///
+/// Each returned pair contains an integration abscissa and its fully scaled
+/// weight. Summing `weight * f(abscissa)` therefore evaluates the composite
+/// rule without a second panel-width factor.
+///
+/// # Arguments
+///
+/// * `a` - Finite lower integration bound.
+/// * `b` - Finite upper integration bound, strictly greater than `a`.
+/// * `order` - Nodes per panel; supported values are 2, 4, 8, and 16.
+/// * `panels` - Positive number of equal-width panels.
+///
+/// # Errors
+///
+/// Returns [`InputError::Invalid`] when either bound is non-finite, the
+/// interval is empty or reversed, `panels` is zero, or `order` is unsupported.
+pub fn gauss_legendre_grid(
+    a: f64,
+    b: f64,
+    order: usize,
+    panels: usize,
+) -> Result<Vec<(f64, f64)>, Error> {
+    if panels == 0 || !(a.is_finite() && b.is_finite()) || b <= a {
+        return Err(InputError::Invalid.into());
+    }
+    let (nodes, weights) = gl_nodes_weights(order)?;
+    let width = (b - a) / panels as f64;
+    let half = 0.5 * width;
+    let mut grid = Vec::with_capacity(nodes.len() * panels);
+    for panel in 0..panels {
+        let midpoint = a + (panel as f64 + 0.5) * width;
+        grid.extend(
+            nodes
+                .iter()
+                .zip(weights)
+                .map(|(&node, &weight)| (midpoint + half * node, half * weight)),
+        );
+    }
+    Ok(grid)
+}
+
 /// Composite Gauss–Legendre over \[a,b\] using `panels` sub-intervals.
 ///
 /// Divides the integration interval into `panels` equal sub-intervals and applies

@@ -201,7 +201,7 @@ impl SobolRng {
     ///
     /// # Arguments
     ///
-    /// * `buf` - Buf supplied by the caller for this operation
+    /// * `buf` - Caller-owned output buffer, which must have the documented minimum length.
     pub fn fill_point(&mut self, buf: &mut [f64]) {
         for (d, slot) in buf.iter_mut().enumerate().take(self.dimension) {
             let value = self.state[d];
@@ -405,7 +405,7 @@ impl SobolRng {
     ///
     /// # Arguments
     ///
-    /// * `out` - Out supplied by the caller for this operation
+    /// * `out` - Caller-owned output buffer populated without allocating a replacement.
     pub fn fill_std_normals(&mut self, out: &mut [f64]) {
         // Pre-fill with raw u32 Sobol integers (we need integer k before
         // converting to uniform) — but fill_u01 already converts. Instead

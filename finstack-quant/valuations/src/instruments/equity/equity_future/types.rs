@@ -77,7 +77,6 @@ impl EquityFutureQuantoSpec {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = EquityFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct EquityFuture {
     /// Unique instrument identifier.

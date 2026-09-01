@@ -356,7 +356,7 @@ impl RevolvingCreditProcess {
     }
 
     /// Get process parameters.
-    pub fn params(&self) -> &RevolvingCreditProcessParams {
+    pub fn get_params(&self) -> &RevolvingCreditProcessParams {
         &self.params
     }
 

@@ -46,7 +46,7 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `curve` - Curve supplied by the caller for this operation
+    /// * `curve` - Term structure inserted into or consumed from the market context.
     pub fn insert<C>(mut self, curve: C) -> Self
     where
         C: Into<CurveStorage>,
@@ -94,7 +94,7 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `surface` - Surface supplied by the caller for this operation
+    /// * `surface` - Volatility surface inserted into or consumed from the market context.
     pub fn insert_surface(mut self, surface: impl Into<Arc<VolSurface>>) -> Self {
         self.insert_surface_mut(surface);
         self
@@ -126,7 +126,7 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `surface` - Surface supplied by the caller for this operation
+    /// * `surface` - Volatility surface inserted into or consumed from the market context.
     pub fn insert_fx_delta_vol_surface(
         mut self,
         surface: impl Into<Arc<FxDeltaVolSurface>>,
@@ -146,7 +146,7 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `cube` - Cube supplied by the caller for this operation
+    /// * `cube` - Volatility cube whose expiry, tenor, and strike dimensions are validated.
     pub fn insert_vol_cube(mut self, cube: impl Into<Arc<VolCube>>) -> Self {
         self.insert_vol_cube_mut(cube);
         self
@@ -163,7 +163,7 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `schedule` - Schedule supplied by the caller for this operation
+    /// * `schedule` - Dated cash-flow or fixing schedule registered in the market context.
     pub fn insert_dividends(mut self, schedule: impl Into<Arc<DividendSchedule>>) -> Self {
         self.insert_dividends_mut(schedule);
         self
@@ -178,7 +178,7 @@ impl MarketContext {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `price` - Price supplied by the caller for this operation
+    /// * `price` - Finite market price in the instrument quote convention.
     pub fn insert_price(mut self, id: impl AsRef<str>, price: MarketScalar) -> Self {
         self.insert_price_mut(id, price);
         self
@@ -288,7 +288,7 @@ impl MarketContext {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `data` - Data supplied by the caller for this operation
+    /// * `data` - Validated market-data payload to insert or transform.
     pub fn insert_credit_index(mut self, id: impl AsRef<str>, data: CreditIndexData) -> Self {
         self.insert_credit_index_mut(id, data);
         self
@@ -403,8 +403,8 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `csa_code` - Csa code supplied by the caller for this operation
-    /// * `discount_id` - Discount id supplied by the caller for this operation
+    /// * `csa_code` - CSA identifier used to select collateral and discounting terms.
+    /// * `discount_id` - Identifier of the discount curve used for present-value calculations.
     pub fn map_collateral(mut self, csa_code: impl Into<String>, discount_id: CurveId) -> Self {
         self.map_collateral_mut(csa_code, discount_id);
         self

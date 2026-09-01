@@ -136,7 +136,7 @@
 //! - CDS metrics module for CDS risk metrics (CS01, DV01, recovery sensitivity)
 
 pub(crate) mod metrics;
-pub(crate) mod pricer;
+pub(crate) mod pricing;
 mod types;
 
 pub use crate::market::conventions::ids::CdsDocClause;

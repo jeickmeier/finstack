@@ -14,7 +14,7 @@
 //! [`CDSOption::delta`] is a thin pass-through to [`delta`].
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
+use crate::instruments::credit_derivatives::cds::pricing::CDSPricer;
 use crate::instruments::credit_derivatives::cds_option::bloomberg_quadrature::{
     self, ForwardCdsContext,
 };

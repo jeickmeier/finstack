@@ -155,7 +155,6 @@ impl std::str::FromStr for PayoutTiming {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = FxTouchOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxTouchOption {
     /// Unique instrument identifier

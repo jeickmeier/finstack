@@ -22,7 +22,6 @@ use finstack_quant_core::types::{InstrumentId, PriceId};
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = EquityTotalReturnFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct EquityTotalReturnFuture {
     /// Unique instrument identifier.

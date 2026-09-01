@@ -166,8 +166,7 @@ impl BasketCalculator {
         let total = if all_weight_based {
             let weight_sum: f64 = basket.constituents.iter().map(|c| c.weight).sum();
             // Within 10bp of fully invested → treat as exactly the AUM to
-            // avoid floating-point drift (matches `Basket::validate`'s
-            // tolerance). Otherwise scale by the actual weight sum so a
+            // avoid floating-point drift. Otherwise scale by the actual weight sum so a
             // partially-invested or misweighted basket is valued correctly.
             if (weight_sum - 1.0).abs() <= 0.001 {
                 aum_amount

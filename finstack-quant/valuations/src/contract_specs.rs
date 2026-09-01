@@ -5,7 +5,6 @@ use crate::instruments::fixed_income::bond_future::BondFutureSpecs;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount};
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 const EMBEDDED_CONTRACT_SPECS: &str = include_str!("../data/contract_specs/contract_specs.v1.json");
@@ -70,17 +69,20 @@ impl ContractSpecRegistry {
                 self.schema
             )));
         }
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "contract-spec registry",
             "bond future contract spec",
             self.bond_futures.iter().map(|record| record.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "contract-spec registry",
             "volatility index future contract spec",
             self.vol_index_futures
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
-        validate_ids(
+        finstack_quant_core::validation::validate_unique_ids(
+            "contract-spec registry",
             "repo default spec",
             self.repo_defaults
                 .iter()
@@ -127,17 +129,32 @@ struct BondFutureSpecRecord {
 
 impl BondFutureSpecRecord {
     fn validate(&self) -> Result<()> {
-        validate_metadata(
+        finstack_quant_core::validation::validate_source_metadata(
             "bond future contract spec",
             &self.source,
             &self.source_version,
         )?;
-        validate_nonblank("bond future effective date", &self.effective_date)?;
-        validate_positive(self.contract_size, "bond future contract size")?;
-        validate_positive(self.tick_size, "bond future tick size")?;
-        validate_positive(self.tick_value, "bond future tick value")?;
-        validate_unit_interval(self.standard_coupon, "bond future standard coupon")?;
-        validate_positive(
+        finstack_quant_core::validation::validate_non_blank(
+            &self.effective_date,
+            "bond future effective date",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.contract_size,
+            "bond future contract size",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.tick_size,
+            "bond future tick size",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.tick_value,
+            "bond future tick value",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.standard_coupon,
+            "bond future standard coupon",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
             self.standard_maturity_years,
             "bond future standard maturity years",
         )?;
@@ -152,7 +169,10 @@ impl BondFutureSpecRecord {
                 self.repo_day_count
             )));
         }
-        validate_nonblank("bond future calendar id", &self.calendar_id)
+        finstack_quant_core::validation::validate_non_blank(
+            &self.calendar_id,
+            "bond future calendar id",
+        )
     }
 }
 
@@ -171,19 +191,31 @@ struct VolIndexFutureSpecRecord {
 
 impl VolIndexFutureSpecRecord {
     fn validate(&self) -> Result<()> {
-        validate_metadata(
+        finstack_quant_core::validation::validate_source_metadata(
             "volatility index future contract spec",
             &self.source,
             &self.source_version,
         )?;
-        validate_nonblank(
-            "volatility index future effective date",
+        finstack_quant_core::validation::validate_non_blank(
             &self.effective_date,
+            "volatility index future effective date",
         )?;
-        validate_positive(self.multiplier, "volatility index future multiplier")?;
-        validate_positive(self.tick_size, "volatility index future tick size")?;
-        validate_positive(self.tick_value, "volatility index future tick value")?;
-        validate_nonblank("volatility index future index id", &self.index_id)
+        finstack_quant_core::validation::validate_f64_positive(
+            self.multiplier,
+            "volatility index future multiplier",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.tick_size,
+            "volatility index future tick size",
+        )?;
+        finstack_quant_core::validation::validate_f64_positive(
+            self.tick_value,
+            "volatility index future tick value",
+        )?;
+        finstack_quant_core::validation::validate_non_blank(
+            &self.index_id,
+            "volatility index future index id",
+        )
     }
 }
 
@@ -203,10 +235,23 @@ struct RepoDefaultRecord {
 
 impl RepoDefaultRecord {
     fn validate(&self) -> Result<()> {
-        validate_metadata("repo default spec", &self.source, &self.source_version)?;
-        validate_nonblank("repo default effective date", &self.effective_date)?;
-        validate_unit_interval(self.haircut, "repo default haircut")?;
-        validate_nonblank("repo default calendar id", &self.calendar_id)?;
+        finstack_quant_core::validation::validate_source_metadata(
+            "repo default spec",
+            &self.source,
+            &self.source_version,
+        )?;
+        finstack_quant_core::validation::validate_non_blank(
+            &self.effective_date,
+            "repo default effective date",
+        )?;
+        finstack_quant_core::validation::validate_f64_unit_interval(
+            self.haircut,
+            "repo default haircut",
+        )?;
+        finstack_quant_core::validation::validate_non_blank(
+            &self.calendar_id,
+            "repo default calendar id",
+        )?;
         self.parse_day_count()?;
         self.parse_business_day_convention()?;
         Ok(())
@@ -260,66 +305,6 @@ fn parse_registry_json(raw: &str) -> Result<ContractSpecRegistry> {
 fn validate_registry(registry: ContractSpecRegistry) -> Result<ContractSpecRegistry> {
     registry.validate()?;
     Ok(registry)
-}
-
-fn validate_ids<'a>(kind: &str, records: impl Iterator<Item = &'a [String]>) -> Result<()> {
-    let mut seen = BTreeSet::new();
-    for ids in records {
-        if ids.is_empty() {
-            return Err(Error::Validation(format!(
-                "contract-spec registry contains {kind} without an id"
-            )));
-        }
-        for id in ids {
-            let trimmed = id.trim();
-            if trimmed.is_empty() {
-                return Err(Error::Validation(format!(
-                    "contract-spec registry contains blank {kind} id"
-                )));
-            }
-            if !seen.insert(trimmed.to_string()) {
-                return Err(Error::Validation(format!(
-                    "contract-spec registry contains duplicate {kind} id '{trimmed}'"
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_metadata(label: &str, source: &str, source_version: &str) -> Result<()> {
-    validate_nonblank(label, source)?;
-    validate_nonblank(label, source_version)
-}
-
-fn validate_nonblank(label: &str, value: &str) -> Result<()> {
-    if value.trim().is_empty() {
-        Err(Error::Validation(format!(
-            "contract-spec registry has blank {label}"
-        )))
-    } else {
-        Ok(())
-    }
-}
-
-fn validate_positive(value: f64, label: &str) -> Result<()> {
-    if value.is_finite() && value > 0.0 {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!(
-            "contract-spec registry has invalid {label} {value}"
-        )))
-    }
-}
-
-fn validate_unit_interval(value: f64, label: &str) -> Result<()> {
-    if value.is_finite() && (0.0..=1.0).contains(&value) {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!(
-            "contract-spec registry has invalid {label} {value}"
-        )))
-    }
 }
 
 fn has_id(ids: &[String], id: &str) -> bool {

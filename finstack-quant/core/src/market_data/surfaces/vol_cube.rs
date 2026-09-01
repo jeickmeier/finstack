@@ -151,10 +151,10 @@ impl VolCube {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `expiries` - Expiries supplied by the caller for this operation
-    /// * `tenors` - Tenors supplied by the caller for this operation
-    /// * `params` - Params supplied by the caller for this operation
-    /// * `forwards` - Forwards supplied by the caller for this operation
+    /// * `expiries` - Strictly increasing option expiries in year-fraction units.
+    /// * `tenors` - Strictly ordered tenor coordinates in year-fraction units.
+    /// * `params` - Validated model or algorithm parameters controlling this calculation.
+    /// * `forwards` - Forward levels aligned one-for-one with the corresponding grid coordinates.
     pub fn from_grid(
         id: impl AsRef<str>,
         expiries: &[f64],

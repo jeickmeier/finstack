@@ -15,8 +15,8 @@
 //!   partition (rank, z-score, normalize, winsorize, …). Entry point:
 //!   [`transform_cross_sectional`] / [`transform_cross_sectional_with_op`].
 //! - **Panel** — JSON-specified or typed-spec pipeline of named time-series and
-//!   cross-sectional operations. Entry point: [`transform_panel`] /
-//!   [`transform_panel_spec`].
+//!   cross-sectional operations. Entry point: [`transform_panel_json`] /
+//!   [`transform_panel`].
 //! - **Multi** — Pairwise and grouped transforms, signal cleaning, and
 //!   neutralization helpers. Entry point: [`neutralize`], [`clean_signal`],
 //!   [`transform_timeseries_pairwise`], [`transform_cross_sectional_grouped`].
@@ -51,7 +51,7 @@
 //! - Rolling operations require `min_periods` finite points in the window
 //!   before emitting a value.
 //! - `drawdown` takes a level series; `rolling_sharpe` is a period feature,
-//!   not the `analytics` Sharpe. `transform_panel` is sequential.
+//!   not the `analytics` Sharpe. `transform_panel_json` is sequential.
 //! - String/JSON entry points are retained for Python and WASM bindings; Rust
 //!   callers should use the typed-op variants (`TimeSeriesOp`,
 //!   `CrossSectionalOp`, `PairwiseOp`, `PanelTransformSpec`).
@@ -92,7 +92,7 @@ pub use multi::{
     transform_timeseries_pairwise_with_op, PairwiseOp,
 };
 pub use panel::{
-    transform_panel, transform_panel_spec, PanelOperation, PanelTransformColumn,
+    transform_panel, transform_panel_json, PanelOperation, PanelTransformColumn,
     PanelTransformResult, PanelTransformSpec,
 };
 pub use timeseries::{transform_timeseries, transform_timeseries_with_op, TimeSeriesOp};

@@ -208,7 +208,7 @@ impl HestonFourierSettings {
     ///
     /// # Arguments
     ///
-    /// * `time` - Time supplied by the caller for this operation
+    /// * `time` - Evaluation time in years from the model origin.
     #[must_use]
     pub fn for_maturity(time: f64) -> Self {
         Self::for_maturity_with_variance(time, HESTON_REFERENCE_V0)
@@ -227,7 +227,7 @@ impl HestonFourierSettings {
     ///
     /// # Arguments
     ///
-    /// * `time` - Time supplied by the caller for this operation
+    /// * `time` - Evaluation time in years from the model origin.
     /// * `v0` - Initial variance level for the stochastic volatility process at time zero
     #[must_use]
     pub fn for_maturity_with_variance(time: f64, v0: f64) -> Self {

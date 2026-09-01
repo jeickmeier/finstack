@@ -100,8 +100,8 @@ impl AgencyProgram {
     ///
     /// # Arguments
     ///
-    /// * `accrual_year` - Accrual year supplied by the caller for this operation
-    /// * `accrual_month` - Accrual month supplied by the caller for this operation
+    /// * `accrual_year` - Accrual year used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `accrual_month` - Accrual month used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn payment_date_for_period(&self, accrual_year: i32, accrual_month: Month) -> Result<Date> {
         let (pay_year, pay_month, pay_day) = match self {
             AgencyProgram::Fnma | AgencyProgram::Fhlmc => {
@@ -420,7 +420,7 @@ impl AgencyMbsPassthrough {
     ///
     /// # Arguments
     ///
-    /// * `period_start` - Period start supplied by the caller for this operation
+    /// * `period_start` - Period start used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn payment_date_for_accrual_period(&self, period_start: Date) -> Result<Date> {
         if let Some(custom_delay) = self.payment_lag_days {
             super::delay::actual_payment_date(period_start, custom_delay, false)

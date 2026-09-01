@@ -367,9 +367,11 @@ pub fn compute_horizon_return(
 ) -> Result<JsValue, JsValue> {
     use std::sync::Arc;
 
-    let boxed =
-        finstack_quant_valuations::pricer::json::parse_boxed_instrument_json(instrument_json, None)
-            .map_err(to_js_err)?;
+    let boxed = finstack_quant_valuations::pricer::json::parse_boxed_instrument_from_json(
+        instrument_json,
+        None,
+    )
+    .map_err(to_js_err)?;
     let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> =
         Arc::from(boxed.into_boxed());
 

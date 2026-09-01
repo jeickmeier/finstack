@@ -151,7 +151,7 @@ class TestBondTyped:
             Bond.from_json(TermLoan.example().to_json())
 
     def test_invalid_dates_raise_value_error(self) -> None:
-        with pytest.raises(ValueError, match="start must be before end"):
+        with pytest.raises(ValueError, match=r"issue date .* must be before maturity date"):
             Bond.fixed(
                 "BOND-BAD",
                 Money(1_000_000.0, Currency("USD")),

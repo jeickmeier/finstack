@@ -76,7 +76,6 @@ impl std::str::FromStr for DigitalPayoutType {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = FxDigitalOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxDigitalOption {
     /// Unique instrument identifier

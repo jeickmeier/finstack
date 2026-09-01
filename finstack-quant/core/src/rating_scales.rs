@@ -227,7 +227,8 @@ impl RatingScaleRegistry {
             )));
         }
         validate_score(self.scorecard_policy.default_score, "default score")?;
-        validate_ids(
+        crate::validation::validate_unique_ids(
+            "rating scale registry",
             "rating scale",
             self.rating_scales.iter().map(|entry| entry.ids.as_slice()),
         )?;
@@ -378,30 +379,6 @@ fn validate_score(value: f64, label: &str) -> Result<()> {
             "rating scale registry has invalid {label} {value}"
         )))
     }
-}
-
-fn validate_ids<'a>(kind: &str, records: impl Iterator<Item = &'a [String]>) -> Result<()> {
-    let mut seen = BTreeSet::new();
-    for ids in records {
-        if ids.is_empty() {
-            return Err(Error::Validation(format!(
-                "rating scale registry contains {kind} without an id"
-            )));
-        }
-        for id in ids {
-            if id.trim().is_empty() {
-                return Err(Error::Validation(format!(
-                    "rating scale registry contains blank {kind} id"
-                )));
-            }
-            if !seen.insert(id.clone()) {
-                return Err(Error::Validation(format!(
-                    "rating scale registry contains duplicate {kind} id '{id}'"
-                )));
-            }
-        }
-    }
-    Ok(())
 }
 
 fn has_id(ids: &[String], id: &str) -> bool {

@@ -205,8 +205,8 @@ impl CovenantEngine {
     ///
     /// # Arguments
     ///
-    /// * `context` - Context supplied by the caller for this operation
-    /// * `test_date` - Test date supplied by the caller for this operation
+    /// * `context` - Market or evaluation context supplying dependencies required by the calculation.
+    /// * `test_date` - Calendar date at which the documented condition is evaluated.
     pub fn evaluate(
         &self,
         context: &mut dyn CovenantMetricSource,
@@ -337,9 +337,9 @@ impl CovenantEngine {
     ///
     /// # Arguments
     ///
-    /// * `context` - Context supplied by the caller for this operation
-    /// * `test_date` - Test date supplied by the caller for this operation
-    /// * `trigger` - Trigger supplied by the caller for this operation
+    /// * `context` - Market or evaluation context supplying dependencies required by the calculation.
+    /// * `test_date` - Calendar date at which the documented condition is evaluated.
+    /// * `trigger` - Trigger used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn evaluate_for_trigger(
         &self,
         context: &mut dyn CovenantMetricSource,
@@ -380,8 +380,8 @@ impl CovenantEngine {
     ///
     /// # Arguments
     ///
-    /// * `context` - Context supplied by the caller for this operation
-    /// * `test_date` - Test date supplied by the caller for this operation
+    /// * `context` - Market or evaluation context supplying dependencies required by the calculation.
+    /// * `test_date` - Calendar date at which the documented condition is evaluated.
     pub fn evaluate_and_track(
         &mut self,
         context: &mut dyn CovenantMetricSource,
@@ -489,8 +489,8 @@ impl CovenantEngine {
     ///
     /// # Arguments
     ///
-    /// * `instrument` - Instrument supplied by the caller for this operation
-    /// * `breaches` - Breaches supplied by the caller for this operation
+    /// * `instrument` - Instrument whose cash flows, dependencies, or value are evaluated.
+    /// * `breaches` - Breaches used by the algorithm, subject to the enclosing type invariants and documented units.
     /// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
     pub fn apply_consequences<T>(
         &mut self,

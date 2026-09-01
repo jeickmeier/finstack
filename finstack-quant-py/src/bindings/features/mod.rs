@@ -187,8 +187,8 @@ fn neutralize_and_zscore(
 
 /// Apply a JSON panel transform pipeline.
 #[pyfunction]
-fn transform_panel(spec_json: &str) -> PyResult<String> {
-    finstack_quant_features::transform_panel(spec_json).map_err(core_to_py)
+fn transform_panel_json(spec_json: &str) -> PyResult<String> {
+    finstack_quant_features::transform_panel_json(spec_json).map_err(core_to_py)
 }
 
 /// Register the features submodule.
@@ -206,7 +206,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(normalize_signal, &m)?)?;
     m.add_function(wrap_pyfunction!(rank_to_weights, &m)?)?;
     m.add_function(wrap_pyfunction!(neutralize_and_zscore, &m)?)?;
-    m.add_function(wrap_pyfunction!(transform_panel, &m)?)?;
+    m.add_function(wrap_pyfunction!(transform_panel_json, &m)?)?;
     let all = PyList::new(
         py,
         [
@@ -219,7 +219,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "rolling_regression_residual",
             "transform_cross_sectional",
             "transform_cross_sectional_grouped",
-            "transform_panel",
+            "transform_panel_json",
             "transform_timeseries",
             "transform_timeseries_pairwise",
         ],

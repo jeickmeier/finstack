@@ -1095,7 +1095,7 @@ impl crate::instruments::common_impl::traits::Instrument for RevolvingCredit {
         // registry and host-language JSON entry points. A stochastic facility
         // must have one canonical value regardless of which public lifecycle
         // invokes it.
-        crate::instruments::fixed_income::revolving_credit::pricer::unified::RevolvingCreditPricer::price(
+        crate::instruments::fixed_income::revolving_credit::pricing::unified::RevolvingCreditPricer::price(
             self, curves, as_of,
         )
     }

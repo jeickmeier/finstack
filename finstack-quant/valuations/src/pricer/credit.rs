@@ -33,7 +33,7 @@ pub(crate) fn register_credit_pricers(
 
     // CDS Tranche
     registry.register(
-        crate::instruments::credit_derivatives::cds_tranche::pricer::SimpleCDSTrancheHazardPricer::default(),
+        crate::instruments::credit_derivatives::cds_tranche::pricing::SimpleCDSTrancheHazardPricer::default(),
     )?;
 
     // CDS Option — Bloomberg CDSO numerical-quadrature model.

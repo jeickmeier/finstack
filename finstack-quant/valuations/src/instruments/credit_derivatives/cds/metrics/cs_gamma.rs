@@ -70,9 +70,11 @@ impl MetricCalculator for CsGammaCalculator {
 
         // Read bump size from config — same field as CS01 so the Taylor
         // expansion ΔPV ≈ CS01·Δb + ½·CS-Gamma·Δs² uses consistent shocks.
-        let bump_bp =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
-                .credit_spread_bump_bp;
+        let bump_bp = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?
+        .credit_spread_bump_bp;
 
         if bump_bp.abs() <= 1e-10 {
             return Ok(0.0);

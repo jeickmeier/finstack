@@ -412,7 +412,7 @@ impl Evaluator {
     ///
     /// # Arguments
     ///
-    /// * `model` - Model supplied by the caller for this operation
+    /// * `model` - Validated model whose state and conventions drive the calculation.
     pub fn prepare(&mut self, model: &FinancialModelSpec) -> Result<PreparedEvaluation> {
         self.init_eval_plan(model)
     }
@@ -438,8 +438,8 @@ impl Evaluator {
     ///
     /// # Arguments
     ///
-    /// * `model` - Model supplied by the caller for this operation
-    /// * `prepared` - Prepared supplied by the caller for this operation
+    /// * `model` - Validated model whose state and conventions drive the calculation.
+    /// * `prepared` - Prepared used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn evaluate_prepared(
         &mut self,
         model: &FinancialModelSpec,

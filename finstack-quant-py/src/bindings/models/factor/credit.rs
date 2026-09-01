@@ -42,6 +42,52 @@ const ADDER_DELTA_COLUMNS: &[ColumnSchema<'static>] = &[
     ("d_adder", "float64"),
 ];
 
+fn ensure_finite_py(label: &str, value: f64) -> PyResult<()> {
+    if value.is_finite() {
+        Ok(())
+    } else {
+        Err(crate::errors::value_error(format!(
+            "{label} must be finite, got {value}"
+        )))
+    }
+}
+
+fn ensure_levels_finite_py(
+    levels: &finstack_quant_models::factor::credit::decomposition::LevelsAtDate,
+) -> PyResult<()> {
+    ensure_finite_py("generic", levels.generic)?;
+    for level in &levels.by_level {
+        for (bucket, value) in &level.values {
+            ensure_finite_py(
+                &format!("by_level[{}].values[{bucket}]", level.level_index),
+                *value,
+            )?;
+        }
+    }
+    for (issuer, value) in &levels.adder {
+        ensure_finite_py(&format!("adder[{}]", issuer.as_str()), *value)?;
+    }
+    Ok(())
+}
+
+fn ensure_period_finite_py(
+    period: &finstack_quant_models::factor::credit::decomposition::PeriodDecomposition,
+) -> PyResult<()> {
+    ensure_finite_py("d_generic", period.d_generic)?;
+    for level in &period.by_level {
+        for (bucket, value) in &level.deltas {
+            ensure_finite_py(
+                &format!("by_level[{}].deltas[{bucket}]", level.level_index),
+                *value,
+            )?;
+        }
+    }
+    for (issuer, value) in &period.d_adder {
+        ensure_finite_py(&format!("d_adder[{}]", issuer.as_str()), *value)?;
+    }
+    Ok(())
+}
+
 /// Display label for a hierarchy dimension, matching
 /// `PyCreditFactorModel::level_names` so the two line up on a join.
 fn dimension_label(
@@ -342,6 +388,26 @@ impl PyLevelsAtDate {
 
 #[pymethods]
 impl PyLevelsAtDate {
+    /// Deserialize a factor-level snapshot from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        ensure_levels_finite_py(&inner)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize the snapshot to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        ensure_levels_finite_py(&self.inner)?;
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Observation date (ISO 8601 string).
     #[getter]
     fn date(&self) -> String {
@@ -519,6 +585,26 @@ impl PyPeriodDecomposition {
 
 #[pymethods]
 impl PyPeriodDecomposition {
+    /// Deserialize a period decomposition from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        ensure_period_finite_py(&inner)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize the decomposition to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        ensure_period_finite_py(&self.inner)?;
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Earlier snapshot date (ISO 8601).
     #[getter(from_date)]
     fn get_from_date(&self) -> String {

@@ -5,7 +5,7 @@
 //! fractional kernel internally using standard normal increments — no fBM generator
 //! is required.
 
-use super::pricer::{
+use super::pricing::{
     collect_inputs_extended, has_future_discrete_dividends, require_european,
     resolve_lifecycle_value,
 };
@@ -162,11 +162,18 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
 
         let hurst_exp = finstack_quant_core::math::fractional::HurstExponent::new(s.hurst)
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
-        let params =
-            finstack_quant_models::monte_carlo::process::rough_heston::RoughHestonParams::new(
-                r, q, hurst_exp, s.kappa, s.theta, s.sigma_v, s.rho, s.v0,
-            )
-            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let params = finstack_quant_models::monte_carlo::process::rough_heston::RoughHestonParams {
+            r,
+            q,
+            hurst: hurst_exp,
+            kappa: s.kappa,
+            theta: s.theta,
+            sigma_v: s.sigma_v,
+            rho: s.rho,
+            v0: s.v0,
+        }
+        .validate()
+        .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
         let process =
             finstack_quant_models::monte_carlo::process::rough_heston::RoughHestonProcess::new(
                 params,

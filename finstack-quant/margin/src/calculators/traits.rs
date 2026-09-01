@@ -12,7 +12,9 @@ use super::super::types::ImMethodology;
 ///
 /// Contains the calculated IM amount along with methodology details
 /// and breakdown information.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
 pub struct ImResult {
     /// Calculated initial margin amount
     pub amount: Money,
@@ -21,6 +23,7 @@ pub struct ImResult {
     pub methodology: ImMethodology,
 
     /// Calculation date
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub as_of: Date,
 
     /// Margin Period of Risk (days) used in calculation
@@ -30,7 +33,7 @@ pub struct ImResult {
     ///
     /// Keys are risk class names (e.g., "interest_rate", "credit", "equity")
     /// Values are IM amounts for that risk class
-    pub breakdown: finstack_quant_core::HashMap<String, Money>,
+    pub breakdown: std::collections::BTreeMap<String, Money>,
 
     /// Whether the amount is a conservative approximation (proxy) rather than
     /// an exact computation under the named methodology.
@@ -53,7 +56,7 @@ impl ImResult {
             methodology,
             as_of,
             mpor_days,
-            breakdown: finstack_quant_core::HashMap::default(),
+            breakdown: std::collections::BTreeMap::new(),
             approximation: false,
         }
     }
@@ -72,7 +75,7 @@ impl ImResult {
             methodology,
             as_of,
             mpor_days,
-            breakdown,
+            breakdown: breakdown.into_iter().collect(),
             approximation: false,
         }
     }

@@ -276,8 +276,8 @@ impl ScenarioEngine {
     ///
     /// # Arguments
     ///
-    /// * `spec` - Spec supplied by the caller for this operation
-    /// * `ctx` - Ctx supplied by the caller for this operation
+    /// * `spec` - Validated specification defining the requested operation.
+    /// * `ctx` - Market or evaluation context supplying dependencies required by the calculation.
     #[tracing::instrument(skip_all, fields(scenario_id = %spec.id))]
     pub fn apply(
         &self,

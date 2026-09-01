@@ -169,12 +169,14 @@ pub fn instrument_cashflows_json(
     as_of: &str,
     model: &str,
 ) -> Result<String> {
-    let instrument = crate::pricer::parse_boxed_instrument_json(instrument_json, None)?;
-    instrument_cashflows(&instrument, market, as_of, model)
+    let instrument = crate::pricer::parse_boxed_instrument_from_json(instrument_json, None)?;
+    let envelope = instrument_cashflows(&instrument, market, as_of, model)?;
+    serde_json::to_string(&envelope)
+        .map_err(|e| Error::Validation(format!("failed to serialize cashflow envelope: {e}")))
 }
 
-/// Build and serialize the enriched cashflow envelope for an already parsed
-/// and validated instrument.
+/// Build the enriched cashflow envelope for an already parsed and validated
+/// instrument.
 ///
 /// This is the canonical core behind [`instrument_cashflows_json`]. Host
 /// bindings use it after parsing the instrument so validation precedence does
@@ -195,16 +197,14 @@ pub fn instrument_cashflows_json(
 ///
 /// Returns `Error::Validation` if the model is unsupported, the instrument and
 /// model are not registered together, required market data is missing, or the
-/// resulting cashflows cannot be reconciled or serialized.
+/// resulting cashflows cannot be reconciled.
 pub fn instrument_cashflows(
     instrument: &ParsedInstrument,
     market: &MarketContext,
     as_of: &str,
     model: &str,
-) -> Result<String> {
-    let envelope = build_envelope(instrument.as_instrument(), market, as_of, model)?;
-    serde_json::to_string(&envelope)
-        .map_err(|e| Error::Validation(format!("failed to serialize cashflow envelope: {e}")))
+) -> Result<InstrumentCashflowEnvelope> {
+    build_envelope(instrument.as_instrument(), market, as_of, model)
 }
 
 fn build_envelope(

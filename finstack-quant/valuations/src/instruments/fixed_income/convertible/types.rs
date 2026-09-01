@@ -15,7 +15,7 @@ use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::fixed_income::bond::CallPutSchedule;
 use crate::instruments::model_params::ModelParamsSnapshot;
 
-use super::pricer;
+use super::pricing;
 use crate::impl_instrument_base;
 
 /// Soft-call trigger condition for convertible bonds.
@@ -931,7 +931,7 @@ impl ConvertibleBond {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(value) => *value,
         };
 
-        Ok(pricer::calculate_parity(self, spot))
+        Ok(pricing::calculate_parity(self, spot))
     }
 
     /// Calculate conversion premium of this convertible bond
@@ -960,7 +960,7 @@ impl ConvertibleBond {
             )
         })?;
 
-        Ok(pricer::calculate_conversion_premium(
+        Ok(pricing::calculate_conversion_premium(
             bond_price,
             spot,
             conversion_ratio,
@@ -971,11 +971,11 @@ impl ConvertibleBond {
     pub fn greeks(
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
-        tree_type: Option<pricer::ConvertibleTreeType>,
+        tree_type: Option<pricing::ConvertibleTreeType>,
         bump_size: Option<f64>,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<ConvertibleGreeks> {
-        let greeks = pricer::calculate_convertible_greeks(
+        let greeks = pricing::calculate_convertible_greeks(
             self,
             curves,
             tree_type.unwrap_or_default(),
@@ -1105,7 +1105,12 @@ impl crate::instruments::common_impl::traits::Instrument for ConvertibleBond {
         if let Some(ref trigger) = self.soft_call_trigger {
             trigger.validate()?;
         }
-        pricer::price_convertible_bond(self, curves, pricer::ConvertibleTreeType::default(), as_of)
+        pricing::price_convertible_bond(
+            self,
+            curves,
+            pricing::ConvertibleTreeType::default(),
+            as_of,
+        )
     }
 
     fn effective_start_date(&self) -> Option<Date> {
@@ -1164,7 +1169,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for ConvertibleBond {
         _curves: &finstack_quant_core::market_data::context::MarketContext,
         _as_of: Date,
     ) -> finstack_quant_core::Result<CashFlowSchedule> {
-        let schedule = pricer::build_convertible_schedule(self)?;
+        let schedule = pricing::build_convertible_schedule(self)?;
         Ok(schedule
             .with_representation(crate::cashflow::builder::CashflowRepresentation::Contractual))
     }
@@ -1238,7 +1243,7 @@ mod tests {
         let bond = ConvertibleBond::example().expect("example should build");
         let market = finstack_quant_core::market_data::context::MarketContext::new();
         let expected =
-            super::pricer::build_convertible_schedule(&bond).expect("schedule should build");
+            super::pricing::build_convertible_schedule(&bond).expect("schedule should build");
         let actual = bond
             .cashflow_schedule(&market, bond.issue_date)
             .expect("provider schedule should build");

@@ -388,11 +388,8 @@ fn test_business_day_convention_adjustment_causes_effective_date_crossover() {
     use finstack_quant_core::dates::BusinessDayConvention;
     use finstack_quant_core::types::InstrumentId;
 
-    let base = date(2025, 1, 3); // Friday
-    let ctx = ctx_with_standard_disc(base, "USD-OIS");
-
-    // Build deposit with dates that are valid raw but invalid after adjustments
-    let dep = Deposit::builder()
+    // Construction rejects dates that cross after business-day adjustments.
+    let result = Deposit::builder()
         .id(InstrumentId::new("DEP-CROSSOVER"))
         .notional(Money::new(1_000_000.0, Currency::USD))
         .start_date(date(2025, 1, 3)) // Friday - trade date
@@ -403,14 +400,10 @@ fn test_business_day_convention_adjustment_causes_effective_date_crossover() {
         .spot_lag_days_opt(Some(2)) // T+2: Friday + 2 biz days = Tuesday Jan 7
         .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(Some("nyse".into()))
-        .build()
-        .unwrap();
-
-    // Validate should fail because effective_start (Jan 7) > effective_end (Jan 6)
-    let result = dep.validate();
+        .build();
     assert!(
         result.is_err(),
-        "Validation should fail when BDC adjustments cause date crossover"
+        "Construction should fail when BDC adjustments cause date crossover"
     );
 
     let err_msg = result.unwrap_err().to_string();
@@ -418,13 +411,6 @@ fn test_business_day_convention_adjustment_causes_effective_date_crossover() {
         err_msg.contains("effective") && err_msg.contains("after"),
         "Error should mention effective dates: {}",
         err_msg
-    );
-
-    // Also verify that npv() fails (it calls validate internally)
-    let pv_result = dep.value(&ctx, base);
-    assert!(
-        pv_result.is_err(),
-        "NPV should fail for deposit with invalid effective dates"
     );
 }
 

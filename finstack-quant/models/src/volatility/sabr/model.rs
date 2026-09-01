@@ -80,7 +80,7 @@ impl SabrModel {
     ///
     /// * `forward` - Forward price or rate used by the volatility or pricing model
     /// * `strike` - Option strike in the surface's quote units (absolute or relative)
-    /// * `time_to_expiry` - Time to expiry supplied by the caller for this operation
+    /// * `time_to_expiry` - Time to expiry used by the algorithm, subject to the enclosing type invariants and documented units.
     #[must_use = "computed volatility should be used"]
     #[inline]
     pub fn implied_volatility(

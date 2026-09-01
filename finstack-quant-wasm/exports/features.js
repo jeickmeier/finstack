@@ -12,5 +12,5 @@ export const features = {
   transformTimeseriesPairwise: wasm.transformTimeseriesPairwise,
   transformCrossSectional: wasm.transformCrossSectional,
   transformCrossSectionalGrouped: wasm.transformCrossSectionalGrouped,
-  transformPanel: wasm.transformPanel,
+  transformPanelJson: wasm.transformPanelJson,
 };

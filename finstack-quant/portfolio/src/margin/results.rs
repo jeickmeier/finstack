@@ -200,7 +200,7 @@ impl PortfolioMarginResult {
     ///
     /// # Arguments
     ///
-    /// * `result` - Result supplied by the caller for this operation
+    /// * `result` - Completed calculation result to convert or aggregate.
     pub fn add_netting_set(
         &mut self,
         result: NettingSetMargin,

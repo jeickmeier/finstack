@@ -33,7 +33,7 @@
 //! reported λ_L is always computed by the exact model implementation rather
 //! than a re-derived local formula that could drift from it.
 
-use crate::instruments::credit_derivatives::cds_tranche::pricer::CDSTranchePricer;
+use crate::instruments::credit_derivatives::cds_tranche::pricing::CDSTranchePricer;
 use crate::instruments::credit_derivatives::cds_tranche::CDSTranche;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -85,7 +85,7 @@ impl MetricCalculator for TailDependenceCalculator {
         // return NaN per the trait contract.
         let pricer = CDSTranchePricer::new();
         let copula = pricer
-            .config()
+            .get_config()
             .copula_spec
             .build()
             .map_err(|e| finstack_quant_core::Error::Validation(e.to_string()))?;

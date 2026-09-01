@@ -2,7 +2,7 @@
 //!
 //! Returns the canonical Risky PV01 = `Risky Annuity × Notional / 10000`.
 
-use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
+use crate::instruments::credit_derivatives::cds::pricing::CDSPricer;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;

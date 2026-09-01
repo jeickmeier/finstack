@@ -24,7 +24,7 @@ risk_scaled_weights = _features.risk_scaled_weights
 rolling_regression_residual = _features.rolling_regression_residual
 transform_cross_sectional = _features.transform_cross_sectional
 transform_cross_sectional_grouped = _features.transform_cross_sectional_grouped
-transform_panel = _features.transform_panel
+transform_panel_json = _features.transform_panel_json
 transform_timeseries = _features.transform_timeseries
 transform_timeseries_pairwise = _features.transform_timeseries_pairwise
 
@@ -41,7 +41,7 @@ __all__: list[str] = [
     "rolling_regression_residual",
     "transform_cross_sectional",
     "transform_cross_sectional_grouped",
-    "transform_panel",
+    "transform_panel_json",
     "transform_timeseries",
     "transform_timeseries_pairwise",
 ]

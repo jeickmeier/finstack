@@ -44,7 +44,6 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = CmsSwap::validate)]
 #[serde(deny_unknown_fields)]
 pub struct CmsSwap {
     /// Unique instrument identifier.
@@ -338,17 +337,17 @@ impl CmsSwap {
     /// * `id` - Stable string identifier used for lookup and serialization of this object
     /// * `start_date` - Inclusive schedule or accrual start date in the instrument calendar
     /// * `maturity` - Final payment or expiry date of the instrument being constructed
-    /// * `cms_frequency` - Cms frequency supplied by the caller for this operation
-    /// * `cms_tenor` - Cms tenor supplied by the caller for this operation
-    /// * `cms_spread` - Cms spread supplied by the caller for this operation
-    /// * `funding_leg` - Funding leg supplied by the caller for this operation
+    /// * `cms_frequency` - Cms frequency used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `cms_tenor` - Cms tenor used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `cms_spread` - Cms spread used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `funding_leg` - Funding leg used by the algorithm, subject to the enclosing type invariants and documented units.
     /// * `notional` - Trade notional amount in the instrument currency's major units
-    /// * `cms_day_count` - Cms day count supplied by the caller for this operation
-    /// * `swap_convention` - Swap convention supplied by the caller for this operation
+    /// * `cms_day_count` - Cms day count used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `swap_convention` - Swap convention used by the algorithm, subject to the enclosing type invariants and documented units.
     /// * `side` - Trade side (buy/sell or pay/receive) controlling sign conventions
-    /// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
-    /// * `forward_curve_id` - Forward curve id supplied by the caller for this operation
-    /// * `vol_surface_id` - Vol surface id supplied by the caller for this operation
+    /// * `discount_curve_id` - Identifier of the discount curve used for present-value calculations.
+    /// * `forward_curve_id` - Identifier of the forward curve used to project floating rates.
+    /// * `vol_surface_id` - Identifier of the volatility surface used for option pricing.
     #[allow(clippy::too_many_arguments)]
     pub fn from_schedule(
         id: impl Into<InstrumentId>,

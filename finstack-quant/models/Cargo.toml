@@ -54,6 +54,10 @@ name = "mc_hot_paths"
 harness = false
 
 [[bench]]
+name = "mc_scaling"
+harness = false
+
+[[bench]]
 name = "fourier_pricing"
 harness = false
 

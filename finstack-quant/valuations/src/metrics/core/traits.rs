@@ -330,7 +330,7 @@ impl MetricContext {
 
     /// Access the finstack configuration associated with this context.
     #[inline]
-    pub fn config(&self) -> &FinstackConfig {
+    pub fn get_config(&self) -> &FinstackConfig {
         &self.finstack_config
     }
 
@@ -622,7 +622,7 @@ impl MetricContext {
         match &self.pricing_dispatch {
             PricingDispatch::Registered { model, registry } => {
                 let options =
-                    crate::instruments::PricingOptions::default().with_config(self.config());
+                    crate::instruments::PricingOptions::default().with_config(self.get_config());
                 Ok(registry
                     .price_with_metrics(instrument, *model, market, as_of, &[], options)?
                     .value)

@@ -278,9 +278,9 @@ impl BumpSpec {
     ///
     /// # Arguments
     ///
-    /// * `target_bucket` - Target bucket supplied by the caller for this operation
-    /// * `next_bucket` - Next bucket supplied by the caller for this operation
-    /// * `bump_bp` - Bump bp supplied by the caller for this operation
+    /// * `target_bucket` - Risk bucket receiving the requested market bump.
+    /// * `next_bucket` - Adjacent higher bucket used to interpolate a triangular bump.
+    /// * `bump_bp` - Parallel or bucket bump size expressed in basis points.
     pub fn triangular_key_rate_first_bp(
         target_bucket: f64,
         next_bucket: f64,
@@ -313,9 +313,9 @@ impl BumpSpec {
     ///
     /// # Arguments
     ///
-    /// * `prev_bucket` - Prev bucket supplied by the caller for this operation
-    /// * `target_bucket` - Target bucket supplied by the caller for this operation
-    /// * `bump_bp` - Bump bp supplied by the caller for this operation
+    /// * `prev_bucket` - Adjacent lower bucket used to interpolate a triangular bump.
+    /// * `target_bucket` - Risk bucket receiving the requested market bump.
+    /// * `bump_bp` - Parallel or bucket bump size expressed in basis points.
     pub fn triangular_key_rate_last_bp(prev_bucket: f64, target_bucket: f64, bump_bp: f64) -> Self {
         Self {
             mode: BumpMode::Additive,

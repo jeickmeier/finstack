@@ -420,7 +420,7 @@ impl EquityOption {
     /// # Arguments
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `ticker` - Ticker supplied by the caller for this operation
+    /// * `ticker` - Ticker used by the algorithm, subject to the enclosing type invariants and documented units.
     /// * `strike` - Option strike in the surface's quote units (absolute or relative)
     /// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
     /// * `notional` - Trade notional amount in the instrument currency's major units
@@ -574,10 +574,10 @@ impl EquityOption {
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<
-        crate::instruments::equity::equity_option::pricer::EquityOptionGreeks,
+        crate::instruments::equity::equity_option::pricing::EquityOptionGreeks,
     > {
-        use crate::instruments::equity::equity_option::pricer;
-        pricer::compute_greeks(self, curves, as_of)
+        use crate::instruments::equity::equity_option::pricing;
+        pricing::compute_greeks(self, curves, as_of)
     }
 
     /// Calculate delta of this equity option
@@ -653,8 +653,8 @@ impl EquityOption {
         }
 
         let (spot, r, q, _sigma, _t) = {
-            use crate::instruments::equity::equity_option::pricer;
-            let (spot, r, q, sigma, t) = pricer::collect_inputs(self, curves, as_of)?;
+            use crate::instruments::equity::equity_option::pricing;
+            let (spot, r, q, sigma, t) = pricing::collect_inputs(self, curves, as_of)?;
             (spot, r, q, sigma, t)
         };
         let k = self.strike;
@@ -859,8 +859,8 @@ impl crate::instruments::common_impl::traits::Instrument for EquityOption {
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        use crate::instruments::equity::equity_option::pricer;
-        pricer::compute_pv(self, curves, as_of)
+        use crate::instruments::equity::equity_option::pricing;
+        pricing::compute_pv(self, curves, as_of)
     }
 
     fn expiry(&self) -> Option<finstack_quant_core::dates::Date> {
@@ -912,7 +912,7 @@ mod tests {
 
     use super::*;
     use crate::instruments::common_impl::{helpers::year_fraction, traits::Instrument};
-    use crate::instruments::equity::equity_option::pricer;
+    use crate::instruments::equity::equity_option::pricing;
     use crate::instruments::{
         Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, SettlementType,
     };
@@ -991,6 +991,26 @@ mod tests {
             .expect("should succeed")
     }
 
+    #[test]
+    fn builder_rejects_invalid_equity_option_economics() {
+        let option = base_option(date(2025, 12, 31));
+        let error = EquityOption::builder()
+            .id(option.id)
+            .underlying_ticker(option.underlying_ticker)
+            .strike(0.0)
+            .option_type(option.option_type)
+            .expiry(option.expiry)
+            .notional(option.notional)
+            .discount_curve_id(option.discount_curve_id)
+            .spot_id(option.spot_id)
+            .vol_surface_id(option.vol_surface_id)
+            .attributes(option.attributes)
+            .build()
+            .expect_err("a zero strike must fail at the builder boundary");
+
+        assert!(error.to_string().contains("strike"));
+    }
+
     fn approx_eq(actual: f64, expected: f64, tol: f64) {
         let diff = (actual - expected).abs();
         assert!(
@@ -1056,7 +1076,7 @@ mod tests {
     }
 
     /// API-WIRING check only: `value()`/`greeks()`/`delta()`… delegate to
-    /// `pricer::compute_pv`/`compute_greeks`, so both sides of these
+    /// `pricing::compute_pv`/`compute_greeks`, so both sides of these
     /// assertions run the same code — this cannot detect a formula error.
     /// Formula correctness is anchored non-circularly in
     /// `models::closed_form::vanilla` (`analytic_greeks_match_finite_differences_of_price`,
@@ -1071,7 +1091,7 @@ mod tests {
         let price = option
             .value(&curves, as_of)
             .expect("NPV calculation should succeed in test");
-        let (spot, r, q, sigma, t) = pricer::collect_inputs(&option, &curves, as_of)
+        let (spot, r, q, sigma, t) = pricing::collect_inputs(&option, &curves, as_of)
             .expect("Input collection should succeed in test");
         let expected_unit =
             bs_price_unchecked(spot, option.strike, r, q, sigma, t, option.option_type);
@@ -1085,7 +1105,7 @@ mod tests {
         let greeks = option
             .greeks(&curves, as_of)
             .expect("Greeks calculation should succeed in test");
-        let expected = pricer::compute_greeks(&option, &curves, as_of)
+        let expected = pricing::compute_greeks(&option, &curves, as_of)
             .expect("Greeks computation should succeed in test");
         approx_eq(greeks.delta, expected.delta, 1e-6);
         approx_eq(greeks.gamma, expected.gamma, 1e-10);
@@ -1150,7 +1170,7 @@ mod tests {
             .value(&curves, as_of)
             .expect("should succeed");
         let (spot, r, q, _, t) =
-            pricer::collect_inputs(&override_option, &curves, as_of).expect("should succeed");
+            pricing::collect_inputs(&override_option, &curves, as_of).expect("should succeed");
         let expected = bs_price_unchecked(
             spot,
             override_option.strike,
@@ -1221,7 +1241,7 @@ mod tests {
         let option = base_option(expiry);
 
         // Verify the curve and model clocks remain separate.
-        let inputs = pricer::collect_inputs_extended(&option, &curves, as_of)
+        let inputs = pricing::collect_inputs_extended(&option, &curves, as_of)
             .expect("collect_inputs_extended should succeed");
         let discount_curve = curves.get_discount(DISC_ID).expect("discount curve");
         let curve_time = year_fraction(discount_curve.day_count(), as_of, expiry)
@@ -1383,8 +1403,8 @@ mod tests {
         let curves = build_market_context(as_of, 100.0, 0.25, 0.05, 0.02);
 
         // Verify inputs reflect spot adjustment and q=0
-        let (spot, r, q, _sigma, _t) =
-            pricer::collect_inputs(&option, &curves, as_of).expect("collect_inputs should succeed");
+        let (spot, r, q, _sigma, _t) = pricing::collect_inputs(&option, &curves, as_of)
+            .expect("collect_inputs should succeed");
         assert!(
             spot < 100.0,
             "Adjusted spot should be less than raw spot of 100.0, got {}",
@@ -1414,8 +1434,8 @@ mod tests {
         let curves = build_market_context(as_of, 100.0, 0.25, 0.05, 0.02);
 
         // With empty discrete_dividends (default), should use continuous yield
-        let (spot, _r, q, _sigma, _t) =
-            pricer::collect_inputs(&option, &curves, as_of).expect("collect_inputs should succeed");
+        let (spot, _r, q, _sigma, _t) = pricing::collect_inputs(&option, &curves, as_of)
+            .expect("collect_inputs should succeed");
 
         assert!(
             (spot - 100.0).abs() < 1e-10,
@@ -1442,8 +1462,8 @@ mod tests {
 
         let curves = build_market_context(as_of, 100.0, 0.25, 0.05, 0.0);
 
-        let (spot, _r, q, _sigma, _t) =
-            pricer::collect_inputs(&option, &curves, as_of).expect("collect_inputs should succeed");
+        let (spot, _r, q, _sigma, _t) = pricing::collect_inputs(&option, &curves, as_of)
+            .expect("collect_inputs should succeed");
 
         // No future dividends within option life — spot unadjusted, q=0
         assert!(
@@ -1472,8 +1492,8 @@ mod tests {
 
         let curves = build_market_context(as_of, 100.0, 0.25, 0.05, 0.0);
 
-        let (spot, r, q, _sigma, _t) =
-            pricer::collect_inputs(&option, &curves, as_of).expect("collect_inputs should succeed");
+        let (spot, r, q, _sigma, _t) = pricing::collect_inputs(&option, &curves, as_of)
+            .expect("collect_inputs should succeed");
 
         // Only the $1.50 September dividend should reduce spot
         let t_sep = DayCount::Act365F

@@ -220,7 +220,7 @@ impl Tenor {
     ///
     /// # Arguments
     ///
-    /// * `count` - Count supplied by the caller for this operation
+    /// * `count` - Number of tenor units in the resulting interval.
     /// * `unit` - Unit enum selecting the interpretation of the numeric magnitude
     pub fn try_new(count: u32, unit: TenorUnit) -> crate::Result<Self> {
         let max_count = match unit {

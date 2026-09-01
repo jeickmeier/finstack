@@ -468,7 +468,7 @@ impl PathState {
     ///
     /// # Arguments
     ///
-    /// * `out` - Out supplied by the caller for this operation
+    /// * `out` - Caller-owned output buffer populated without allocating a replacement.
     pub fn collect_vars(&self, out: &mut HashMap<&'static str, f64>) {
         out.clear();
 
@@ -540,7 +540,7 @@ impl PathState {
     ///
     /// # Arguments
     ///
-    /// * `time` - Time supplied by the caller for this operation
+    /// * `time` - Evaluation time in years from the model origin.
     /// * `amount` - Finite monetary quantity in major currency units before rounding
     pub fn add_cashflow(&mut self, time: f64, amount: f64) {
         self.extras_mut()
@@ -552,9 +552,9 @@ impl PathState {
     ///
     /// # Arguments
     ///
-    /// * `time` - Time supplied by the caller for this operation
+    /// * `time` - Evaluation time in years from the model origin.
     /// * `amount` - Finite monetary quantity in major currency units before rounding
-    /// * `cf_type` - Cf type supplied by the caller for this operation
+    /// * `cf_type` - Cf type used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn add_typed_cashflow(&mut self, time: f64, amount: f64, cf_type: CashflowType) {
         self.extras_mut().cashflows.push((time, amount, cf_type));
     }

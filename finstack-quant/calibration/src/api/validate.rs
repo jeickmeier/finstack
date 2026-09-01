@@ -1000,7 +1000,7 @@ mod tests {
             .expect("duplicate step error");
         assert_eq!(duplicate.kind_str(), "duplicate_step_id");
         assert_eq!(duplicate.step_id(), Some("duplicate"));
-        assert!(duplicate.to_json().contains("\"duplicate_index\": 1"));
+        assert!(duplicate.to_json().contains("\"duplicate_index\":1"));
     }
 }
 

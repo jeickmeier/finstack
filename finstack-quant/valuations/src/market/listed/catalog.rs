@@ -249,7 +249,7 @@ pub fn listed_product_catalog_json(
     exchange: Option<ListedExchange>,
 ) -> finstack_quant_core::Result<String> {
     let rows = listed_product_catalog(exchange)?;
-    serde_json::to_string_pretty(&rows).map_err(|error| {
+    serde_json::to_string(&rows).map_err(|error| {
         finstack_quant_core::Error::Validation(format!(
             "failed to serialize listed-product catalog: {error}"
         ))

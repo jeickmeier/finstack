@@ -16,7 +16,7 @@ use crate::quotes::rates::RateQuote;
 fn usd_build_ctx(as_of: Date) -> BuildCtx {
     let mut curve_ids = finstack_quant_core::HashMap::default();
     curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
-    curve_ids.insert("forward".to_string(), "USD-SOFR".to_string());
+    curve_ids.insert("forward".to_string(), "USD-SOFR-3M".to_string());
     BuildCtx::new(as_of, 1_000_000.0, curve_ids)
 }
 
@@ -85,10 +85,7 @@ fn test_build_swap() {
     let as_of = Date::from_calendar_date(2025, time::Month::January, 10).unwrap();
     let ctx = usd_build_ctx(as_of);
 
-    // Use USD-SOFR-3M (Term SOFR style or OIS compounded, RateIndexKind=Term in registry will determine builder path)
-    // If it's OIS (OvernightRfr), builder uses compounded-in-arrears conventions.
-    // If Term, builder uses simple compounding conventions.
-    // Let's assume correct behavior.
+    // USD-SOFR-3M is a term index and therefore uses simple compounding.
     let quote = RateQuote::Swap {
         id: "USD-SWAP-5Y".into(),
         index: "USD-SOFR-3M".into(),

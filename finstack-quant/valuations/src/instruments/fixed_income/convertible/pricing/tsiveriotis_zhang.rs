@@ -6,7 +6,7 @@ use finstack_quant_core::{Error, Result};
 
 use finstack_quant_models::EvolutionParams;
 
-use super::pricing::ConvertibleTreeType;
+use super::engine::ConvertibleTreeType;
 use super::valuator::ConvertibleBondValuator;
 
 /// Implementation of Tsiveriotis-Zhang tree pricing logic.

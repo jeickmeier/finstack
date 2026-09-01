@@ -42,7 +42,6 @@ pub enum Monitoring {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = FxBarrierOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxBarrierOption {
     /// Unique instrument identifier

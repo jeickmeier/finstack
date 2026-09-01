@@ -58,7 +58,6 @@ pub enum CommodityFutureSettlement {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = CommodityFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct CommodityFuture {
     /// Unique instrument identifier.

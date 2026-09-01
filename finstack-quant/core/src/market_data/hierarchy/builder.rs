@@ -35,7 +35,7 @@ impl HierarchyBuilder {
     ///
     /// # Arguments
     ///
-    /// * `path` - Path supplied by the caller for this operation
+    /// * `path` - Hierarchical market-data path identifying the insertion or lookup location.
     pub fn add_node(mut self, path: &str) -> Self {
         let segments = match parse_path(path) {
             Ok(segments) => segments,

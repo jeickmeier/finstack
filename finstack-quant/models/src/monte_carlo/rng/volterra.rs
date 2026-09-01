@@ -221,7 +221,7 @@ impl RiemannLiouvilleVolterra {
     ///
     /// # Arguments
     ///
-    /// * `normals` - Normals supplied by the caller for this operation
+    /// * `normals` - Standard-normal innovations ordered as required by the Volterra kernel.
     pub fn driving_normals(&self, normals: &[f64]) -> Vec<f64> {
         debug_assert_eq!(normals.len(), 2 * self.num_steps);
         (0..self.num_steps).map(|k| normals[2 * k]).collect()

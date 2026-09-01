@@ -612,7 +612,7 @@ fn collateral_balance_with_haircuts(
         });
     }
 
-    let mut total = Money::new(0.0, pool.base_currency());
+    let mut total = Money::new(0.0, pool.get_base_currency());
     for (index, asset) in pool.assets.iter().enumerate() {
         if performing_only && asset.is_defaulted {
             continue;

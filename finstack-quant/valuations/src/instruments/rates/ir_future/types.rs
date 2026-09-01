@@ -70,7 +70,6 @@ pub(crate) struct RateFutureProjection {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = InterestRateFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct InterestRateFuture {
     /// Unique identifier

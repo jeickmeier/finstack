@@ -85,7 +85,7 @@
 
 pub(crate) mod metrics;
 pub(crate) mod parameters;
-pub(crate) mod pricer;
+pub(crate) mod pricing;
 mod types;
 
 pub use finstack_quant_models::correlation::copula::CopulaSpec;
@@ -93,4 +93,4 @@ pub use finstack_quant_models::correlation::recovery::RecoverySpec;
 pub use parameters::CDSTrancheParams;
 pub use types::{CDSTranche, CDSTrancheBuilder, TrancheSide};
 
-pub use pricer::{CDSTranchePricer, CDSTranchePricerConfig, HeteroMethod};
+pub use pricing::{CDSTranchePricer, CDSTranchePricerConfig, HeteroMethod};

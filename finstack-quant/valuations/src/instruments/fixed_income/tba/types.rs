@@ -125,7 +125,6 @@ pub struct TbaSettlement {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = AgencyTba::validate)]
 #[serde(deny_unknown_fields)]
 pub struct AgencyTba {
     /// Unique instrument identifier.

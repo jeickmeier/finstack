@@ -201,7 +201,6 @@ impl RateSpec {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = TermLoan::validate)]
 #[serde(deny_unknown_fields)]
 pub struct TermLoan {
     /// Unique instrument identifier

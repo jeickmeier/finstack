@@ -18,7 +18,6 @@ use time::macros::date;
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = CliquetOption::validate)]
 #[serde(deny_unknown_fields, try_from = "CliquetOptionUnchecked")]
 pub struct CliquetOption {
     /// Unique instrument identifier

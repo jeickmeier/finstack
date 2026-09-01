@@ -669,7 +669,7 @@ impl<'a> ScheduleBuilder<'a> {
     ///
     /// # Arguments
     ///
-    /// * `stub` - Stub supplied by the caller for this operation
+    /// * `stub` - Stub policy controlling irregular first or final schedule periods.
     #[must_use]
     pub fn stub_rule(mut self, stub: StubKind) -> Self {
         self.stub = stub;
@@ -680,8 +680,8 @@ impl<'a> ScheduleBuilder<'a> {
     ///
     /// # Arguments
     ///
-    /// * `conv` - Conv supplied by the caller for this operation
-    /// * `cal` - Cal supplied by the caller for this operation
+    /// * `conv` - Business-day convention applied when an unadjusted date is not a business day.
+    /// * `cal` - Holiday calendar used for business-day adjustment.
     #[must_use]
     pub fn adjust_with(
         mut self,

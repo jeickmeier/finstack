@@ -89,7 +89,6 @@ pub enum TrsDividendSettlement {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = EquityTotalReturnSwap::validate)]
 #[serde(deny_unknown_fields, try_from = "EquityTotalReturnSwapUnchecked")]
 pub struct EquityTotalReturnSwap {
     /// Unique instrument identifier.

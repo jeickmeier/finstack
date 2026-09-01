@@ -1,8 +1,8 @@
 //! JSON and typed-spec orchestration for panel transform pipelines.
 //!
-//! [`transform_panel`] accepts a UTF-8 JSON [`PanelTransformSpec`] and returns
+//! [`transform_panel_json`] accepts a UTF-8 JSON [`PanelTransformSpec`] and returns
 //! a JSON object mapping operation names to output columns.
-//! [`transform_panel_spec`] is the typed Rust entry point and preserves
+//! [`transform_panel`] is the typed Rust entry point and preserves
 //! operation order in [`PanelTransformResult`].
 
 use crate::{
@@ -29,10 +29,10 @@ use std::collections::BTreeSet;
 ///
 /// Returns a validation error when the specification is malformed or an
 /// operation cannot be evaluated.
-pub fn transform_panel(spec_json: &str) -> Result<String> {
+pub fn transform_panel_json(spec_json: &str) -> Result<String> {
     let spec: PanelTransformSpec = serde_json::from_str(spec_json)
         .map_err(|err| Error::Validation(format!("invalid panel transform JSON: {err}")))?;
-    let result = transform_panel_spec(&spec)?;
+    let result = transform_panel(&spec)?;
     serde_json::to_string(&result)
         .map_err(|err| Error::Internal(format!("failed to serialize panel transform: {err}")))
 }
@@ -52,7 +52,7 @@ pub fn transform_panel(spec_json: &str) -> Result<String> {
 /// Returns a validation error when the specification is malformed, an
 /// operation name is reserved or duplicated, `input` names an unknown or
 /// not-yet-evaluated column, or an operation cannot be evaluated.
-pub fn transform_panel_spec(spec: &PanelTransformSpec) -> Result<PanelTransformResult> {
+pub fn transform_panel(spec: &PanelTransformSpec) -> Result<PanelTransformResult> {
     validate_operation_names(&spec.operations)?;
     let mut columns = Vec::with_capacity(spec.operations.len());
     for operation in &spec.operations {

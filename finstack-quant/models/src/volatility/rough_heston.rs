@@ -108,7 +108,7 @@ impl FractionalRiccatiSolver {
     ///
     /// # Arguments
     ///
-    /// * `u` - U supplied by the caller for this operation
+    /// * `u` - U used by the algorithm, subject to the enclosing type invariants and documented units.
     /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
     /// * `sigma` - Diffusion volatility of the process in decimal annual units
     /// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`

@@ -79,7 +79,7 @@ impl PricingOptions {
     ///
     /// # Arguments
     ///
-    /// * `model` - Model supplied by the caller for this operation
+    /// * `model` - Validated model whose state and conventions drive the calculation.
     pub fn with_model(mut self, model: ModelKey) -> Self {
         self.model = Some(model);
         self
@@ -89,7 +89,7 @@ impl PricingOptions {
     ///
     /// # Arguments
     ///
-    /// * `registry` - Registry supplied by the caller for this operation
+    /// * `registry` - Registry whose validated definitions are loaded or queried.
     pub fn with_registry(mut self, registry: Arc<PricerRegistry>) -> Self {
         self.registry = Some(registry);
         self

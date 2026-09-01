@@ -58,10 +58,10 @@ impl EvolutionParams {
     ///
     /// # Arguments
     ///
-    /// * `volatility` - Volatility supplied by the caller for this operation
-    /// * `risk_free_rate` - Risk free rate supplied by the caller for this operation
-    /// * `dividend_yield` - Dividend yield supplied by the caller for this operation
-    /// * `dt` - Dt supplied by the caller for this operation
+    /// * `volatility` - Annualized volatility in decimal units.
+    /// * `risk_free_rate` - Risk free rate used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `dividend_yield` - Continuously compounded annual dividend yield in decimal units.
+    /// * `dt` - Positive time-step width in year-fraction units.
     pub fn equity_crr(
         volatility: f64,
         risk_free_rate: f64,
@@ -120,10 +120,10 @@ impl EvolutionParams {
     ///
     /// # Arguments
     ///
-    /// * `volatility` - Volatility supplied by the caller for this operation
-    /// * `risk_free_rate` - Risk free rate supplied by the caller for this operation
-    /// * `dividend_yield` - Dividend yield supplied by the caller for this operation
-    /// * `dt` - Dt supplied by the caller for this operation
+    /// * `volatility` - Annualized volatility in decimal units.
+    /// * `risk_free_rate` - Risk free rate used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `dividend_yield` - Continuously compounded annual dividend yield in decimal units.
+    /// * `dt` - Positive time-step width in year-fraction units.
     pub fn equity_trinomial(
         volatility: f64,
         risk_free_rate: f64,

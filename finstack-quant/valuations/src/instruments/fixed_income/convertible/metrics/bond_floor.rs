@@ -31,7 +31,7 @@ impl MetricCalculator for BondFloorCalculator {
         }
 
         let schedule =
-            crate::instruments::fixed_income::convertible::pricer::build_convertible_schedule(
+            crate::instruments::fixed_income::convertible::pricing::build_convertible_schedule(
                 bond,
             )?;
 

@@ -13,7 +13,7 @@
 //!   model).
 //! - JSON string `'{"n_steps": N}'` — variance scaled by `N`.
 
-use crate::utils::to_js_err;
+use crate::utils::{to_js_err, to_js_value};
 use wasm_bindgen::prelude::*;
 
 // Horizon helper (shared by CreditCalibrator and FactorCovarianceForecast)
@@ -119,14 +119,14 @@ impl JsCreditFactorModel {
         Ok(Self { inner })
     }
 
-    /// Serialize this model to pretty-printed JSON.
+    /// Serialize this model to compact wire JSON.
     ///
     /// # Errors
     ///
     /// Throws a JavaScript exception if the model cannot be serialized to JSON.
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
-        serde_json::to_string_pretty(&self.inner).map_err(to_js_err)
+        serde_json::to_string(&self.inner).map_err(to_js_err)
     }
 
     /// Return the exact namespaced contract marker.
@@ -193,6 +193,25 @@ pub struct JsLevelsAtDate {
 
 #[wasm_bindgen(js_class = LevelsAtDate)]
 impl JsLevelsAtDate {
+    /// Deserialize a factor-level snapshot from canonical JSON.
+    ///
+    /// # Arguments
+    ///
+    /// * `json` - Canonical `LevelsAtDate` JSON containing `date`, `generic`,
+    ///   `by_level`, and `adder` fields.
+    ///
+    /// # Errors
+    ///
+    /// Throws when the JSON is malformed or a numeric field is non-finite.
+    /// @param json - Canonical `LevelsAtDate` JSON.
+    /// @returns A validated `LevelsAtDate` handle.
+    #[wasm_bindgen(js_name = fromJson)]
+    pub fn from_json(json: &str) -> Result<JsLevelsAtDate, JsValue> {
+        let inner = serde_json::from_str(json).map_err(to_js_err)?;
+        ensure_levels_finite(&inner)?;
+        Ok(Self { inner })
+    }
+
     /// Serialize the snapshot to JSON.
     ///
     /// # Errors
@@ -201,7 +220,60 @@ impl JsLevelsAtDate {
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
         ensure_levels_finite(&self.inner)?;
-        serde_json::to_string_pretty(&self.inner).map_err(to_js_err)
+        serde_json::to_string(&self.inner).map_err(to_js_err)
+    }
+
+    /// Observation date as an ISO-8601 string.
+    #[wasm_bindgen(getter)]
+    pub fn date(&self) -> String {
+        self.inner.date.to_string()
+    }
+
+    /// Generic factor level in basis points.
+    #[wasm_bindgen(getter)]
+    pub fn generic(&self) -> f64 {
+        self.inner.generic
+    }
+
+    /// Number of hierarchy levels in this snapshot.
+    #[wasm_bindgen(getter, js_name = nLevels)]
+    pub fn n_levels(&self) -> usize {
+        self.inner.by_level.len()
+    }
+
+    /// Return the bucket-value map for one zero-based hierarchy level.
+    ///
+    /// # Arguments
+    ///
+    /// * `level_index` - Zero-based hierarchy level index, which must be less
+    ///   than `nLevels`.
+    ///
+    /// # Errors
+    ///
+    /// Throws when `level_index` is outside the available levels or the map
+    /// cannot be converted to a JavaScript object.
+    /// @param levelIndex - Zero-based hierarchy level index.
+    /// @returns A bucket-name to factor-level mapping in basis points.
+    #[wasm_bindgen(js_name = levelValues)]
+    pub fn level_values(&self, level_index: usize) -> Result<JsValue, JsValue> {
+        let level = self.inner.by_level.get(level_index).ok_or_else(|| {
+            JsValue::from_str(&format!(
+                "levelIndex {level_index} out of range (nLevels={})",
+                self.inner.by_level.len()
+            ))
+        })?;
+        to_js_value(&level.values)
+    }
+
+    /// Return per-issuer residual adders in basis points.
+    ///
+    /// # Errors
+    ///
+    /// Throws when the mapping cannot be converted to a JavaScript object.
+    /// @returns An issuer-ID to residual-adder mapping.
+    #[wasm_bindgen(js_name = adder)]
+    pub fn adder(&self) -> Result<JsValue, JsValue> {
+        to_js_value(&self.inner.adder)
     }
 }
 
@@ -216,6 +288,25 @@ pub struct JsPeriodDecomposition {
 
 #[wasm_bindgen(js_class = PeriodDecomposition)]
 impl JsPeriodDecomposition {
+    /// Deserialize a period decomposition from canonical JSON.
+    ///
+    /// # Arguments
+    ///
+    /// * `json` - Canonical `PeriodDecomposition` JSON containing `from`,
+    ///   `to`, `d_generic`, `by_level`, and `d_adder` fields.
+    ///
+    /// # Errors
+    ///
+    /// Throws when the JSON is malformed or a numeric field is non-finite.
+    /// @param json - Canonical `PeriodDecomposition` JSON.
+    /// @returns A validated `PeriodDecomposition` handle.
+    #[wasm_bindgen(js_name = fromJson)]
+    pub fn from_json(json: &str) -> Result<JsPeriodDecomposition, JsValue> {
+        let inner = serde_json::from_str(json).map_err(to_js_err)?;
+        ensure_period_finite(&inner)?;
+        Ok(Self { inner })
+    }
+
     /// Serialize the decomposition to JSON.
     ///
     /// # Errors
@@ -224,7 +315,66 @@ impl JsPeriodDecomposition {
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
         ensure_period_finite(&self.inner)?;
-        serde_json::to_string_pretty(&self.inner).map_err(to_js_err)
+        serde_json::to_string(&self.inner).map_err(to_js_err)
+    }
+
+    /// Earlier snapshot date as an ISO-8601 string.
+    #[wasm_bindgen(getter, js_name = fromDate)]
+    pub fn from_date(&self) -> String {
+        self.inner.from.to_string()
+    }
+
+    /// Later snapshot date as an ISO-8601 string.
+    #[wasm_bindgen(getter, js_name = toDate)]
+    pub fn to_date(&self) -> String {
+        self.inner.to.to_string()
+    }
+
+    /// Change in the generic factor in basis points.
+    #[wasm_bindgen(getter, js_name = dGeneric)]
+    pub fn d_generic(&self) -> f64 {
+        self.inner.d_generic
+    }
+
+    /// Number of hierarchy levels in this decomposition.
+    #[wasm_bindgen(getter, js_name = nLevels)]
+    pub fn n_levels(&self) -> usize {
+        self.inner.by_level.len()
+    }
+
+    /// Return the bucket-delta map for one zero-based hierarchy level.
+    ///
+    /// # Arguments
+    ///
+    /// * `level_index` - Zero-based hierarchy level index, which must be less
+    ///   than `nLevels`.
+    ///
+    /// # Errors
+    ///
+    /// Throws when `level_index` is outside the available levels or the map
+    /// cannot be converted to a JavaScript object.
+    /// @param levelIndex - Zero-based hierarchy level index.
+    /// @returns A bucket-name to factor-change mapping in basis points.
+    #[wasm_bindgen(js_name = levelDeltas)]
+    pub fn level_deltas(&self, level_index: usize) -> Result<JsValue, JsValue> {
+        let level = self.inner.by_level.get(level_index).ok_or_else(|| {
+            JsValue::from_str(&format!(
+                "levelIndex {level_index} out of range (nLevels={})",
+                self.inner.by_level.len()
+            ))
+        })?;
+        to_js_value(&level.deltas)
+    }
+
+    /// Return per-issuer residual-adder deltas in basis points.
+    ///
+    /// # Errors
+    ///
+    /// Throws when the mapping cannot be converted to a JavaScript object.
+    /// @returns An issuer-ID to residual-adder-change mapping.
+    #[wasm_bindgen(js_name = dAdder)]
+    pub fn d_adder(&self) -> Result<JsValue, JsValue> {
+        to_js_value(&self.inner.d_adder)
     }
 }
 

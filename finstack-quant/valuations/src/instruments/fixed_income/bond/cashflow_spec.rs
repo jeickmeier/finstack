@@ -612,7 +612,7 @@ impl CashflowSpec {
     ///
     /// # Arguments
     ///
-    /// * `params` - Params supplied by the caller for this operation
+    /// * `params` - Validated model or algorithm parameters controlling this calculation.
     pub fn floating_with_conventions(params: FloatingConventionParams) -> Self {
         Self::Floating(FloatingCouponSpec {
             rate_spec: FloatingRateSpec {
@@ -790,7 +790,7 @@ impl CashflowSpec {
     ///
     /// # Arguments
     ///
-    /// * `params` - Params supplied by the caller for this operation
+    /// * `params` - Validated model or algorithm parameters controlling this calculation.
     pub fn from_bond_builder_params(params: BondBuilderParams) -> Self {
         let BondBuilderParams {
             coupon_rate,

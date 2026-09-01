@@ -96,7 +96,6 @@ use finstack_quant_core::Result;
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = FxSpot::validate_economics)]
 #[serde(deny_unknown_fields, try_from = "FxSpotUnchecked")]
 pub struct FxSpot {
     /// Unique identifier for the FX pair
@@ -458,7 +457,7 @@ impl FxSpot {
     }
 
     /// Get the configured notional amount.
-    pub fn effective_notional(&self) -> Money {
+    pub fn get_effective_notional(&self) -> Money {
         self.notional
     }
 
@@ -656,7 +655,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for FxSpot {
                 matrix.as_ref().rate(q)?.rate
             };
             let value = Money::new(
-                self.effective_notional().amount() * rate,
+                self.get_effective_notional().amount() * rate,
                 self.quote_currency,
             );
             vec![(settle_date, value)]

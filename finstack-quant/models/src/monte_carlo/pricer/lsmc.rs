@@ -858,12 +858,12 @@ impl LsmcPricer {
     /// # Arguments
     ///
     /// * `process` - Stochastic process driving the simulated state variables over the grid
-    /// * `initial_spot` - Initial spot supplied by the caller for this operation
-    /// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
-    /// * `num_steps` - Num steps supplied by the caller for this operation
-    /// * `exercise` - Exercise supplied by the caller for this operation
-    /// * `basis` - Basis supplied by the caller for this operation
-    /// * `discount_rate` - Discount rate supplied by the caller for this operation
+    /// * `initial_spot` - Positive initial underlying spot level in the payoff currency.
+    /// * `time_to_maturity` - Remaining maturity in years on an ACT/365-style model time axis.
+    /// * `num_steps` - Positive number of time steps used to discretize the simulation horizon.
+    /// * `exercise` - Exercise policy that determines when the payoff may be realized.
+    /// * `basis` - Regression basis used to approximate continuation values.
+    /// * `discount_rate` - Continuously compounded annual discount rate in decimal units.
     #[allow(clippy::too_many_arguments)]
     pub fn fit_exercise_policy<E, B>(
         &self,
@@ -908,15 +908,15 @@ impl LsmcPricer {
     /// # Arguments
     ///
     /// * `process` - Stochastic process driving the simulated state variables over the grid
-    /// * `initial_spot` - Initial spot supplied by the caller for this operation
-    /// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
-    /// * `num_steps` - Num steps supplied by the caller for this operation
-    /// * `exercise` - Exercise supplied by the caller for this operation
-    /// * `basis` - Basis supplied by the caller for this operation
+    /// * `initial_spot` - Positive initial underlying spot level in the payoff currency.
+    /// * `time_to_maturity` - Remaining maturity in years on an ACT/365-style model time axis.
+    /// * `num_steps` - Positive number of time steps used to discretize the simulation horizon.
+    /// * `exercise` - Exercise policy that determines when the payoff may be realized.
+    /// * `basis` - Regression basis used to approximate continuation values.
     /// * `policy` - Policy enum controlling error handling, unmatched keys, or fallbacks
     /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
-    /// * `discount_rate` - Discount rate supplied by the caller for this operation
-    /// * `pricing_seed` - Pricing seed supplied by the caller for this operation
+    /// * `discount_rate` - Continuously compounded annual discount rate in decimal units.
+    /// * `pricing_seed` - Deterministic random seed used to reproduce Monte Carlo paths.
     #[allow(clippy::too_many_arguments)]
     pub fn price_with_policy<E, B>(
         &self,
@@ -989,14 +989,14 @@ impl LsmcPricer {
     /// # Arguments
     ///
     /// * `process` - Stochastic process driving the simulated state variables over the grid
-    /// * `initial_spot` - Initial spot supplied by the caller for this operation
-    /// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
-    /// * `num_steps` - Num steps supplied by the caller for this operation
-    /// * `exercise` - Exercise supplied by the caller for this operation
-    /// * `basis` - Basis supplied by the caller for this operation
+    /// * `initial_spot` - Positive initial underlying spot level in the payoff currency.
+    /// * `time_to_maturity` - Remaining maturity in years on an ACT/365-style model time axis.
+    /// * `num_steps` - Positive number of time steps used to discretize the simulation horizon.
+    /// * `exercise` - Exercise policy that determines when the payoff may be realized.
+    /// * `basis` - Regression basis used to approximate continuation values.
     /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
-    /// * `discount_rate` - Discount rate supplied by the caller for this operation
-    /// * `pricing_seed` - Pricing seed supplied by the caller for this operation
+    /// * `discount_rate` - Continuously compounded annual discount rate in decimal units.
+    /// * `pricing_seed` - Deterministic random seed used to reproduce Monte Carlo paths.
     #[allow(clippy::too_many_arguments)]
     pub fn price_unbiased<E, B>(
         &self,

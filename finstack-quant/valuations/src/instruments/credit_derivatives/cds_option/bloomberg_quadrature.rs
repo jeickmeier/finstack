@@ -58,7 +58,7 @@
 
 use crate::constants::{bloomberg_cdso, numerical, BASIS_POINTS_PER_UNIT};
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
+use crate::instruments::credit_derivatives::cds::pricing::CDSPricer;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
 use finstack_quant_core::dates::{adjust, calendar_by_id, BusinessDayConvention, Date, DateExt};

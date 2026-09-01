@@ -440,7 +440,6 @@ impl BondFutureSpecs {
     serde::Serialize,
     serde::Deserialize,
 )]
-#[builder(validate = BondFuture::validate)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BondFuture {

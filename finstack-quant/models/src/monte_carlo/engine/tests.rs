@@ -558,20 +558,21 @@ fn test_engine_rejects_generic_scheme_for_lmm_process() {
     let rng = crate::monte_carlo::rng::philox::PhiloxRng::new(1);
 
     let lmm = LmmProcess::new(
-        LmmParams::try_new(
-            3,
-            2,
-            vec![0.0, 1.0, 2.0, 3.0],
-            vec![1.0, 1.0, 1.0],
-            vec![0.005, 0.005, 0.005],
-            vec![],
-            vec![vec![
+        LmmParams {
+            num_forwards: 3,
+            num_factors: 2,
+            tenors: vec![0.0, 1.0, 2.0, 3.0],
+            accrual_factors: vec![1.0, 1.0, 1.0],
+            displacements: vec![0.005, 0.005, 0.005],
+            vol_times: vec![],
+            vol_values: vec![vec![
                 [0.15, 0.05, 0.0],
                 [0.12, 0.08, 0.0],
                 [0.10, 0.10, 0.0],
             ]],
-            vec![0.03, 0.03, 0.03],
-        )
+            initial_forwards: vec![0.03, 0.03, 0.03],
+        }
+        .validate()
         .expect("valid LMM params"),
     );
     let err = engine

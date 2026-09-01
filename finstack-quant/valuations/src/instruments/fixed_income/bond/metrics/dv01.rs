@@ -92,7 +92,7 @@ fn curve_bump_dv01(
     curve_id: &CurveId,
 ) -> finstack_quant_core::Result<f64> {
     let defaults = crate::metrics::sensitivities::config::from_context_or_default(
-        context.config(),
+        context.get_config(),
         context.get_metric_overrides(),
     )?;
     let bump_bp = defaults.rate_bump_bp;

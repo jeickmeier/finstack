@@ -599,7 +599,7 @@ impl FinancingLegSpec {
     ///
     /// # Arguments
     ///
-    /// * `compounding` - Compounding supplied by the caller for this operation
+    /// * `compounding` - Compounding used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn with_compounding(mut self, compounding: FinancingRateCompounding) -> Self {
         self.compounding = compounding;
         self

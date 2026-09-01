@@ -175,8 +175,8 @@ impl BasisSwap {
     ///
     /// * `id` - Stable string identifier used for lookup and serialization of this object
     /// * `notional` - Trade notional amount in the instrument currency's major units
-    /// * `primary_leg` - Primary leg supplied by the caller for this operation
-    /// * `reference_leg` - Reference leg supplied by the caller for this operation
+    /// * `primary_leg` - Primary leg used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `reference_leg` - Reference leg used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn new(
         id: impl Into<String>,
         notional: Money,

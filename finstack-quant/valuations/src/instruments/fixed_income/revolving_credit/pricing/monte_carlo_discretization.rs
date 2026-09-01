@@ -100,7 +100,7 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
         // the exact transition the moments are correct before any clamp, so
         // the (retained) clamp is now purely a defensive guard against rare
         // tail excursions rather than a bias-correction crutch.
-        let util_params = &process.params().utilization;
+        let util_params = &process.get_params().utilization;
         let kappa = util_params.kappa;
         let theta = util_params.theta;
         let sigma = util_params.sigma;
@@ -123,7 +123,7 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
         x[0] = x[0].clamp(0.0, 1.0);
 
         // Step 2: Short rate
-        match &process.params().interest_rate {
+        match &process.get_params().interest_rate {
             InterestRateSpec::Fixed { .. } => {
                 // Fixed rate: no change
                 // x[1] stays constant
@@ -134,13 +134,13 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
                 // For HW1F:
                 // r_{t+dt} = r_t e^{-κdt} + θ(1 - e^{-κdt}) + σ√[(1-e^{-2κdt})/(2κ)] Z
                 let kappa = params.kappa;
-                let theta = params.theta_at_time(process.params().time_offset + t);
+                let theta = params.theta_at_time(process.get_params().time_offset + t);
 
                 let exp_kappa_dt = (-kappa * dt).exp();
                 let mean = x[1] * exp_kappa_dt + theta * (1.0 - exp_kappa_dt);
 
                 let std_dev = params
-                    .sigma_variance_for_step(process.params().time_offset + t, dt)
+                    .sigma_variance_for_step(process.get_params().time_offset + t, dt)
                     .max(0.0)
                     .sqrt();
 
@@ -151,7 +151,7 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
                 // The spec is validated at the path-generator boundary (equal
                 // lengths, strictly increasing finite knots, finite rates), so
                 // interpolation is total and cannot produce non-finite values.
-                let t_total = process.params().time_offset + t + dt;
+                let t_total = process.get_params().time_offset + t + dt;
                 let n = times.len();
                 let r = if n == 0 {
                     0.0
@@ -181,7 +181,7 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
         let credit_shock = [z_corr[2]];
         let _credit_work = [0.0];
 
-        let cir_params = &process.params().credit_spread.cir;
+        let cir_params = &process.get_params().credit_spread.cir;
 
         // Apply QE scheme directly
         let v_t = credit_state[0];

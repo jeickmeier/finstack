@@ -116,13 +116,11 @@ when empty, and reject `null`.
 
 Some public result and binding-view types are intentionally one-way outputs.
 They are computed from canonical inputs and are never accepted as persisted
-request documents. The current public inventory contains 28 one-way types:
+request documents. The current public inventory contains 24 one-way types:
 
 - attribution: `ReturnContributionResult`, `InstrumentContribution`,
   `GroupContribution`, `FactorContribution`, and
   `BenchmarkRelativeContribution`;
-- credit decomposition: `LevelValuesAtDate`, `LevelsAtDate`,
-  `LevelValuesDelta`, and `PeriodDecomposition`;
 - model factor-risk views: `PositionEsContributionView`,
   `ParametricEsDecompositionView`, `PositionVarContributionView`,
   `ParametricVarDecompositionView`, `PositionBudgetEntryView`, and

@@ -303,7 +303,7 @@ impl SabrParameters {
     /// # Arguments
     ///
     /// * `f` - Objective or payoff closure evaluated by the solver or Monte Carlo engine
-    /// * `k` - K supplied by the caller for this operation
+    /// * `k` - K used by the algorithm, subject to the enclosing type invariants and documented units.
     /// * `t` - Year-fraction time from the curve or surface base date to the query point
     pub fn implied_vol_normal(&self, f: f64, k: f64, t: f64) -> finstack_quant_core::Result<f64> {
         let shift = self.shift.unwrap_or(0.0);

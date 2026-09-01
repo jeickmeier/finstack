@@ -303,7 +303,6 @@ impl std::str::FromStr for NdfFixingSource {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = Ndf::validate)]
 #[serde(deny_unknown_fields, try_from = "NdfUnchecked")]
 pub struct Ndf {
     /// Unique instrument identifier.

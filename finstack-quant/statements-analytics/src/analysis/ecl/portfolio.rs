@@ -55,8 +55,8 @@ impl PortfolioEclResult {
     ///
     /// # Arguments
     ///
-    /// * `results` - Results supplied by the caller for this operation
-    /// * `exposures` - Exposures supplied by the caller for this operation
+    /// * `results` - Evaluated statement or pricing results consumed by the operation.
+    /// * `exposures` - Exposure values aligned with the documented dates or risk factors.
     pub fn from_results_with_exposures(
         results: Vec<ExposureEclResult>,
         exposures: &[super::types::Exposure],

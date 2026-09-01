@@ -22,7 +22,7 @@ from finstack_quant.portfolio import (
     Portfolio,
     aggregate_metrics_json,
     attribute_portfolio_pnl,
-    build_portfolio_from_spec,
+    build_portfolio_from_spec_json,
     carino_link_json,
     compute_factor_sensitivities,
     decompose_factor_risk,
@@ -188,7 +188,7 @@ def test_portfolio_from_spec_detached_parse_preserves_value_error_mapping() -> N
 
 def test_compatibility_build_spec_path_releases_gil() -> None:
     portfolio_json = _portfolio_spec_json(10_000)
-    round_tripped = _assert_releases_gil(lambda: build_portfolio_from_spec(portfolio_json))
+    round_tripped = _assert_releases_gil(lambda: build_portfolio_from_spec_json(portfolio_json))
 
     assert len(json.loads(round_tripped)["positions"]) == 10_000
 

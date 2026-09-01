@@ -62,7 +62,7 @@ impl CDSPricerConfig {
             par_spread_uses_full_premium: false,
             business_days_per_year: time_constants::BUSINESS_DAYS_PER_YEAR_US,
             protection_leg_substeps_per_year:
-                crate::instruments::credit_derivatives::cds::pricer::helpers::PROTECTION_LEG_SUB_STEPS_PER_YEAR_DEFAULT,
+                crate::instruments::credit_derivatives::cds::pricing::helpers::PROTECTION_LEG_SUB_STEPS_PER_YEAR_DEFAULT,
         }
     }
 

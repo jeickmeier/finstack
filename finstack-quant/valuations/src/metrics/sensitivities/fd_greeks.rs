@@ -369,8 +369,10 @@ where
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let instrument: &I = context.instrument_as()?;
         let as_of = context.as_of;
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
 
         let dependencies = instrument.market_dependencies()?;
         let spot_id = dependencies.market_scalar_ids.first().ok_or_else(|| {
@@ -452,8 +454,10 @@ where
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let instrument: &I = context.instrument_as()?;
         let as_of = context.as_of;
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
 
         let dependencies = instrument.market_dependencies()?;
         let spot_id = dependencies.market_scalar_ids.first().ok_or_else(|| {
@@ -534,8 +538,10 @@ where
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let instrument: &I = context.instrument_as()?;
         let as_of = context.as_of;
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
 
         let dependencies = instrument.market_dependencies()?;
         let vol_surface_ids = present_vol_surface_ids(&dependencies, &context.curves, "vega")?;
@@ -645,8 +651,10 @@ where
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let instrument: &I = context.instrument_as()?;
         let as_of = context.as_of;
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
 
         // If expired, volga is zero — mirror vanna's guard. On an expired
         // option, vega ≈ 0, so volga = (vega(σ+h) - vega(σ-h))/h^2 amplifies
@@ -723,8 +731,10 @@ where
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let instrument: &I = context.instrument_as()?;
         let as_of = context.as_of;
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
 
         // If expired, vanna is zero (avoid bumping / repricing beyond expiry).
         let t = instrument.day_count().year_fraction(

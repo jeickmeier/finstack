@@ -162,7 +162,7 @@ fn test_pricer_config_builder_methods_wire_copula_and_numerical_settings() {
     let pricer =
         CDSTranchePricer::with_params(config.clone()).expect("valid tranche pricer config");
     assert_eq!(config.quadrature_order, 7);
-    assert_eq!(pricer.config().quadrature_order, 7);
+    assert_eq!(pricer.get_config().quadrature_order, 7);
 }
 
 #[test]

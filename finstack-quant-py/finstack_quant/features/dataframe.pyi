@@ -150,7 +150,7 @@ def panel(
     """
     Apply a JSON panel transform pipeline to a DataFrame value column.
 
-    Forwards to :func:`finstack_quant.features.transform_panel`. Operations
+    Forwards to :func:`finstack_quant.features.transform_panel_json`. Operations
     run sequentially; set ``input`` to ``"values"`` to branch from the raw
     column.
 

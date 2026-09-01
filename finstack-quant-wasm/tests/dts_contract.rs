@@ -296,7 +296,7 @@ fn forward_curve_dts_exposes_projection_grid_and_rate_between() {
 
     assert!(contains_ignoring_ws(
         curve,
-        "readonly projectionGrid: Float64Array | null;"
+        "readonly projectionGrid: Float64Array | undefined;"
     ));
     assert!(contains_ignoring_ws(
         curve,
@@ -305,7 +305,7 @@ fn forward_curve_dts_exposes_projection_grid_and_rate_between() {
     assert!(contains_ignoring_ws(curve, "readonly resetLag: number;"));
     assert!(contains_ignoring_ws(
         constructor,
-        "projectionGrid?: NumericArray | null"
+        "projectionGrid?: NumericArray"
     ));
     assert!(contains_ignoring_ws(constructor, "knots: NumericArray"));
     assert!(contains_ignoring_ws(
@@ -435,7 +435,7 @@ fn valuations_dts_exposes_reusable_market_handle_pricing() {
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "instrumentCashflowsWithMarket(instrumentJson: string, market: Market, asOf: string, model: string): string;",
+        "instrumentCashflowsWithMarketJson(instrumentJson: string, market: Market, asOf: string, model: string): string;",
     ));
 }
 
@@ -1034,7 +1034,7 @@ fn features_dts_matches_transform_surface() {
     ));
     assert!(contains_signature(
         features,
-        "transformPanel(specJson: string): string;"
+        "transformPanelJson(specJson: string): string;"
     ));
     assert!(dts.contains("export declare const features: FeaturesNamespace;"));
 }
@@ -1240,7 +1240,7 @@ fn attribution_dts_matches_json_pipeline_surface() {
     assert!(dts.contains("attributePnl(params: AttributionParams): PnlAttribution;"));
     assert!(dts.contains("attributePnlJson(params: AttributionParams): string;"));
     assert!(dts.contains("AttributionParams: new ("));
-    assert!(dts.contains("attributePnlFromSpec(specJson: string): string;"));
+    assert!(dts.contains("attributePnlEnvelopeJson(specJson: string): string;"));
     assert!(dts.contains("validateAttributionJson(json: string): string;"));
     assert!(dts.contains("defaultWaterfallOrder(): string[];"));
     assert!(dts.contains("defaultAttributionMetrics(): string[];"));

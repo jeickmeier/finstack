@@ -165,7 +165,7 @@ impl StateTemplate {
         tranches: &TrancheStructure,
         closing_date: Date,
     ) -> Result<Self> {
-        let base_currency = pool.base_currency();
+        let base_currency = pool.get_base_currency();
         let pool_balance_cleanup_threshold = embedded_registry()?.pool_balance_cleanup_threshold();
 
         let results: HashMap<String, TrancheCashflows> = tranches

@@ -375,7 +375,7 @@ impl FxMatrix {
     ///
     /// # Arguments
     ///
-    /// * `query` - Query supplied by the caller for this operation
+    /// * `query` - FX conversion query containing currencies, date, and lookup policy.
     pub fn rate(&self, query: FxQuery) -> crate::Result<FxRateResult> {
         let from = query.from;
         let to = query.to;
@@ -527,7 +527,7 @@ impl FxMatrix {
     ///
     /// * `from` - Source currency or start identifier for the conversion or transition
     /// * `to` - Destination currency or end identifier for the conversion or transition
-    /// * `rate` - Rate supplied by the caller for this operation
+    /// * `rate` - Rate applied by the operation; representation and compounding follow the receiving type convention.
     pub fn set_quote(&self, from: Currency, to: Currency, rate: f64) -> crate::Result<()> {
         let rate = validate_fx_rate(from, to, rate)?;
         self.insert_quote(from, to, rate);
@@ -565,9 +565,9 @@ impl FxMatrix {
     ///
     /// * `from` - Source currency or start identifier for the conversion or transition
     /// * `to` - Destination currency or end identifier for the conversion or transition
-    /// * `on` - On supplied by the caller for this operation
+    /// * `on` - Market date on which the quote or lookup applies.
     /// * `policy` - Policy enum controlling error handling, unmatched keys, or fallbacks
-    /// * `rate` - Rate supplied by the caller for this operation
+    /// * `rate` - Rate applied by the operation; representation and compounding follow the receiving type convention.
     pub fn set_quote_on(
         &self,
         from: Currency,
@@ -764,7 +764,7 @@ impl FxMatrix {
     ///
     /// # Arguments
     ///
-    /// * `state` - State supplied by the caller for this operation
+    /// * `state` - Serializable state used to restore the documented object.
     pub fn load_from_state(&self, state: &FxMatrixState) -> crate::Result<()> {
         self.set_quotes(&state.quotes)?;
         // Restore pinned (date/policy-scoped) fixings so they keep outranking

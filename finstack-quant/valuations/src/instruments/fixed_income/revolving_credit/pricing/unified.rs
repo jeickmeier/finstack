@@ -356,7 +356,7 @@ mod tests {
         let start = Date::from_calendar_date(2025, Month::January, 1).expect("date");
         let end = Date::from_calendar_date(2026, Month::January, 1).expect("date");
 
-        let facility = RevolvingCredit::builder()
+        let result = RevolvingCredit::builder()
             .id("RC-COMMIT-EVENT".into())
             .commitment_amount(Money::new(1_000_000.0, Currency::USD))
             .drawn_amount(Money::new(400_000.0, Currency::USD))
@@ -373,26 +373,11 @@ mod tests {
             }]))
             .discount_curve_id("USD-OIS".into())
             .recovery_rate(0.4)
-            .build()
-            .expect("facility");
+            .build();
 
-        // Instrument-level validation rejects it…
         assert!(
-            facility.validate().is_err(),
-            "validate() must reject a commitment-date event"
-        );
-
-        // …and the pricing path rejects it even if validate() is skipped.
-        let disc = DiscountCurve::builder("USD-OIS")
-            .base_date(start)
-            .day_count(DayCount::Act365F)
-            .knots([(0.0, 1.0), (5.0, 1.0)])
-            .build()
-            .expect("curve");
-        let market = MarketContext::new().insert(disc);
-        assert!(
-            RevolvingCreditPricer::price(&facility, &market, start).is_err(),
-            "pricing must reject a commitment-date event"
+            result.is_err(),
+            "construction must reject a commitment-date event"
         );
     }
 
@@ -659,7 +644,7 @@ mod tests {
         let start = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let end = Date::from_calendar_date(2026, Month::January, 1).expect("valid date");
 
-        let facility = RevolvingCredit::builder()
+        let result = RevolvingCredit::builder()
             .id("RC-ONE-PATH".into())
             .commitment_amount(Money::new(1_000_000.0, Currency::USD))
             .drawn_amount(Money::new(400_000.0, Currency::USD))
@@ -685,19 +670,9 @@ mod tests {
             )))
             .discount_curve_id("USD-OIS".into())
             .recovery_rate(0.4)
-            .build()
-            .expect("facility");
+            .build();
 
-        let disc = DiscountCurve::builder("USD-OIS")
-            .base_date(start)
-            .day_count(DayCount::Act365F)
-            .knots([(0.0, 1.0), (5.0, 1.0)])
-            .build()
-            .expect("curve");
-        let market = MarketContext::new().insert(disc);
-
-        let err = RevolvingCreditPricer::price_with_paths(&facility, &market, start)
-            .expect_err("num_paths = 1 must be rejected");
+        let err = result.expect_err("num_paths = 1 must be rejected at construction");
         assert!(
             err.to_string().contains("num_paths"),
             "error should mention num_paths, got: {err}"

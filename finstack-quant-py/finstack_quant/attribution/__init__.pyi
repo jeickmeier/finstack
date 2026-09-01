@@ -27,7 +27,7 @@ __all__ = [
     "PnlAttribution",
     "ReturnContributionResult",
     "attribute_pnl",
-    "attribute_pnl_from_spec",
+    "attribute_pnl_envelope_json",
     "attribute_return_contribution",
     "default_attribution_metrics",
     "default_waterfall_order",
@@ -1231,7 +1231,7 @@ def attribute_pnl(
 
     This is the main entry point. Accepts the instrument, two market
     snapshots, valuation dates, and a method descriptor and returns the
-    typed attribution result. Use :func:`attribute_pnl_from_spec` when you
+    typed attribution result. Use :func:`attribute_pnl_envelope_json` when you
     want the raw JSON envelope round-trip instead.
 
     Parameters
@@ -1296,7 +1296,7 @@ def attribute_pnl(
     """
     ...
 
-def attribute_pnl_from_spec(spec_json: str) -> str:
+def attribute_pnl_envelope_json(spec_json: str) -> str:
     """
     Run attribution from a full JSON ``AttributionEnvelope``.
 
@@ -1315,9 +1315,9 @@ def attribute_pnl_from_spec(spec_json: str) -> str:
 
     Examples
     --------
-    >>> from finstack_quant.attribution import attribute_pnl_from_spec
+    >>> from finstack_quant.attribution import attribute_pnl_envelope_json
     >>> try:
-    ...     attribute_pnl_from_spec("{}")
+    ...     attribute_pnl_envelope_json("{}")
     ... except ValueError as exc:
     ...     "missing field" in str(exc)
     True

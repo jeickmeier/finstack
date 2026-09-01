@@ -231,7 +231,6 @@ pub struct DilutionSecurity {
     serde::Deserialize,
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[builder(validate = DiscountedCashFlow::validate)]
 #[serde(deny_unknown_fields, try_from = "DiscountedCashFlowUnchecked")]
 pub struct DiscountedCashFlow {
     /// Unique identifier for the DCF.

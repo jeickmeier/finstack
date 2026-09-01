@@ -301,9 +301,11 @@ where
         let disc = curves.get_discount(inputs.discount_curve_id.as_str())?;
         let cached = cache_flows(&inputs, disc.as_ref())?;
 
-        let bump_bp =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
-                .credit_spread_bump_bp;
+        let bump_bp = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?
+        .credit_spread_bump_bp;
 
         let inst_id = instrument.id();
         let cs01 = if cached.is_empty() {
@@ -390,8 +392,10 @@ where
         let disc = curves.get_discount(inputs.discount_curve_id.as_str())?;
         let cached = cache_flows(&inputs, disc.as_ref())?;
 
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let defaults = sens_config::from_context_or_default(
+            context.get_config(),
+            context.get_metric_overrides(),
+        )?;
         let buckets = defaults.cs01_buckets_years;
         let bump_bp = defaults.credit_spread_bump_bp;
         validate_buckets_strictly_increasing(&buckets)?;

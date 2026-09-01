@@ -275,7 +275,6 @@ impl CmoWaterfall {
 )]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
-#[builder(validate = AgencyCmo::validate)]
 pub struct AgencyCmo {
     /// Unique instrument identifier.
     pub id: InstrumentId,

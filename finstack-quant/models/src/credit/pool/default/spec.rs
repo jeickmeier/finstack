@@ -346,7 +346,7 @@ impl StochasticDefaultSpec {
     ///
     /// # Arguments
     ///
-    /// * `seasoning_offset_months` - Seasoning offset months supplied by the caller for this operation
+    /// * `seasoning_offset_months` - Seasoning offset months used by the algorithm, subject to the enclosing type invariants and documented units.
     pub fn build_with_seasoning_offset(
         &self,
         seasoning_offset_months: u32,

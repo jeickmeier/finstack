@@ -32,7 +32,7 @@ impl NormalizationEngine {
     ///
     /// # Arguments
     ///
-    /// * `results` - Results supplied by the caller for this operation
+    /// * `results` - Evaluated statement or pricing results consumed by the operation.
     /// * `config` - Configuration object controlling validation, rounding, or solver behavior
     pub fn normalize(
         results: &StatementResult,

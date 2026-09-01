@@ -340,8 +340,8 @@ impl<'a> Hw1fTermForward<'a> {
     ///
     /// # Arguments
     ///
-    /// * `fixing_t` - Fixing t supplied by the caller for this operation
-    /// * `tau` - Tau supplied by the caller for this operation
+    /// * `fixing_t` - Fixing t used by the algorithm, subject to the enclosing type invariants and documented units.
+    /// * `tau` - Tau used by the algorithm, subject to the enclosing type invariants and documented units.
     #[must_use]
     pub fn period_coeffs(&self, fixing_t: f64, tau: f64) -> PeriodForwardCoeffs {
         let t = fixing_t.max(0.0);
