@@ -51,6 +51,39 @@ impl Default for RateExoticMcConfig {
 }
 
 impl RateExoticMcConfig {
+    /// Defaults for the LMM/BGM Bermudan swaption engine, read from the
+    /// `rust.lmm_bermudan` block of the embedded pricer-defaults registry.
+    ///
+    /// The LMM engine simulates more paths and uses a cubic regression basis
+    /// by default; `min_steps_between_events` is the minimum number of
+    /// simulation sub-steps between consecutive exercise dates.
+    pub fn lmm_bermudan() -> Self {
+        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
+            .rust
+            .lmm_bermudan;
+        Self {
+            num_paths: defaults.num_paths,
+            seed: defaults.seed,
+            antithetic: defaults.antithetic,
+            min_steps_between_events: defaults.min_steps_between_exercises,
+            basis_degree: defaults.basis_degree,
+            oos_lsmc: false,
+        }
+    }
+
+    /// Path-index partition implied by `antithetic` and `oos_lsmc`.
+    ///
+    /// Antithetic legs of one raw stream occupy consecutive path slots, so
+    /// path `p` belongs to raw stream `p / multiplicity`. In split-sample
+    /// mode even-indexed streams train the continuation regression and
+    /// odd-indexed streams are priced; otherwise every path is both.
+    pub fn split(&self) -> SampleSplit {
+        SampleSplit {
+            multiplicity: if self.antithetic { 2 } else { 1 },
+            oos_lsmc: self.oos_lsmc,
+        }
+    }
+
     /// Total effective Monte Carlo paths generated. With `antithetic = true`,
     /// returns `num_paths` rounded **down to the nearest even number** (antithetic
     /// paths come in pairs); with `antithetic = false`, returns `num_paths`
@@ -75,9 +108,56 @@ impl RateExoticMcConfig {
     }
 }
 
+/// Train/price partition of simulated paths (see [`RateExoticMcConfig::split`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SampleSplit {
+    /// Paths per raw RNG stream: 2 with antithetic sampling, else 1.
+    pub multiplicity: usize,
+    /// Whether the split-sample (out-of-sample) estimator is active.
+    pub oos_lsmc: bool,
+}
+
+impl SampleSplit {
+    /// Whether path `p` contributes to the continuation-value regression.
+    #[inline]
+    pub fn is_train(&self, p: usize) -> bool {
+        !self.oos_lsmc || (p / self.multiplicity).is_multiple_of(2)
+    }
+
+    /// Whether path `p` contributes to the reported price estimate.
+    #[inline]
+    pub fn is_price(&self, p: usize) -> bool {
+        !self.oos_lsmc || !(p / self.multiplicity).is_multiple_of(2)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn split_partitions_by_stream_parity() {
+        let in_sample = RateExoticMcConfig {
+            antithetic: true,
+            oos_lsmc: false,
+            ..Default::default()
+        }
+        .split();
+        assert!((0..8).all(|p| in_sample.is_train(p) && in_sample.is_price(p)));
+
+        let oos = RateExoticMcConfig {
+            antithetic: true,
+            oos_lsmc: true,
+            ..Default::default()
+        }
+        .split();
+        assert_eq!(oos.multiplicity, 2);
+        // Stream 0 = paths {0,1} train; stream 1 = paths {2,3} price.
+        assert!(oos.is_train(0) && oos.is_train(1));
+        assert!(!oos.is_price(0) && !oos.is_price(1));
+        assert!(oos.is_price(2) && oos.is_price(3));
+        assert!(!oos.is_train(2) && !oos.is_train(3));
+    }
 
     #[test]
     fn default_values() {

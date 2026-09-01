@@ -342,9 +342,10 @@ mod tests {
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
+    use finstack_quant_valuations::instruments::rates::hw1f::RateExoticMcConfig;
     use finstack_quant_valuations::instruments::rates::swaption::lmm_pricer::BermudanSwaptionLmmPricer;
     use finstack_quant_valuations::instruments::rates::swaption::{
-        BermudanSchedule, BermudanSwaption, LmmBermudanConfig,
+        BermudanSchedule, BermudanSwaption,
     };
     use finstack_quant_valuations::pricer::Pricer;
     use time::Month;
@@ -517,10 +518,10 @@ mod tests {
             .lmm_base_vol = Some(base_vol);
 
         let pricing_market = MarketContext::new().insert(curve);
-        let pricer = BermudanSwaptionLmmPricer::with_config(LmmBermudanConfig {
+        let pricer = BermudanSwaptionLmmPricer::with_config(RateExoticMcConfig {
             num_paths: 64,
-            min_steps_between_exercises: 1,
-            ..Default::default()
+            min_steps_between_events: 1,
+            ..RateExoticMcConfig::lmm_bermudan()
         });
         let result = pricer
             .price_dyn(&swaption, &pricing_market, as_of)
@@ -533,10 +534,10 @@ mod tests {
     fn pricing_rejects_missing_or_invalid_override_before_surface_lookup() {
         let as_of = Date::from_calendar_date(2025, Month::January, 17).expect("as of");
         let market = MarketContext::new().insert(test_discount_curve(as_of));
-        let pricer = BermudanSwaptionLmmPricer::with_config(LmmBermudanConfig {
+        let pricer = BermudanSwaptionLmmPricer::with_config(RateExoticMcConfig {
             num_paths: 16,
-            min_steps_between_exercises: 1,
-            ..Default::default()
+            min_steps_between_events: 1,
+            ..RateExoticMcConfig::lmm_bermudan()
         });
 
         for invalid in [None, Some(0.0), Some(-0.1), Some(f64::NAN)] {

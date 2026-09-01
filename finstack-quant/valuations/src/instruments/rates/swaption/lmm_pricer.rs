@@ -6,9 +6,8 @@
 
 use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::swaption::pricing::lmm_bermudan::{
-    price_bermudan_lmm, LmmBermudanConfig,
-};
+use crate::instruments::rates::hw1f::RateExoticMcConfig;
+use crate::instruments::rates::swaption::pricing::lmm_bermudan::price_bermudan_lmm;
 use crate::instruments::rates::swaption::BermudanSwaption;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -35,14 +34,25 @@ use finstack_quant_models::monte_carlo::process::lmm::LmmParams;
 /// and their overall scale comes exclusively from the positive, finite
 /// `model_config.lmm_base_vol` input. Calibration is an explicit upstream
 /// operation; this pricer never queries a volatility surface.
-#[derive(Default)]
 pub struct BermudanSwaptionLmmPricer {
-    config: LmmBermudanConfig,
+    config: RateExoticMcConfig,
+}
+
+impl Default for BermudanSwaptionLmmPricer {
+    fn default() -> Self {
+        Self::with_config(RateExoticMcConfig::lmm_bermudan())
+    }
 }
 
 impl BermudanSwaptionLmmPricer {
     /// Create a pricer with an explicit configuration.
-    pub fn with_config(config: LmmBermudanConfig) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Monte Carlo settings; see `price_bermudan_lmm` for the
+    ///   path-count constraints. [`RateExoticMcConfig::lmm_bermudan`] gives
+    ///   the registry defaults.
+    pub fn with_config(config: RateExoticMcConfig) -> Self {
         Self { config }
     }
 

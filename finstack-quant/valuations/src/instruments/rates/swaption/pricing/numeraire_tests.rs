@@ -46,10 +46,13 @@ use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
 use finstack_quant_models::monte_carlo::OnlineStats;
 use finstack_quant_models::monte_carlo::TimeGrid;
 
-use super::lmm_bermudan::{build_exercise_aligned_grid, price_bermudan_lmm, LmmBermudanConfig};
-use super::monte_carlo_lsmc::{SwaptionLsmcConfig, SwaptionLsmcPricer};
-use super::monte_carlo_payoff::{BermudanSwaptionPayoff, SwapSchedule, SwaptionType};
+use super::lmm_bermudan::{build_exercise_aligned_grid, price_bermudan_lmm};
+use super::monte_carlo_lsmc::SwaptionLsmcPricer;
+use super::monte_carlo_payoff::{BermudanSwaptionPayoff, SwapSchedule};
 use super::swap_rate_utils::{ForwardSwapRate, HullWhiteBondPrice};
+use crate::instruments::common_impl::parameters::OptionType;
+use crate::instruments::rates::hw1f::hw1f_mc::build_event_aligned_grid;
+use crate::instruments::rates::hw1f::RateExoticMcConfig;
 
 // LMM / BGM — numéraire-consistent co-terminal European reference
 
@@ -218,12 +221,12 @@ fn lmm_single_exercise_matches_numeraire_correct_reference() {
 
     // Non-antithetic ⇒ engine and reference draw bit-identical paths, so the
     // comparison isolates the discounting convention exactly.
-    let config = LmmBermudanConfig {
+    let config = RateExoticMcConfig {
         num_paths,
         seed,
         basis_degree: 2,
         antithetic: false,
-        min_steps_between_exercises: LMM_MIN_STEPS,
+        min_steps_between_events: LMM_MIN_STEPS,
         oos_lsmc: false,
     };
 
@@ -278,12 +281,12 @@ fn lmm_bermudan_respects_coterminal_lower_bound() {
     let num_paths = 60_000;
     let seed = 7;
 
-    let config = LmmBermudanConfig {
+    let config = RateExoticMcConfig {
         num_paths,
         seed,
         basis_degree: 2,
         antithetic: true,
-        min_steps_between_exercises: LMM_MIN_STEPS,
+        min_steps_between_events: LMM_MIN_STEPS,
         oos_lsmc: false,
     };
 
@@ -592,25 +595,22 @@ fn lsmc_european_uses_pathwise_money_market_numeraire() {
 
     // Non-antithetic so the engine and the reference draw bit-identical
     // paths — the test then isolates the discounting convention exactly.
-    let config = SwaptionLsmcConfig::new(num_paths, seed)
-        .with_basis_degree(3)
-        .with_antithetic(false);
+    let config = RateExoticMcConfig {
+        num_paths,
+        seed,
+        antithetic: false,
+        basis_degree: 3,
+        ..Default::default()
+    };
     let pricer = SwaptionLsmcPricer::with_config(config, hw.clone());
 
     // Probe the longer co-terminal Europeans: the pathwise-vs-deterministic
     // discounting gap grows with exercise time.
     for &ex_t in &[2.0, 3.0, 4.0] {
-        let payoff = BermudanSwaptionPayoff::new(
-            vec![ex_t],
-            schedule.clone(),
-            strike,
-            SwaptionType::Payer,
-            notional,
-        )
-        .expect("valid bermudan payoff inputs");
+        let payoff =
+            BermudanSwaptionPayoff::new(schedule.clone(), strike, OptionType::Call, notional);
         let (grid, exercise_idx) =
-            SwaptionLsmcConfig::build_exercise_aligned_grid(&[ex_t], schedule.end_date, 2)
-                .expect("grid");
+            build_event_aligned_grid(&[ex_t], schedule.end_date, 2).expect("grid");
         let engine = pricer
             .price_bermudan_with_grid(
                 &payoff,
@@ -677,22 +677,18 @@ fn lsmc_bermudan_matches_pathwise_numeraire_reference() {
     let seed = 7;
     let exercise_times = [1.0, 2.0, 3.0, 4.0];
 
-    let config = SwaptionLsmcConfig::new(num_paths, seed)
-        .with_basis_degree(3)
-        .with_antithetic(false);
+    let config = RateExoticMcConfig {
+        num_paths,
+        seed,
+        antithetic: false,
+        basis_degree: 3,
+        ..Default::default()
+    };
     let pricer = SwaptionLsmcPricer::with_config(config, hw.clone());
 
-    let payoff = BermudanSwaptionPayoff::new(
-        exercise_times.to_vec(),
-        schedule.clone(),
-        strike,
-        SwaptionType::Payer,
-        notional,
-    )
-    .expect("valid bermudan payoff inputs");
+    let payoff = BermudanSwaptionPayoff::new(schedule.clone(), strike, OptionType::Call, notional);
     let (grid, exercise_idx) =
-        SwaptionLsmcConfig::build_exercise_aligned_grid(&exercise_times, schedule.end_date, 2)
-            .expect("grid");
+        build_event_aligned_grid(&exercise_times, schedule.end_date, 2).expect("grid");
     let engine = pricer
         .price_bermudan_with_grid(
             &payoff,
@@ -733,8 +729,7 @@ fn lsmc_bermudan_matches_pathwise_numeraire_reference() {
     let mut best_european = f64::MIN;
     for &ex_t in &exercise_times {
         let (euro_grid, euro_idx) =
-            SwaptionLsmcConfig::build_exercise_aligned_grid(&[ex_t], schedule.end_date, 2)
-                .expect("grid");
+            build_event_aligned_grid(&[ex_t], schedule.end_date, 2).expect("grid");
         let euro = hw1f_reference_european(
             &hw,
             r0,

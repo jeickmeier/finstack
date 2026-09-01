@@ -21,11 +21,11 @@ use std::sync::Arc;
 
 // LSMC imports (gated by feature)
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::instruments::rates::swaption::pricing::monte_carlo_lsmc::{
-    SwaptionLsmcConfig, SwaptionLsmcPricer as SharedSwaptionLsmcPricer,
-};
+use crate::instruments::rates::hw1f::hw1f_mc::build_event_aligned_grid;
+use crate::instruments::rates::hw1f::RateExoticMcConfig;
+use crate::instruments::rates::swaption::pricing::monte_carlo_lsmc::SwaptionLsmcPricer as SharedSwaptionLsmcPricer;
 use crate::instruments::rates::swaption::pricing::monte_carlo_payoff::{
-    BermudanSwaptionPayoff, SwapSchedule, SwaptionType,
+    BermudanSwaptionPayoff, SwapSchedule,
 };
 use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
 use finstack_quant_models::monte_carlo::process::ou::{
@@ -180,10 +180,10 @@ pub struct BermudanSwaptionPricer {
 pub struct BermudanSwaptionPricerConfig {
     /// Number of tree steps for Hull-White tree pricing.
     pub tree_steps: usize,
-    /// Number of Monte Carlo paths for LSMC pricing.
-    pub mc_paths: usize,
-    /// Random seed for LSMC pricing.
-    pub mc_seed: u64,
+    /// Monte Carlo settings for LSMC pricing: path count (overridable per
+    /// instrument via `model_config.mc_paths`), seed, antithetic sampling,
+    /// minimum sub-steps between exercise dates and regression basis degree.
+    pub mc: RateExoticMcConfig,
     /// Prepared Hull-White tree for model reuse.
     ///
     /// When set, the pricer reuses this prepared tree directly. This avoids
@@ -194,35 +194,35 @@ pub struct BermudanSwaptionPricerConfig {
 impl BermudanSwaptionPricerConfig {
     /// Default number of Hull-White tree steps.
     pub const DEFAULT_TREE_STEPS: usize = 100;
-    /// Default number of Monte Carlo paths.
+    /// Default Monte Carlo settings for LSMC pricing.
     ///
-    /// 100,000 paths balances accuracy and performance for typical Bermudan
-    /// swaptions. For production pricing requiring tight standard errors
-    /// (<0.05% of option value), increase to 500,000 paths.
-    pub const DEFAULT_MC_PATHS: usize = 100_000;
-    /// Default Monte Carlo random seed.
-    pub const DEFAULT_MC_SEED: u64 = 42;
+    /// 100,000 antithetic paths balance accuracy and performance for typical
+    /// Bermudan swaptions (standard errors of ~0.1-0.5% of option value at
+    /// 10M notional). For production pricing requiring tight standard errors
+    /// (<0.05% of option value), increase to 500,000 paths. The regression
+    /// uses a cubic polynomial basis with at least two simulation sub-steps
+    /// between exercise dates.
+    pub const DEFAULT_MC: RateExoticMcConfig = RateExoticMcConfig {
+        num_paths: 100_000,
+        seed: 42,
+        antithetic: true,
+        min_steps_between_events: 2,
+        basis_degree: 3,
+        oos_lsmc: false,
+    };
 }
 
 impl Default for BermudanSwaptionPricerConfig {
     fn default() -> Self {
         Self {
             tree_steps: Self::DEFAULT_TREE_STEPS,
-            mc_paths: Self::DEFAULT_MC_PATHS,
-            mc_seed: Self::DEFAULT_MC_SEED,
+            mc: Self::DEFAULT_MC,
             prepared_model: None,
         }
     }
 }
 
 impl BermudanSwaptionPricer {
-    /// Default number of Monte Carlo paths.
-    ///
-    /// 100,000 paths balances accuracy and performance for typical Bermudan
-    /// swaptions. For production pricing requiring tight standard errors
-    /// (<0.05% of option value), increase to 500,000 paths.
-    pub const DEFAULT_MC_PATHS: usize = BermudanSwaptionPricerConfig::DEFAULT_MC_PATHS;
-
     /// Create a Hull-White tree pricer with default configuration.
     pub fn tree() -> Self {
         Self::tree_with_config(BermudanSwaptionPricerConfig::default())
@@ -275,7 +275,7 @@ impl BermudanSwaptionPricer {
             .instrument_pricing_overrides
             .model_config
             .mc_paths
-            .unwrap_or(self.config.mc_paths)
+            .unwrap_or(self.config.mc.num_paths)
     }
 
     fn effective_hw_params(
@@ -541,30 +541,23 @@ impl BermudanSwaptionPricer {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 
-        let option_type = match swaption.option_type {
-            OptionType::Call => SwaptionType::Payer,
-            OptionType::Put => SwaptionType::Receiver,
-        };
+        let option_type: OptionType = swaption.option_type;
         let strike = swaption.strike_f64().map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 
         let payoff = BermudanSwaptionPayoff::new(
-            valid_exercise_times.clone(),
             swap_schedule,
             strike,
             option_type,
             swaption.notional.amount(),
-        )
-        .map_err(|e| {
-            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
-        })?;
+        );
 
         // Build exercise-aligned time grid
-        let (time_grid, exercise_indices) = SwaptionLsmcConfig::build_exercise_aligned_grid(
+        let (time_grid, exercise_indices) = build_event_aligned_grid(
             &valid_exercise_times,
             ttm,
-            2, // Minimum steps between exercise dates
+            self.config.mc.min_steps_between_events,
         )
         .map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
@@ -654,13 +647,14 @@ impl BermudanSwaptionPricer {
         let hw_process = HullWhite1FProcess::new(hw_params);
 
         let mc_paths = self.effective_mc_paths(swaption);
-        let lsmc_config = SwaptionLsmcConfig::new(mc_paths, self.config.mc_seed)
-            .with_basis_degree(3)
-            .with_antithetic(true);
+        let lsmc_config = RateExoticMcConfig {
+            num_paths: mc_paths,
+            ..self.config.mc
+        };
 
         let lsmc_pricer = SharedSwaptionLsmcPricer::with_config(lsmc_config, hw_process);
 
-        let basis = PolynomialBasis::new(3);
+        let basis = PolynomialBasis::new(self.config.mc.basis_degree);
 
         let estimate = lsmc_pricer
             .price_bermudan_with_grid(
@@ -691,7 +685,7 @@ impl BermudanSwaptionPricer {
         );
         result.measures.insert(
             crate::metrics::MetricId::custom("lsmc_seed"),
-            self.config.mc_seed as f64,
+            self.config.mc.seed as f64,
         );
         let (ci_low, ci_high) = estimate.ci_95;
         result.measures.insert(

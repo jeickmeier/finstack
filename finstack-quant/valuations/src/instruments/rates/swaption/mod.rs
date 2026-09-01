@@ -132,7 +132,7 @@ pub use bermudan::{
 };
 pub use parameters::SwaptionParams;
 pub use pricer::{SimpleSwaptionBlackPricer, SimpleSwaptionNormalPricer};
-pub use pricing::{lmm_bermudan::LmmBermudanConfig, BermudanSwaptionTreeValuator};
+pub use pricing::BermudanSwaptionTreeValuator;
 pub use types::{
     BermudanSchedule, BermudanSwaption, BermudanType, CashSettlementMethod, GreekInputs, Swaption,
     SwaptionBuilder, SwaptionExercise, SwaptionSettlement, VolatilityModel,

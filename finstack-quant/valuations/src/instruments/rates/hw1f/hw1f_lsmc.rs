@@ -56,6 +56,9 @@
 
 use crate::instruments::rates::hw1f::bank_account::bank_step_factor;
 use crate::instruments::rates::hw1f::exercise::ExerciseBoundaryPayoff;
+use crate::instruments::rates::hw1f::hw1f_mc::{
+    build_event_aligned_grid, money_estimate_from_pairs,
+};
 use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
@@ -67,7 +70,6 @@ use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::{
     Discretization, PathState, RandomStream, StateKey,
 };
-use finstack_quant_models::monte_carlo::OnlineStats;
 use finstack_quant_models::monte_carlo::TimeGrid;
 
 /// Generic HW1F LSMC pricer for callable rate exotics.
@@ -132,7 +134,8 @@ impl RateExoticHw1fLsmcPricer {
         let num_steps = grid.num_steps();
         let work_size = disc.work_size(&process);
         let raw_paths = self.config.raw_stream_count();
-        let multiplicity = if self.config.antithetic { 2 } else { 1 };
+        let split = self.config.split();
+        let multiplicity = split.multiplicity;
         let n_paths = self.config.effective_path_count();
         let n_ex = self.exercise_times.len();
         let base_rng = PhiloxRng::new(self.config.seed);
@@ -230,14 +233,8 @@ impl RateExoticHw1fLsmcPricer {
         // -- Phase 2: backward LSMC induction ----------------------------------
         let mut cashflow = deterministic_pv.clone();
 
-        // Split-sample partition. Path `p` belongs to raw stream `p / multiplicity`;
-        // partitioning by stream parity keeps each antithetic pair together and
-        // gives a deterministic, seed-stable train/price split. When
-        // `oos_lsmc` is off, every path is treated as both train and price
-        // (i.e. the classic in-sample Longstaff-Schwartz estimator).
-        let oos = self.config.oos_lsmc;
-        let is_train = |p: usize| !oos || (p / multiplicity).is_multiple_of(2);
-        let is_price = |p: usize| !oos || !(p / multiplicity).is_multiple_of(2);
+        // Split-sample partition (see `RateExoticMcConfig::split`): only
+        // train paths feed the continuation regression.
 
         // Regression scratch buffers hoisted out of the exercise-date loop;
         // cleared (not freed) per date so allocations are reused. Each date
@@ -260,7 +257,7 @@ impl RateExoticHw1fLsmcPricer {
                 // The fitted coefficients are still applied to every path below
                 // so the backward rollback propagates correctly; aggregation
                 // at the end then restricts to the pricing half.
-                if !is_train(p) {
+                if !split.is_train(p) {
                     continue;
                 }
                 let flat = p * n_ex + ex_idx;
@@ -352,37 +349,12 @@ impl RateExoticHw1fLsmcPricer {
         // the pair variance rather than understating it. Pairs occupy
         // consecutive `path_cursor` slots and never straddle the train/price
         // split (the split is by raw-stream parity).
-        let mut stats = OnlineStats::new();
-        for (pair_idx, chunk) in cashflow.chunks(multiplicity).enumerate() {
-            if !is_price(pair_idx * multiplicity) {
-                continue;
-            }
-            let pair_avg = chunk.iter().sum::<f64>() / chunk.len() as f64;
-            stats.update(pair_avg);
-        }
-
-        let n = stats.count().max(1) as f64;
-        let aggregated_paths = stats.count() * multiplicity;
-        let mean = stats.mean();
-        let stderr = stats.std_dev() / n.sqrt();
-        let lo = mean - 1.96 * stderr;
-        let hi = mean + 1.96 * stderr;
-        Ok(MoneyEstimate {
-            mean: finstack_quant_core::money::Money::new(mean, self.currency),
-            stderr,
-            ci_95: (
-                finstack_quant_core::money::Money::new(lo, self.currency),
-                finstack_quant_core::money::Money::new(hi, self.currency),
-            ),
-            num_paths: aggregated_paths,
-            num_simulated_paths: aggregated_paths,
-            std_dev: Some(stats.std_dev()),
-            median: None,
-            percentile_25: None,
-            percentile_75: None,
-            min: None,
-            max: None,
-        })
+        Ok(money_estimate_from_pairs(
+            &cashflow,
+            split,
+            1.0,
+            self.currency,
+        ))
     }
 
     fn validate_inputs(&self) -> Result<()> {
@@ -426,8 +398,7 @@ fn build_grid_with_exercise_map(
     maturity: f64,
     min_steps: usize,
 ) -> Result<GridWithExerciseMap> {
-    let (grid, event_step_indices) =
-        super::hw1f_mc::build_event_aligned_grid(event_times, maturity, min_steps)?;
+    let (grid, event_step_indices) = build_event_aligned_grid(event_times, maturity, min_steps)?;
     let mut exercise_event_indices = Vec::with_capacity(exercise_times.len());
     for &t in exercise_times {
         let pos = event_times

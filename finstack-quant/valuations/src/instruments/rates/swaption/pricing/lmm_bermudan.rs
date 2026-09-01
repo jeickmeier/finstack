@@ -27,6 +27,10 @@
 //! - Glasserman, P. (2003). *Monte Carlo Methods in Financial Engineering*,
 //!   Ch. 8, Springer. `docs/REFERENCES.md#glasserman-2004-monte-carlo`
 
+use crate::instruments::rates::hw1f::hw1f_mc::{
+    build_event_aligned_grid, money_estimate_from_pairs,
+};
+use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
@@ -36,56 +40,9 @@ use finstack_quant_models::monte_carlo::process::lmm::{LmmParams, LmmProcess};
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
-use finstack_quant_models::monte_carlo::OnlineStats;
 use finstack_quant_models::monte_carlo::TimeGrid;
 
 const EXERCISE_TIME_TOLERANCE: f64 = 1e-10;
-
-/// Configuration for the LMM Bermudan swaption pricer.
-#[derive(Debug, Clone)]
-pub struct LmmBermudanConfig {
-    /// Number of simulated Monte Carlo paths.
-    ///
-    /// The count must not exceed [`MAX_NUM_PATHS`]. Antithetic sampling
-    /// requires an even count. The pricer also requires at least two
-    /// independent pricing observations, so the minimum is 2 for ordinary
-    /// in-sample pricing, 4 with either antithetic or out-of-sample pricing,
-    /// and 8 when both modes are enabled.
-    pub num_paths: usize,
-    /// Random seed for reproducibility.
-    pub seed: u64,
-    /// Polynomial degree for LSMC regression basis.
-    pub basis_degree: usize,
-    /// Use antithetic variates.
-    pub antithetic: bool,
-    /// Minimum simulation steps between exercise dates.
-    pub min_steps_between_exercises: usize,
-    /// Split-sample (out-of-sample) LSMC pricing.
-    ///
-    /// When `true`, raw shock streams are partitioned by parity: even-indexed
-    /// streams fit the continuation-value regression, odd-indexed streams are
-    /// priced under that fitted policy. This removes the positive in-sample
-    /// bias of plain Longstaff-Schwartz at the cost of roughly √2× more
-    /// standard error (only half the paths drive the estimate). Mirrors
-    /// `RateExoticMcConfig::oos_lsmc` on the HW1F exotic harness.
-    pub oos_lsmc: bool,
-}
-
-impl Default for LmmBermudanConfig {
-    fn default() -> Self {
-        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
-            .rust
-            .lmm_bermudan;
-        Self {
-            num_paths: defaults.num_paths,
-            seed: defaults.seed,
-            basis_degree: defaults.basis_degree,
-            antithetic: defaults.antithetic,
-            min_steps_between_exercises: defaults.min_steps_between_exercises,
-            oos_lsmc: false,
-        }
-    }
-}
 
 /// Price a Bermudan swaption using LMM dynamics and LSMC.
 ///
@@ -100,7 +57,13 @@ impl Default for LmmBermudanConfig {
 /// * `notional` — Swap notional.
 /// * `discount_factor_terminal` — `P(0, T_N)` for the terminal tenor.
 /// * `currency` — Currency used for the result.
-/// * `config` — Monte Carlo configuration.
+/// * `config` — Monte Carlo configuration. `num_paths` must not exceed
+///   [`MAX_NUM_PATHS`]; antithetic sampling requires an even count, and the
+///   pricer needs at least two independent pricing observations (2 paths for
+///   plain in-sample pricing, 4 with either antithetic or out-of-sample
+///   pricing, 8 with both). `min_steps_between_events` is the minimum number
+///   of simulation sub-steps between consecutive exercise dates. Use
+///   [`RateExoticMcConfig::lmm_bermudan`] for the registry defaults.
 ///
 /// # Returns
 ///
@@ -122,7 +85,7 @@ pub fn price_bermudan_lmm(
     notional: f64,
     discount_factor_terminal: f64,
     currency: Currency,
-    config: &LmmBermudanConfig,
+    config: &RateExoticMcConfig,
 ) -> Result<MoneyEstimate> {
     let maturity = *params
         .tenors
@@ -130,7 +93,7 @@ pub fn price_bermudan_lmm(
         .ok_or_else(|| finstack_quant_core::Error::Validation("empty tenors".to_string()))?;
     validate_path_config(config)?;
     let (time_grid, exercise_step_indices) =
-        build_exercise_aligned_grid(exercise_times, maturity, config.min_steps_between_exercises)?;
+        build_exercise_aligned_grid(exercise_times, maturity, config.min_steps_between_events)?;
 
     let n = params.num_forwards;
     let process = LmmProcess::new(params.clone());
@@ -142,11 +105,7 @@ pub fn price_bermudan_lmm(
     let num_steps = time_grid.num_steps();
     let work_size = disc.work_size(&process);
 
-    let raw_paths = if config.antithetic {
-        config.num_paths / 2
-    } else {
-        config.num_paths
-    };
+    let raw_paths = config.raw_stream_count();
 
     // --- Phase 1: Simulate forward rate paths ---
     //
@@ -211,15 +170,8 @@ pub fn price_bermudan_lmm(
     // time-0 price with a single `× P(0, T_N)`.
     let mut cashflow = vec![0.0_f64; total_paths];
 
-    // Split-sample partition (see `LmmBermudanConfig::oos_lsmc`). Path `p`
-    // belongs to raw stream `p / multiplicity`; partitioning by stream parity
-    // keeps each antithetic pair together and gives a deterministic,
-    // seed-stable train/price split. When `oos_lsmc` is off, every path is
-    // both train and price (classic in-sample Longstaff-Schwartz).
-    let multiplicity = if config.antithetic { 2 } else { 1 };
-    let oos = config.oos_lsmc;
-    let is_train = |p: usize| !oos || (p / multiplicity).is_multiple_of(2);
-    let is_price = |p: usize| !oos || !(p / multiplicity).is_multiple_of(2);
+    // Split-sample partition (see `RateExoticMcConfig::split`).
+    let split = config.split();
 
     // Polynomial basis: [1, S, A, S^2, S*A, S^3, ...]
     let make_basis = |sr: f64, ann: f64| -> Vec<f64> {
@@ -318,7 +270,7 @@ pub fn price_bermudan_lmm(
             let mut itm_continuation = Vec::new();
 
             for (i, &ev) in exercise_values.iter().enumerate() {
-                if ev > 0.0 && is_train(i) {
+                if ev > 0.0 && split.is_train(i) {
                     itm_indices.push(i);
                     let (sr, ann) = basis_inputs[i];
                     itm_basis.push(make_basis(sr, ann));
@@ -375,46 +327,12 @@ pub fn price_bermudan_lmm(
     // `V(0) = P(0, T_N) · E^{T_N}[ payoff / P(t, T_N) ]` then recovers the
     // present value with a single multiplication by the constant
     // `discount_factor_terminal = P(0, T_N)`.
-    // Antithetic legs share a stream and are negatively correlated, so they
-    // are not i.i.d. samples: each adjacent (original, antithetic) pair is
-    // averaged into one sample so the reported stderr reflects the pair
-    // variance rather than understating it. In split-sample mode, only the
-    // pricing half contributes to the reported estimate.
-    let mut stats = OnlineStats::new();
-    for (pair_idx, chunk) in cashflow.chunks(multiplicity).enumerate() {
-        if !is_price(pair_idx * multiplicity) {
-            continue;
-        }
-        let pair_avg = chunk.iter().sum::<f64>() / chunk.len() as f64;
-        stats.update(pair_avg * discount_factor_terminal);
-    }
-
-    let aggregated_paths = stats.count() * multiplicity;
-    let mean = stats.mean();
-    let stderr = if stats.count() > 1 {
-        stats.std_dev() / (stats.count() as f64).sqrt()
-    } else {
-        0.0
-    };
-    let ci_lo = mean - 1.96 * stderr;
-    let ci_hi = mean + 1.96 * stderr;
-
-    Ok(MoneyEstimate {
-        mean: finstack_quant_core::money::Money::new(mean, currency),
-        stderr,
-        ci_95: (
-            finstack_quant_core::money::Money::new(ci_lo, currency),
-            finstack_quant_core::money::Money::new(ci_hi, currency),
-        ),
-        num_paths: aggregated_paths,
-        num_simulated_paths: aggregated_paths,
-        std_dev: Some(stats.std_dev()),
-        median: None,
-        percentile_25: None,
-        percentile_75: None,
-        min: None,
-        max: None,
-    })
+    Ok(money_estimate_from_pairs(
+        &cashflow,
+        split,
+        discount_factor_terminal,
+        currency,
+    ))
 }
 
 /// Build a time grid with steps aligned to exercise dates.
@@ -446,7 +364,7 @@ pub fn build_exercise_aligned_grid(
     min_steps_between: usize,
 ) -> Result<(TimeGrid, Vec<usize>)> {
     validate_exercise_schedule(exercise_times, maturity)?;
-    build_exercise_aligned_grid_validated(exercise_times, maturity, min_steps_between)
+    build_event_aligned_grid(exercise_times, maturity, min_steps_between)
 }
 
 fn validate_exercise_schedule(exercise_times: &[f64], maturity: f64) -> Result<()> {
@@ -493,7 +411,7 @@ fn validate_exercise_schedule(exercise_times: &[f64], maturity: f64) -> Result<(
     Ok(())
 }
 
-fn validate_path_config(config: &LmmBermudanConfig) -> Result<()> {
+fn validate_path_config(config: &RateExoticMcConfig) -> Result<()> {
     if config.num_paths > MAX_NUM_PATHS {
         return Err(finstack_quant_core::Error::Validation(format!(
             "LMM Bermudan num_paths {} exceeds maximum {MAX_NUM_PATHS}",
@@ -507,7 +425,7 @@ fn validate_path_config(config: &LmmBermudanConfig) -> Result<()> {
         )));
     }
 
-    let multiplicity = if config.antithetic { 2 } else { 1 };
+    let multiplicity = config.split().multiplicity;
     let raw_streams = config.num_paths / multiplicity;
     let pricing_observations = if config.oos_lsmc {
         raw_streams / 2
@@ -527,45 +445,6 @@ fn validate_path_config(config: &LmmBermudanConfig) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn build_exercise_aligned_grid_validated(
-    exercise_times: &[f64],
-    maturity: f64,
-    min_steps_between: usize,
-) -> Result<(TimeGrid, Vec<usize>)> {
-    let min_steps = min_steps_between.max(1);
-
-    // Validation preserves caller order and guarantees every gap is positive.
-    let mut critical_times = exercise_times.to_vec();
-    critical_times.push(maturity);
-
-    // Build uniform sub-grids between critical times
-    let mut times = vec![0.0_f64];
-    let mut exercise_indices = Vec::with_capacity(exercise_times.len());
-    let mut prev = 0.0;
-    for (critical_index, &ct) in critical_times.iter().enumerate() {
-        let gap = ct - prev;
-        let n_sub = min_steps.max((gap * 12.0).ceil() as usize); // ~monthly steps
-        let dt = gap / n_sub as f64;
-        for k in 1..=n_sub {
-            if k == n_sub {
-                times.push(ct);
-            } else {
-                times.push(prev + k as f64 * dt);
-            }
-        }
-        if critical_index < exercise_times.len() {
-            exercise_indices.push(times.len() - 1);
-        }
-        prev = ct;
-    }
-
-    let grid = TimeGrid::from_times(times).map_err(|e| {
-        finstack_quant_core::Error::Validation(format!("failed to build time grid: {e}"))
-    })?;
-
-    Ok((grid, exercise_indices))
 }
 
 /// Compute forward swap rate and annuity from forward rates.
@@ -666,13 +545,13 @@ mod tests {
         .expect("valid params")
     }
 
-    fn test_config(num_paths: usize, antithetic: bool, oos_lsmc: bool) -> LmmBermudanConfig {
-        LmmBermudanConfig {
+    fn test_config(num_paths: usize, antithetic: bool, oos_lsmc: bool) -> RateExoticMcConfig {
+        RateExoticMcConfig {
             num_paths,
             seed: 7,
             basis_degree: 2,
             antithetic,
-            min_steps_between_exercises: 1,
+            min_steps_between_events: 1,
             oos_lsmc,
         }
     }
@@ -823,12 +702,12 @@ mod tests {
         let exercise_times = vec![1.0, 2.0, 3.0];
         let strike = 0.025; // ITM payer swaption (forwards ~3-3.6%)
         let df_terminal = (-0.03 * 4.0_f64).exp();
-        let config = LmmBermudanConfig {
+        let config = RateExoticMcConfig {
             num_paths: 5_000,
             seed: 123,
             basis_degree: 2,
             antithetic: true,
-            min_steps_between_exercises: 4,
+            min_steps_between_events: 4,
             oos_lsmc: false,
         };
 
@@ -858,12 +737,12 @@ mod tests {
         let params = test_lmm_params();
         let strike = 0.030;
         let df_terminal = (-0.03 * 4.0_f64).exp();
-        let config = LmmBermudanConfig {
+        let config = RateExoticMcConfig {
             num_paths: 10_000,
             seed: 42,
             basis_degree: 2,
             antithetic: true,
-            min_steps_between_exercises: 4,
+            min_steps_between_events: 4,
             oos_lsmc: false,
         };
 
@@ -909,15 +788,15 @@ mod tests {
         let exercise_times = vec![1.0, 2.0, 3.0];
         let strike = 0.025;
         let df_terminal = (-0.03 * 4.0_f64).exp();
-        let base = LmmBermudanConfig {
+        let base = RateExoticMcConfig {
             num_paths: 8_000,
             seed: 123,
             basis_degree: 2,
             antithetic: false,
-            min_steps_between_exercises: 4,
+            min_steps_between_events: 4,
             oos_lsmc: false,
         };
-        let oos = LmmBermudanConfig {
+        let oos = RateExoticMcConfig {
             oos_lsmc: true,
             ..base
         };

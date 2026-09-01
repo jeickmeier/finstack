@@ -13,27 +13,25 @@
 //! # Usage
 //!
 //! ```text
-//! use finstack_quant_valuations::instruments::rates::swaption::pricing::monte_carlo_lsmc::{
-//!     SwaptionLsmcPricer, SwaptionLsmcConfig,
-//! };
-//! use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
+//! use finstack_quant_valuations::instruments::rates::hw1f::RateExoticMcConfig;
+//! use finstack_quant_valuations::instruments::rates::swaption::pricing::monte_carlo_lsmc::SwaptionLsmcPricer;
 //! use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FProcess, HullWhite1FParams};
 //!
 //! let hw_params = HullWhite1FParams::new(0.03, 0.01, 0.03).expect("valid parameters");
 //! let hw_process = HullWhite1FProcess::new(hw_params);
-//! let config = SwaptionLsmcConfig::default();
 //!
-//! let pricer = SwaptionLsmcPricer::with_config(config, hw_process);
+//! let pricer = SwaptionLsmcPricer::with_config(RateExoticMcConfig::default(), hw_process);
 //! ```
 
-use super::monte_carlo_payoff::{BermudanSwaptionPayoff, SwaptionType};
+use super::monte_carlo_payoff::BermudanSwaptionPayoff;
 use super::swap_rate_utils::{ForwardSwapRate, HullWhiteBondPrice};
+use crate::instruments::common_impl::parameters::OptionType;
+use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
 use finstack_quant_models::monte_carlo::estimate::Estimate;
 use finstack_quant_models::monte_carlo::pricer::basis::BasisFunctions;
-use finstack_quant_models::monte_carlo::pricer::lsmc::LsmcConfig;
 use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
 use finstack_quant_models::monte_carlo::process::ou::HullWhite1FProcess;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
@@ -41,147 +39,6 @@ use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
 use finstack_quant_models::monte_carlo::OnlineStats;
 use finstack_quant_models::monte_carlo::TimeGrid;
-
-/// Configuration for Bermudan swaption LSMC pricing.
-///
-/// # Default Values
-///
-/// | Parameter | Default | Description |
-/// |-----------|---------|-------------|
-/// | num_paths | 50,000 | Number of Monte Carlo paths |
-/// | seed | 42 | Random seed for reproducibility |
-/// | basis_degree | 3 | Polynomial degree for regression |
-/// | antithetic | true | Use antithetic variates |
-#[derive(Debug, Clone)]
-pub struct SwaptionLsmcConfig {
-    /// Number of Monte Carlo paths.
-    ///
-    /// More paths improve accuracy but increase computation time.
-    /// Typical values: 10,000 (fast), 50,000 (standard), 100,000+ (high precision)
-    pub num_paths: usize,
-
-    /// Random seed for reproducibility.
-    ///
-    /// Using the same seed produces identical results across runs.
-    pub seed: u64,
-
-    /// Polynomial degree for basis functions in regression.
-    ///
-    /// Higher degrees can capture more complex continuation value surfaces
-    /// but may overfit with limited ITM paths.
-    /// Typical values: 2-4
-    pub basis_degree: usize,
-
-    /// Use antithetic variates for variance reduction.
-    ///
-    /// Generates (Z, -Z) path pairs which reduces variance by exploiting
-    /// negative correlation between paired paths.
-    pub antithetic: bool,
-}
-
-impl Default for SwaptionLsmcConfig {
-    fn default() -> Self {
-        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
-            .rust
-            .swaption_lsmc;
-        Self {
-            num_paths: defaults.num_paths,
-            seed: defaults.seed,
-            basis_degree: defaults.basis_degree,
-            antithetic: defaults.antithetic,
-        }
-    }
-}
-
-impl SwaptionLsmcConfig {
-    /// Create a new configuration with specified parameters.
-    pub fn new(num_paths: usize, seed: u64) -> Self {
-        Self {
-            num_paths,
-            seed,
-            ..Default::default()
-        }
-    }
-
-    /// Set basis function degree.
-    #[must_use]
-    pub fn with_basis_degree(mut self, degree: usize) -> Self {
-        self.basis_degree = degree;
-        self
-    }
-
-    /// Enable/disable antithetic variates.
-    #[must_use]
-    pub fn with_antithetic(mut self, enabled: bool) -> Self {
-        self.antithetic = enabled;
-        self
-    }
-
-    /// Convert to internal LsmcConfig.
-    pub fn to_lsmc_config(&self) -> LsmcConfig {
-        LsmcConfig {
-            num_paths: self.num_paths,
-            seed: self.seed,
-            exercise_dates: Vec::new(),
-            use_parallel: false, // LSMC is complex, default to serial
-            antithetic: self.antithetic,
-        }
-    }
-
-    /// Build a time grid that includes all exercise dates exactly.
-    ///
-    /// Creates a grid with exercise dates as exact grid points, plus
-    /// optional refinement points between them.
-    ///
-    /// # Arguments
-    ///
-    /// * `exercise_times` - Exercise times in years (sorted)
-    /// * `maturity` - Final maturity time
-    /// * `min_steps_between` - Minimum steps between grid points (default: 1)
-    pub fn build_exercise_aligned_grid(
-        exercise_times: &[f64],
-        maturity: f64,
-        min_steps_between: usize,
-    ) -> Result<(TimeGrid, Vec<usize>)> {
-        let mut times = vec![0.0];
-        let mut exercise_indices = Vec::with_capacity(exercise_times.len());
-
-        for &ex_time in exercise_times {
-            if ex_time <= 0.0 || ex_time > maturity {
-                continue;
-            }
-
-            // Add refinement points between last time and this exercise date
-            // times is initialized with vec![0.0] and only grows, so last() always succeeds
-            let last_time = times[times.len() - 1];
-            if min_steps_between > 0 && ex_time > last_time + 1e-10 {
-                let dt = (ex_time - last_time) / (min_steps_between + 1) as f64;
-                for i in 1..=min_steps_between {
-                    let t = last_time + dt * i as f64;
-                    if (t - ex_time).abs() > 1e-10 {
-                        times.push(t);
-                    }
-                }
-            }
-
-            // Add the exercise date exactly
-            let current_last = times[times.len() - 1];
-            if (ex_time - current_last).abs() > 1e-10 {
-                times.push(ex_time);
-            }
-            exercise_indices.push(times.len() - 1);
-        }
-
-        // Add maturity if not already present
-        let final_last = times[times.len() - 1];
-        if (final_last - maturity).abs() > 1e-10 {
-            times.push(maturity);
-        }
-
-        let grid = TimeGrid::from_times(times)?;
-        Ok((grid, exercise_indices))
-    }
-}
 
 // Swaption-Specific Basis Functions
 
@@ -293,26 +150,23 @@ fn regression_with_aux_basis<B: BasisFunctions>(
 /// - Polynomial basis functions for regression
 /// - Optional antithetic variates for variance reduction
 pub struct SwaptionLsmcPricer {
-    /// Internal LSMC configuration
-    config: LsmcConfig,
+    /// Monte Carlo configuration (`num_paths`, `seed` and `antithetic` are
+    /// read here; the regression basis is supplied per call).
+    config: RateExoticMcConfig,
     /// Hull-White process parameters
     hw_process: HullWhite1FProcess,
-    /// Extended configuration
-    swaption_config: SwaptionLsmcConfig,
 }
 
 impl SwaptionLsmcPricer {
-    /// Create a new pricer with full configuration.
-    pub fn with_config(
-        swaption_config: SwaptionLsmcConfig,
-        hw_process: HullWhite1FProcess,
-    ) -> Self {
-        let config = swaption_config.to_lsmc_config();
-        Self {
-            config,
-            hw_process,
-            swaption_config,
-        }
+    /// Create a new pricer.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Monte Carlo settings; `num_paths` total paths (halved into
+    ///   `(Z, -Z)` pairs when `antithetic` is set), `seed` the Philox root seed.
+    /// * `hw_process` - Hull-White 1F process with curve-calibrated θ(t).
+    pub fn with_config(config: RateExoticMcConfig, hw_process: HullWhite1FProcess) -> Self {
+        Self { config, hw_process }
     }
 
     /// Price a Bermudan swaption using a custom time grid with exact exercise indices.
@@ -387,7 +241,7 @@ impl SwaptionLsmcPricer {
         initial_rate: f64,
         time_grid: &TimeGrid,
     ) -> Result<Vec<Vec<f64>>> {
-        if self.swaption_config.antithetic {
+        if self.config.antithetic {
             self.generate_antithetic_paths_with_grid(initial_rate, time_grid)
         } else {
             self.generate_standard_paths_with_grid(initial_rate, time_grid)
@@ -625,8 +479,8 @@ impl SwaptionLsmcPricer {
 
                 // Compute exercise value: (S(t) - K) * A(t) * N for payer
                 let swap_value = match payoff.option_type {
-                    SwaptionType::Payer => swap_rate - payoff.strike,
-                    SwaptionType::Receiver => payoff.strike - swap_rate,
+                    OptionType::Call => swap_rate - payoff.strike,
+                    OptionType::Put => payoff.strike - swap_rate,
                 };
 
                 // Compute annuity for proper scaling
@@ -693,8 +547,8 @@ impl SwaptionLsmcPricer {
                     let annuity = regression_annuity[j];
 
                     let swap_value = match payoff.option_type {
-                        SwaptionType::Payer => swap_rate - payoff.strike,
-                        SwaptionType::Receiver => payoff.strike - swap_rate,
+                        OptionType::Call => swap_rate - payoff.strike,
+                        OptionType::Put => payoff.strike - swap_rate,
                     };
 
                     let immediate_value = swap_value.max(0.0) * annuity * payoff.notional;

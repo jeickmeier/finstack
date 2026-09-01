@@ -18,7 +18,7 @@
 //! time-0 curve DF, which would drop the payoff/numeraire correlation.
 
 use crate::instruments::rates::hw1f::bank_account::bank_step_factor;
-use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
+use crate::instruments::rates::hw1f::mc_config::{RateExoticMcConfig, SampleSplit};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
@@ -96,7 +96,7 @@ impl RateExoticHw1fMcPricer {
         let raw_paths = self.config.raw_stream_count();
         let base_rng = PhiloxRng::new(self.config.seed);
 
-        let mut stats = OnlineStats::new();
+        let mut path_values = Vec::with_capacity(self.config.effective_path_count());
 
         // Per-path scratch buffers hoisted out of the path loop; the
         // discretization step fully overwrites `work` and `z` each step,
@@ -104,9 +104,8 @@ impl RateExoticHw1fMcPricer {
         let mut work = vec![0.0; work_size];
         let mut z = [0.0_f64; 1];
 
-        let multiplicity = if self.config.antithetic { 2 } else { 1 };
+        let multiplicity = self.config.split().multiplicity;
         for path_id in 0..raw_paths {
-            let mut pair_sum = 0.0_f64;
             for anti in 0..multiplicity {
                 let mut rng = base_rng.substream(path_id as u64);
                 let mut r = self.r0;
@@ -149,47 +148,82 @@ impl RateExoticHw1fMcPricer {
                     }
                 }
 
-                pair_sum += payoff.value(self.currency).amount();
+                path_values.push(payoff.value(self.currency).amount());
             }
-            // Antithetic legs share a stream and are negatively correlated,
-            // so they are not i.i.d. samples: average each (original,
-            // antithetic) pair into one sample so the reported stderr
-            // reflects the pair variance rather than understating it.
-            stats.update(pair_sum / multiplicity as f64);
         }
 
-        let n = stats.count().max(1) as f64;
-        let simulated_paths = stats.count() * multiplicity;
-        let mean = stats.mean();
-        let stderr = stats.std_dev() / n.sqrt();
-        let lo = mean - 1.96 * stderr;
-        let hi = mean + 1.96 * stderr;
-        Ok(MoneyEstimate {
-            mean: finstack_quant_core::money::Money::new(mean, self.currency),
-            stderr,
-            ci_95: (
-                finstack_quant_core::money::Money::new(lo, self.currency),
-                finstack_quant_core::money::Money::new(hi, self.currency),
-            ),
-            num_paths: simulated_paths,
-            num_simulated_paths: simulated_paths,
-            std_dev: Some(stats.std_dev()),
-            median: None,
-            percentile_25: None,
-            percentile_75: None,
-            min: None,
-            max: None,
-        })
+        Ok(money_estimate_from_pairs(
+            &path_values,
+            self.config.split(),
+            1.0,
+            self.currency,
+        ))
+    }
+}
+
+/// Aggregate per-path present values into a [`MoneyEstimate`].
+///
+/// Antithetic legs share a stream and are negatively correlated, so they are
+/// not i.i.d. samples: each adjacent `(original, antithetic)` pair (a chunk of
+/// `split.multiplicity` consecutive entries of `path_values`) is averaged into
+/// one sample so the reported standard error reflects the pair variance
+/// rather than understating it. In split-sample mode only the pricing half
+/// contributes to the estimate. `scale` multiplies every sample (e.g. the
+/// terminal-measure `P(0, T_N)` of the LMM engine); pass `1.0` when the values
+/// are already time-0 present values.
+pub(crate) fn money_estimate_from_pairs(
+    path_values: &[f64],
+    split: SampleSplit,
+    scale: f64,
+    currency: Currency,
+) -> MoneyEstimate {
+    let multiplicity = split.multiplicity;
+    let mut stats = OnlineStats::new();
+    for (pair_idx, chunk) in path_values.chunks(multiplicity).enumerate() {
+        if !split.is_price(pair_idx * multiplicity) {
+            continue;
+        }
+        let pair_avg = chunk.iter().sum::<f64>() / chunk.len() as f64;
+        stats.update(pair_avg * scale);
+    }
+
+    let n = stats.count().max(1) as f64;
+    let aggregated_paths = stats.count() * multiplicity;
+    let mean = stats.mean();
+    let stderr = stats.std_dev() / n.sqrt();
+    let lo = mean - 1.96 * stderr;
+    let hi = mean + 1.96 * stderr;
+    MoneyEstimate {
+        mean: finstack_quant_core::money::Money::new(mean, currency),
+        stderr,
+        ci_95: (
+            finstack_quant_core::money::Money::new(lo, currency),
+            finstack_quant_core::money::Money::new(hi, currency),
+        ),
+        num_paths: aggregated_paths,
+        num_simulated_paths: aggregated_paths,
+        std_dev: Some(stats.std_dev()),
+        median: None,
+        percentile_25: None,
+        percentile_75: None,
+        min: None,
+        max: None,
     }
 }
 
 /// Build a time grid with steps aligned to event dates, returning the step
 /// indices where each event lands.
 ///
-/// The grid inserts `min_steps_between_events` sub-steps between consecutive
-/// events (or more, proportional to the gap), so each event time lies on a
-/// node of the returned [`TimeGrid`]. Shared with the Cheyette rough-vol
-/// Bermudan pricer, which needs the same exact event/exercise alignment.
+/// The grid inserts at least `min_steps_between` sub-steps between
+/// consecutive events (more for long gaps: roughly monthly), so each event
+/// time lands exactly on a node of the returned [`TimeGrid`]. The trailing
+/// segment up to `maturity` is subdivided the same way. Shared by the HW1F
+/// exotic, HW1F Bermudan LSMC and LMM Bermudan engines.
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] if `event_times` are not
+/// strictly increasing and positive.
 pub(crate) fn build_event_aligned_grid(
     event_times: &[f64],
     maturity: f64,
@@ -206,29 +240,30 @@ pub(crate) fn build_event_aligned_grid(
                 "event_times must be strictly increasing and positive, got {event_t} after {prev}"
             )));
         }
-        let gap = event_t - prev;
-        let n_sub = min_steps.max((gap * 12.0).ceil() as usize);
-        let dt = gap / n_sub as f64;
-        for k in 1..=n_sub {
-            times.push(prev + k as f64 * dt);
-        }
+        push_subdivided_segment(&mut times, prev, event_t, min_steps);
         event_indices.push(times.len() - 1);
         prev = event_t;
     }
 
     if maturity > prev + 1e-12 {
-        let gap = maturity - prev;
-        let n_sub = min_steps.max((gap * 12.0).ceil() as usize);
-        let dt = gap / n_sub as f64;
-        for k in 1..=n_sub {
-            times.push(prev + k as f64 * dt);
-        }
+        push_subdivided_segment(&mut times, prev, maturity, min_steps);
     }
 
     let grid = TimeGrid::from_times(times).map_err(|e| {
         finstack_quant_core::Error::Validation(format!("time grid build failed: {e}"))
     })?;
     Ok((grid, event_indices))
+}
+
+/// Append the interior nodes and the exact end point of `(from, to]`.
+fn push_subdivided_segment(times: &mut Vec<f64>, from: f64, to: f64, min_steps: usize) {
+    let gap = to - from;
+    let n_sub = min_steps.max((gap * 12.0).ceil() as usize);
+    let dt = gap / n_sub as f64;
+    for k in 1..n_sub {
+        times.push(from + k as f64 * dt);
+    }
+    times.push(to);
 }
 
 #[cfg(test)]
