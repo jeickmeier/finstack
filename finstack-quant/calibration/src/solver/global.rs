@@ -1082,15 +1082,10 @@ where
     };
 
     // 3. Basic residual stats (shared with bootstrap so both paths report identically).
-    let (max_residual, rms_residual) = super::helpers::residual_stats(resid_values);
-
     CalibrationDiagnostics {
         per_quote,
         condition_number,
-        singular_values: None, // Full SVD is expensive; omit for now.
-        max_residual,
-        rms_residual,
-        r_squared: None, // Meaningful only when target values have variance; omit for residual-based.
+        ..CalibrationDiagnostics::from_residuals(resid_values)
     }
 }
 

@@ -289,6 +289,15 @@ pub struct CalibrationReport {
     /// Signed residual of [`Self::worst_quote_id`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worst_quote_residual: Option<f64>,
+
+    /// Configured tolerance used to determine [`Self::success`] from residuals.
+    ///
+    /// Set by [`Self::for_type_with_tolerance`]; `None` for reports built via [`Self::new`]
+    /// directly (no tolerance gate applied). This is the typed source of truth for the
+    /// success-gate tolerance; it is distinct from `solver_config.tolerance()`, which controls
+    /// when the numerical root-finder stops.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub success_tolerance: Option<f64>,
 }
 
 impl CalibrationReport {
@@ -331,6 +340,7 @@ impl CalibrationReport {
             diagnostics: None,
             worst_quote_id,
             worst_quote_residual,
+            success_tolerance: None,
         }
     }
 
@@ -338,13 +348,6 @@ impl CalibrationReport {
     #[must_use]
     pub fn with_explanation(mut self, trace: ExplanationTrace) -> Self {
         self.explanation = Some(trace);
-        self
-    }
-
-    /// Attach custom results metadata to this report.
-    #[must_use]
-    pub fn with_results_meta(mut self, meta: ResultsMeta) -> Self {
-        self.results_meta = meta;
         self
     }
 
@@ -378,10 +381,10 @@ impl CalibrationReport {
         self.metadata.insert(key.into(), value.into());
     }
 
-    /// Set solver configuration (builder pattern).
+    /// Attach the typed success-gate tolerance used to determine [`Self::success`].
     #[must_use]
-    pub fn with_solver_config(mut self, config: SolverConfig) -> Self {
-        self.solver_config = config;
+    pub fn with_success_tolerance(mut self, tolerance: f64) -> Self {
+        self.success_tolerance = Some(tolerance);
         self
     }
 
@@ -532,7 +535,8 @@ impl CalibrationReport {
             )
             .with_metadata("type", type_str)
             .with_metadata("tolerance", format!("{:.2e}", tolerance))
-            .with_metadata("success_tolerance", format!("{:.2e}", tolerance));
+            .with_metadata("success_tolerance", format!("{:.2e}", tolerance))
+            .with_success_tolerance(tolerance);
         }
 
         let diag = compute_residual_diagnostics(&residuals);
@@ -580,34 +584,7 @@ impl CalibrationReport {
             .with_metadata("type", type_str)
             .with_metadata("tolerance", tolerance_str.clone())
             .with_metadata("success_tolerance", tolerance_str)
-    }
-}
-
-impl Default for CalibrationReport {
-    fn default() -> Self {
-        let results_meta = finstack_quant_core::config::results_meta(
-            &finstack_quant_core::config::FinstackConfig::default(),
-        );
-
-        Self {
-            success: false,
-            residuals: BTreeMap::new(),
-            iterations: 0,
-            objective_value: f64::INFINITY,
-            max_residual: f64::INFINITY,
-            rmse: f64::INFINITY,
-            validation_passed: false,
-            validation_error: None,
-            convergence_reason: "Not started".to_string(),
-            metadata: BTreeMap::new(),
-            solver_config: SolverConfig::default(),
-            results_meta,
-            explanation: None,
-            model_version: None,
-            diagnostics: None,
-            worst_quote_id: None,
-            worst_quote_residual: None,
-        }
+            .with_success_tolerance(tolerance)
     }
 }
 

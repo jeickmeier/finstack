@@ -86,24 +86,6 @@ pub fn calibrate_hull_white_to_swaptions(
     initial_guess: Option<HullWhiteCalibrationParams>,
 ) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
     let schedule_source = schedules.is_some().then_some("real_day_count");
-    calibrate_hull_white_to_swaptions_core(
-        df,
-        quotes,
-        frequency,
-        schedules,
-        initial_guess,
-        schedule_source,
-    )
-}
-
-fn calibrate_hull_white_to_swaptions_core(
-    df: &dyn Fn(f64) -> f64,
-    quotes: &[SwaptionQuote],
-    frequency: SwapFrequency,
-    schedules: Option<&[SwaptionSchedule]>,
-    initial_guess: Option<HullWhiteCalibrationParams>,
-    schedule_source: Option<&'static str>,
-) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
     if quotes.len() < 2 {
         return Err(finstack_quant_core::Error::Validation(format!(
             "Need at least 2 swaption quotes for HW1F calibration (2 free parameters), got {}",
@@ -146,11 +128,8 @@ fn calibrate_hull_white_to_swaptions_core(
                 q.expiry, q.tenor
             )));
         }
-        let (annuity, fwd_rate) = if let Some(schedule) = schedule {
-            compute_swap_annuity_and_rate_inner(df, q.expiry, q.tenor, ppy, Some(schedule))
-        } else {
-            compute_swap_annuity_and_rate(df, q.expiry, q.tenor, ppy)
-        };
+        let (annuity, fwd_rate) =
+            compute_swap_annuity_and_rate_inner(df, q.expiry, q.tenor, ppy, schedule);
         let market_price = compute_swaption_market_price(
             annuity,
             fwd_rate,
@@ -301,6 +280,11 @@ fn swaption_atm_vega(annuity: f64, fwd_rate: f64, expiry: f64, vol: f64, is_norm
 /// market day-counts (Act/360 USD SOFR, 30/360 EUR EURIBOR, etc.), use
 /// `compute_swap_annuity_and_rate_inner` with an explicit
 /// [`SwaptionSchedule`].
+///
+/// Test-only: production calibration always calls
+/// [`compute_swap_annuity_and_rate_inner`] directly with the resolved
+/// `Option<SwaptionSchedule>`.
+#[cfg(test)]
 pub(crate) fn compute_swap_annuity_and_rate(
     df: &dyn Fn(f64) -> f64,
     t0: f64,
@@ -454,8 +438,8 @@ pub(super) fn compute_swaption_market_price(
 /// Uses a synthetic constant-`dt` schedule. The production HW1F calibrator
 /// (`calibrate_hull_white_to_swaptions` with contractual schedules) drives
 /// [`hw1f_swaption_price_inner`] directly with real accrual fractions, so
-/// this scalar-time wrapper exists primarily as a stable test harness.
-#[allow(dead_code)]
+/// this scalar-time wrapper exists only as a stable test harness.
+#[cfg(test)]
 pub(crate) fn hw1f_swaption_price(
     kappa: f64,
     sigma: f64,

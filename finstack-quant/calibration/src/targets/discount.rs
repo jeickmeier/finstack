@@ -412,8 +412,7 @@ Global solve requires strictly increasing times.",
                 &seed_quotes,
                 vec![(0.0, 1.0)],
                 &config,
-                Some(success_tolerance),
-                None,
+                success_tolerance,
             ) {
                 Ok((curve_seed, report)) => {
                     target.initial_curve = Some(curve_seed);
@@ -432,8 +431,7 @@ Global solve requires strictly increasing times.",
                     &prepared_quotes,
                     vec![(0.0, 1.0)],
                     &config,
-                    Some(success_tolerance),
-                    None,
+                    success_tolerance,
                 )?;
                 if matches!(
                     params.interpolation,

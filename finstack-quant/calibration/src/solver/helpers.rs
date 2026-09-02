@@ -33,17 +33,6 @@ fn opposite_signs(a: f64, b: f64) -> bool {
     (a > 0.0 && b < 0.0) || (a < 0.0 && b > 0.0)
 }
 
-/// `(max_abs_residual, rms_residual)` over a residual vector — shared between the
-/// bootstrap and global diagnostics computations so the two paths cannot drift.
-pub(crate) fn residual_stats(resid_values: &[f64]) -> (f64, f64) {
-    let max_residual = resid_values.iter().map(|r| r.abs()).fold(0.0_f64, f64::max);
-    let rms_residual = if resid_values.is_empty() {
-        0.0
-    } else {
-        (resid_values.iter().map(|r| r * r).sum::<f64>() / resid_values.len() as f64).sqrt()
-    };
-    (max_residual, rms_residual)
-}
 #[cfg(test)]
 use crate::constants::PENALTY;
 use finstack_quant_core::Result;

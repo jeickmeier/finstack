@@ -230,33 +230,16 @@ fn test_negative_rate_environment_opt_in() {
     let strict_result = negative_rate_curve.validate_monotonicity(&default_config);
     assert!(strict_result.is_err());
 
-    let permissive_config = ValidationConfig::negative_rates();
+    let permissive_config = ValidationConfig {
+        allow_negative_rates: true,
+        ..Default::default()
+    };
     let permissive_result = negative_rate_curve.validate_monotonicity(&permissive_config);
     assert!(
         permissive_result.is_ok(),
         "expected ok: {:?}",
         permissive_result
     );
-}
-
-#[test]
-fn test_validation_config_constructors() {
-    let strict = ValidationConfig::strict();
-    assert!(!strict.allow_negative_rates);
-    assert!(strict.check_monotonicity);
-    assert!(!strict.lenient_arbitrage);
-
-    let negative = ValidationConfig::negative_rates();
-    assert!(negative.allow_negative_rates);
-    assert!(negative.check_monotonicity);
-
-    let lenient = ValidationConfig::lenient();
-    assert!(lenient.lenient_arbitrage);
-    assert!(lenient.check_arbitrage);
-
-    let default = ValidationConfig::default();
-    assert!(!default.allow_negative_rates);
-    assert!(!default.lenient_arbitrage);
 }
 
 #[test]
@@ -282,7 +265,10 @@ fn test_butterfly_arbitrage_detected_and_fails() {
     let err_msg = result.expect_err("Expected validation error").to_string();
     assert!(err_msg.contains("Butterfly") || err_msg.contains("butterfly"));
 
-    let lenient_config = ValidationConfig::lenient();
+    let lenient_config = ValidationConfig {
+        lenient_arbitrage: true,
+        ..Default::default()
+    };
     let lenient_result = validate_butterfly_spread(&surface, &lenient_config);
     assert!(lenient_result.is_ok());
 }
@@ -310,7 +296,10 @@ fn test_calendar_arbitrage_detected_and_fails() {
     let err_msg = result.expect_err("Expected validation error").to_string();
     assert!(err_msg.contains("Calendar") || err_msg.contains("calendar"));
 
-    let lenient_config = ValidationConfig::lenient();
+    let lenient_config = ValidationConfig {
+        lenient_arbitrage: true,
+        ..Default::default()
+    };
     let lenient_result = validate_calendar_spread(&surface, &lenient_config);
     assert!(lenient_result.is_ok());
 }

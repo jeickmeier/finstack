@@ -182,6 +182,54 @@ pub enum InflationLag {
     None,
 }
 
+impl std::str::FromStr for InflationLag {
+    type Err = Error;
+
+    /// Parse a market-convention observation lag string.
+    ///
+    /// Accepted forms (case-insensitive, surrounding whitespace trimmed):
+    /// - `"NONE"`, `"0"`, `"0M"`, `"0D"` → [`InflationLag::None`]
+    /// - `"<n>M"` (e.g. `"3M"`) → [`InflationLag::Months`] with `n` parsed as `u8`
+    /// - `"<n>D"` (e.g. `"90D"`) → [`InflationLag::Days`] with `n` parsed as `u16`
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] if `s` does not match one of the accepted forms
+    /// (e.g. a missing `M`/`D` suffix or a numeric part that overflows `u8`/`u16`).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_core::market_data::scalars::InflationLag;
+    ///
+    /// let tips: InflationLag = "3M".parse().expect("valid lag");
+    /// assert_eq!(tips, InflationLag::Months(3));
+    /// let no_lag: InflationLag = "none".parse().expect("valid lag");
+    /// assert_eq!(no_lag, InflationLag::None);
+    /// ```
+    fn from_str(s: &str) -> Result<Self> {
+        let upper = s.trim().to_ascii_uppercase();
+        if upper == "NONE" || upper == "0" || upper == "0M" || upper == "0D" {
+            return Ok(Self::None);
+        }
+        if let Some(num) = upper.strip_suffix('M') {
+            let months: u8 = num.trim().parse().map_err(|_| {
+                Error::Validation(format!("Invalid inflation lag '{s}': expected like '3M'"))
+            })?;
+            return Ok(Self::Months(months));
+        }
+        if let Some(num) = upper.strip_suffix('D') {
+            let days: u16 = num.trim().parse().map_err(|_| {
+                Error::Validation(format!("Invalid inflation lag '{s}': expected like '90D'"))
+            })?;
+            return Ok(Self::Days(days));
+        }
+        Err(Error::Validation(format!(
+            "Invalid inflation lag '{s}': expected like '3M' or '90D'"
+        )))
+    }
+}
+
 /// Inflation index time series with lagging and seasonality.
 ///
 /// Wraps historical CPI/RPI observations with market-standard conventions for

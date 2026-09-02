@@ -168,7 +168,7 @@ impl XccyBasisTarget {
             base_context: context.clone(),
         });
 
-        let success_tolerance = Some(config.discount_curve.validation_tolerance);
+        let success_tolerance = config.discount_curve.validation_tolerance;
 
         let (curve, report) = SequentialBootstrapper::bootstrap(
             &target,
@@ -176,7 +176,6 @@ impl XccyBasisTarget {
             vec![(0.0, 1.0)],
             &config,
             success_tolerance,
-            None,
         )?;
 
         let mut new_context = context.clone().insert(curve.clone());

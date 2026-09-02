@@ -220,33 +220,10 @@ impl InflationCurveTarget {
 
     /// Parse an observation lag string (e.g. "3M").
     fn parse_lag(&self, spec: &str) -> Result<InflationLag> {
-        let s = spec.trim();
-        if s.is_empty() {
+        if spec.trim().is_empty() {
             return Ok(InflationLag::None);
         }
-        let upper = s.to_ascii_uppercase();
-        if upper == "NONE" || upper == "0" || upper == "0M" || upper == "0D" {
-            return Ok(InflationLag::None);
-        }
-        if let Some(num) = upper.strip_suffix('M') {
-            let months: u8 = num.trim().parse().map_err(|_| {
-                finstack_quant_core::Error::Validation(format!(
-                    "Invalid observation_lag '{spec}': expected like '3M'"
-                ))
-            })?;
-            return Ok(InflationLag::Months(months));
-        }
-        if let Some(num) = upper.strip_suffix('D') {
-            let days: u16 = num.trim().parse().map_err(|_| {
-                finstack_quant_core::Error::Validation(format!(
-                    "Invalid observation_lag '{spec}': expected like '90D'"
-                ))
-            })?;
-            return Ok(InflationLag::Days(days));
-        }
-        Err(finstack_quant_core::Error::Validation(format!(
-            "Invalid observation_lag '{spec}': expected like '3M' or '90D'"
-        )))
+        spec.parse::<InflationLag>()
     }
 
     /// Apply an observation lag to a date.
@@ -323,8 +300,7 @@ impl InflationCurveTarget {
                 &prepared_quotes,
                 Vec::new(),
                 &config,
-                Some(success_tolerance),
-                None,
+                success_tolerance,
             )?,
             CalibrationMethod::GlobalSolve { .. } => {
                 GlobalFitOptimizer::optimize(&target, &prepared_quotes, &config, success_tolerance)?

@@ -43,10 +43,6 @@ pub(crate) enum StepOutput {
     Curves(Vec<CurveStorage>),
     Surface(Arc<VolSurface>),
     VolCube(Arc<VolCube>),
-    Scalar {
-        key: String,
-        value: MarketScalar,
-    },
     Scalars(Vec<(String, MarketScalar)>),
     ScalarsAndSeries {
         scalars: Vec<(String, MarketScalar)>,
@@ -175,9 +171,6 @@ pub(crate) fn apply_output(
         }
         StepOutput::VolCube(cube) => {
             *context = std::mem::take(context).insert_vol_cube(cube);
-        }
-        StepOutput::Scalar { key, value } => {
-            *context = std::mem::take(context).insert_price(&key, value);
         }
         StepOutput::Scalars(values) => {
             let mut updated = std::mem::take(context);
@@ -341,10 +334,10 @@ pub(crate) fn execute_params(
                 StudentTTarget::solve(p, quotes, context, global_config)?;
             let scalar_key = format!("{}_STUDENT_T_DF", p.tranche_instrument_id);
             Ok(StepOutcome {
-                output: StepOutput::Scalar {
-                    key: scalar_key,
-                    value: MarketScalar::Unitless(calibrated_df),
-                },
+                output: StepOutput::Scalars(vec![(
+                    scalar_key,
+                    MarketScalar::Unitless(calibrated_df),
+                )]),
                 credit_index_update: None,
                 report,
             })
@@ -737,9 +730,11 @@ mod tests {
         let outcome = execute_params(&params, &quotes, &context, &CalibrationConfig::default())
             .expect("Student-t step should calibrate");
 
-        let StepOutput::Scalar { key, value } = outcome.output else {
+        let StepOutput::Scalars(values) = outcome.output else {
             unreachable!("Student-t calibration should return a scalar output");
         };
+        assert_eq!(values.len(), 1);
+        let (key, value) = values.into_iter().next().expect("one scalar");
         assert_eq!(key, "TRANCHE-1_STUDENT_T_DF");
         let MarketScalar::Unitless(calibrated_df) = value else {
             unreachable!("Student-t degrees of freedom should be unitless");

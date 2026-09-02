@@ -4,43 +4,6 @@ use finstack_quant_core::schema::{SchemaArtifact, SchemaKind};
 use serde_json::Value;
 use std::sync::OnceLock;
 
-macro_rules! include_schema {
-    ($path:expr) => {
-        serde_json::from_str::<Value>(include_str!($path)).map_err(|error| {
-            finstack_quant_core::Error::Validation(format!(
-                "invalid calibration schema JSON at {}: {error}",
-                $path
-            ))
-        })
-    };
-}
-
-/// Return the calibration envelope JSON schema.
-///
-/// # Errors
-///
-/// Returns an error when the embedded checked-in schema is malformed.
-pub fn calibration_schema() -> finstack_quant_core::Result<&'static Value> {
-    static SCHEMA: OnceLock<finstack_quant_core::Result<Value>> = OnceLock::new();
-    SCHEMA
-        .get_or_init(|| include_schema!("../schemas/calibration/1/calibration.schema.json"))
-        .as_ref()
-        .map_err(Clone::clone)
-}
-
-/// Return the raw market-quote JSON schema.
-///
-/// # Errors
-///
-/// Returns an error when the embedded checked-in schema is malformed.
-pub fn market_quote_schema() -> finstack_quant_core::Result<&'static Value> {
-    static SCHEMA: OnceLock<finstack_quant_core::Result<Value>> = OnceLock::new();
-    SCHEMA
-        .get_or_init(|| include_schema!("../schemas/market/1/market_quote.schema.json"))
-        .as_ref()
-        .map_err(Clone::clone)
-}
-
 fn calibration_examples() -> finstack_quant_core::Result<Vec<Value>> {
     let plan = crate::api::schema::CalibrationPlan {
         id: "usd_curves".to_string(),

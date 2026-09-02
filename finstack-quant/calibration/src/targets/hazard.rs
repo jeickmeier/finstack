@@ -366,7 +366,6 @@ impl HazardCurveTarget {
             config.hazard_curve.hazard_hard_max = config.hazard_curve.hazard_hard_max.max(100.0);
             config.hazard_curve.validation_tolerance =
                 config.hazard_curve.validation_tolerance.max(1e-6);
-            config.validation.max_hazard_rate = config.validation.max_hazard_rate.max(2.0);
         }
         config.calibration_method = params.method.clone();
         let target =
@@ -406,8 +405,7 @@ impl HazardCurveTarget {
                 &prepared_quotes,
                 Vec::new(),
                 &config,
-                Some(success_tolerance),
-                None,
+                success_tolerance,
             )?,
             CalibrationMethod::GlobalSolve { .. } => {
                 GlobalFitOptimizer::optimize(&target, &prepared_quotes, &config, success_tolerance)?

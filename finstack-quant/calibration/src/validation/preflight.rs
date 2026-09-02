@@ -288,25 +288,13 @@ fn validate_inflation_step(
     // Validate observation lag string (used when no InflationIndex fixings are provided).
     let lag = p.observation_lag.trim();
     if !lag.is_empty() {
-        let upper = lag.to_ascii_uppercase();
-        let valid = upper == "NONE"
-            || upper == "0"
-            || upper == "0M"
-            || upper == "0D"
-            || upper
-                .strip_suffix('M')
-                .and_then(|n| n.trim().parse::<u8>().ok())
-                .is_some()
-            || upper
-                .strip_suffix('D')
-                .and_then(|n| n.trim().parse::<u16>().ok())
-                .is_some();
-        if !valid {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Invalid observation_lag '{}': expected like '3M' or '90D'",
-                p.observation_lag
-            )));
-        }
+        lag.parse::<finstack_quant_core::market_data::scalars::InflationLag>()
+            .map_err(|_| {
+                finstack_quant_core::Error::Validation(format!(
+                    "Invalid observation_lag '{}': expected like '3M' or '90D'",
+                    p.observation_lag
+                ))
+            })?;
     }
 
     // If an InflationIndex fixings series is provided, enforce consistency:
@@ -322,33 +310,16 @@ fn validate_inflation_step(
         }
 
         // Parse observation lag and require it to match the index lag.
-        let parsed_lag = {
-            let upper = p.observation_lag.trim().to_ascii_uppercase();
-            if upper == "NONE" || upper == "0" || upper == "0M" || upper == "0D" {
-                finstack_quant_core::market_data::scalars::InflationLag::None
-            } else if let Some(num) = upper.strip_suffix('M') {
-                let months: u8 = num.trim().parse().map_err(|_| {
-                    finstack_quant_core::Error::Validation(format!(
-                        "Invalid observation_lag '{}': expected like '3M'",
-                        p.observation_lag
-                    ))
-                })?;
-                finstack_quant_core::market_data::scalars::InflationLag::Months(months)
-            } else if let Some(num) = upper.strip_suffix('D') {
-                let days: u16 = num.trim().parse().map_err(|_| {
-                    finstack_quant_core::Error::Validation(format!(
-                        "Invalid observation_lag '{}': expected like '90D'",
-                        p.observation_lag
-                    ))
-                })?;
-                finstack_quant_core::market_data::scalars::InflationLag::Days(days)
-            } else {
-                return Err(finstack_quant_core::Error::Validation(format!(
+        let parsed_lag = p
+            .observation_lag
+            .trim()
+            .parse::<finstack_quant_core::market_data::scalars::InflationLag>()
+            .map_err(|_| {
+                finstack_quant_core::Error::Validation(format!(
                     "Invalid observation_lag '{}': expected like '3M' or '90D'",
                     p.observation_lag
-                )));
-            }
-        };
+                ))
+            })?;
 
         if parsed_lag != index.lag() {
             return Err(finstack_quant_core::Error::Validation(format!(

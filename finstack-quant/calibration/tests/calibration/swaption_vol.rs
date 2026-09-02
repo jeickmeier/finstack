@@ -1,5 +1,11 @@
 //! Integration test for swaption volatility calibration (canonical).
 
+// See `finstack_quant_calibration::api::engine`'s crate-internal
+// `#![allow(clippy::result_large_err)]`: `ExecuteError::Envelope` carries a
+// full diagnostic payload by design; that allow does not reach this
+// integration-test crate, so it is repeated here for the closure below.
+#![allow(clippy::result_large_err)]
+
 use finstack_quant_calibration::api::engine;
 use finstack_quant_calibration::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, StepParams, SurfaceExtrapolationPolicy,

@@ -22,31 +22,6 @@ use finstack_quant_valuations::market::conventions::ConventionRegistry;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-/// Extracted fields from a CDS tranche quote for validation.
-struct TrancheQuoteFields<'a> {
-    index: &'a str,
-    series: u16,
-    attachment: f64,
-    detachment: f64,
-    maturity: Date,
-    upfront_pct: f64,
-    convention: &'a finstack_quant_valuations::market::conventions::ids::CdsConventionKey,
-}
-
-impl<'a> TrancheQuoteFields<'a> {
-    fn extract(quote: &'a CdsTrancheQuote) -> Self {
-        Self {
-            index: quote.index.as_str(),
-            series: quote.series,
-            attachment: quote.attachment,
-            detachment: quote.detachment,
-            maturity: quote.maturity,
-            upfront_pct: quote.upfront_pct,
-            convention: &quote.convention,
-        }
-    }
-}
-
 /// Validate that all detachment points in params are valid.
 fn validate_detachment_points(points: &[f64]) -> Result<()> {
     for d in points {
@@ -232,8 +207,6 @@ impl BaseCorrelationTarget {
         overrides: &CDSTrancheBuildOverrides,
         time_day_count: DayCount,
     ) -> Result<CalibrationQuote> {
-        let fields = TrancheQuoteFields::extract(quote);
-
         // Build pricing instrument without embedded upfront
         let pricing_quote = create_pricing_quote(quote);
         let instrument = build_cds_tranche_instrument(&pricing_quote, build_ctx, overrides)
@@ -245,22 +218,22 @@ impl BaseCorrelationTarget {
 
         let pillar_time = time_day_count.year_fraction(
             self.params.base_date,
-            fields.maturity,
+            quote.maturity,
             DayCountContext::default(),
         )?;
 
         let prepared_quote = PreparedQuote::new(
             Arc::new(quote.clone()),
             Arc::<dyn finstack_quant_valuations::instruments::Instrument>::from(instrument),
-            fields.maturity,
+            quote.maturity,
             pillar_time,
         );
 
-        let detachment_pct = normalize_pct(fields.detachment);
+        let detachment_pct = normalize_pct(quote.detachment);
         let upfront_money = compute_upfront_money(
-            fields.attachment,
-            fields.detachment,
-            fields.upfront_pct,
+            quote.attachment,
+            quote.detachment,
+            quote.upfront_pct,
             self.params.notional,
             self.params.currency,
         );
@@ -287,21 +260,19 @@ impl BaseCorrelationTarget {
         let mut seen_detachments = Vec::new();
 
         for q in quotes {
-            let fields = TrancheQuoteFields::extract(&q);
-
-            validate_quote_index(fields.index, &self.params.index_id)?;
-            if fields.series != self.params.series {
+            validate_quote_index(q.index.as_str(), &self.params.index_id)?;
+            if q.series != self.params.series {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "Tranche quote series {} does not match params.series {}",
-                    fields.series, self.params.series
+                    q.series, self.params.series
                 )));
             }
-            ConventionRegistry::try_global()?.resolve_cds(fields.convention)?;
+            ConventionRegistry::try_global()?.resolve_cds(&q.convention)?;
 
-            let detachment_pct = normalize_pct(fields.detachment);
+            let detachment_pct = normalize_pct(q.detachment);
             validate_detachment_in_expected(detachment_pct, &expected_detachments)?;
             validate_maturity_tolerance(
-                fields.maturity,
+                q.maturity,
                 self.params.base_date,
                 self.params.maturity_years,
                 maturity_tol_days,
@@ -348,7 +319,7 @@ impl BaseCorrelationTarget {
         // relative to tranche-pricing precision, but still rejects a materially
         // miscalibrated knot.
         const BASE_CORRELATION_VALIDATION_TOLERANCE: f64 = 1e-3;
-        let success_tolerance = Some(BASE_CORRELATION_VALIDATION_TOLERANCE);
+        let success_tolerance = BASE_CORRELATION_VALIDATION_TOLERANCE;
 
         let (curve, mut report) = SequentialBootstrapper::bootstrap(
             &target,
@@ -356,7 +327,6 @@ impl BaseCorrelationTarget {
             Vec::new(),
             global_config,
             success_tolerance,
-            None,
         )?;
 
         report.update_solver_config(global_config.solver.clone());
