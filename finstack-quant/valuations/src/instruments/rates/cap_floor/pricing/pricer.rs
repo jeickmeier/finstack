@@ -209,12 +209,8 @@ impl Pricer for SimpleCapFloorBlackPricer {
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
         // Type-safe downcasting
-        let cap_floor = instrument
-            .as_any()
-            .downcast_ref::<CapFloor>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CapFloor, instrument.key())
-            })?;
+        let cap_floor =
+            crate::pricer::expect_inst::<CapFloor>(instrument, InstrumentType::CapFloor)?;
 
         let pv = price_cap_floor(cap_floor, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())

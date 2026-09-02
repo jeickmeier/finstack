@@ -269,12 +269,8 @@ impl Pricer for CapFloorHullWhitePricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let cap_floor = instrument
-            .as_any()
-            .downcast_ref::<CapFloor>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CapFloor, instrument.key())
-            })?;
+        let cap_floor =
+            crate::pricer::expect_inst::<CapFloor>(instrument, InstrumentType::CapFloor)?;
 
         self.price_internal(cap_floor, market, as_of)
     }

@@ -70,12 +70,8 @@ impl Pricer for SwaptionHullWhitePricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let swaption = instrument
-            .as_any()
-            .downcast_ref::<Swaption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::Swaption, instrument.key())
-            })?;
+        let swaption =
+            crate::pricer::expect_inst::<Swaption>(instrument, InstrumentType::Swaption)?;
 
         self.price_internal(swaption, market, as_of)
     }

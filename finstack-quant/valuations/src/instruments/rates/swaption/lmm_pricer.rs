@@ -264,12 +264,10 @@ impl Pricer for BermudanSwaptionLmmPricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let swaption = instrument
-            .as_any()
-            .downcast_ref::<BermudanSwaption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::BermudanSwaption, instrument.key())
-            })?;
+        let swaption = crate::pricer::expect_inst::<BermudanSwaption>(
+            instrument,
+            InstrumentType::BermudanSwaption,
+        )?;
 
         let disc = market
             .get_discount(swaption.get_discount_curve_id().as_str())

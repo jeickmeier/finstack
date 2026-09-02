@@ -294,12 +294,7 @@ impl Pricer for CmsOptionPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let cms = instrument
-            .as_any()
-            .downcast_ref::<CmsOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CmsOption, instrument.key())
-            })?;
+        let cms = crate::pricer::expect_inst::<CmsOption>(instrument, InstrumentType::CmsOption)?;
 
         let pv = self.price_internal(cms, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())

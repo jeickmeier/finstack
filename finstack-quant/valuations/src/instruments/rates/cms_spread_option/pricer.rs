@@ -288,12 +288,10 @@ impl Pricer for CmsSpreadOptionPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let option = instrument
-            .as_any()
-            .downcast_ref::<CmsSpreadOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CmsSpreadOption, instrument.key())
-            })?;
+        let option = crate::pricer::expect_inst::<CmsSpreadOption>(
+            instrument,
+            InstrumentType::CmsSpreadOption,
+        )?;
         let data = self.price_data(option, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),
@@ -346,12 +344,10 @@ impl Pricer for CmsSpreadOptionPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<f64, PricingError> {
-        let option = instrument
-            .as_any()
-            .downcast_ref::<CmsSpreadOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CmsSpreadOption, instrument.key())
-            })?;
+        let option = crate::pricer::expect_inst::<CmsSpreadOption>(
+            instrument,
+            InstrumentType::CmsSpreadOption,
+        )?;
         self.price_internal(option, market, as_of)
             .map(|m| m.amount())
             .map_err(|e| {

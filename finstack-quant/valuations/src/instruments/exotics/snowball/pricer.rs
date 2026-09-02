@@ -294,12 +294,8 @@ impl Pricer for SnowballDiscountingPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let snowball = instrument
-            .as_any()
-            .downcast_ref::<Snowball>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::Snowball, instrument.key())
-            })?;
+        let snowball =
+            crate::pricer::expect_inst::<Snowball>(instrument, InstrumentType::Snowball)?;
         let value = self.price_internal(snowball, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),
@@ -320,12 +316,8 @@ impl Pricer for SnowballDiscountingPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<f64, PricingError> {
-        let snowball = instrument
-            .as_any()
-            .downcast_ref::<Snowball>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::Snowball, instrument.key())
-            })?;
+        let snowball =
+            crate::pricer::expect_inst::<Snowball>(instrument, InstrumentType::Snowball)?;
         self.price_internal(snowball, market, as_of)
             .map(|m| m.amount())
             .map_err(|e| {
@@ -545,12 +537,8 @@ impl Pricer for SnowballHw1fMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let snowball = instrument
-            .as_any()
-            .downcast_ref::<Snowball>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::Snowball, instrument.key())
-            })?;
+        let snowball =
+            crate::pricer::expect_inst::<Snowball>(instrument, InstrumentType::Snowball)?;
         let estimate = self.price_estimate(snowball, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),
@@ -587,12 +575,8 @@ impl Pricer for SnowballHw1fMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<f64, PricingError> {
-        let snowball = instrument
-            .as_any()
-            .downcast_ref::<Snowball>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::Snowball, instrument.key())
-            })?;
+        let snowball =
+            crate::pricer::expect_inst::<Snowball>(instrument, InstrumentType::Snowball)?;
         self.price_internal(snowball, market, as_of)
             .map(|m| m.amount())
             .map_err(|e| {

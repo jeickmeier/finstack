@@ -399,12 +399,10 @@ impl Pricer for CallableRangeAccrualPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let callable = instrument
-            .as_any()
-            .downcast_ref::<CallableRangeAccrual>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CallableRangeAccrual, instrument.key())
-            })?;
+        let callable = crate::pricer::expect_inst::<CallableRangeAccrual>(
+            instrument,
+            InstrumentType::CallableRangeAccrual,
+        )?;
         let estimate = self.price_estimate(callable, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),
@@ -442,12 +440,10 @@ impl Pricer for CallableRangeAccrualPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<f64, PricingError> {
-        let callable = instrument
-            .as_any()
-            .downcast_ref::<CallableRangeAccrual>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CallableRangeAccrual, instrument.key())
-            })?;
+        let callable = crate::pricer::expect_inst::<CallableRangeAccrual>(
+            instrument,
+            InstrumentType::CallableRangeAccrual,
+        )?;
         self.price_internal(callable, market, as_of)
             .map(|m| m.amount())
             .map_err(|e| {

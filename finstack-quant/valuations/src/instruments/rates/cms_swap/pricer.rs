@@ -196,12 +196,7 @@ impl Pricer for CmsSwapPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let cms = instrument
-            .as_any()
-            .downcast_ref::<CmsSwap>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CmsSwap, instrument.key())
-            })?;
+        let cms = crate::pricer::expect_inst::<CmsSwap>(instrument, InstrumentType::CmsSwap)?;
 
         let pv = self.price_internal(cms, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
@@ -374,12 +369,7 @@ impl Pricer for CmsSwapReplicationPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let cms = instrument
-            .as_any()
-            .downcast_ref::<CmsSwap>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CmsSwap, instrument.key())
-            })?;
+        let cms = crate::pricer::expect_inst::<CmsSwap>(instrument, InstrumentType::CmsSwap)?;
 
         let pv = self.price_internal(cms, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())

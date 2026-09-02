@@ -519,10 +519,7 @@ impl Pricer for TarnPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let tarn = instrument
-            .as_any()
-            .downcast_ref::<Tarn>()
-            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::Tarn, instrument.key()))?;
+        let tarn = crate::pricer::expect_inst::<Tarn>(instrument, InstrumentType::Tarn)?;
 
         let estimate = self.price_estimate(tarn, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(
@@ -560,10 +557,7 @@ impl Pricer for TarnPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<f64, PricingError> {
-        let tarn = instrument
-            .as_any()
-            .downcast_ref::<Tarn>()
-            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::Tarn, instrument.key()))?;
+        let tarn = crate::pricer::expect_inst::<Tarn>(instrument, InstrumentType::Tarn)?;
         self.price_internal(tarn, market, as_of)
             .map(|m| m.amount())
             .map_err(|e| {
