@@ -21,15 +21,16 @@ genuinely distinct failure domain.
 
 Today, five crates define their own root `Error`: `core` (the shared base itself),
 `valuations`, `portfolio`, `scenarios` and `statements`. The other nine reuse
-core's at the root: `analytics`, `attribution`, `cashflows`, `covenants`,
-`factor-model`, `features`, `margin`, `monte_carlo`, `statements-analytics`
+core's at the root: `analytics`, `attribution`, `calibration`, `cashflows`,
+`covenants`, `features`, `margin`, `models`, `statements-analytics`
 (`statements-analytics` mostly propagates `finstack_quant_statements::Result`,
 which wraps it). That reuse is the default, not drift.
 
 Module-scoped `thiserror` enums for a narrow failure domain are a separate,
 allowed thing and do not make a crate a root-`Error` crate — for example
-`analytics::correlation::Error`, `factor_model::matching::FactorMatchError`, and
-`factor_model::credit::decomposition::DecompositionError`. (`test-utils` is a
+`analytics::correlation::Error`, `models::correlation::Error`,
+`models::factor::matching::FactorMatchError`, and
+`models::factor::credit::decomposition::DecompositionError`. (`test-utils` is a
 dev-only supporting crate, not one of the 14 domain crates; it has a small
 `Error` of its own.)
 

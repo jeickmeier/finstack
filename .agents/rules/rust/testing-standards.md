@@ -5,7 +5,7 @@ globs:
 ---
 ### Rust Testing Standards (Finstack)
 
-These standards apply to all Rust crates in the Finstack Quant workspace (`finstack-quant/core`, `statements`, `valuations`, `scenarios`, `portfolio`, `io`) and should be read alongside our code standards. They reinforce our core invariants: determinism, currency‑safety, stable serde schemas, and parity across bindings.
+These standards apply to all Rust crates in the Finstack Quant workspace (`finstack-quant/core` through `portfolio`; see the crate map in `project-description.md`) and should be read alongside our code standards. They reinforce our core invariants: determinism, currency‑safety, stable serde schemas, and parity across bindings.
 
 ### Guiding principles
 

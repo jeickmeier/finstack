@@ -25,21 +25,23 @@ Finstack Quant aims to provide:
 Workspace (umbrella crate: finstack-quant)
 ┌──────────────────────┐
 │ finstack-quant       │  -> unconditional re-exports of every domain crate
-└──────────┬───────────┘   (no cargo features; all-or-nothing)
+└──────────┬───────────┘   (features: `json-schema`, `jsonschema-validate`; both default)
            │
  ┌─────────┴──────────────────────────────────────────────────────────────────────────────────┐
  │ Domain crates (14 bound in Python/WASM)                                                     │
  │                                                                                             │
  │  core                 ← primitives: money/fx, dates, market data, math, expr engine, config │
- │  analytics            ← performance/risk statistics over numeric slices                     │
- │  attribution          ← multi-period P&L attribution (waterfall, Taylor, metrics-based)     │
+ │  analytics            ← performance/risk statistics, correlation-matrix helpers             │
  │  cashflows            ← schedule generation, accrual, currency-safe dated flows             │
  │  covenants            ← covenant definition, evaluation, breach forecasting                 │
- │  factor-model         ← factor primitives, matchers, credit calibration, covariance         │
  │  features             ← vectorized panel feature transforms (bindings-facing leaf)          │
  │  margin               ← CSA specs, VM/IM (SIMM, schedule, CCP), FRTB-SBA, SA-CCR, XVA       │
- │  monte_carlo          ← processes, discretization, Philox RNG, payoffs, MC engine           │
- │  valuations           ← instruments, pricing, models, calibration, metrics (mid-stack hub)  │
+ │  models               ← model kernels: closed-form, Monte Carlo (Philox RNG, processes,     │
+ │                         payoffs, engine), PDE, trees, Fourier, vol, short-rate, credit,     │
+ │                         factor models, copulas/correlation, liquidity                       │
+ │  valuations           ← instruments, pricer registry, metrics, market conventions (hub)     │
+ │  calibration          ← curve/hazard/vol bootstraps and global calibration on valuations   │
+ │  attribution          ← multi-period P&L attribution (waterfall, Taylor, metrics-based)     │
  │  statements           ← model graph (Value > Forecast > Formula), evaluation                │
  │  statements-analytics ← DCF, scenario sets, sensitivity, ECL, backtesting                   │
  │  scenarios            ← deterministic shock/roll DSL + engine                               │
@@ -54,15 +56,25 @@ Workspace (umbrella crate: finstack-quant)
  └─────────────────────────────────────────────────────────────────────────────────────────────┘
 
 Dependency direction (read off the manifests):
-  core → {analytics, cashflows, covenants, features, margin, monte_carlo}
-       → factor-model (also analytics)
-       → valuations → {attribution, statements} → scenarios → portfolio
-  `margin` depends only on `core`; exposure generation is out of its scope, so
-  it does not consume `monte_carlo`. The `Marginable` trait is the seam and
-  `valuations` implements it.
-  `valuations` is the true mid-stack hub: it consumes margin, monte_carlo,
-  factor-model, covenants, analytics and cashflows. Bindings depend on the Rust
-  crates; no Rust crate depends on a binding.
+  core → {analytics, cashflows, covenants, features, margin}
+  core + analytics + cashflows → models
+  core + cashflows + covenants + margin + models → valuations
+  valuations (+ core, cashflows, models) → calibration
+  calibration + valuations → attribution
+  valuations (+ core, cashflows) → statements → statements-analytics (+ covenants, models)
+  {attribution, calibration, models, statements, valuations} → scenarios
+  {attribution, calibration, cashflows, margin, models, scenarios, valuations} → portfolio
+
+  Short form: core → cashflows/models → valuations → calibration → attribution →
+  statements/scenarios → portfolio.
+  `margin` depends only on `core`; exposure generation is out of its scope. The
+  `Marginable` trait is the seam and `valuations` implements it.
+  `models` depends on `analytics`, `cashflows` and `core` only; Monte Carlo and
+  factor models are modules of it (`models::monte_carlo`, `models::factor`),
+  not crates.
+  `calibration` depends on `valuations` (it calibrates against valuations
+  pricers); `valuations` does not depend on `calibration`.
+  Bindings depend on the Rust crates; no Rust crate depends on a binding.
 ```
 
 ## Cross‑Cutting Invariants
@@ -77,19 +89,19 @@ Dependency direction (read off the manifests):
 ## Core Responsibilities (by crate)
 
 - **core**: `Money`, `Currency`, `Rate`; FX interfaces (`FxProvider`, `FxMatrix`); periods/calendars/day-count; expression engine (DAG planning, scalar evaluation over `&[f64]`); validation; config (rounding/scale); errors; `table` columnar envelope.
-- **analytics**: Performance/risk statistics (`Performance` entry point, `beta`, `correlation`).
+- **analytics**: Performance/risk statistics (`Performance` entry point, `beta`) and correlation-matrix helpers (`correlation`).
 - **attribution**: Multi-period P&L attribution, including waterfall, Taylor and metrics-based methods.
 - **cashflows**: Schedule generation, accrual calculations and currency-safe dated flows.
 - **covenants**: Covenant definitions, evaluation and breach forecasting.
-- **factor-model**: Factor primitives, matching, credit calibration and covariance structures.
+- **models**: Model kernels shared by pricers and calibrators: closed-form (Black-Scholes, Black-76, Bachelier), Monte Carlo (processes, discretization, Philox RNG, payoffs, engine), PDE, lattice trees, Fourier/COS, volatility (SABR, surfaces), short-rate, credit (PD, migration), factor models (matching, credit calibration, covariance), copulas/correlation and liquidity.
+- **calibration**: Discount/forward/hazard/inflation curve bootstraps, vol-surface and SABR fits, base correlation and global calibration with validation and reporting.
 - **features**: Vectorized panel feature transforms.
-- **valuations**: Instrument cashflows, pricing, risk; currency‑preserving period aggregation; explicit FX collapse with policy stamping; private‑credit and real‑estate readiness.
+- **valuations**: Instrument cashflows, pricer registry, metrics/risk; currency‑preserving period aggregation; explicit FX collapse with policy stamping; private‑credit and real‑estate readiness.
 - **statements**: Deterministic period evaluation with precedence: **Value > Forecast > Formula**; corkscrew schedules; optional balance‑sheet articulation; long/wide DataFrame exports.
 - **statements‑analytics**: Credit covenant forecasting, alignment analysis, reporting utilities.
 - **scenarios**: DSL with quoting, selectors, and globs; deterministic preview/composition; phase‑ordered execution with precise cache invalidation.
 - **portfolio**: Positions/books, period alignment, and deterministic aggregation to base currency with explicit FX.
 - **margin**: CSA specifications, VM/IM calculators, netting sets, ISDA SIMM.
-- **monte_carlo**: Simulation engine, time grids, PhiloxRng, path capture, pricing evaluation.
 
 ## Language Bindings
 

@@ -28,12 +28,12 @@ finstack-quant-wasm/
 │   │   ├── core/         # core bindings (no glob re-export, so no std::core shadowing)
 │   │   ├── analytics/
 │   │   ├── attribution/
+│   │   ├── calibration.rs
 │   │   ├── cashflows/
 │   │   ├── covenants/
-│   │   ├── factor_model/
 │   │   ├── features/
 │   │   ├── margin/
-│   │   ├── monte_carlo/
+│   │   ├── models/       # monte_carlo, factor, volatility, ... submodules
 │   │   ├── valuations/
 │   │   ├── statements/
 │   │   ├── statements_analytics/
@@ -46,7 +46,8 @@ finstack-quant-wasm/
 │   ├── core.js
 │   ├── analytics.js
 │   ├── ...
-│   └── monte_carlo.js
+│   ├── models.js         # + exports/models/{monteCarlo,factor,...}.js
+│   └── valuations.js
 ├── pkg/                  # generated wasm-bindgen output (INTERNAL, not public)
 ├── package.json          # main: ./index.js, types: ./index.d.ts
 └── tests/

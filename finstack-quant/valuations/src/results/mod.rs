@@ -7,7 +7,7 @@
 //!
 //! - **ValuationResult**: Standard result envelope with PV and metrics
 //! - **ResultsMeta**: Metadata tracking config, timing, and FX policy
-//! - **DataFrame Export**: Convert results to Polars DataFrames
+//! - **Table Export**: Flatten results into `core::table` rows for pandas/Polars consumers
 //!
 //! # Result Structure
 //!

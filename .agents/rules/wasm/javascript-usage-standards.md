@@ -34,9 +34,9 @@ initialize().catch(console.error);
 import init, {
   core,
   analytics,
-  correlation,
+  calibration,
   margin,
-  monte_carlo,
+  models,
   portfolio,
   scenarios,
   statements,
@@ -61,14 +61,18 @@ The public API is accessed through crate-domain namespaces, not flat imports:
 import init, {
   core,
   analytics,
+  attribution,
+  calibration,
+  cashflows,
+  covenants,
+  features,
   margin,
+  models,
   valuations,
   statements,
   statements_analytics,
   portfolio,
   scenarios,
-  correlation,
-  monte_carlo,
 } from "finstack-quant-wasm";
 ```
 
@@ -95,8 +99,8 @@ const s = perf.sharpe(0.0);
 // Valuations
 const bond = valuations.instruments.Bond.builder().notional(1000000).build();
 
-// Monte Carlo
-const grid = new monte_carlo.TimeGrid([0.0, 0.5, 1.0]);
+// Models (closed-form kernels; Monte Carlo lives under models.monteCarlo)
+const price = models.bsPrice(100, 100, 0.03, 0, 0.2, 1, true);
 ```
 
 ### Do NOT import flat from pkg/

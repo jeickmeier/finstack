@@ -27,13 +27,13 @@ Rust is the single source of truth for all API topology and naming:
 Two documented deviations from strict crate-mirroring, both recorded in
 `parity_contract.toml`:
 
-- `finstack_quant.valuations.correlation` is a **merged** namespace. Most of it
-  mirrors `finstack_quant_valuations::correlation` (copulas, `CreditExposure`,
-  portfolio-loss simulation). The shared correlation-matrix helpers
-  (`validate_correlation_matrix`, `nearest_correlation_matrix`, `Error`) have their
-  canonical Rust home in `finstack_quant_analytics::correlation` and are re-exported
-  through `finstack_quant_valuations::correlation`. Python/WASM keep the historical
-  `valuations.correlation` namespace.
+- Correlation is split by ownership. Matrix/statistical helpers
+  (`validate_correlation_matrix`, `nearest_correlation_matrix`) live in
+  `finstack_quant_analytics::correlation` and are bound under
+  `finstack_quant.analytics`; copulas, recovery and portfolio-loss models live in
+  `finstack_quant_models::correlation` and are bound under
+  `finstack_quant.models.correlation`. There is no `valuations.correlation`
+  namespace.
 - `reporting` is a pure-Python presentation layer (tear sheets, tables, charts) with
   no Rust crate; it is explicitly exempt from crate-mirroring and has no WASM parity.
 
@@ -53,12 +53,12 @@ finstack-quant-py/src/
     core/           # finstack_quant::core bindings
     analytics/      # finstack_quant::analytics bindings
     attribution/
+    calibration/
     cashflows/
     covenants/
-    factor_model/
     features/
     margin/         # finstack_quant::margin bindings
-    monte_carlo/
+    models/         # finstack_quant::models bindings (monte_carlo, factor, ... submodules)
     valuations/     # finstack_quant::valuations bindings
     statements/     # finstack_quant::statements bindings
     statements_analytics/
@@ -96,26 +96,29 @@ Rules:
 ### Python Package Root
 
 `finstack-quant-py/finstack_quant/__init__.py` exposes the 14 Rust domains plus
-the pure-Python `reporting` namespace:
+the pure-Python `reporting` namespace, the compiled `schema` submodule and
+`__version__`:
 
 ```python
-__all__ = (
+__all__ = [
+    "__version__",
     "analytics",
     "attribution",
+    "calibration",
     "cashflows",
     "core",
     "covenants",
-    "factor_model",
     "features",
     "margin",
-    "monte_carlo",
+    "models",
     "portfolio",
     "reporting",
     "scenarios",
+    "schema",
     "statements",
     "statements_analytics",
     "valuations",
-)
+]
 ```
 
 No leaf types at `finstack_quant.*`.

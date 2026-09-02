@@ -637,7 +637,7 @@ gated on the **target**, so document the target, not a feature:
 /// ```rust
 /// # #[cfg(not(target_arch = "wasm32"))]
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
+/// use finstack_quant_models::monte_carlo::pricer::european::EuropeanPricer;
 ///
 /// let pricer = EuropeanPricer::new(100_000);
 /// # Ok(())

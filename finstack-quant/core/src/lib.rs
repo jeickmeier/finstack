@@ -138,7 +138,6 @@ pub mod market_data;
 pub mod math;
 /// Currency-tagged monetary amounts with safe arithmetic
 pub mod money;
-/// Label normalization for human-entered identifiers.
 /// Convenient re-exports of commonly used types
 pub mod prelude;
 /// Shared credit rating-scale registry.
