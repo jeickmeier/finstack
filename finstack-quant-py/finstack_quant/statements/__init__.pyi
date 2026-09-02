@@ -37,7 +37,7 @@ __all__ = [
     "FinancialModelSpec",
     "ModelBuilder",
     "MixedNodeBuilder",
-    "MetricRegistry",
+    "Registry",
     "MonteCarloConfig",
     "MonteCarloResults",
     "StatementResult",
@@ -1983,7 +1983,7 @@ class ModelBuilder:
         """
         ...
 
-    def add_metric_from_registry(self, qualified_id: str, registry: MetricRegistry) -> ModelBuilder:
+    def add_metric_from_registry(self, qualified_id: str, registry: Registry) -> ModelBuilder:
         """
         Add one metric and its dependencies from a metric registry.
 
@@ -1992,7 +1992,7 @@ class ModelBuilder:
         qualified_id:
             Fully qualified metric identifier.
         registry:
-            A :class:`MetricRegistry` containing the metric definition.
+            A :class:`Registry` containing the metric definition.
 
         Returns
         -------
@@ -2523,14 +2523,14 @@ class MixedNodeBuilder:
         """
         ...
 
-class MetricRegistry:
+class Registry:
     """
     Reusable statement metric registry.
 
     Examples
     --------
-    >>> from finstack_quant.statements import MetricRegistry
-    >>> registry = MetricRegistry.with_builtins()
+    >>> from finstack_quant.statements import Registry
+    >>> registry = Registry.with_builtins()
     >>> len(registry) > 0
     True
 
@@ -2549,13 +2549,13 @@ class MetricRegistry:
         ...
 
     @staticmethod
-    def with_builtins() -> MetricRegistry:
+    def with_builtins() -> Registry:
         """
         Create a registry preloaded with built-in metrics.
 
         Returns
         -------
-        MetricRegistry
+        Registry
             A registry containing all built-in statement metrics.
 
         Notes
@@ -2564,8 +2564,8 @@ class MetricRegistry:
 
         Examples
         --------
-        >>> from finstack_quant.statements import MetricRegistry
-        >>> len(MetricRegistry.with_builtins()) > 0
+        >>> from finstack_quant.statements import Registry
+        >>> len(Registry.with_builtins()) > 0
         True
         """
         ...
@@ -2596,27 +2596,6 @@ class MetricRegistry:
         ------
         ValueError
             If json is malformed or contains an invalid metric definition.
-        KeyError
-            If a referenced registry metric cannot be resolved.
-
-        """
-        ...
-
-    def load_from_json(self, path: str) -> None:
-        """
-        Load metrics from a JSON file path.
-
-        Parameters
-        ----------
-        path:
-            Filesystem path to a JSON document containing metric definitions.
-
-        Raises
-        ------
-        RuntimeError
-            If path cannot be opened or read.
-        ValueError
-            If the file contains malformed JSON or an invalid metric definition.
         KeyError
             If a referenced registry metric cannot be resolved.
 

@@ -37,6 +37,7 @@ use super::super::types::{
     BaseRateSpec, CreditSpreadProcessSpec, InterestRateProcessSpec, McConfig, RevolvingCredit,
     StochasticUtilizationSpec, UtilizationProcess,
 };
+use super::super::utils::interpolate_rate;
 
 /// Type alias for optional rate curve data (times and rates).
 type RateCurveData = Option<(Vec<f64>, Vec<f64>)>;
@@ -766,30 +767,6 @@ fn refine_time_grid(times: &[f64]) -> RefinedGrid {
         times: refined,
         payment_indices,
     }
-}
-
-/// Interpolate rate from knot points (linear interpolation with binary search).
-///
-/// Uses `partition_point` for O(log n) interval lookup on sorted time grids,
-/// with flat extrapolation beyond boundaries.
-fn interpolate_rate(t: f64, times: &[f64], rates: &[f64]) -> f64 {
-    if times.is_empty() {
-        return 0.0;
-    }
-    if times.len() == 1 || t <= times[0] {
-        return rates[0];
-    }
-    let n = times.len();
-    if t >= times[n - 1] {
-        return rates[n - 1];
-    }
-
-    // Binary search: find first index where times[idx] > t
-    let idx = times.partition_point(|&ti| ti <= t);
-    // idx is in [1, n-1] since t > times[0] and t < times[n-1]
-    let i = idx.saturating_sub(1);
-    let alpha = (t - times[i]) / (times[i + 1] - times[i]);
-    rates[i] + alpha * (rates[i + 1] - rates[i])
 }
 
 #[cfg(test)]

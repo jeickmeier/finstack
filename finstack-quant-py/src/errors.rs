@@ -393,11 +393,7 @@ pub fn statements_to_py(e: finstack_quant_statements::Error) -> PyErr {
         // one entry point (`MetricRegistry.load_from_json_str`) must raise the
         // same `ValueError` as bad JSON at another (`FinancialModelSpec.from_json`),
         // so a caller catching `ValueError` for bad config handles both.
-        // `BuilderError` is never constructed by the statements crate; it is
-        // kept in this arm only for exhaustiveness.
-        err @ (SErr::Io(_) | SErr::CapitalStructure(_) | SErr::IndexError(_)) => {
-            PyRuntimeError::new_err(format_chain(&err))
-        }
+        err @ SErr::CapitalStructure(_) => PyRuntimeError::new_err(format_chain(&err)),
         err => PyValueError::new_err(format_chain(&err)),
     }
 }

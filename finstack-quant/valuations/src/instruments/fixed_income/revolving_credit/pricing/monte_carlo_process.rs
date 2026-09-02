@@ -25,6 +25,8 @@ use finstack_quant_models::monte_carlo::process::metadata::ProcessMetadata;
 use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 use finstack_quant_models::monte_carlo::traits::StochasticProcess;
 
+use super::super::utils::interpolate_rate;
+
 /// Parameters for utilization process (mean-reverting OU).
 #[derive(Debug, Clone)]
 pub struct UtilizationParams {
@@ -300,27 +302,6 @@ impl RevolvingCreditProcessParams {
             self.credit_spread.initial.max(0.0),
         ]
     }
-}
-
-fn interpolate_rate(t: f64, times: &[f64], rates: &[f64]) -> f64 {
-    if times.is_empty() || rates.is_empty() {
-        return 0.0;
-    }
-    if times.len() == 1 || rates.len() == 1 || t <= times[0] {
-        return rates[0];
-    }
-    let n = times.len().min(rates.len());
-    if t >= times[n - 1] {
-        return rates[n - 1];
-    }
-    let idx = times[..n].partition_point(|&time| time <= t);
-    let i = idx.saturating_sub(1);
-    let width = times[i + 1] - times[i];
-    if width <= 0.0 {
-        return rates[i];
-    }
-    let alpha = (t - times[i]) / width;
-    rates[i] + alpha * (rates[i + 1] - rates[i])
 }
 
 /// Multi-factor stochastic process for revolving credit facilities.

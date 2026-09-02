@@ -68,7 +68,7 @@
 //!     fail_on_error: false,
 //! };
 //!
-//! let mut extension = CorkscrewExtension::with_config(config);
+//! let mut extension = CorkscrewExtension::new(config);
 //! let report = extension.execute(&model, &results)?;
 //! assert_eq!(report.status, finstack_quant_statements_analytics::extensions::CorkscrewStatus::Success);
 //! # Ok(())
@@ -90,7 +90,7 @@ use serde::{Deserialize, Serialize};
 /// - Detailed validation reports with errors and warnings
 pub struct CorkscrewExtension {
     /// Extension configuration
-    config: Option<CorkscrewConfig>,
+    config: CorkscrewConfig,
 }
 
 /// Configuration for corkscrew analysis.
@@ -203,46 +203,21 @@ pub struct CorkscrewReport {
 }
 
 impl CorkscrewExtension {
-    /// Create a new corkscrew extension with default configuration.
-    ///
-    /// # Example
-    /// ```rust
-    /// # use finstack_quant_statements_analytics::extensions::CorkscrewExtension;
-    /// let extension = CorkscrewExtension::new();
-    /// assert!(extension.config().is_none());
-    /// ```
-    pub fn new() -> Self {
-        Self { config: None }
-    }
-
     /// Create a new corkscrew extension with the given configuration.
     ///
     /// # Arguments
-    /// * `config` - Pre-built [`CorkscrewConfig`] describing the accounts to validate
-    pub fn with_config(config: CorkscrewConfig) -> Self {
-        Self {
-            config: Some(config),
-        }
+    /// * `config` - Pre-built [`CorkscrewConfig`] driving the analysis
+    pub fn new(config: CorkscrewConfig) -> Self {
+        Self { config }
     }
 
     /// Get the current configuration.
-    pub fn config(&self) -> Option<&CorkscrewConfig> {
-        self.config.as_ref()
-    }
-
-    /// Set the configuration.
-    ///
-    /// # Arguments
-    /// * `config` - New configuration to assign
-    pub fn set_config(&mut self, config: CorkscrewConfig) {
-        self.config = Some(config);
+    pub fn config(&self) -> &CorkscrewConfig {
+        &self.config
     }
 
     /// Run corkscrew validation against the provided model and evaluation results.
     ///
-    /// Requires that [`CorkscrewExtension::with_config`] or
-    /// [`CorkscrewExtension::set_config`] has supplied a configuration; otherwise
-    /// returns an error.
     ///
     /// # Arguments
     /// * `model` - The evaluated financial model
@@ -264,11 +239,7 @@ impl CorkscrewExtension {
     ) -> Result<CorkscrewReport> {
         let _span = tracing::info_span!("statements_analytics.corkscrew.execute").entered();
 
-        let config = self.config.clone().ok_or_else(|| {
-            finstack_quant_statements::error::Error::registry(
-                "Corkscrew extension requires configuration",
-            )
-        })?;
+        let config = self.config.clone();
 
         let mut validations = Vec::new();
         let mut errors = Vec::new();
@@ -394,7 +365,7 @@ impl CorkscrewExtension {
 
         // Get balance values from results
         let balance_values = results.nodes.get(&account.node_id).ok_or_else(|| {
-            finstack_quant_statements::error::Error::registry(format!(
+            finstack_quant_statements::error::Error::missing_data(format!(
                 "Balance account '{}' not found in results",
                 account.node_id
             ))
@@ -412,13 +383,13 @@ impl CorkscrewExtension {
             // modeling error, not a zero balance. Treating it as zero would
             // let an incomplete model pass roll-forward validation.
             let prev_balance = balance_values.get(prev_period).copied().ok_or_else(|| {
-                finstack_quant_statements::error::Error::registry(format!(
+                finstack_quant_statements::error::Error::missing_data(format!(
                     "Balance account '{}' has no value for period '{prev_period}'",
                     account.node_id
                 ))
             })?;
             let curr_balance = balance_values.get(curr_period).copied().ok_or_else(|| {
-                finstack_quant_statements::error::Error::registry(format!(
+                finstack_quant_statements::error::Error::missing_data(format!(
                     "Balance account '{}' has no value for period '{curr_period}'",
                     account.node_id
                 ))
@@ -456,13 +427,13 @@ impl CorkscrewExtension {
             // mask a real roll-forward break.
             if let Some(beginning_node) = &account.beginning_balance_node {
                 let beginning_values = results.nodes.get(beginning_node).ok_or_else(|| {
-                    finstack_quant_statements::error::Error::registry(format!(
+                    finstack_quant_statements::error::Error::missing_data(format!(
                         "Beginning-balance node '{beginning_node}' for account '{}' not found in results",
                         account.node_id
                     ))
                 })?;
                 let beginning = beginning_values.get(curr_period).ok_or_else(|| {
-                    finstack_quant_statements::error::Error::registry(format!(
+                    finstack_quant_statements::error::Error::missing_data(format!(
                         "Beginning-balance node '{beginning_node}' has no value for period '{curr_period}'"
                     ))
                 })?;
@@ -510,13 +481,13 @@ impl CorkscrewExtension {
 
             for account in &config.accounts {
                 let node_values = results.nodes.get(&account.node_id).ok_or_else(|| {
-                    finstack_quant_statements::error::Error::registry(format!(
+                    finstack_quant_statements::error::Error::missing_data(format!(
                         "Articulation account '{}' not found in results",
                         account.node_id
                     ))
                 })?;
                 let balance = node_values.get(period_id).ok_or_else(|| {
-                    finstack_quant_statements::error::Error::registry(format!(
+                    finstack_quant_statements::error::Error::missing_data(format!(
                         "Articulation account '{}' has no value for period '{period_id}'",
                         account.node_id
                     ))
@@ -551,12 +522,12 @@ fn apply_flow_nodes(
 ) -> Result<()> {
     for node_id in node_ids {
         let values = results.nodes.get(node_id).ok_or_else(|| {
-            finstack_quant_statements::error::Error::registry(format!(
+            finstack_quant_statements::error::Error::missing_data(format!(
                 "{role} node '{node_id}' for account '{account_id}' not found in results"
             ))
         })?;
         let value = values.get(curr_period).ok_or_else(|| {
-            finstack_quant_statements::error::Error::registry(format!(
+            finstack_quant_statements::error::Error::missing_data(format!(
                 "{role} node '{node_id}' has no value for period '{curr_period}'"
             ))
         })?;
@@ -580,12 +551,6 @@ struct ArticulationResult {
     is_balanced: bool,
 }
 
-impl Default for CorkscrewExtension {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -593,12 +558,6 @@ mod tests {
     use finstack_quant_statements::builder::ModelBuilder;
     use finstack_quant_statements::evaluator::Evaluator;
     use finstack_quant_statements::types::AmountOrScalar;
-
-    #[test]
-    fn test_corkscrew_extension_creation() {
-        let extension = CorkscrewExtension::new();
-        assert!(extension.config().is_none());
-    }
 
     #[test]
     fn test_corkscrew_extension_with_config() {
@@ -614,32 +573,8 @@ mod tests {
             fail_on_error: false,
         };
 
-        let extension = CorkscrewExtension::with_config(config);
-        assert!(extension.config().is_some());
-        assert_eq!(
-            extension
-                .config()
-                .expect("test should succeed")
-                .accounts
-                .len(),
-            1
-        );
-    }
-
-    #[test]
-    fn test_corkscrew_execute_requires_config() {
-        let model = FinancialModelSpec::new("test", Vec::new());
-        let results = StatementResult::new();
-
-        let mut extension = CorkscrewExtension::new();
-        // Without config, should return an error
-        let result = extension.execute(&model, &results);
-
-        assert!(result.is_err());
-        assert!(result
-            .expect_err("should fail")
-            .to_string()
-            .contains("requires configuration"));
+        let extension = CorkscrewExtension::new(config);
+        assert_eq!(extension.config().accounts.len(), 1);
     }
 
     #[test]
@@ -664,7 +599,7 @@ mod tests {
             fail_on_error: false,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("empty accounts should succeed");
@@ -725,7 +660,7 @@ mod tests {
             fail_on_error: true,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("extension should execute");
@@ -757,7 +692,7 @@ mod tests {
             fail_on_error: false,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("extension should execute");
@@ -795,7 +730,7 @@ mod tests {
             fail_on_error: false,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("extension should execute in lenient mode");
@@ -839,7 +774,7 @@ mod tests {
             fail_on_error: false,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("extension should execute");
@@ -903,7 +838,7 @@ mod tests {
             fail_on_error: true,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("extension should execute");
@@ -974,7 +909,7 @@ mod tests {
             fail_on_error: true,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("extension should execute");
@@ -1035,7 +970,7 @@ mod tests {
             fail_on_error: false,
         };
 
-        let mut extension = CorkscrewExtension::with_config(config);
+        let mut extension = CorkscrewExtension::new(config);
         let report = extension
             .execute(&model, &results)
             .expect("extension should execute");

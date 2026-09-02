@@ -84,4 +84,4 @@ class TestMalformedJsonRaisesValueError:
         # Previously raised RuntimeError (Serde was mapped as operational),
         # inconsistent with model.from_json above.
         with pytest.raises(ValueError, match="Serialization error"):
-            statements.MetricRegistry().load_from_json_str("not json")
+            statements.Registry().load_from_json_str("not json")

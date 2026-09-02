@@ -464,33 +464,19 @@ pub struct PyCorkscrewExtension {
 
 #[pymethods]
 impl PyCorkscrewExtension {
-    /// Construct a new extension with no configuration.
+    /// Construct an extension with its configuration.
     #[new]
-    fn new() -> Self {
+    fn new(config: PyCorkscrewConfig) -> Self {
         Self {
-            inner: rust_corkscrew::CorkscrewExtension::new(),
+            inner: rust_corkscrew::CorkscrewExtension::new(config.inner),
         }
     }
 
-    /// Construct an extension preloaded with a configuration.
-    #[staticmethod]
-    fn with_config(config: PyCorkscrewConfig) -> Self {
-        Self {
-            inner: rust_corkscrew::CorkscrewExtension::with_config(config.inner),
+    /// Return the current configuration.
+    fn config(&self) -> PyCorkscrewConfig {
+        PyCorkscrewConfig {
+            inner: self.inner.config().clone(),
         }
-    }
-
-    /// Replace the current configuration.
-    fn set_config(&mut self, config: PyCorkscrewConfig) {
-        self.inner.set_config(config.inner);
-    }
-
-    /// Return the current configuration, if any.
-    fn config(&self) -> Option<PyCorkscrewConfig> {
-        self.inner
-            .config()
-            .cloned()
-            .map(|inner| PyCorkscrewConfig { inner })
     }
 
     /// Run the corkscrew validation against a model and pre-computed statement results.
@@ -506,12 +492,6 @@ impl PyCorkscrewExtension {
             .execute(&model, &results)
             .map_err(display_to_py)?;
         Ok(PyCorkscrewReport { inner })
-    }
-}
-
-impl Default for PyCorkscrewExtension {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

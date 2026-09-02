@@ -77,7 +77,7 @@
 //!     period: None,
 //! };
 //!
-//! let mut extension = CreditScorecardExtension::with_config(config);
+//! let mut extension = CreditScorecardExtension::new(config);
 //! let report = extension.execute(&model, &results)?;
 //! # let _ = report;
 //! # Ok(())
@@ -111,7 +111,7 @@ fn is_supported_rating_scale(scale_name: &str) -> bool {
 /// - Minimum rating compliance checks
 pub struct CreditScorecardExtension {
     /// Extension configuration
-    config: Option<ScorecardConfig>,
+    config: ScorecardConfig,
 }
 
 /// Configuration for credit scorecard analysis.
@@ -203,39 +203,17 @@ pub struct ScorecardReport {
 }
 
 impl CreditScorecardExtension {
-    /// Create a new credit scorecard extension with default configuration.
-    ///
-    /// # Example
-    /// ```rust
-    /// # use finstack_quant_statements_analytics::extensions::CreditScorecardExtension;
-    /// let extension = CreditScorecardExtension::new();
-    /// assert!(extension.config().is_none());
-    /// ```
-    pub fn new() -> Self {
-        Self { config: None }
-    }
-
     /// Create a new credit scorecard extension with the given configuration.
     ///
     /// # Arguments
-    /// * `config` - Pre-built [`ScorecardConfig`] to use
-    pub fn with_config(config: ScorecardConfig) -> Self {
-        Self {
-            config: Some(config),
-        }
+    /// * `config` - Pre-built [`ScorecardConfig`] driving the analysis
+    pub fn new(config: ScorecardConfig) -> Self {
+        Self { config }
     }
 
     /// Get the current configuration.
-    pub fn config(&self) -> Option<&ScorecardConfig> {
-        self.config.as_ref()
-    }
-
-    /// Set the configuration.
-    ///
-    /// # Arguments
-    /// * `config` - New configuration to assign
-    pub fn set_config(&mut self, config: ScorecardConfig) {
-        self.config = Some(config);
+    pub fn config(&self) -> &ScorecardConfig {
+        &self.config
     }
 
     /// Validate a configuration without executing.
@@ -316,14 +294,12 @@ impl CreditScorecardExtension {
             .rev()
             .find(|p| p.is_actual)
             .or_else(|| model.periods.last())
-            .ok_or_else(|| finstack_quant_statements::error::Error::registry("No periods in model"))
+            .ok_or_else(|| {
+                finstack_quant_statements::error::Error::invalid_input("No periods in model")
+            })
     }
 
     /// Run scorecard analysis against the provided model and evaluation results.
-    ///
-    /// Requires that [`CreditScorecardExtension::with_config`] or
-    /// [`CreditScorecardExtension::set_config`] has supplied a configuration;
-    /// otherwise returns an error.
     ///
     /// # Arguments
     /// * `model` - The evaluated financial model
@@ -345,11 +321,7 @@ impl CreditScorecardExtension {
     ) -> Result<ScorecardReport> {
         let _span = tracing::info_span!("statements_analytics.credit_scorecard.execute").entered();
 
-        let config = self.config.clone().ok_or_else(|| {
-            finstack_quant_statements::error::Error::registry(
-                "Credit scorecard extension requires configuration",
-            )
-        })?;
+        let config = self.config.clone();
         Self::validate_config(&config)?;
 
         let target_period = Self::resolve_target_period(&config, model)?.clone();
@@ -660,19 +632,22 @@ struct MetricEvaluation {
     warning: Option<String>,
 }
 
-impl Default for CreditScorecardExtension {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn extension() -> CreditScorecardExtension {
+        CreditScorecardExtension::new(ScorecardConfig {
+            rating_scale: "S&P".into(),
+            metrics: vec![],
+            min_rating: None,
+            period: None,
+        })
+    }
+
     #[test]
     fn unmatched_value_returns_no_score() {
-        let extension = CreditScorecardExtension::new();
+        let extension = extension();
         let mut thresholds = indexmap::IndexMap::new();
         thresholds.insert("AAA".to_string(), (0.0, 1.0));
 
@@ -685,7 +660,7 @@ mod tests {
 
     #[test]
     fn calculate_weighted_score_treats_sub_epsilon_weights_as_zero() {
-        let extension = CreditScorecardExtension::new();
+        let extension = extension();
         let scores = vec![MetricScore {
             metric_name: "leverage".to_string(),
             value: 2.5,
@@ -710,7 +685,7 @@ mod tests {
     /// (the better bucket, matched first in registry order).
     #[test]
     fn scorecard_top_boundary_value_lands_in_best_bucket() {
-        let extension = CreditScorecardExtension::new();
+        let extension = extension();
         let mut thresholds = indexmap::IndexMap::new();
         thresholds.insert("AAA".to_string(), (95.0, 100.0));
         thresholds.insert("AA+".to_string(), (90.0, 95.0));
@@ -738,7 +713,7 @@ mod tests {
     /// are closed.
     #[test]
     fn scorecard_non_top_shared_boundary_goes_to_better_rating() {
-        let extension = CreditScorecardExtension::new();
+        let extension = extension();
         let mut thresholds = indexmap::IndexMap::new();
         thresholds.insert("AAA".to_string(), (95.0, 100.0));
         thresholds.insert("AA+".to_string(), (90.0, 95.0));
@@ -767,7 +742,7 @@ mod tests {
     /// exactly on it must land in the better bucket, not the worse one.
     #[test]
     fn scorecard_leverage_boundary_goes_to_better_rating() {
-        let extension = CreditScorecardExtension::new();
+        let extension = extension();
         let mut thresholds = indexmap::IndexMap::new();
         thresholds.insert("AAA".to_string(), (0.0, 1.0));
         thresholds.insert("AA+".to_string(), (1.0, 2.0));

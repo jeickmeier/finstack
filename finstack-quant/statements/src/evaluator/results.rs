@@ -305,29 +305,6 @@ impl StatementResult {
         super::export::to_table_long(self)
     }
 
-    /// Export to a long-format table with node filtering.
-    ///
-    /// If `node_filter` is empty, all nodes are included.
-    ///
-    /// # Arguments
-    /// * `node_filter` - Optional list of node identifiers to keep
-    ///
-    /// Unknown node identifiers are ignored, allowing a caller to reuse a
-    /// report layout across models with different optional outputs. Row and
-    /// monetary-value semantics match [`to_table_long`](Self::to_table_long).
-    ///
-    /// # Errors
-    ///
-    /// Returns a table-construction error if the filtered result cannot be
-    /// represented as a valid table envelope. An empty filter includes all
-    /// nodes; a filter with no matching nodes returns an empty six-column table.
-    pub fn to_table_long_filtered(
-        &self,
-        node_filter: &[&str],
-    ) -> Result<finstack_quant_core::table::TableEnvelope> {
-        super::export::to_table_long_filtered(self, node_filter)
-    }
-
     /// Export to a wide-format table.
     ///
     /// Schema: `(period_id, <node1>, <node2>, ...)`. One row is emitted per

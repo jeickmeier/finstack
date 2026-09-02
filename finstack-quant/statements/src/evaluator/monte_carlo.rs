@@ -447,30 +447,32 @@ impl MonteCarloAccumulator {
     }
 }
 
-/// Aggregate path-level results into [`MonteCarloResults`].
-#[cfg(test)]
-pub(crate) fn aggregate_monte_carlo_paths(
-    model: &FinancialModelSpec,
-    config: &MonteCarloConfig,
-    all_paths: &[PathResult],
-) -> Result<MonteCarloResults> {
-    let mut accumulator = MonteCarloAccumulator::new(model, config)?;
-    for (path_idx, (path_results, warnings)) in all_paths.iter().cloned().enumerate() {
-        accumulator.push_path(path_idx, path_results, warnings)?;
-    }
-    accumulator.finish()
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        aggregate_monte_carlo_paths, normalize_percentiles, MonteCarloAccumulator, MonteCarloConfig,
+        normalize_percentiles, MonteCarloAccumulator, MonteCarloConfig, MonteCarloResults,
+        PathResult,
     };
     use crate::builder::ModelBuilder;
+    use crate::error::Result;
     use crate::evaluator::EvalWarning;
     use crate::types::AmountOrScalar;
+    use crate::types::FinancialModelSpec;
     use finstack_quant_core::dates::PeriodId;
     use indexmap::IndexMap;
+
+    /// Aggregate path-level results into [`MonteCarloResults`].
+    fn aggregate_monte_carlo_paths(
+        model: &FinancialModelSpec,
+        config: &MonteCarloConfig,
+        all_paths: &[PathResult],
+    ) -> Result<MonteCarloResults> {
+        let mut accumulator = MonteCarloAccumulator::new(model, config)?;
+        for (path_idx, (path_results, warnings)) in all_paths.iter().cloned().enumerate() {
+            accumulator.push_path(path_idx, path_results, warnings)?;
+        }
+        accumulator.finish()
+    }
 
     #[test]
     fn normalize_percentiles_sorts_and_dedupes() {

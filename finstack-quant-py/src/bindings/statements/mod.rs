@@ -49,7 +49,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "FinancialModelSpec",
             "ModelBuilder",
             "MixedNodeBuilder",
-            "MetricRegistry",
+            "Registry",
             "StatementResult",
             "Evaluator",
             "MonteCarloConfig",

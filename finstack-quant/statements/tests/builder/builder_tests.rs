@@ -1,5 +1,6 @@
 //! Builder tests for Phase 1.
 
+use finstack_quant_core::dates::build_periods;
 use finstack_quant_statements::prelude::*;
 
 // Period Integration Tests

@@ -1200,79 +1200,6 @@ impl PyDependencyTracer {
     }
 }
 
-/// Get direct dependencies for a node.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A ``FinancialModelSpec`` object or a JSON string.
-/// node_id : str
-///     Node whose direct dependencies to list.
-///
-/// Returns
-/// -------
-/// list[str]
-///     Direct dependency node IDs.
-#[pyfunction]
-fn direct_dependencies(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> {
-    let model = extract_model_ref(model)?;
-    let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
-        .map_err(statements_to_py)?;
-    let tracer =
-        finstack_quant_statements_analytics::analysis::DependencyTracer::new(&model, &graph);
-    let deps = tracer
-        .direct_dependencies(node_id)
-        .map_err(statements_to_py)?;
-    Ok(deps.into_iter().map(String::from).collect())
-}
-
-/// Get all transitive dependencies for a node.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A ``FinancialModelSpec`` object or a JSON string.
-/// node_id : str
-///     Node whose transitive dependencies to list.
-///
-/// Returns
-/// -------
-/// list[str]
-///     All transitive dependency node IDs in dependency order.
-#[pyfunction]
-fn all_dependencies(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> {
-    let model = extract_model_ref(model)?;
-    let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
-        .map_err(statements_to_py)?;
-    let tracer =
-        finstack_quant_statements_analytics::analysis::DependencyTracer::new(&model, &graph);
-    tracer.all_dependencies(node_id).map_err(statements_to_py)
-}
-
-/// Get nodes that depend on this node (reverse dependencies).
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A ``FinancialModelSpec`` object or a JSON string.
-/// node_id : str
-///     Node whose dependents to list.
-///
-/// Returns
-/// -------
-/// list[str]
-///     Node IDs that depend on this node.
-#[pyfunction]
-fn dependents(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> {
-    let model = extract_model_ref(model)?;
-    let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
-        .map_err(statements_to_py)?;
-    let tracer =
-        finstack_quant_statements_analytics::analysis::DependencyTracer::new(&model, &graph);
-    let deps = tracer.dependents(node_id).map_err(statements_to_py)?;
-    Ok(deps.into_iter().map(String::from).collect())
-}
-
 /// Explain a formula for a specific node and period.
 ///
 /// Parameters
@@ -1526,9 +1453,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(pl_summary_report_text, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(credit_assessment_report_text, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(credit_assessment, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(direct_dependencies, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(all_dependencies, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(dependents, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(explain_formula, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(explain_formula_text, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_checks, m)?)?;

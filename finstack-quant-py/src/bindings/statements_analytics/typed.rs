@@ -10,9 +10,9 @@ use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::evaluator::StatementResult;
 use finstack_quant_statements::types::AmountOrScalar;
 use finstack_quant_statements_analytics::analysis::{
-    BridgeChart as RustBridgeChart, ParameterSpec, ScenarioDefinition,
-    ScenarioDiff as RustScenarioDiff, ScenarioResults, ScenarioSet as RustScenarioSet,
-    SensitivityConfig as RustSensitivityConfig, SensitivityMode,
+    BridgeChart as RustBridgeChart, BridgeStep as RustBridgeStep, ParameterSpec,
+    ScenarioDefinition, ScenarioDiff as RustScenarioDiff, ScenarioResults,
+    ScenarioSet as RustScenarioSet, SensitivityConfig as RustSensitivityConfig, SensitivityMode,
     SensitivityResult as RustSensitivityResult, TornadoEntry as RustTornadoEntry,
     VarianceConfig as RustVarianceConfig, VarianceReport as RustVarianceReport,
     VarianceRow as RustVarianceRow,
@@ -914,8 +914,7 @@ impl PyScenarioDiff {
 )]
 #[derive(Clone)]
 pub struct PyBridgeStep {
-    driver: String,
-    contribution: f64,
+    pub(crate) inner: RustBridgeStep,
 }
 
 #[pymethods]
@@ -923,7 +922,7 @@ impl PyBridgeStep {
     /// Driver node identifier (e.g. ``"revenue"``).
     #[getter]
     fn driver(&self) -> &str {
-        &self.driver
+        &self.inner.driver
     }
 
     /// This driver's raw delta between the two scenarios, in the *driver's*
@@ -934,7 +933,7 @@ impl PyBridgeStep {
     /// ``BridgeChart.unexplained``.
     #[getter]
     fn contribution(&self) -> f64 {
-        self.contribution
+        self.inner.contribution
     }
 
     /// Identify this value in notebooks and logs.
@@ -943,7 +942,7 @@ impl PyBridgeStep {
     /// fields `to_json()` names. Collections are summarised by length; use
     /// `to_json()` or a DataFrame exit when the contents matter.
     fn __repr__(&self) -> String {
-        crate::bindings::repr_support::repr_from_serde("BridgeStep", &self.driver)
+        crate::bindings::repr_support::repr_from_serde("BridgeStep", &self.inner)
     }
 }
 
@@ -1024,8 +1023,7 @@ impl PyBridgeChart {
             .steps
             .iter()
             .map(|step| PyBridgeStep {
-                driver: step.driver.clone(),
-                contribution: step.contribution,
+                inner: step.clone(),
             })
             .collect()
     }

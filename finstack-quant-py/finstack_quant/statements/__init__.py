@@ -22,7 +22,7 @@ NumericMode = _statements.NumericMode
 FinancialModelSpec = _statements.FinancialModelSpec
 ModelBuilder = _statements.ModelBuilder
 MixedNodeBuilder = _statements.MixedNodeBuilder
-MetricRegistry = _statements.MetricRegistry
+Registry = _statements.Registry
 StatementResult = _statements.StatementResult
 Evaluator = _statements.Evaluator
 MonteCarloConfig = _statements.MonteCarloConfig
@@ -56,7 +56,6 @@ __all__: list[str] = [
     "FinancialModelSpec",
     "ForecastMethod",
     "ForecastSpec",
-    "MetricRegistry",
     "MixedNodeBuilder",
     "ModelBuilder",
     "MonteCarloConfig",
@@ -68,6 +67,7 @@ __all__: list[str] = [
     "NumericMode",
     "PaymentClassSpec",
     "PikToggleSpec",
+    "Registry",
     "StatementResult",
     "WaterfallSpec",
     "normalize",

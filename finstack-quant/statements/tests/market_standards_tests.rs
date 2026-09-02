@@ -6,6 +6,7 @@
 //! - Python pandas (with ddof=1)
 //! - R statistical package
 
+use finstack_quant_core::dates::PeriodKind;
 use finstack_quant_statements::prelude::*;
 use indexmap::indexmap;
 

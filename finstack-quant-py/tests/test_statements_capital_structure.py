@@ -291,7 +291,7 @@ class TestModelBuilderForecasts:
         assert '"where_text":"revenue > 50"' in model.to_json()
 
     def test_metric_registry_add_metric_from_registry(self) -> None:
-        registry = statements.MetricRegistry.with_builtins()
+        registry = statements.Registry.with_builtins()
         assert registry.has("fin.gross_profit")
         b = statements.ModelBuilder("metric")
         b.periods("2025Q1..Q1", None)

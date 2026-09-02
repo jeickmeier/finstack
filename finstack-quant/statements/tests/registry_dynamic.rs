@@ -128,10 +128,12 @@ fn test_namespaces() {
         .load_from_json_str(json2)
         .expect("should load valid JSON");
 
-    let namespaces = registry.namespaces();
-    assert_eq!(namespaces.len(), 2);
-    assert!(namespaces.contains(&"test1"));
-    assert!(namespaces.contains(&"test2"));
+    assert!(registry
+        .all_metrics()
+        .any(|(id, _)| id.starts_with("test1.")));
+    assert!(registry
+        .all_metrics()
+        .any(|(id, _)| id.starts_with("test2.")));
 }
 
 #[test]

@@ -83,17 +83,17 @@ enum BuilderState {
 
 /// Metric registry used to add reusable statement metrics to a model.
 #[pyclass(
-    name = "MetricRegistry",
+    name = "Registry",
     module = "finstack_quant.statements",
     skip_from_py_object
 )]
 #[derive(Clone)]
-pub struct PyMetricRegistry {
+pub struct PyRegistry {
     inner: finstack_quant_statements::registry::Registry,
 }
 
 #[pymethods]
-impl PyMetricRegistry {
+impl PyRegistry {
     /// Create an empty metric registry.
     #[new]
     fn new() -> Self {
@@ -121,11 +121,6 @@ impl PyMetricRegistry {
             .load_from_json_str(json)
             .map(|_| ())
             .map_err(statements_to_py)
-    }
-
-    /// Load metrics from a JSON file path.
-    fn load_from_json(&mut self, path: &str) -> PyResult<()> {
-        self.inner.load_from_json(path).map_err(statements_to_py)
     }
 
     /// Return whether a fully qualified metric exists.
@@ -568,7 +563,7 @@ impl PyModelBuilder {
     fn add_metric_from_registry<'py>(
         mut slf: PyRefMut<'py, Self>,
         qualified_id: &str,
-        registry: PyRef<'_, PyMetricRegistry>,
+        registry: PyRef<'_, PyRegistry>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         // Check membership BEFORE `take_ready()`. An unknown metric id is a
         // routine typo, and the consuming Rust call would otherwise leave
@@ -1052,7 +1047,7 @@ impl PyModelBuilder {
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyModelBuilder>()?;
     m.add_class::<PyMixedNodeBuilder>()?;
-    m.add_class::<PyMetricRegistry>()?;
+    m.add_class::<PyRegistry>()?;
     Ok(())
 }
 

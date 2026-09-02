@@ -95,18 +95,17 @@ pub enum NodeValueSource {
     Formula,
 }
 
-impl NodeValueSource {
-    /// Check if this is a formula.
-    #[cfg(test)]
-    pub fn is_formula(&self) -> bool {
-        matches!(self, Self::Formula)
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::AmountOrScalar;
     use indexmap::IndexMap;
+
+    impl NodeValueSource {
+        fn is_formula(&self) -> bool {
+            matches!(self, Self::Formula)
+        }
+    }
 
     #[test]
     fn test_value_precedence() {

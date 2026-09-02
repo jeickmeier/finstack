@@ -13,8 +13,7 @@ fn test_load_builtins() {
     assert!(!registry.is_empty());
 
     // Check that fin namespace exists
-    let namespaces = registry.namespaces();
-    assert!(namespaces.contains(&"fin"));
+    assert!(registry.all_metrics().any(|(id, _)| id.starts_with("fin.")));
 }
 
 #[test]
@@ -338,10 +337,12 @@ fn test_multiple_namespaces() {
     registry.load_from_json_str(json1).unwrap();
     registry.load_from_json_str(json2).unwrap();
 
-    let namespaces = registry.namespaces();
-    assert_eq!(namespaces.len(), 2);
-    assert!(namespaces.contains(&"test1"));
-    assert!(namespaces.contains(&"test2"));
+    assert!(registry
+        .all_metrics()
+        .any(|(id, _)| id.starts_with("test1.")));
+    assert!(registry
+        .all_metrics()
+        .any(|(id, _)| id.starts_with("test2.")));
 }
 
 #[test]

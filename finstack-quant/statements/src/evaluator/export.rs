@@ -15,7 +15,12 @@ fn table_metadata(layout: &str) -> IndexMap<String, serde_json::Value> {
     metadata
 }
 
-fn build_long_table(results: &StatementResult, node_filter: &[&str]) -> Result<TableEnvelope> {
+/// Export results to a long-format table.
+///
+/// Schema: `(node_id, period_id, value, value_money, currency, value_type)`.
+/// Monetary nodes populate both `value` and `value_money`; scalar nodes leave
+/// `value_money` and `currency` null.
+pub(crate) fn to_table_long(results: &StatementResult) -> Result<TableEnvelope> {
     let mut node_ids = Vec::new();
     let mut period_ids = Vec::new();
     let mut values = Vec::new();
@@ -24,10 +29,6 @@ fn build_long_table(results: &StatementResult, node_filter: &[&str]) -> Result<T
     let mut value_types = Vec::new();
 
     for (node_id, period_map) in &results.nodes {
-        if !node_filter.is_empty() && !node_filter.contains(&node_id.as_str()) {
-            continue;
-        }
-
         let node_value_type = results.node_value_types.get(node_id);
 
         for (period_id, value) in period_map {
@@ -68,26 +69,6 @@ fn build_long_table(results: &StatementResult, node_filter: &[&str]) -> Result<T
         table_metadata("long"),
     )
     .map_err(Into::into)
-}
-
-/// Export results to a long-format table.
-///
-/// Schema: `(node_id, period_id, value, value_money, currency, value_type)`.
-/// Monetary nodes populate both `value` and `value_money`; scalar nodes leave
-/// `value_money` and `currency` null.
-pub(crate) fn to_table_long(results: &StatementResult) -> Result<TableEnvelope> {
-    build_long_table(results, &[])
-}
-
-/// Export results to a long-format table with node filtering.
-///
-/// Returns the same schema as [`to_table_long`] after filtering rows to the
-/// requested node ids.
-pub(crate) fn to_table_long_filtered(
-    results: &StatementResult,
-    node_filter: &[&str],
-) -> Result<TableEnvelope> {
-    build_long_table(results, node_filter)
 }
 
 /// Export results to a wide-format table.
@@ -200,30 +181,6 @@ mod tests {
 
         let values = float_column(&table, "value");
         assert_eq!(values[0], 100_000.0);
-    }
-
-    #[test]
-    fn test_to_table_long_filtered() {
-        let results = create_test_results();
-        let table = to_table_long_filtered(&results, &["revenue", "cogs"])
-            .expect("should convert to table");
-
-        assert_eq!(table.row_count, 4); // 2 nodes × 2 periods
-        assert_eq!(table.columns.len(), 6);
-
-        let node_ids = string_column(&table, "node_id");
-        let unique_nodes: std::collections::HashSet<String> = node_ids.iter().cloned().collect();
-        assert_eq!(unique_nodes.len(), 2);
-        assert!(unique_nodes.contains("revenue"));
-        assert!(unique_nodes.contains("cogs"));
-    }
-
-    #[test]
-    fn test_to_table_long_filtered_empty_includes_all() {
-        let results = create_test_results();
-        let table = to_table_long_filtered(&results, &[]).expect("should convert to table");
-
-        assert_eq!(table.row_count, 6); // All 3 nodes × 2 periods
     }
 
     #[test]

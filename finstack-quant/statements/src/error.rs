@@ -82,29 +82,11 @@ pub enum Error {
     /// Core crate error
     #[error(transparent)]
     Core(#[from] finstack_quant_core::Error),
-
-    /// I/O error (stored as message string for serde compatibility).
-    #[error("I/O error: {0}")]
-    Io(String),
-
-    /// Builder construction error
-    #[error("Builder error: {0}")]
-    BuilderError(String),
-
-    /// Index/collection access error
-    #[error("Index error: {0}")]
-    IndexError(String),
 }
 
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
         Self::Serde(err.to_string())
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Self::Io(err.to_string())
     }
 }
 
@@ -176,16 +158,6 @@ impl Error {
     pub fn capital_structure(msg: impl Into<String>) -> Self {
         Self::CapitalStructure(msg.into())
     }
-
-    /// Create a builder error
-    pub fn builder_error(msg: impl Into<String>) -> Self {
-        Self::BuilderError(msg.into())
-    }
-
-    /// Create an index error
-    pub fn index_error(msg: impl Into<String>) -> Self {
-        Self::IndexError(msg.into())
-    }
 }
 
 impl From<Error> for finstack_quant_core::Error {
@@ -195,9 +167,7 @@ impl From<Error> for finstack_quant_core::Error {
             Error::CurrencyMismatch(expected, actual) => {
                 finstack_quant_core::Error::CurrencyMismatch { expected, actual }
             }
-            Error::Io(message) | Error::Serde(message) => {
-                finstack_quant_core::Error::Internal(message)
-            }
+            Error::Serde(message) => finstack_quant_core::Error::Internal(message),
             other => finstack_quant_core::Error::Validation(other.to_string()),
         }
     }

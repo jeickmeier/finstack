@@ -1,17 +1,9 @@
 //! Scorecard extension integration tests.
 #![allow(clippy::expect_used)]
 
-use finstack_quant_statements::evaluator::StatementResult;
-use finstack_quant_statements::types::FinancialModelSpec;
 use finstack_quant_statements_analytics::extensions::{
     CreditScorecardExtension, ScorecardConfig, ScorecardMetric,
 };
-
-#[test]
-fn test_scorecard_extension_creation() {
-    let extension = CreditScorecardExtension::new();
-    assert!(extension.config().is_none());
-}
 
 #[test]
 fn test_scorecard_extension_with_config() {
@@ -28,31 +20,8 @@ fn test_scorecard_extension_with_config() {
         period: None,
     };
 
-    let extension = CreditScorecardExtension::with_config(config);
-    assert!(extension.config().is_some());
-    assert_eq!(
-        extension
-            .config()
-            .expect("test should succeed")
-            .metrics
-            .len(),
-        1
-    );
-}
-
-#[test]
-fn test_scorecard_execute_requires_config() {
-    let model = FinancialModelSpec::new("test", Vec::new());
-    let results = StatementResult::new();
-
-    let mut extension = CreditScorecardExtension::new();
-    let result = extension.execute(&model, &results);
-
-    assert!(result.is_err());
-    assert!(result
-        .expect_err("should fail")
-        .to_string()
-        .contains("requires configuration"));
+    let extension = CreditScorecardExtension::new(config);
+    assert_eq!(extension.config().metrics.len(), 1);
 }
 
 #[test]
@@ -195,7 +164,7 @@ fn test_scorecard_ttm_formula_uses_full_history() {
         min_rating: None,
         period: None,
     };
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
     let report = extension
         .execute(&model, &results)
         .expect("scorecard should succeed");
@@ -256,7 +225,7 @@ fn test_scorecard_warns_when_thresholds_do_not_cover_metric_value() {
         period: None,
     };
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
     let report = extension
         .execute(&model, &results)
         .expect("scorecard should succeed");

@@ -115,38 +115,6 @@ impl Registry {
         Ok(())
     }
 
-    /// Load one metric registry document from a UTF-8 JSON file.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use finstack_quant_statements::registry::Registry;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut registry = Registry::new();
-    /// registry.load_from_json("metrics/custom.json")?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// The file must encode a [`MetricRegistry`]. Its namespace is part of
-    /// every stored metric identity, so a `gross_margin` definition in `fin`
-    /// and one in `custom` are distinct metrics addressed as
-    /// `fin.gross_margin` and `custom.gross_margin`.
-    ///
-    /// # Errors
-    ///
-    /// Propagates file-read failures and returns a registry error if the JSON
-    /// is malformed, definitions or formulas are invalid, dependencies are
-    /// cyclic, or a fully-qualified ID collides with an existing metric. A
-    /// failed document is staged and rejected atomically; it cannot leave a
-    /// partially loaded namespace behind.
-    pub fn load_from_json(&mut self, path: &str) -> Result<()> {
-        let json = std::fs::read_to_string(path)?;
-        self.load_from_json_str(&json)?;
-        Ok(())
-    }
-
     /// Load one metric registry document from JSON text.
     ///
     /// Returns the deserialized [`MetricRegistry`]
@@ -300,13 +268,6 @@ impl Registry {
             .iter()
             .filter(move |(_id, m)| m.namespace == namespace)
             .map(|(id, m)| (id.as_str(), m))
-    }
-
-    /// List all namespaces.
-    pub fn namespaces(&self) -> Vec<&str> {
-        let mut namespaces: Vec<_> = self.namespaces.iter().map(|s| s.as_str()).collect();
-        namespaces.sort();
-        namespaces
     }
 
     /// List all metrics.

@@ -438,33 +438,19 @@ pub struct PyCreditScorecardExtension {
 
 #[pymethods]
 impl PyCreditScorecardExtension {
-    /// Construct a new extension with no configuration.
+    /// Construct an extension with its configuration.
     #[new]
-    fn new() -> Self {
+    fn new(config: PyScorecardConfig) -> Self {
         Self {
-            inner: rust_scorecards::CreditScorecardExtension::new(),
+            inner: rust_scorecards::CreditScorecardExtension::new(config.inner),
         }
     }
 
-    /// Construct an extension preloaded with a configuration.
-    #[staticmethod]
-    fn with_config(config: PyScorecardConfig) -> Self {
-        Self {
-            inner: rust_scorecards::CreditScorecardExtension::with_config(config.inner),
+    /// Return the current configuration.
+    fn config(&self) -> PyScorecardConfig {
+        PyScorecardConfig {
+            inner: self.inner.config().clone(),
         }
-    }
-
-    /// Replace the current configuration.
-    fn set_config(&mut self, config: PyScorecardConfig) {
-        self.inner.set_config(config.inner);
-    }
-
-    /// Return the current configuration, if any.
-    fn config(&self) -> Option<PyScorecardConfig> {
-        self.inner
-            .config()
-            .cloned()
-            .map(|inner| PyScorecardConfig { inner })
     }
 
     /// Run the scorecard against a model and pre-computed statement results.
@@ -480,12 +466,6 @@ impl PyCreditScorecardExtension {
             .execute(&model, &results)
             .map_err(display_to_py)?;
         Ok(PyScorecardReport { inner })
-    }
-}
-
-impl Default for PyCreditScorecardExtension {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

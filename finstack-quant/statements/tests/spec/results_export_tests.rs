@@ -65,52 +65,6 @@ fn test_export_to_table_long() {
 }
 
 #[test]
-fn test_export_to_table_long_filtered() {
-    let model = ModelBuilder::new("test")
-        .periods("2025Q1..Q2", None)
-        .unwrap()
-        .value(
-            "revenue",
-            &[
-                (
-                    PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
-                ),
-                (
-                    PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(110_000.0),
-                ),
-            ],
-        )
-        .compute("cogs", "revenue * 0.6")
-        .unwrap()
-        .compute("gross_profit", "revenue - cogs")
-        .unwrap()
-        .build()
-        .unwrap();
-
-    let mut evaluator = Evaluator::new();
-    let results = evaluator.evaluate(&model).unwrap();
-
-    // Filter to just revenue and cogs
-    let table = results
-        .to_table_long_filtered(&["revenue", "cogs"])
-        .unwrap();
-
-    // Should have 2 nodes × 2 periods = 4 rows
-    assert_eq!(table.row_count, 4);
-    assert_eq!(table.columns.len(), 6);
-
-    // Verify only revenue and cogs are present
-    let node_ids = string_column(&table, "node_id");
-    let unique_nodes: std::collections::HashSet<_> = node_ids.iter().map(String::as_str).collect();
-    assert_eq!(unique_nodes.len(), 2);
-    assert!(unique_nodes.contains("revenue"));
-    assert!(unique_nodes.contains("cogs"));
-    assert!(!unique_nodes.contains("gross_profit"));
-}
-
-#[test]
 fn test_export_to_table_wide() {
     let model = ModelBuilder::new("test")
         .periods("2025Q1..Q2", None)
