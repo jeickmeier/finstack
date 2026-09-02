@@ -176,7 +176,7 @@ fn scaling_rough_heston_steps(c: &mut Criterion) {
         let params = RoughHestonParams {
             r: 0.03,
             q: 0.0,
-            hurst: hurst,
+            hurst,
             kappa: 2.0,
             theta: 0.04,
             sigma_v: 0.3,

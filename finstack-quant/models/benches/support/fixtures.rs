@@ -20,7 +20,9 @@ use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig, PathC
 use finstack_quant_models::monte_carlo::payoff::asian::{
     default_fixing_steps, AsianCall, AveragingMethod,
 };
-use finstack_quant_models::monte_carlo::payoff::barrier::{BarrierOptionPayoff, OptionKind};
+use finstack_quant_models::monte_carlo::payoff::barrier::{
+    BarrierMonitoring, BarrierOptionPayoff, OptionKind,
+};
 use finstack_quant_models::monte_carlo::payoff::lookback::{Lookback, LookbackDirection};
 use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
 use finstack_quant_models::monte_carlo::pricer::path_dependent::{
@@ -98,7 +100,7 @@ pub fn barrier_up_out(num_steps: usize) -> BarrierOptionPayoff {
         num_steps,
         VOL,
         &grid,
-        false,
+        BarrierMonitoring::Continuous { start_step: 0 },
     )
 }
 

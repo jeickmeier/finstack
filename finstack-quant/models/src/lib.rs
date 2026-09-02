@@ -60,13 +60,13 @@ pub use closed_form::{
 };
 pub use trees::{
     short_rate_keys, single_factor_equity_state, state_keys, BinomialTree, EvolutionParams,
-    HullWhiteTree, HullWhiteTreeConfig, NodeState, ShortRateModel, ShortRateTree,
-    ShortRateTreeConfig, TreeCompounding, TreeGreeks, TreeModel, TreeValuator,
+    HullWhiteTree, HullWhiteTreeConfig, NodeState, ShortRateTree, ShortRateTreeConfig,
+    TreeCompounding, TreeGreeks, TreeModel, TreeValuator,
 };
 pub use types::{ExerciseStyle, OptionMarketParams, OptionType};
 pub use volatility::{
-    d1, d1_black76, d1_d2_black76, d2_black76, vega_weight, SabrCalibrationOutcome, SabrCalibrator,
-    SabrModel, SabrParameters, SabrSmile,
+    d1, d1_black76, d1_d2_black76, d2_black76, vega_weight, SabrCalibrator, SabrModel,
+    SabrParameters, SabrSmile,
 };
 
 /// Compiles the crate `README.md` Rust samples as doctests.
