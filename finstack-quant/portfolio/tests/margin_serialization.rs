@@ -7,7 +7,7 @@ use finstack_quant_margin::{
     ImMethodology, NettingSetId, SimmCreditSector, SimmRiskClass, SimmSensitivities,
 };
 use finstack_quant_portfolio::types::PositionId;
-use finstack_quant_portfolio::{CurrencyMismatchError, NettingSetMargin, PortfolioMarginResult};
+use finstack_quant_portfolio::{NettingSetMargin, PortfolioMarginResult};
 use time::macros::date;
 
 fn roundtrip_json<T>(value: &T) -> T
@@ -27,6 +27,37 @@ where
         serde_json::to_value(value).expect("value serialization should succeed"),
         serde_json::to_value(&restored).expect("value reserialization should succeed")
     );
+}
+
+/// Assemble a USD portfolio result from base-currency netting-set margins the
+/// way `PortfolioMarginAggregator::calculate` does.
+fn portfolio_result(
+    as_of: time::Date,
+    margins: impl IntoIterator<Item = NettingSetMargin>,
+) -> PortfolioMarginResult {
+    let mut total_initial_margin = 0.0;
+    let mut total_variation_margin = 0.0;
+    let mut total_margin = 0.0;
+    let mut total_positions = 0;
+    let mut by_netting_set = HashMap::default();
+    for margin in margins {
+        total_initial_margin += margin.initial_margin.amount();
+        total_variation_margin += margin.variation_margin.amount();
+        total_margin += margin.total_margin.amount();
+        total_positions += margin.position_count;
+        by_netting_set.insert(margin.netting_set_id.clone(), margin);
+    }
+    PortfolioMarginResult {
+        as_of,
+        base_currency: Currency::USD,
+        total_initial_margin: Money::new(total_initial_margin, Currency::USD),
+        total_variation_margin: Money::new(total_variation_margin, Currency::USD),
+        total_margin: Money::new(total_margin, Currency::USD),
+        by_netting_set,
+        total_positions,
+        positions_without_margin: 0,
+        degraded_positions: Vec::new(),
+    }
 }
 
 fn sample_simm_sensitivities() -> SimmSensitivities {
@@ -200,15 +231,6 @@ fn simm_margin_with_scalar_credit_qualifying_delta_is_rejected() {
 }
 
 #[test]
-fn test_currency_mismatch_error_roundtrip() {
-    assert_roundtrip_value(&CurrencyMismatchError {
-        netting_set_id: NettingSetId::bilateral("BANK_A", "CSA_01"),
-        netting_set_currency: Currency::EUR,
-        base_currency: Currency::USD,
-    });
-}
-
-#[test]
 fn test_netting_set_margin_json_roundtrip() {
     let margin = NettingSetMargin::new(
         NettingSetId::bilateral("BANK_A", "CSA_01"),
@@ -255,22 +277,18 @@ fn test_portfolio_margin_result_json_roundtrip() {
     let eur_margin = NettingSetMargin::new(
         NettingSetId::bilateral("BANK_B", "CSA_EUR"),
         date!(2025 - 01 - 15),
-        Money::new(750_000.0, Currency::EUR),
-        Money::new(50_000.0, Currency::EUR),
+        Money::new(825_000.0, Currency::USD),
+        Money::new(55_000.0, Currency::USD),
         3,
         ImMethodology::Simm,
     )
     .with_simm_breakdown(sample_simm_sensitivities(), Default::default());
 
-    let mut result = PortfolioMarginResult::new(date!(2025 - 01 - 15), Currency::USD);
-    result
-        .add_netting_set(usd_margin)
-        .expect("same-currency netting set should aggregate");
-    result
-        .add_netting_set_with_fx(eur_margin, 1.1)
-        .expect("valid FX rate should aggregate EUR netting set");
-    result.positions_without_margin = 2;
-    result.add_degraded_position(PositionId::new("POS_9"), "missing VM source");
+    let result = PortfolioMarginResult {
+        positions_without_margin: 2,
+        degraded_positions: vec![(PositionId::new("POS_9"), "missing VM source".into())],
+        ..portfolio_result(date!(2025 - 01 - 15), [usd_margin, eur_margin])
+    };
 
     assert_roundtrip_value(&result);
 
@@ -313,10 +331,7 @@ fn minor17_portfolio_margin_deserialize_rejects_inconsistent_totals() {
         5,
         ImMethodology::ClearingHouse,
     );
-    let mut result = PortfolioMarginResult::new(date!(2025 - 01 - 15), Currency::USD);
-    result
-        .add_netting_set(margin)
-        .expect("same-currency netting set should aggregate");
+    let result = portfolio_result(date!(2025 - 01 - 15), [margin]);
     let mut json = serde_json::to_value(&result).expect("result should serialize");
     json["total_margin"] =
         serde_json::to_value(Money::new(1.0, Currency::USD)).expect("money should serialize");

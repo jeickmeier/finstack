@@ -62,4 +62,4 @@ mod results;
 mod wire;
 
 pub use aggregator::PortfolioMarginAggregator;
-pub use results::{CurrencyMismatchError, NettingSetMargin, PortfolioMarginResult};
+pub use results::{NettingSetMargin, PortfolioMarginResult};

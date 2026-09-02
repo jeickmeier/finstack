@@ -52,7 +52,7 @@ impl PortfolioMarginAggregator {
     ///
     /// Empty aggregator with no positions or netting sets loaded.
     #[must_use]
-    pub fn new(base_currency: Currency) -> Self {
+    pub(crate) fn new(base_currency: Currency) -> Self {
         Self {
             netting_sets: HashMap::default(),
             positions: Vec::new(),
@@ -92,7 +92,7 @@ impl PortfolioMarginAggregator {
     /// # Arguments
     ///
     /// * `position` - Position to inspect and register.
-    pub fn add_position(&mut self, position: &Position) {
+    pub(crate) fn add_position(&mut self, position: &Position) {
         let Some(marginable) = position.instrument.as_marginable() else {
             return;
         };
@@ -219,14 +219,7 @@ impl PortfolioMarginAggregator {
             for (position_id, message) in degraded_positions {
                 result.add_degraded_position(position_id, message);
             }
-            // Currency mismatch is impossible here since we create all margins
-            // with self.base_currency, but we handle the error for API consistency.
-            result.add_netting_set(ns_margin).map_err(|e| {
-                Error::validation(format!(
-                    "Unexpected currency mismatch in margin aggregation: {}",
-                    e
-                ))
-            })?;
+            result.add_netting_set(ns_margin);
         }
 
         // Count positions without margin
@@ -540,16 +533,6 @@ impl PortfolioMarginAggregator {
             .calculate_from_sensitivities(sensitivities, self.base_currency);
         (Money::new(total_im, self.base_currency), breakdown)
     }
-
-    /// Get the number of netting sets.
-    ///
-    /// # Returns
-    ///
-    /// Number of tracked netting sets.
-    #[must_use]
-    pub fn netting_set_count(&self) -> usize {
-        self.netting_sets.len()
-    }
 }
 
 #[cfg(test)]
@@ -697,7 +680,7 @@ mod tests {
     #[test]
     fn test_aggregator_creation() {
         let aggregator = PortfolioMarginAggregator::new(Currency::USD);
-        assert_eq!(aggregator.netting_set_count(), 0);
+        assert!(aggregator.netting_sets.is_empty());
     }
 
     #[test]
@@ -752,8 +735,8 @@ mod tests {
             .calculate(&portfolio, &MarketContext::new(), as_of)
             .expect("second margin run should succeed");
 
-        assert_eq!(first.netting_set_count(), 1);
-        assert_eq!(second.netting_set_count(), 1);
+        assert_eq!(first.by_netting_set.len(), 1);
+        assert_eq!(second.by_netting_set.len(), 1);
         assert!(
             (first.total_initial_margin.amount() - second.total_initial_margin.amount()).abs()
                 < 1e-9,
@@ -952,6 +935,9 @@ mod tests {
             "MO-15/MO-14: stale tracked position should be reported once"
         );
         assert_eq!(result.positions_without_margin, 1);
-        assert_eq!(result.truly_non_marginable_count(), 0);
+        assert_eq!(
+            result.positions_without_margin,
+            result.degraded_positions.len()
+        );
     }
 }

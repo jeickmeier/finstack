@@ -275,9 +275,7 @@ pub use grid_attribution::{
     grid_attribution, grid_carino_link, GridAttributionResult, GridCarinoLinkedResult,
     GridCellEffect, GridPosition, GridSectorEffect, GridSelectionEffect,
 };
-pub use margin::{
-    CurrencyMismatchError, NettingSetMargin, PortfolioMarginAggregator, PortfolioMarginResult,
-};
+pub use margin::{NettingSetMargin, PortfolioMarginAggregator, PortfolioMarginResult};
 pub use performance::{
     mwr_xirr, mwr_xirr_from_cashflows, twrr_linked, twrr_modified_dietz, DatedCashflow, DietzFlow,
     LinkedReturn, TwrrPeriod,

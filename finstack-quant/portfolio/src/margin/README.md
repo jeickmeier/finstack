@@ -25,10 +25,9 @@ are re-exported at the crate root. Netting-set bookkeeping stays internal.
 
 | Type | Role |
 |------|------|
-| `PortfolioMarginAggregator` | Orchestration entry point (`new`, `from_portfolio`, `add_position`, `calculate`) |
+| `PortfolioMarginAggregator` | Orchestration entry point (`from_portfolio`, `calculate`) |
 | `NettingSetMargin` | One netting set's IM, VM, total, methodology, sensitivities, and IM breakdown |
 | `PortfolioMarginResult` | Portfolio summary: totals, `by_netting_set`, counts, `degraded_positions` |
-| `CurrencyMismatchError` | Returned when a netting-set result is not in the base currency |
 
 Identifiers (`NettingSetId`), specs (`OtcMarginSpec`), methodologies
 (`ImMethodology`: `Haircut`, `Simm`, `Schedule`, …) and `SimmSensitivities`
@@ -53,8 +52,7 @@ come from `finstack-quant-margin`.
   mark-to-market cannot be computed lands in
   `PortfolioMarginResult::degraded_positions`.
   `positions_without_margin` counts non-marginable *plus* degraded positions;
-  `truly_non_marginable_count()` subtracts the degraded ones back out, which is
-  the figure risk reports usually want.
+  subtract `degraded_positions.len()` to recover the truly non-marginable count.
 - **Determinism.** Sensitivity extraction fans out over positions with Rayon
   and collects positionally, so the downstream merge order matches the serial
   path. `NettingSetMargin` and `PortfolioMarginResult` serialize through
@@ -76,10 +74,7 @@ fn report(
 
     println!("Total IM: {}", result.total_initial_margin);
     println!("Total VM: {}", result.total_variation_margin);
-    println!("Netting sets: {}", result.netting_set_count());
-
-    let (cleared, bilateral) = result.cleared_bilateral_split();
-    println!("Cleared {cleared} / bilateral {bilateral}");
+    println!("Netting sets: {}", result.by_netting_set.len());
 
     for (position_id, reason) in &result.degraded_positions {
         eprintln!("degraded: {position_id}: {reason}");
