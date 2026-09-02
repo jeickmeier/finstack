@@ -43,7 +43,7 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::Money;
 use finstack_quant_models::rates::hull_white::{
     capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key,
-    hw1f_term_caplet_price_from_dfs_with_model, HullWhiteCalibrationParams, HullWhiteParams,
+    hw1f_term_caplet_price_from_dfs_with_model, hw_b, HullWhiteCalibrationParams, HullWhiteParams,
 };
 
 /// Hull-White 1-factor closed-form pricer for caps and floors.
@@ -80,14 +80,6 @@ pub(crate) struct CompoundedRfrMomentMatch {
     pub option_time: f64,
     /// Date-specific stochastic loadings used in the covariance sum.
     pub observation_loadings: Vec<Hw1fObservationLoading>,
-}
-
-fn hw1f_b(kappa: f64, tenor: f64) -> f64 {
-    if kappa.abs() < 1.0e-8 {
-        tenor
-    } else {
-        -(-kappa * tenor).exp_m1() / kappa
-    }
 }
 
 #[cfg(test)]
@@ -157,7 +149,7 @@ pub(crate) fn hw1f_compounded_rfr_moment_match(
             exposure.observation_end,
             context,
         )?;
-        let bond_state_loading = hw1f_b(kappa, interval_time);
+        let bond_state_loading = hw_b(kappa, 0.0, interval_time);
         let forward_state_loading = (1.0
             + exposure.projected_rate * exposure.rate_accrual_year_fraction)
             * bond_state_loading
@@ -221,7 +213,7 @@ pub(crate) fn hw1f_compounded_rfr_moment_match_with_model(
             exposure.observation_end,
             context,
         )?;
-        let bond_state_loading = hw1f_b(params.kappa, interval_time);
+        let bond_state_loading = hw_b(params.kappa, 0.0, interval_time);
         let forward_state_loading = (1.0
             + exposure.projected_rate * exposure.rate_accrual_year_fraction)
             * bond_state_loading

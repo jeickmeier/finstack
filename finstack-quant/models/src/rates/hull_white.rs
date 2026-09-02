@@ -355,7 +355,7 @@ pub fn hw_ln_a(kappa: f64, sigma: f64, t: f64, maturity: f64, df: &dyn Fn(f64) -
     let p0t = df(t);
     let p0_maturity = df(maturity);
     let b = hw_b(kappa, t, maturity);
-    let f0t = fd_forward_rate(df, t);
+    let f0t = fd_instantaneous_forward(df, t).unwrap_or(0.0);
     let var_term = if kappa.abs() < 1e-10 {
         sigma * sigma * t * b * b / 2.0
     } else {
@@ -641,12 +641,34 @@ pub fn hw1f_caplet_forward_rate_normal_vol(
     sigma * accrual_factor * (integrated_variance_time / t_fix).sqrt()
 }
 
-fn fd_forward_rate(df: &dyn Fn(f64) -> f64, t: f64) -> f64 {
+/// Instantaneous forward `f(0,t) = -d/dt ln P(0,t)` by finite difference.
+///
+/// Uses a central difference with step `h = clamp(t * 1e-3, 1e-6, 1e-3)`
+/// where there is room, and a one-sided forward difference against
+/// `P(0,0) = 1` for `t <= h`.
+///
+/// # Arguments
+///
+/// * `df` - Initial discount-factor function returning `P(0,u)` for time `u`
+///   in years.
+/// * `t` - Time in years at which the forward is evaluated; `t < 0` is
+///   treated like `t = 0`.
+///
+/// # Returns
+///
+/// `None` when a sampled discount factor is not strictly positive (a
+/// corrupted or badly extrapolated curve), so callers choose their own
+/// fallback instead of receiving a silent `NaN`.
+#[must_use]
+pub fn fd_instantaneous_forward(df: &dyn Fn(f64) -> f64, t: f64) -> Option<f64> {
     let h = (t * 1e-3).clamp(1e-6, 1e-3);
     if t > h {
-        -(df(t + h).ln() - df(t - h).ln()) / (2.0 * h)
+        let dfp = df(t + h);
+        let dfm = df(t - h);
+        (dfp > 0.0 && dfm > 0.0).then(|| -(dfp.ln() - dfm.ln()) / (2.0 * h))
     } else {
-        -(df(h).ln()) / h
+        let dfh = df(h);
+        (dfh > 0.0).then(|| -dfh.ln() / h)
     }
 }
 

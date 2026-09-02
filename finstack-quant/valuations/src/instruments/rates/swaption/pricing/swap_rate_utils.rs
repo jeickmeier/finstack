@@ -5,6 +5,7 @@
 
 use super::monte_carlo_payoff::SwapSchedule;
 use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
+use finstack_quant_models::rates::hull_white::{hw_b, hw_ln_a};
 
 /// Hull-White bond price calculation utilities.
 ///
@@ -16,63 +17,21 @@ use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 pub struct HullWhiteBondPrice;
 
 impl HullWhiteBondPrice {
-    /// Compute B(t, T) factor for bond price.
-    ///
-    /// B factor represents the sensitivity of bond price to short rate.
-    #[allow(non_snake_case)]
-    pub fn b_factor(kappa: f64, t: f64, maturity_time: f64) -> f64 {
-        finstack_quant_models::rates::hull_white::hw_b(kappa, t, maturity_time)
-    }
-
-    /// Compute the exact curve-calibrated HW1F `A(t, T)` factor.
-    ///
-    /// This is the Hull-White affine bond reconstruction (Brigo & Mercurio
-    /// 2006, *Interest Rate Models*, §3.3.1, eqs. 3.39–3.40): the time-`t`
-    /// zero-coupon bond is `P(t, T) = A(t, T) · exp(−B(t, T) · r(t))` with
-    ///
-    /// ```text
-    /// ln A(t,T) = ln(P_mkt(0,T)/P_mkt(0,t))
-    ///           + B(t,T)·f(0,t)
-    ///           − (σ²/4κ)·(1 − e^{−2κt})·B(t,T)²
-    /// ```
-    ///
-    /// where `f(0,t) = −∂/∂t ln P_mkt(0,t)` is the market instantaneous
-    /// forward. Built this way, `A(t,T)` is consistent with a θ(t)-calibrated
-    /// HW1F process: at `r(t) = f(0,t)` the reconstruction reproduces the
-    /// market term ratio `P_mkt(0,T)/P_mkt(0,t)` up to the HW1F log-bond
-    /// variance `exp(−(σ²/4κ)(1−e^{−2κt})B²)` *for every* `t`, exactly at
-    /// `t = 0` — unlike the old formula, which drifted away from `t = 0`.
-    ///
-    /// This replaces the former "simplified" Vasicek-style formula, which
-    /// used the flat market forward `f(t,T)` as the drift over `[t, T]` —
-    /// inconsistent with a curve-fitted HW1F and biased away from `t = 0`.
-    ///
-    /// # Arguments
-    ///
-    /// * `params` - Hull-White parameters (only κ, σ are used)
-    /// * `t` - Current time
-    /// * `maturity_time` - Maturity time (T)
-    /// * `discount_curve_fn` - Market discount factors `P_mkt(0, ·)`
-    #[allow(non_snake_case)]
-    pub fn a_factor(
-        params: &HullWhite1FParams,
-        t: f64,
-        maturity_time: f64,
-        discount_curve_fn: impl Fn(f64) -> f64,
-    ) -> f64 {
-        ln_a_factor(params, t, maturity_time, &discount_curve_fn).exp()
-    }
-
     /// Compute bond price P(t, T) from short rate r(t).
     ///
+    /// Uses the curve-calibrated affine reconstruction
+    /// `P(t,T) = A(t,T) · exp(−B(t,T) · r(t))` with `B` from
+    /// [`hw_b`] and `ln A` from [`hw_ln_a`] (Brigo & Mercurio 2006,
+    /// §3.3.1, eqs. 3.39–3.40), evaluated at the process volatility
+    /// `σ(t)`.
+    ///
     /// # Arguments
     ///
-    /// * `params` - Hull-White parameters
+    /// * `params` - Hull-White parameters (κ and σ(t) are used)
     /// * `r_t` - Current short rate
     /// * `t` - Current time
     /// * `maturity_time` - Maturity time (T)
-    /// * `discount_curve_fn` - Function to get market discount factors
-    #[allow(non_snake_case)]
+    /// * `discount_curve_fn` - Market discount factors `P_mkt(0, ·)`
     pub fn bond_price(
         params: &HullWhite1FParams,
         r_t: f64,
@@ -80,69 +39,15 @@ impl HullWhiteBondPrice {
         maturity_time: f64,
         discount_curve_fn: impl Fn(f64) -> f64,
     ) -> f64 {
-        let B = Self::b_factor(params.kappa, t, maturity_time);
-        let A = Self::a_factor(params, t, maturity_time, discount_curve_fn);
-        A * (-B * r_t).exp()
-    }
-}
-
-/// `ln A(t, T)` for the exact curve-calibrated HW1F affine bond price.
-///
-/// See [`HullWhiteBondPrice::a_factor`] for the formula and references.
-#[allow(non_snake_case)]
-fn ln_a_factor(
-    params: &HullWhite1FParams,
-    t: f64,
-    maturity_time: f64,
-    discount_curve_fn: &impl Fn(f64) -> f64,
-) -> f64 {
-    let kappa = params.kappa;
-    let sigma = params.sigma_at_time(t);
-    let B = HullWhiteBondPrice::b_factor(kappa, t, maturity_time);
-
-    let p0_t = discount_curve_fn(t);
-    let p0_T = discount_curve_fn(maturity_time);
-    let f0t = instantaneous_forward(discount_curve_fn, t);
-
-    // Variance term (σ²/4κ)·(1 − e^{−2κt})·B², with the κ→0 Taylor limit
-    // (1 − e^{−2κt})/2κ → t.
-    let var_term = if kappa.abs() < 1e-10 {
-        sigma * sigma * t * B * B / 2.0
-    } else {
-        sigma * sigma / (4.0 * kappa) * (1.0 - (-2.0 * kappa * t).exp()) * B * B
-    };
-
-    // P_mkt(0,t), P_mkt(0,T) are positive on a well-formed curve; guard the
-    // degenerate extrapolation case so the result is always finite.
-    if p0_t > 0.0 && p0_T > 0.0 {
-        (p0_T / p0_t).ln() + B * f0t - var_term
-    } else {
-        // Degenerate curve: collapse to the driftless P = exp(−B·r).
-        B * f0t - var_term
-    }
-}
-
-/// Market instantaneous forward `f(0,t) = −d/dt ln P_mkt(0,t)`.
-///
-/// Central finite difference where there is room, one-sided forward
-/// difference against `P(0,0) = 1` near `t = 0`.
-fn instantaneous_forward(discount_curve_fn: &impl Fn(f64) -> f64, t: f64) -> f64 {
-    let h = (t * 1e-3).clamp(1e-6, 1e-3);
-    if t > h {
-        let dfp = discount_curve_fn(t + h);
-        let dfm = discount_curve_fn(t - h);
-        if dfp > 0.0 && dfm > 0.0 {
-            -(dfp.ln() - dfm.ln()) / (2.0 * h)
-        } else {
-            0.0
-        }
-    } else {
-        let dfh = discount_curve_fn(h);
-        if dfh > 0.0 {
-            -dfh.ln() / h
-        } else {
-            0.0
-        }
+        let b = hw_b(params.kappa, t, maturity_time);
+        let ln_a = hw_ln_a(
+            params.kappa,
+            params.sigma_at_time(t),
+            t,
+            maturity_time,
+            &discount_curve_fn,
+        );
+        (ln_a - b * r_t).exp()
     }
 }
 
@@ -275,6 +180,7 @@ impl ForwardSwapRate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use finstack_quant_models::rates::hull_white::fd_instantaneous_forward;
 
     /// The pre-W-15 "simplified" Vasicek-style `bond_price`, kept here purely
     /// so the regression test can prove the defect existed and is now fixed.
@@ -289,7 +195,7 @@ mod tests {
     ) -> f64 {
         let kappa = params.kappa;
         let sigma = params.sigma_at_time(t);
-        let B = HullWhiteBondPrice::b_factor(kappa, t, maturity_time);
+        let B = hw_b(kappa, t, maturity_time);
         let tau = maturity_time - t;
         let theta_mid = params.theta_at_time((t + maturity_time) / 2.0);
         let df_T = discount_curve_fn(maturity_time);
@@ -312,7 +218,7 @@ mod tests {
         let kappa = 0.1;
         let t = 0.0;
         let t_maturity = 1.0;
-        let b = HullWhiteBondPrice::b_factor(kappa, t, t_maturity);
+        let b = hw_b(kappa, t, t_maturity);
 
         // B(0,1) with κ=0.1 should be approximately (1 - exp(-0.1)) / 0.1 ≈ 0.9516
         let expected = (1.0 - (-0.1_f64).exp()) / 0.1;
@@ -352,7 +258,7 @@ mod tests {
         // Market instantaneous forward at t. Use the *same* finite-difference
         // estimator the reconstruction itself uses, so the test isolates the
         // formula (not FD-step mismatch).
-        let f0 = |t: f64| instantaneous_forward(&discount_fn, t);
+        let f0 = |t: f64| fd_instantaneous_forward(&discount_fn, t).unwrap_or(0.0);
 
         // At several t > 0, evaluate P(t,T) with r = f(0,t) and check it
         // reproduces the forward term ratio modulo the HW1F variance term.
@@ -361,7 +267,7 @@ mod tests {
             let r_t = f0(t);
             let recon = HullWhiteBondPrice::bond_price(&params, r_t, t, big_t, discount_fn);
 
-            let B = HullWhiteBondPrice::b_factor(kappa, t, big_t);
+            let B = hw_b(kappa, t, big_t);
             let var = sigma * sigma / (4.0 * kappa) * (1.0 - (-2.0 * kappa * t).exp()) * B * B;
             let expected = discount_fn(big_t) / discount_fn(t) * (-var).exp();
             assert!(

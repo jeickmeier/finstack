@@ -32,7 +32,7 @@
 //! yield curve; the Ornstein-Uhlenbeck (Vasicek) model uses constant θ.
 
 use super::super::traits::{PathState, StateKey, StochasticProcess};
-use crate::rates::hull_white::HullWhiteParams;
+use crate::rates::hull_white::{fd_instantaneous_forward, HullWhiteParams};
 use finstack_quant_core::math::piecewise::PiecewiseConstantCurve;
 use finstack_quant_core::Result;
 use std::ops::Deref;
@@ -568,38 +568,19 @@ where
     f_t + df_dt / kappa + state_variance / kappa
 }
 
-/// Compute instantaneous forward rate f(0,t) = -d/dt ln P(0,t)
-/// using central finite differences.
+/// Instantaneous forward `f(0,t)` via [`fd_instantaneous_forward`], falling
+/// back to `0.0` (with a warning) on a non-positive discount factor.
 fn instantaneous_forward<F>(discount_curve_fn: &F, t: f64) -> f64
 where
     F: Fn(f64) -> f64,
 {
-    let eps = 1e-4; // Small perturbation for numerical derivative
-
-    if t < eps {
-        // Near t=0, use forward difference
-        let df_0 = discount_curve_fn(0.0);
-        let df_eps = discount_curve_fn(eps);
-        if df_0 > 0.0 && df_eps > 0.0 {
-            -(df_eps.ln() - df_0.ln()) / eps
-        } else {
-            warn!(t, "instantaneous_forward: non-positive discount factor near t=0; returning 0.0. Check market data quality.");
-            0.0
-        }
-    } else {
-        // Central difference: f(t) ≈ -[ln P(t+ε) - ln P(t-ε)] / (2ε)
-        let t_plus = t + eps;
-        let t_minus = (t - eps).max(0.0);
-        let df_plus = discount_curve_fn(t_plus);
-        let df_minus = discount_curve_fn(t_minus);
-
-        if df_plus > 0.0 && df_minus > 0.0 {
-            -(df_plus.ln() - df_minus.ln()) / (t_plus - t_minus)
-        } else {
-            warn!(t, df_plus, df_minus, "instantaneous_forward: non-positive discount factor; returning 0.0. Check market data quality.");
-            0.0
-        }
-    }
+    fd_instantaneous_forward(discount_curve_fn, t).unwrap_or_else(|| {
+        warn!(
+            t,
+            "instantaneous_forward: non-positive discount factor; returning 0.0. Check market data quality."
+        );
+        0.0
+    })
 }
 
 /// Compute ∂f/∂t via the second derivative of ln P(0,t).

@@ -42,7 +42,7 @@ use finstack_quant_models::monte_carlo::process::ou::{
     calibrate_theta_from_curve, calibrate_theta_from_curve_with_piecewise_sigma, HullWhite1FParams,
 };
 use finstack_quant_models::rates::hull_white::{
-    hw_b, hw_ln_a, HullWhiteCalibrationParams, HullWhiteParams,
+    fd_instantaneous_forward, hw_b, hw_ln_a, HullWhiteCalibrationParams, HullWhiteParams,
 };
 
 /// Spacing (years) of the piecewise-constant θ(t) bootstrap grid.
@@ -238,7 +238,7 @@ pub fn prepare_hw1f_model_params(
 /// * `as_of` - Valuation date at which the short-rate process is initialized.
 pub fn initial_short_rate_from_curve(discount_curve: &dyn Discounting, as_of: Date) -> Result<f64> {
     let discount_fn = rebased_discount_fn(discount_curve, as_of)?;
-    Ok(fd_instantaneous_forward(&discount_fn, 0.0))
+    Ok(fd_instantaneous_forward(&discount_fn, 0.0).unwrap_or(0.0))
 }
 
 /// Per-event HW1F bond-reconstruction coefficients for a coupon period.
@@ -353,29 +353,6 @@ impl<'a> Hw1fTermForward<'a> {
             ln_a,
             tau,
             spread: 0.0,
-        }
-    }
-}
-
-/// Instantaneous forward `f(0,t) = −d/dt ln P(0,t)` by central finite difference.
-#[inline]
-fn fd_instantaneous_forward(df: &dyn Fn(f64) -> f64, t: f64) -> f64 {
-    let h = (t * 1e-3).clamp(1e-6, 1e-3);
-    if t > h {
-        let dfp = df(t + h);
-        let dfm = df(t - h);
-        if dfp > 0.0 && dfm > 0.0 {
-            -(dfp.ln() - dfm.ln()) / (2.0 * h)
-        } else {
-            0.0
-        }
-    } else {
-        // Near t = 0: one-sided forward difference against P(0,0) = 1.
-        let dfh = df(h);
-        if dfh > 0.0 {
-            -dfh.ln() / h
-        } else {
-            0.0
         }
     }
 }
