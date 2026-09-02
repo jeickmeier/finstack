@@ -2,7 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const ALLOWED: &[(&str, usize)] = &[
-    ("src/instruments/composite/types.rs", 2),
+    ("src/instruments/composite/types/instrument.rs", 1),
+    ("src/instruments/composite/types/reporting.rs", 1),
     ("src/instruments/exotics/basket/types.rs", 1),
 ];
 
