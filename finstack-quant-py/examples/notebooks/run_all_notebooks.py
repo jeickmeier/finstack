@@ -89,13 +89,18 @@ def run_notebook(notebook_path: Path, timeout: int, save_outputs: bool = False) 
     except CellExecutionError as e:
         elapsed = time.time() - start
         lines = str(e).split("\n")
+        # Skip the leading "An error occurred..." banner so we surface the
+        # actual exception (AttributeError, ValueError, ...) rather than the
+        # cell source that always contains the word "error".
         for i in range(len(lines) - 1, -1, -1):
             line = lines[i]
-            if "error" in line or "Exception" in line:
+            if line.startswith("-----") or line.startswith("An error occurred"):
+                continue
+            if "Error" in line or "Exception" in line:
                 start_idx = max(0, i - 2)
-                end_idx = min(len(lines), i + 5)
+                end_idx = min(len(lines), i + 8)
                 return False, "\n".join(lines[start_idx:end_idx]), elapsed
-        return False, "\n".join(lines[-5:]), elapsed
+        return False, "\n".join(lines[-12:]), elapsed
 
     except TimeoutError as exc:
         detail = str(exc).strip()

@@ -464,7 +464,8 @@ pub fn metric_value(
 /// # Errors
 ///
 /// Returns an error for the same input, market-data, or pricing failures as
-/// [`price_instrument`].
+/// [`price_instrument`], and a validation error if any computed greek is
+/// non-finite (hosts would otherwise emit `null`).
 pub fn present_standard_option_greeks(
     instrument: &ParsedInstrument,
     market: &MarketContext,
@@ -485,10 +486,16 @@ pub fn present_standard_option_greeks(
         None,
         pricing_options,
     )?;
-    Ok(STANDARD_OPTION_GREEKS
+    let pairs: Vec<(&'static str, f64)> = STANDARD_OPTION_GREEKS
         .iter()
         .filter_map(|m| result.metric_str(m).map(|v| (*m, v)))
-        .collect())
+        .collect();
+    if let Some((metric, value)) = pairs.iter().find(|(_, v)| !v.is_finite()) {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "greek '{metric}' evaluated to a non-finite value ({value})"
+        )));
+    }
+    Ok(pairs)
 }
 
 /// Best-effort extraction of `instrument.spec.id` from an envelope.

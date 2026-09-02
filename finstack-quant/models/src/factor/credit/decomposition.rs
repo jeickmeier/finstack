@@ -104,6 +104,69 @@ pub struct PeriodDecomposition {
     pub d_adder: BTreeMap<IssuerId, f64>,
 }
 
+fn ensure_finite(label: &str, value: f64) -> finstack_quant_core::Result<()> {
+    if value.is_finite() {
+        Ok(())
+    } else {
+        Err(finstack_quant_core::Error::Validation(format!(
+            "{label} must be finite, got {value}"
+        )))
+    }
+}
+
+impl LevelsAtDate {
+    /// Reject any non-finite generic, bucket, or adder value.
+    ///
+    /// `serde_json` encodes `NaN`/`±inf` as `null`, so hosts call this at the
+    /// wire boundary (both directions) instead of re-walking the snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] naming the first
+    /// non-finite field.
+    pub fn validate(&self) -> finstack_quant_core::Result<()> {
+        ensure_finite("generic", self.generic)?;
+        for level in &self.by_level {
+            for (bucket, value) in &level.values {
+                ensure_finite(
+                    &format!("by_level[{}].values[{bucket}]", level.level_index),
+                    *value,
+                )?;
+            }
+        }
+        for (issuer, value) in &self.adder {
+            ensure_finite(&format!("adder[{}]", issuer.as_str()), *value)?;
+        }
+        Ok(())
+    }
+}
+
+impl PeriodDecomposition {
+    /// Reject any non-finite generic, bucket, or adder delta.
+    ///
+    /// See [`LevelsAtDate::validate`] for the rationale.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] naming the first
+    /// non-finite field.
+    pub fn validate(&self) -> finstack_quant_core::Result<()> {
+        ensure_finite("d_generic", self.d_generic)?;
+        for level in &self.by_level {
+            for (bucket, value) in &level.deltas {
+                ensure_finite(
+                    &format!("by_level[{}].deltas[{bucket}]", level.level_index),
+                    *value,
+                )?;
+            }
+        }
+        for (issuer, value) in &self.d_adder {
+            ensure_finite(&format!("d_adder[{}]", issuer.as_str()), *value)?;
+        }
+        Ok(())
+    }
+}
+
 /// Failure modes for the decomposition routines.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]

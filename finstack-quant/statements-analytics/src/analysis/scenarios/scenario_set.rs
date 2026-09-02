@@ -90,6 +90,7 @@ pub struct ScenarioSet {
 
 /// Evaluated results for all scenarios in a [`ScenarioSet`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct ScenarioResults {
     /// Map of scenario name → evaluated [`StatementResult`] for that scenario.
     pub scenarios: IndexMap<String, StatementResult>,

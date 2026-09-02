@@ -1072,3 +1072,41 @@ pub mod non_finite_f64 {
         }
     }
 }
+
+/// Serde name of a unit-variant enum value (the `rename_all` form).
+///
+/// Lets hosts label enums with the exact string serde owns instead of keeping
+/// a second table of variant names.
+///
+/// # Arguments
+///
+/// * `value` - Unit-variant enum (or any type) whose serde form is a JSON string.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Internal`] when `value` does not serialize to a
+/// JSON string.
+pub fn serde_label<T: Serialize>(value: &T) -> crate::Result<String> {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(label)) => Ok(label),
+        Ok(other) => Err(crate::Error::Internal(format!(
+            "expected a string serde form, got {other}"
+        ))),
+        Err(e) => Err(crate::Error::Internal(e.to_string())),
+    }
+}
+
+/// Parse a unit-variant enum from its serde name (the inverse of [`serde_label`]).
+///
+/// # Arguments
+///
+/// * `label` - Serde string form of the variant, e.g. `"snake_case_name"`.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `label` is not one of the
+/// type's serde names; the message carries serde's list of expected values.
+pub fn serde_parse<T: serde::de::DeserializeOwned>(label: &str) -> crate::Result<T> {
+    serde_json::from_value(serde_json::Value::String(label.to_string()))
+        .map_err(|e| crate::Error::Validation(format!("invalid value {label:?}: {e}")))
+}

@@ -90,7 +90,42 @@ fn translation_t0_value(
     Ok(value)
 }
 
+/// Run `f`, converting a Rust panic into [`finstack_quant_core::Error::Internal`].
+///
+/// Language hosts must not let an unwind cross their boundary (a WASM unwind
+/// aborts the module instance; a PyO3 unwind surfaces as a `BaseException`),
+/// so the containment lives here, once.
+pub(crate) fn contain_panic<T>(label: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(result) => result,
+        Err(panic) => {
+            let message = panic
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_string())
+                .or_else(|| panic.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic payload".to_string());
+            Err(finstack_quant_core::Error::Internal(format!(
+                "attribution panicked in {label}: {message}"
+            )))
+        }
+    }
+}
+
 impl AttributionSpec {
+    /// Execute the attribution with panic containment.
+    ///
+    /// Identical to [`Self::execute`] except that a Rust panic inside the
+    /// pipeline is returned as [`finstack_quant_core::Error::Internal`]
+    /// instead of unwinding. Language bindings call this variant.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`Self::execute`] returns, plus `Error::Internal` for a
+    /// contained panic.
+    pub fn execute_contained(&self) -> Result<AttributionResult> {
+        contain_panic("execute", || self.execute())
+    }
+
     /// Execute the attribution specification.
     ///
     /// Returns a complete result with the P&L attribution and metadata.

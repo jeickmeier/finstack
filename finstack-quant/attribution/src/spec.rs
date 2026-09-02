@@ -75,6 +75,17 @@ impl AttributionEnvelope {
         let result = self.attribution.execute()?;
         Ok(AttributionResultEnvelope::new(result))
     }
+
+    /// Execute with panic containment; see [`AttributionSpec::execute_contained`].
+    ///
+    /// # Errors
+    ///
+    /// Everything [`Self::execute`] returns, plus
+    /// [`finstack_quant_core::Error::Internal`] for a contained panic.
+    pub fn execute_contained(&self) -> Result<AttributionResultEnvelope> {
+        let result = self.attribution.execute_contained()?;
+        Ok(AttributionResultEnvelope::new(result))
+    }
 }
 
 /// Attribution specification for a single P&L attribution run.
