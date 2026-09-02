@@ -92,18 +92,17 @@ pub mod regulatory;
 pub use calculators::im::schedule::{ScheduleAssetClass, BCBS_IOSCO_SCHEDULE_ID};
 pub use calculators::im::simm::SimmVersion;
 pub use calculators::{
-    CcpMethodology, ClearingHouseImCalculator, ExternalImSource, HaircutImCalculator, ImCalculator,
-    ImResult, ScheduleImCalculator, SimmCalculator, VmCalculator, VmResult,
+    ClearingHouseImCalculator, HaircutImCalculator, ImCalculator, ImResult, ScheduleImCalculator,
+    SimmCalculator, VmCalculator, VmResult,
 };
-pub use schema::{MarginEnvelope, MarginSchema};
+pub use schema::MarginEnvelope;
 pub use traits::Marginable;
 pub use types::{
-    generate_margin_cashflows, generate_margin_interest_cashflows, margin_calls_to_cashflows,
-    ClearingStatus, CollateralAssetClass, CollateralEligibility, ConcentrationBreach, CsaSpec,
+    ClearingStatus, CollateralAssetClass, CollateralEligibility, CsaSpec,
     EligibleCollateralSchedule, ImMethodology, ImParameters, MarginCall, MarginCallTiming,
     MarginCallType, MarginTenor, MaturityConstraints, NettingSetId, OtcMarginSpec, RepoMarginSpec,
     RepoMarginType, SimmCreditClassification, SimmCreditSector, SimmRiskClass, SimmSensitivities,
-    SimmSensitivitiesJson, VmParameters,
+    VmParameters,
 };
 
 /// Compiles the crate `README.md` Rust samples as doctests.
