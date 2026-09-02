@@ -185,15 +185,6 @@ fn index_issuer_betas(model: &CreditFactorModel) -> BTreeMap<&IssuerId, &IssuerB
     idx
 }
 
-/// Default unit-beta values used when an issuer is decomposed under
-/// "bucket-only" semantics (no model row, runtime tags only).
-fn unit_betas(num_levels: usize) -> IssuerBetas {
-    IssuerBetas {
-        pc: 1.0,
-        levels: vec![1.0; num_levels],
-    }
-}
-
 // decompose_levels
 
 /// Decompose observed issuer spreads at `as_of` into per-level factor values
@@ -321,7 +312,7 @@ pub fn decompose_levels(
     //
     // We materialize the unit-beta vector once and share it via reference
     // to avoid an allocation per runtime issuer.
-    let unit = unit_betas(num_levels);
+    let unit = IssuerBetas::unit(num_levels);
 
     struct Resolved<'a> {
         betas: &'a IssuerBetas,
@@ -352,24 +343,13 @@ pub fn decompose_levels(
     //
     // bucket_paths[issuer][k] = "IG.EU.FIN" or analogous.
     let mut bucket_paths: BTreeMap<IssuerId, Vec<String>> = BTreeMap::new();
-    let mut path_buf = String::new();
     for (issuer, r) in &resolved {
-        let mut paths = Vec::with_capacity(num_levels);
-        for k in 0..num_levels {
-            if !model.hierarchy.write_bucket_path(r.tags, k, &mut path_buf) {
-                // Find the first missing dimension key for the diagnostic.
-                use crate::factor::credit::hierarchy::dimension_key;
-                let missing_key = model.hierarchy.levels[..=k]
-                    .iter()
-                    .find(|dim| !r.tags.0.contains_key(dimension_key(dim)))
-                    .map_or_else(|| format!("level_{k}"), |dim| dimension_key(dim).to_owned());
-                return Err(DecompositionError::MissingTag {
-                    issuer_id: (*issuer).clone(),
-                    dimension: missing_key,
-                });
+        let paths = model.hierarchy.bucket_paths(r.tags).map_err(|dimension| {
+            DecompositionError::MissingTag {
+                issuer_id: (*issuer).clone(),
+                dimension,
             }
-            paths.push(path_buf.clone());
-        }
+        })?;
         bucket_paths.insert((*issuer).clone(), paths);
     }
 

@@ -104,13 +104,6 @@ impl McEngineConfig {
         Ok(Self::new(num_paths, TimeGrid::uniform(t_max, num_steps)?))
     }
 
-    /// Set the target confidence-interval half-width.
-    #[must_use]
-    pub fn target_ci(mut self, target: f64) -> Self {
-        self.target_ci_half_width = Some(target);
-        self
-    }
-
     /// Install path-capture configuration.
     #[must_use]
     pub fn path_capture(mut self, config: PathCaptureConfig) -> Self {

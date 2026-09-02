@@ -6,6 +6,7 @@ use finstack_quant_core::types::IssuerId;
 use super::config::{BucketWeighting, PanelSpace};
 use super::inputs::CreditCalibrationInputs;
 use crate::factor::credit::hierarchy::{IssuerBetaMode, IssuerBetaOverride, IssuerBetaPolicy};
+use crate::factor::credit::peel::dts_spread_duration;
 use crate::factor::credit::units::decimal_to_bp;
 
 /// Step 1: classify an issuer as `IssuerBeta` or `BucketOnly`.
@@ -134,18 +135,7 @@ pub(super) fn issuer_bucket_weight_series(
         let weights = match weighting {
             BucketWeighting::Equal => vec![1.0; len],
             BucketWeighting::Dts => {
-                let sd = spread_durations.get(issuer).copied().ok_or_else(|| {
-                    format!(
-                        "dts weighting requires spread_duration (years, > 0) for issuer {:?}",
-                        issuer.as_str()
-                    )
-                })?;
-                if !sd.is_finite() || sd <= 0.0 {
-                    return Err(format!(
-                        "spread_duration for issuer {:?} must be finite and > 0 years, got {sd}",
-                        issuer.as_str()
-                    ));
-                }
+                let sd = dts_spread_duration(issuer, spread_durations)?;
                 let mut weights = Vec::with_capacity(len);
                 for t in 0..len {
                     let spread = series.get(t).copied().flatten().ok_or_else(|| {

@@ -10,14 +10,6 @@ use crate::factor::credit::hierarchy::{
 use crate::factor::matching::{bucket_factor_id, CREDIT_GENERIC_FACTOR_ID};
 use crate::factor::FactorId;
 
-/// `IssuerBetas` with all loadings = 1.0 (BucketOnly default).
-pub(super) fn unit_betas(num_levels: usize) -> IssuerBetas {
-    IssuerBetas {
-        pc: 1.0,
-        levels: vec![1.0; num_levels],
-    }
-}
-
 /// Outcome of the PC + per-level peel (steps 4 + 5).
 pub(super) struct PeelOutcome {
     /// Calibrated betas per issuer.

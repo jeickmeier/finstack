@@ -4,7 +4,6 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::types::CurveId;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::str::FromStr;
 
 /// Classification of a curve dependency's role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -31,21 +30,6 @@ impl fmt::Display for CurveType {
             Self::Hazard => write!(f, "hazard"),
             Self::Inflation => write!(f, "inflation"),
             Self::BaseCorrelation => write!(f, "base_correlation"),
-        }
-    }
-}
-
-impl FromStr for CurveType {
-    type Err = finstack_quant_core::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "discount" => Ok(Self::Discount),
-            "forward" => Ok(Self::Forward),
-            "hazard" => Ok(Self::Hazard),
-            "inflation" => Ok(Self::Inflation),
-            "base_correlation" => Ok(Self::BaseCorrelation),
-            _ => Err(finstack_quant_core::InputError::Invalid.into()),
         }
     }
 }
@@ -81,23 +65,6 @@ impl fmt::Display for DependencyType {
             Self::Vol => write!(f, "vol"),
             Self::Fx => write!(f, "fx"),
             Self::Series => write!(f, "series"),
-        }
-    }
-}
-
-impl FromStr for DependencyType {
-    type Err = finstack_quant_core::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "discount" => Ok(Self::Discount),
-            "forward" => Ok(Self::Forward),
-            "credit" => Ok(Self::Credit),
-            "spot" => Ok(Self::Spot),
-            "vol" => Ok(Self::Vol),
-            "fx" => Ok(Self::Fx),
-            "series" => Ok(Self::Series),
-            _ => Err(finstack_quant_core::InputError::Invalid.into()),
         }
     }
 }
@@ -211,14 +178,6 @@ impl MarketDependency {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn assert_curve_type(label: &str, expected: CurveType) {
-        assert!(matches!(label.parse::<CurveType>(), Ok(value) if value == expected));
-    }
-
-    fn assert_dependency_type(label: &str, expected: DependencyType) {
-        assert!(matches!(label.parse::<DependencyType>(), Ok(value) if value == expected));
-    }
 
     #[test]
     fn test_market_dependency_curve() {
@@ -390,85 +349,5 @@ mod tests {
         assert!(spot.matches_id("AAPL"));
         assert!(fx.matches_id("USD/EUR"));
         assert!(!fx.matches_id("EUR/USD"));
-    }
-
-    #[test]
-    fn test_curve_type_fromstr_display_roundtrip() {
-        for (input, expected) in [
-            ("discount", CurveType::Discount),
-            ("forward", CurveType::Forward),
-            ("hazard", CurveType::Hazard),
-            ("inflation", CurveType::Inflation),
-            ("base_correlation", CurveType::BaseCorrelation),
-        ] {
-            assert_curve_type(input, expected);
-        }
-
-        for variant in [
-            CurveType::Discount,
-            CurveType::Forward,
-            CurveType::Hazard,
-            CurveType::Inflation,
-            CurveType::BaseCorrelation,
-        ] {
-            let display = variant.to_string();
-            assert!(matches!(display.parse::<CurveType>(), Ok(value) if value == variant));
-        }
-    }
-
-    #[test]
-    fn test_curve_type_fromstr_rejects_unknown() {
-        for rejected in [
-            "credit",
-            "basecorrelation",
-            "BaseCorrelation",
-            "base-correlation",
-        ] {
-            assert!(rejected.parse::<CurveType>().is_err());
-        }
-    }
-
-    #[test]
-    fn test_dependency_type_fromstr_display_roundtrip() {
-        for (input, expected) in [
-            ("discount", DependencyType::Discount),
-            ("forward", DependencyType::Forward),
-            ("credit", DependencyType::Credit),
-            ("spot", DependencyType::Spot),
-            ("vol", DependencyType::Vol),
-            ("fx", DependencyType::Fx),
-            ("series", DependencyType::Series),
-        ] {
-            assert_dependency_type(input, expected);
-        }
-
-        for variant in [
-            DependencyType::Discount,
-            DependencyType::Forward,
-            DependencyType::Credit,
-            DependencyType::Spot,
-            DependencyType::Vol,
-            DependencyType::Fx,
-            DependencyType::Series,
-        ] {
-            let display = variant.to_string();
-            assert!(matches!(display.parse::<DependencyType>(), Ok(value) if value == variant));
-        }
-    }
-
-    #[test]
-    fn test_dependency_type_fromstr_rejects_unknown() {
-        for rejected in [
-            "price",
-            "scalar",
-            "volsurface",
-            "vol_surface",
-            "volatility",
-            "dividend",
-            "div",
-            "Spot",
-        ] {
-            assert!(rejected.parse::<DependencyType>().is_err());
-        }
     }
 }

@@ -9,13 +9,11 @@ mod math;
 mod parametric;
 mod position;
 mod residual;
-mod simulation;
-mod traits;
 mod types;
 mod views;
 
 pub use budget::{
-    evaluate_risk_budget_arrays, PositionBudgetEntry, RiskBudget, RiskBudgetResult,
+    evaluate_risk_budget_arrays, PositionBudgetEntry, RiskBudgetResult,
     DEFAULT_UTILIZATION_THRESHOLD,
 };
 pub use parametric::ParametricDecomposer;
@@ -26,8 +24,6 @@ pub use position::{
     TailScenarioBreakdown,
 };
 pub use residual::apply_residual_contributions;
-pub use simulation::SimulationDecomposer;
-pub use traits::RiskDecomposer;
 pub use types::{
     FactorContribution, PositionFactorContribution, PositionResidualContribution,
     ResidualContributionSource, RiskDecomposition,

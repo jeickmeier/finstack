@@ -372,15 +372,6 @@ impl PathState {
         state
     }
 
-    /// Create a path state with initial variables.
-    pub fn with_vars(step: usize, time: f64, vars: HashMap<&'static str, f64>) -> Self {
-        let mut ps = Self::new(step, time);
-        for (key, value) in vars {
-            ps.set(key, value);
-        }
-        ps
-    }
-
     /// Set a state variable by indexed key (fast path, no hashing).
     #[inline]
     pub fn set_key(&mut self, key: StateKey, value: f64) {

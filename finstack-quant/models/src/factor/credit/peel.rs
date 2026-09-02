@@ -7,6 +7,36 @@ use finstack_quant_core::types::IssuerId;
 use super::calibration::BucketWeighting;
 use super::hierarchy::IssuerBetas;
 
+/// Spread duration (years) an issuer needs for DTS bucket weighting.
+///
+/// # Arguments
+///
+/// * `issuer` - Issuer whose duration is required.
+/// * `spread_durations` - Per-issuer spread durations in years.
+///
+/// # Errors
+///
+/// Returns a diagnostic string when the duration is missing, non-finite, or
+/// `<= 0`.
+pub(crate) fn dts_spread_duration(
+    issuer: &IssuerId,
+    spread_durations: &BTreeMap<IssuerId, f64>,
+) -> Result<f64, String> {
+    let sd = spread_durations.get(issuer).copied().ok_or_else(|| {
+        format!(
+            "dts weighting requires spread_duration (years, > 0) for issuer {:?}",
+            issuer.as_str()
+        )
+    })?;
+    if !sd.is_finite() || sd <= 0.0 {
+        return Err(format!(
+            "spread_duration for issuer {:?} must be finite and > 0 years, got {sd}",
+            issuer.as_str()
+        ));
+    }
+    Ok(sd)
+}
+
 /// Output from peeling one cross-section of issuer spreads.
 pub(crate) struct SingleObservationPeel {
     /// Per-level bucket values, in hierarchy level order.
@@ -156,18 +186,7 @@ pub(crate) fn issuer_bucket_weights<'a>(
         let weight = match weighting {
             BucketWeighting::Equal => 1.0,
             BucketWeighting::Dts => {
-                let sd = spread_durations.get(issuer).copied().ok_or_else(|| {
-                    format!(
-                        "dts weighting requires spread_duration (years, > 0) for issuer {:?}",
-                        issuer.as_str()
-                    )
-                })?;
-                if !sd.is_finite() || sd <= 0.0 {
-                    return Err(format!(
-                        "spread_duration for issuer {:?} must be finite and > 0 years, got {sd}",
-                        issuer.as_str()
-                    ));
-                }
+                let sd = dts_spread_duration(issuer, spread_durations)?;
                 let spread = spreads_bp.get(issuer).copied().ok_or_else(|| {
                     format!(
                         "dts weighting requires a spread (bp) for issuer {:?}",

@@ -83,14 +83,6 @@ impl CirParams {
     pub fn satisfies_feller(&self) -> bool {
         2.0 * self.kappa * self.theta >= self.sigma * self.sigma
     }
-
-    /// Get the critical ψ threshold for QE scheme.
-    ///
-    /// This is a typical value used in the QE discretization to decide
-    /// between the power/gamma and exponential representations.
-    pub fn default_psi_c() -> f64 {
-        1.5
-    }
 }
 
 /// CIR process for modeling short rates or intensities.

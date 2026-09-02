@@ -1,9 +1,9 @@
-//! Market impact model trait and shared types.
+//! Shared market impact types.
 //!
-//! Defines the [`MarketImpactModel`] trait and the data structures for
-//! trade parameters, impact estimates, and execution trajectories.
+//! Defines the data structures for trade parameters, impact estimates, and
+//! execution trajectories consumed by [`super::AlmgrenChrissModel`] and
+//! [`super::KyleLambdaModel`].
 
-use finstack_quant_core::Result;
 use serde::{Deserialize, Serialize};
 
 use super::types::LiquidityProfile;
@@ -96,44 +96,4 @@ pub struct ExecutionTrajectory {
 
     /// Time points (in trading days) for each bucket boundary.
     pub time_points: Vec<f64>,
-}
-
-/// Trait for market impact models that estimate the cost of executing a trade.
-///
-/// Implementations take the trade parameters and return the estimated
-/// execution costs in currency units (see [`ImpactEstimate`]). The trait is
-/// object-safe to allow heterogeneous model selection per instrument.
-pub trait MarketImpactModel: Send + Sync {
-    /// Estimate the total execution cost of a trade.
-    ///
-    /// # Arguments
-    ///
-    /// * `params` - Trade parameters including size, urgency, and market data.
-    ///
-    /// # Returns
-    ///
-    /// Estimated total cost in the instrument's native currency.
-    fn estimate_cost(&self, params: &TradeParams) -> Result<ImpactEstimate>;
-
-    /// Compute the optimal execution trajectory.
-    ///
-    /// Returns the number of shares to trade in each time bucket to
-    /// minimize expected cost + risk aversion * variance.
-    ///
-    /// # Arguments
-    ///
-    /// * `params` - Trade parameters.
-    /// * `num_buckets` - Number of time intervals to divide execution into.
-    ///
-    /// # Returns
-    ///
-    /// Optimal trajectory as quantities per bucket.
-    fn optimal_trajectory(
-        &self,
-        params: &TradeParams,
-        num_buckets: usize,
-    ) -> Result<ExecutionTrajectory>;
-
-    /// Human-readable model name for reporting.
-    fn model_name(&self) -> &str;
 }

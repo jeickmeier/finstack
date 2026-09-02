@@ -511,6 +511,7 @@ impl FutureOptionTerms {
                     time_to_expiry: t,
                     option_type: self.option_type,
                 };
+                params.validate()?;
                 BinomialTree::leisen_reimer_odd(steps).price_american(&params)
             }
             FutureOptionModel::Normal => {

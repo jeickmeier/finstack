@@ -6,7 +6,7 @@
 //! Greeks (delta, gamma) read directly from the grid.
 
 use super::exercise::PenaltyExercise;
-use super::grid::{find_nearest, Grid1D, PdeGridError};
+use super::grid::{find_nearest, Grid1D};
 use super::problem::PdeProblem1D;
 use super::stepper::{RannacherStepper, StepperError, ThetaStepper, TimeStepper};
 
@@ -393,9 +393,6 @@ pub enum PdeSolverError {
     /// march never runs and the "solution" would be the bare terminal payoff.
     #[error("PDE solve requires at least one time step, got n_steps = 0")]
     ZeroTimeSteps,
-    /// Grid construction error.
-    #[error(transparent)]
-    Grid(#[from] PdeGridError),
     /// Time-stepping error — e.g. an explicit / under-damped scheme whose
     /// time step violates the CFL stability condition.
     #[error(transparent)]

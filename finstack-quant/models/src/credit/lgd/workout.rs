@@ -272,16 +272,6 @@ impl WorkoutLgd {
     pub fn recovery_rate(&self, ead: f64) -> Result<f64> {
         Ok(1.0 - self.lgd(ead)?)
     }
-
-    /// Gross collateral liquidation value (pre-discount, pre-costs).
-    pub fn gross_collateral_value(&self) -> f64 {
-        self.collateral.iter().map(|c| c.liquidation_value()).sum()
-    }
-
-    /// Discount factor implied by workout duration.
-    pub fn workout_discount_factor(&self) -> f64 {
-        (1.0 + self.discount_rate).powf(-self.workout_years)
-    }
 }
 
 /// Builder for `WorkoutLgd`.

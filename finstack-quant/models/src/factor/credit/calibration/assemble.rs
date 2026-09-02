@@ -14,9 +14,9 @@ use super::statistics::{
 };
 use super::validation::validation_err;
 use crate::factor::credit::hierarchy::{
-    dimension_key, CalibrationDiagnostics, CreditHierarchySpec, FactorCorrelationMatrix,
-    FactorHistories, FactorVolModel, FitQuality, FoldUpRecord, IdiosyncraticVolModel,
-    IssuerBetaMode, IssuerBetaRow, IssuerBetas, IssuerTags, LevelAnchor, LevelsAtAnchor, VolState,
+    CalibrationDiagnostics, CreditHierarchySpec, FactorCorrelationMatrix, FactorHistories,
+    FactorVolModel, FitQuality, FoldUpRecord, IdiosyncraticVolModel, IssuerBetaMode, IssuerBetaRow,
+    IssuerBetas, IssuerTags, LevelAnchor, LevelsAtAnchor, VolState,
 };
 use crate::factor::matching::{CreditHierarchicalConfig, CREDIT_GENERIC_FACTOR_ID};
 use crate::factor::{
@@ -48,24 +48,15 @@ pub(super) fn anchor_levels(
     let num_levels = hierarchy.levels.len();
     // Resolve issuer → tags + bucket_paths.
     let mut bucket_paths: BTreeMap<IssuerId, Vec<String>> = BTreeMap::new();
-    let mut path_buf = String::new();
     for issuer in as_of_spreads.keys() {
         let issuer_tags = tags.get(issuer).cloned().unwrap_or_default();
-        let mut paths = Vec::with_capacity(num_levels);
-        for k in 0..num_levels {
-            if !hierarchy.write_bucket_path(&issuer_tags, k, &mut path_buf) {
-                let missing = hierarchy.levels[..=k]
-                    .iter()
-                    .find(|d| !issuer_tags.0.contains_key(dimension_key(d)))
-                    .map_or_else(|| format!("level_{k}"), |d| dimension_key(d).to_owned());
-                return Err(validation_err(format!(
-                    "CreditCalibrator anchor: issuer {:?} missing tag {:?}",
-                    issuer.as_str(),
-                    missing
-                )));
-            }
-            paths.push(path_buf.clone());
-        }
+        let paths = hierarchy.bucket_paths(&issuer_tags).map_err(|missing| {
+            validation_err(format!(
+                "CreditCalibrator anchor: issuer {:?} missing tag {:?}",
+                issuer.as_str(),
+                missing
+            ))
+        })?;
         bucket_paths.insert(issuer.clone(), paths);
     }
 

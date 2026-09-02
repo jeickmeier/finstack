@@ -1,6 +1,7 @@
 //! Residual-risk overlays for additive factor decompositions.
 
 use super::math::{normal_pdf, normal_quantile};
+use super::parametric::ParametricDecomposer;
 use super::types::{PositionResidualContribution, RiskDecomposition};
 use crate::factor::RiskMeasure;
 
@@ -37,9 +38,9 @@ pub fn apply_residual_contributions(
         variance_from_measure(decomposition.measure, decomposition.total_risk)?;
     let combined_variance = systematic_variance + residual_variance;
     let (combined_total, combined_component_scale) =
-        risk_total_and_component_scale(decomposition.measure, combined_variance)?;
+        ParametricDecomposer::scale_for_measure(&decomposition.measure, combined_variance)?;
     let (_, systematic_component_scale) =
-        risk_total_and_component_scale(decomposition.measure, systematic_variance)?;
+        ParametricDecomposer::scale_for_measure(&decomposition.measure, systematic_variance)?;
     let factor_rescale = if systematic_component_scale.abs() > 0.0 {
         combined_component_scale / systematic_component_scale
     } else {
@@ -93,40 +94,4 @@ fn variance_from_measure(
         }
     };
     Ok(variance)
-}
-
-fn risk_total_and_component_scale(
-    measure: RiskMeasure,
-    variance: f64,
-) -> finstack_quant_core::Result<(f64, f64)> {
-    let variance = variance.max(0.0);
-    let sigma = variance.sqrt();
-    let scaled = match measure {
-        RiskMeasure::Variance => (variance, 1.0),
-        RiskMeasure::Volatility => {
-            if sigma > 0.0 {
-                (sigma, sigma.recip())
-            } else {
-                (0.0, 0.0)
-            }
-        }
-        RiskMeasure::VaR { confidence } => {
-            let z = normal_quantile(confidence);
-            if sigma > 0.0 {
-                (-sigma * z, -z * sigma.recip())
-            } else {
-                (0.0, 0.0)
-            }
-        }
-        RiskMeasure::ExpectedShortfall { confidence } => {
-            let z = normal_quantile(confidence);
-            let es_multiplier = normal_pdf(z) / (1.0 - confidence);
-            if sigma > 0.0 {
-                (-sigma * es_multiplier, -es_multiplier * sigma.recip())
-            } else {
-                (0.0, 0.0)
-            }
-        }
-    };
-    Ok(scaled)
 }

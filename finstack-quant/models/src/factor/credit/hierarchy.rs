@@ -280,15 +280,8 @@ impl CreditHierarchySpec {
 
     /// Build the dotted bucket path for an issuer at hierarchy level `k`.
     ///
-    /// Reads the tag value for each dimension in `self.levels[0..=k]` from
-    /// `tags`, then joins them with `"."`.
-    ///
-    /// - For `k = 0` returns `Some("<tag_for_dim_0>")`.
-    /// - For `k = 1` returns `Some("<tag_for_dim_0>.<tag_for_dim_1>")`.
-    /// - For `k = self.levels.len() - 1` returns the full dotted path.
-    ///
     /// Returns `None` if `k >= self.levels.len()` or if any tag for
-    /// dimensions `0..=k` is missing from `tags`.
+    /// dimensions `0..=k` is missing from `tags` (see [`Self::write_bucket_path`]).
     ///
     /// # Arguments
     ///
@@ -300,6 +293,35 @@ impl CreditHierarchySpec {
     pub fn bucket_path(&self, tags: &IssuerTags, k: usize) -> Option<String> {
         let mut out = String::new();
         self.write_bucket_path(tags, k, &mut out).then_some(out)
+    }
+
+    /// Build the dotted bucket path for an issuer at every hierarchy level.
+    ///
+    /// `paths[k]` is the path for level `k` (see [`Self::write_bucket_path`]).
+    ///
+    /// # Arguments
+    ///
+    /// * `tags` - Issuer taxonomy whose values become the dotted path
+    ///   segments, looked up by each level's [`dimension_key`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`dimension_key`] of the first level whose tag is missing
+    /// from `tags`.
+    pub fn bucket_paths(&self, tags: &IssuerTags) -> Result<Vec<String>, String> {
+        let mut paths = Vec::with_capacity(self.levels.len());
+        let mut path_buf = String::new();
+        for k in 0..self.levels.len() {
+            if !self.write_bucket_path(tags, k, &mut path_buf) {
+                let missing = self.levels[..=k]
+                    .iter()
+                    .find(|d| !tags.0.contains_key(dimension_key(d)))
+                    .map_or_else(|| format!("level_{k}"), |d| dimension_key(d).to_owned());
+                return Err(missing);
+            }
+            paths.push(path_buf.clone());
+        }
+        Ok(paths)
     }
 }
 
@@ -337,6 +359,22 @@ pub struct IssuerBetas {
     pub pc: f64,
     /// Betas on each hierarchy-level factor, in spec order.
     pub levels: Vec<f64>,
+}
+
+impl IssuerBetas {
+    /// Unit loadings (`pc = 1.0`, every level `1.0`): the `BucketOnly`
+    /// convention for issuers without a calibrated beta row.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_levels` - Hierarchy depth; one unit loading per level.
+    #[must_use]
+    pub fn unit(num_levels: usize) -> Self {
+        Self {
+            pc: 1.0,
+            levels: vec![1.0; num_levels],
+        }
+    }
 }
 
 /// Source provenance of an issuer's idiosyncratic vol estimate.
@@ -484,52 +522,9 @@ impl FactorCorrelationMatrix {
         factor_ids: Vec<FactorId>,
         data: Vec<Vec<f64>>,
     ) -> finstack_quant_core::Result<Self> {
-        let n = factor_ids.len();
-        let mut seen = std::collections::BTreeSet::new();
-        for fid in &factor_ids {
-            if !seen.insert(fid) {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "FactorCorrelationMatrix: duplicate factor_id {fid:?}"
-                )));
-            }
-        }
-        if data.len() != n {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "FactorCorrelationMatrix: expected {n} rows, got {}",
-                data.len()
-            )));
-        }
-        for (i, row) in data.iter().enumerate() {
-            if row.len() != n {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "FactorCorrelationMatrix: row {i} has length {}, expected {n}",
-                    row.len()
-                )));
-            }
-            let diag = row[i];
-            if (diag - 1.0).abs() > 1e-9 {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "FactorCorrelationMatrix: diagonal entry [{i}][{i}] = {diag}, expected 1.0"
-                )));
-            }
-        }
-        // Check symmetry: data[i][j] must equal data[j][i].
-        // We need two-dimensional cross-indexing here, so range loops are
-        // the clearest choice. Clippy's needless_range_loop suggestion would
-        // iterate over one dimension but still require indexing the other.
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..n {
-            for j in (i + 1)..n {
-                let lo = data[i][j];
-                let hi = data[j][i];
-                if (lo - hi).abs() > 1e-9 {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "FactorCorrelationMatrix: not symmetric at [{i}][{j}]: {lo} vs {hi}"
-                    )));
-                }
-            }
-        }
-        Ok(Self { factor_ids, data })
+        let matrix = Self { factor_ids, data };
+        matrix.check_structure()?;
+        Ok(matrix)
     }
 
     /// Construct an identity correlation matrix for the given factor IDs.
@@ -585,6 +580,8 @@ impl FactorCorrelationMatrix {
                 )));
             }
         }
+        // Check symmetry: data[i][j] must equal data[j][i]. Two-dimensional
+        // cross-indexing keeps range loops clearer than the clippy suggestion.
         #[allow(clippy::needless_range_loop)]
         for i in 0..n {
             for j in (i + 1)..n {

@@ -13,13 +13,14 @@ use super::inventory::{apply_fold_up, build_bucket_inventory};
 use super::panel::{
     build_working_panel, classify_mode, convert_inputs_to_bp, issuer_bucket_weight_series,
 };
-use super::peel_fit::{run_peel, unit_betas};
+use super::peel_fit::run_peel;
 use super::statistics::{
     adder_vols_from_history, assign_adder_vol, build_peer_proxy_index, factor_variances,
 };
 use super::validation::{validate_calibration_config, validate_calibration_inputs, validation_err};
 use crate::factor::credit::hierarchy::{
     CreditFactorModel, CreditFactorModelSchema, DateRange, IssuerBetaMode, IssuerBetaRow,
+    IssuerBetas,
 };
 
 /// Deterministic calibrator that produces a [`CreditFactorModel`].
@@ -245,7 +246,7 @@ impl CreditCalibrator {
                 .betas
                 .get(issuer_id)
                 .cloned()
-                .unwrap_or_else(|| unit_betas(self.config.hierarchy.levels.len()));
+                .unwrap_or_else(|| IssuerBetas::unit(self.config.hierarchy.levels.len()));
             let adder_at_anchor = anchor.adder.get(issuer_id).copied().unwrap_or(0.0);
             let (adder_vol, adder_vol_source) = assign_adder_vol(
                 issuer_id,

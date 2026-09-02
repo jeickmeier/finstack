@@ -727,6 +727,7 @@ impl Instrument for CommodityOption {
                     time_to_expiry: inputs.t,
                     option_type: self.option_type,
                 };
+                params.validate()?;
                 tree.price_american(&params)?
             }
             ExerciseStyle::Bermudan => {
@@ -750,6 +751,7 @@ impl Instrument for CommodityOption {
                     time_to_expiry: inputs.t,
                     option_type: self.option_type,
                 };
+                params.validate()?;
                 let exercise_times: Vec<f64> = schedule
                     .iter()
                     .filter_map(|date| {

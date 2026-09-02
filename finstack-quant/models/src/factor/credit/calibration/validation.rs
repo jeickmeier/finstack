@@ -6,6 +6,7 @@ use super::config::{
 };
 use super::inputs::CreditCalibrationInputs;
 use crate::factor::credit::hierarchy::dimension_key;
+use crate::factor::credit::peel::dts_spread_duration;
 use crate::factor::credit::units::validate_decimal_spread;
 
 pub(super) fn validation_err(msg: impl Into<String>) -> Error {
@@ -196,27 +197,8 @@ pub(super) fn validate_calibration_inputs(
         BucketWeighting::Equal => {}
         BucketWeighting::Dts => {
             for issuer in inputs.history_panel.spreads.keys() {
-                let Some(sd) = inputs.spread_durations.get(issuer).copied() else {
-                    return Err(validation_err(format!(
-                        "CreditCalibrator: bucket_weighting is dts but issuer {:?} \
-                         has no spread_durations entry (years, must be > 0)",
-                        issuer.as_str()
-                    )));
-                };
-                validate_finite(
-                    format!(
-                        "CreditCalibrator: spread_duration for issuer {:?}",
-                        issuer.as_str()
-                    ),
-                    sd,
-                )?;
-                if sd <= 0.0 {
-                    return Err(validation_err(format!(
-                        "CreditCalibrator: spread_duration for issuer {:?} must be \
-                         > 0 years, got {sd}",
-                        issuer.as_str()
-                    )));
-                }
+                dts_spread_duration(issuer, &inputs.spread_durations)
+                    .map_err(|message| validation_err(format!("CreditCalibrator: {message}")))?;
             }
             let extra: Vec<&str> = inputs
                 .spread_durations

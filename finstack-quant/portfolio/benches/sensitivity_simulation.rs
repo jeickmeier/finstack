@@ -1,12 +1,10 @@
-//! Benchmarks for the two hot paths touched by the recent performance work:
+//! Benchmarks for the factor-model hot paths:
 //!
 //! * `FullRepricingEngine::compute_pnl_profiles` — parallelized across factors
 //!   (previously a serial factor loop).
-//! * `SimulationDecomposer::decompose` — its variance decomposition now reads
-//!   the scenario-major P&L/shock buffers in contiguous passes instead of one
-//!   column-strided pass per factor.
+//! * `ParametricDecomposer::decompose` — closed-form factor risk decomposition.
 //!
-//! Both are gated behind `autobenches = false`, so they only run when listed in
+//! All are gated behind `autobenches = false`, so they only run when listed in
 //! `Cargo.toml`.
 
 use std::any::Any;
@@ -21,9 +19,7 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
-use finstack_quant_models::factor::risk::{
-    ParametricDecomposer, RiskDecomposer, SimulationDecomposer,
-};
+use finstack_quant_models::factor::risk::ParametricDecomposer;
 use finstack_quant_models::factor::{
     BumpSizeConfig, FactorCovarianceMatrix, FactorDefinition, FactorId, FactorType, MarketMapping,
     PricingMode, RiskMeasure, SensitivityMatrix, UnmatchedPolicy,
@@ -523,44 +519,12 @@ fn bench_parametric_decomposition(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_mc_decomposition(c: &mut Criterion) {
-    let n_scenarios = 16_384;
-    let measure = RiskMeasure::Volatility;
-
-    let mut group = c.benchmark_group("mc_factor_decomposition");
-    group.sample_size(10);
-
-    for &n_factors in &[32_usize, 64] {
-        let sensitivities = decomposition_sensitivities(n_factors);
-        let covariance = diagonal_covariance(n_factors);
-        let decomposer = SimulationDecomposer::new(n_scenarios, 42);
-
-        group.bench_with_input(
-            BenchmarkId::new(
-                "decompose_volatility",
-                format!("{n_factors}f_x_{n_scenarios}sc"),
-            ),
-            &n_factors,
-            |b, _| {
-                b.iter(|| {
-                    let decomposition = decomposer
-                        .decompose(&sensitivities, &covariance, &measure)
-                        .expect("bench: decomposition should succeed");
-                    std::hint::black_box(decomposition);
-                });
-            },
-        );
-    }
-    group.finish();
-}
-
 criterion_group!(
     benches,
     bench_full_repricing,
     bench_delta_based_sensitivities,
     bench_factor_stress,
     bench_factor_model_analyze,
-    bench_parametric_decomposition,
-    bench_mc_decomposition
+    bench_parametric_decomposition
 );
 criterion_main!(benches);

@@ -33,7 +33,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_models::factor::matching::ISSUER_ID_META_KEY;
 use finstack_quant_models::factor::risk::{
     apply_residual_contributions, ParametricDecomposer, PositionResidualContribution,
-    ResidualContributionSource, RiskDecomposer, RiskDecomposition,
+    ResidualContributionSource, RiskDecomposition,
 };
 use finstack_quant_models::factor::{
     BumpSizeConfig, CurveType, FactorCovarianceMatrix, FactorDefinition, FactorModelConfig,
@@ -45,13 +45,11 @@ use std::collections::{BTreeMap, HashMap};
 /// Builder for the top-level portfolio factor-model orchestrator.
 ///
 /// Use this type to inject a declarative factor-model configuration and, in
-/// tests, override the sensitivity engine or decomposition engine.
+/// tests, override the sensitivity engine.
 pub struct FactorModelBuilder {
     config: Option<FactorModelConfig>,
     #[cfg(test)]
     custom_sensitivity_engine: Option<Box<dyn FactorSensitivityEngine>>,
-    #[cfg(test)]
-    custom_decomposer: Option<Box<dyn RiskDecomposer>>,
 }
 
 impl FactorModelBuilder {
@@ -66,8 +64,6 @@ impl FactorModelBuilder {
             config: None,
             #[cfg(test)]
             custom_sensitivity_engine: None,
-            #[cfg(test)]
-            custom_decomposer: None,
         }
     }
 
@@ -98,17 +94,6 @@ impl FactorModelBuilder {
         self
     }
 
-    /// Override the risk decomposer used by the model (test-only).
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn with_custom_decomposer(
-        mut self,
-        decomposer: impl RiskDecomposer + 'static,
-    ) -> Self {
-        self.custom_decomposer = Some(Box::new(decomposer));
-        self
-    }
-
     /// Build the configured factor model.
     ///
     /// # Returns
@@ -119,25 +104,14 @@ impl FactorModelBuilder {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] when the configuration is missing,
-    /// matching rules reference undeclared factor IDs, the risk measure is
-    /// invalid, or the covariance axes do not align with the configured
-    /// factors.
+    /// and the [`FactorModelConfig::validate`] error when matching rules
+    /// reference undeclared factor IDs, the risk measure is invalid, or the
+    /// covariance axes do not align with the configured factors.
     pub fn build(self) -> Result<FactorModel> {
         let config = self
             .config
             .ok_or_else(|| Error::invalid_input("FactorModelConfig is required"))?;
-        config.validate_matching_factor_ids()?;
-        config.risk_measure.validate()?;
-        let factor_ids: Vec<_> = config
-            .factors
-            .iter()
-            .map(|factor| factor.id.clone())
-            .collect();
-        if factor_ids.as_slice() != config.covariance.factor_ids() {
-            return Err(Error::invalid_input(
-                "FactorModelConfig covariance axes must match factors in the same order",
-            ));
-        }
+        config.validate()?;
 
         let matcher = config.matching.build_matcher();
         let bump_config = config.bump_size.clone().unwrap_or_default();
@@ -151,23 +125,13 @@ impl FactorModelBuilder {
             let engine = default_sensitivity_engine(config.pricing_mode, &bump_config)?;
             engine
         };
-        let decomposer: Box<dyn RiskDecomposer> = {
-            #[cfg(test)]
-            let d = self
-                .custom_decomposer
-                .unwrap_or_else(|| Box::new(ParametricDecomposer));
-            #[cfg(not(test))]
-            let d = Box::new(ParametricDecomposer);
-            d
-        };
-
         Ok(FactorModel {
             credit_idiosyncratic_variance: credit_idiosyncratic_variance(&config.matching),
             factors: config.factors,
             covariance: config.covariance,
             matcher,
             sensitivity_engine,
-            decomposer,
+            decomposer: ParametricDecomposer,
             risk_measure: config.risk_measure,
             unmatched_policy: config.unmatched_policy.unwrap_or_default(),
             bump_config,
@@ -202,7 +166,7 @@ pub struct FactorModel {
     covariance: FactorCovarianceMatrix,
     matcher: Box<dyn finstack_quant_models::factor::FactorMatcher>,
     sensitivity_engine: Box<dyn FactorSensitivityEngine>,
-    decomposer: Box<dyn RiskDecomposer>,
+    decomposer: ParametricDecomposer,
     risk_measure: RiskMeasure,
     unmatched_policy: UnmatchedPolicy,
     bump_config: BumpSizeConfig,
@@ -746,8 +710,8 @@ impl FactorModel {
         &self.covariance
     }
 
-    pub(crate) fn decomposer(&self) -> &dyn RiskDecomposer {
-        self.decomposer.as_ref()
+    pub(crate) fn decomposer(&self) -> &ParametricDecomposer {
+        &self.decomposer
     }
 
     pub(crate) fn risk_measure(&self) -> &RiskMeasure {
@@ -1250,21 +1214,12 @@ mod tests {
     }
 
     #[test]
-    fn test_analyze_uses_custom_sensitivity_engine_and_decomposer() {
+    fn test_analyze_uses_custom_sensitivity_engine() {
         let covariance_result =
             FactorCovarianceMatrix::new(vec![FactorId::new("Rates")], vec![0.04]);
         assert!(covariance_result.is_ok());
         let Ok(covariance) = covariance_result else {
             return;
-        };
-
-        let expected = RiskDecomposition {
-            total_risk: 2.0,
-            measure: RiskMeasure::Variance,
-            factor_contributions: vec![],
-            residual_risk: 0.0,
-            position_factor_contributions: vec![],
-            position_residual_contributions: vec![],
         };
 
         let sensitivity_calls = Arc::new(AtomicUsize::new(0));
@@ -1289,7 +1244,6 @@ mod tests {
             .with_custom_sensitivity_engine(CountingSensitivityEngine {
                 calls: Arc::clone(&sensitivity_calls),
             })
-            .with_custom_decomposer(FixedDecomposer(expected.clone()))
             .build();
         assert!(model_result.is_ok());
         let Ok(model) = model_result else {
@@ -1311,7 +1265,8 @@ mod tests {
             return;
         };
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual.total_risk, 0.0);
+        assert_eq!(actual.measure, RiskMeasure::Variance);
         assert_eq!(sensitivities.n_factors(), 1);
         assert_eq!(
             sensitivity_calls.load(Ordering::SeqCst),
@@ -1348,14 +1303,6 @@ mod tests {
                 unmatched_policy: Some(UnmatchedPolicy::Strict),
             })
             .with_custom_sensitivity_engine(FixedSensitivityEngine)
-            .with_custom_decomposer(FixedDecomposer(RiskDecomposition {
-                total_risk: 0.0,
-                measure: RiskMeasure::Variance,
-                factor_contributions: vec![],
-                residual_risk: 0.0,
-                position_factor_contributions: vec![],
-                position_residual_contributions: vec![],
-            }))
             .build();
         assert!(model_result.is_ok());
         let Ok(model) = model_result else {
@@ -1515,19 +1462,6 @@ mod tests {
                 positions.iter().map(|(id, _, _)| id.clone()).collect(),
                 factors.iter().map(|factor| factor.id.clone()).collect(),
             ))
-        }
-    }
-
-    struct FixedDecomposer(RiskDecomposition);
-
-    impl finstack_quant_models::factor::risk::RiskDecomposer for FixedDecomposer {
-        fn decompose(
-            &self,
-            _sensitivities: &SensitivityMatrix,
-            _covariance: &FactorCovarianceMatrix,
-            _measure: &RiskMeasure,
-        ) -> finstack_quant_core::Result<RiskDecomposition> {
-            Ok(self.0.clone())
         }
     }
 

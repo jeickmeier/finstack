@@ -8,8 +8,6 @@ pub mod decomposition;
 mod forecast;
 /// Credit factor hierarchy artifact types.
 pub mod hierarchy;
-/// Rebuild covariance from histories and historical-simulation factor P&L.
-pub mod histories;
 mod peel;
 /// Decimal-spread input convention and bp conversion.
 pub mod units;

@@ -87,20 +87,6 @@ impl RatingFactorTable {
         })
     }
 
-    /// Return the factor for a rating, or the table's explicit default factor.
-    ///
-    /// Use this only when the governing methodology permits substituting its
-    /// published default for an unsupported rating.
-    ///
-    /// # Arguments
-    ///
-    /// * `rating` - Canonical credit rating to look up before applying the
-    ///   table-defined fallback.
-    #[must_use]
-    pub fn get_factor_or_default(&self, rating: CreditRating) -> f64 {
-        self.get_factor(rating).unwrap_or(self.default_factor)
-    }
-
     /// Return the rating agency that owns this methodology.
     #[must_use]
     pub fn agency(&self) -> &str {

@@ -413,8 +413,7 @@ fn is_credit_dependency(dep: &MarketDependency) -> bool {
 /// Namespaced like [`ISSUER_ID_META_KEY`] so that generic instrument metadata
 /// using bare keys such as `"rating"` (also consumed by `AttributeFilter`)
 /// is never silently reinterpreted as a credit-hierarchy tag.
-#[must_use]
-pub fn credit_tag_meta_key(dim: &HierarchyDimension) -> String {
+fn credit_tag_meta_key(dim: &HierarchyDimension) -> String {
     format!("credit::{}", dimension_key(dim))
 }
 

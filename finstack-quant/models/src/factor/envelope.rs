@@ -87,8 +87,7 @@ impl FactorModelConfigEnvelope {
         let envelope: Self = deserialize_json_value(value, limits)?;
         envelope
             .config
-            .validate_matching_factor_ids()
-            .and_then(|()| envelope.config.risk_measure.validate())
+            .validate()
             .map_err(|error| semantic_error(error, limits))?;
         Ok((envelope.config, ValidationReport::default()))
     }

@@ -137,26 +137,6 @@ pub fn build_lsmc_basis(kind: BasisKind, degree: usize, strike: f64) -> Result<L
     }
 }
 
-/// Parse a basis name and build the corresponding LSMC basis.
-///
-/// # Arguments
-///
-/// * `name` - Canonical basis-family name parsed by [`BasisKind::parse`].
-/// * `degree` - Number of basis terms or maximum polynomial degree, subject to
-///   the selected family's validation rules.
-/// * `strike` - Exercise-price scale used to normalize applicable basis inputs.
-///
-/// # Errors
-///
-/// Returns an error when the basis name or degree/strike inputs are invalid.
-pub fn build_lsmc_basis_from_name(
-    name: &str,
-    degree: usize,
-    strike: f64,
-) -> Result<LsmcBasis, String> {
-    build_lsmc_basis(BasisKind::parse(name)?, degree, strike)
-}
-
 /// Polynomial basis: {1, x, x², ...}.
 #[derive(Debug, Clone)]
 pub struct PolynomialBasis {

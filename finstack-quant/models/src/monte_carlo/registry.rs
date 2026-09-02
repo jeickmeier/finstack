@@ -6,12 +6,8 @@
 
 use std::sync::OnceLock;
 
-use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::{ContractDescriptor, Error, Result};
 use serde::Deserialize;
-
-/// Config extension key for overriding Monte Carlo defaults.
-pub const MONTE_CARLO_DEFAULTS_EXTENSION_KEY: &str = "monte_carlo.defaults.v1";
 
 const PRICER_DEFAULTS: &str = include_str!("../../data/defaults/pricer_defaults.v1.json");
 const MONTE_CARLO_DEFAULTS_CONTRACT: ContractDescriptor =
@@ -267,8 +263,7 @@ struct DefaultsFile {
 ///
 /// The defaults are parsed from the compile-time `PRICER_DEFAULTS` asset on the
 /// first call and then cached. The returned reference is shared and must be
-/// treated as read-only; callers that need to modify settings should clone it
-/// or use [`defaults_from_config`] with a complete extension value.
+/// treated as read-only; callers that need to modify settings should clone it.
 ///
 /// # Errors
 ///
@@ -287,37 +282,6 @@ pub fn embedded_defaults() -> Result<&'static MonteCarloDefaults> {
 #[allow(clippy::expect_used)]
 pub fn embedded_defaults_or_panic() -> &'static MonteCarloDefaults {
     embedded_defaults().expect("embedded Monte Carlo defaults are compile-time assets")
-}
-
-/// Load a complete Monte Carlo defaults set from configuration or the embedded asset.
-///
-/// When `config.extensions` contains [`MONTE_CARLO_DEFAULTS_EXTENSION_KEY`],
-/// its value replaces the entire defaults set: it is deserialized with unknown
-/// fields rejected and validated before being returned. The extension is not a
-/// partial override or merge. When the key is absent, this returns a clone of
-/// [`embedded_defaults`].
-///
-/// # Arguments
-///
-/// * `config` - Finstack configuration whose extensions may contain a complete
-///   Monte Carlo defaults document under the documented extension key.
-///
-/// # Errors
-///
-/// Returns an error if the extension is not valid defaults JSON, contains
-/// unsupported fields, fails defaults validation, or the embedded fallback
-/// cannot be initialized.
-pub fn defaults_from_config(config: &FinstackConfig) -> Result<MonteCarloDefaults> {
-    if let Some(value) = config.extensions.get(MONTE_CARLO_DEFAULTS_EXTENSION_KEY) {
-        let file: DefaultsFile = serde_json::from_value(value.clone()).map_err(|err| {
-            Error::Validation(format!(
-                "failed to parse Monte Carlo defaults extension: {err}"
-            ))
-        })?;
-        defaults_from_file(file)
-    } else {
-        Ok(embedded_defaults()?.clone())
-    }
 }
 
 fn parse_embedded_defaults() -> Result<MonteCarloDefaults> {

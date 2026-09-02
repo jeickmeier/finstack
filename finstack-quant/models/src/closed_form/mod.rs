@@ -172,6 +172,6 @@ pub use volatility::{
     bachelier_call, bachelier_delta_call, bachelier_delta_put, bachelier_gamma, bachelier_put,
     bachelier_vega, black_call, black_delta_call, black_delta_put, black_gamma, black_put,
     black_scholes_spot_call, black_scholes_spot_put, black_shifted_call, black_shifted_put,
-    black_shifted_vega, black_vega, brenner_subrahmanyam_approx, d1_black76,
-    implied_vol_initial_guess, manaster_koehler_approx,
+    black_shifted_vega, black_vega, brenner_subrahmanyam_approx, implied_vol_initial_guess,
+    manaster_koehler_approx,
 };

@@ -1,6 +1,5 @@
 //! Shared option-model input types.
 
-use finstack_quant_core::types::{Percentage, Rate};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
@@ -137,37 +136,6 @@ impl OptionMarketParams {
         }
     }
 
-    /// Create option market parameters from typed rates and percentages.
-    ///
-    /// # Arguments
-    ///
-    /// * `spot` - Positive spot or forward price in quote units.
-    /// * `strike` - Positive strike in the same units as `spot`.
-    /// * `rate` - Typed continuously compounded annual risk-free rate.
-    /// * `volatility` - Typed annualized volatility percentage.
-    /// * `time_to_expiry` - Non-negative expiry time in years.
-    /// * `dividend_yield` - Typed continuous annual carry or dividend yield.
-    /// * `option_type` - Call or put payoff direction.
-    pub fn new_typed(
-        spot: f64,
-        strike: f64,
-        rate: Rate,
-        volatility: Percentage,
-        time_to_expiry: f64,
-        dividend_yield: Percentage,
-        option_type: OptionType,
-    ) -> Self {
-        Self::new(
-            spot,
-            strike,
-            rate.as_decimal(),
-            volatility.as_decimal(),
-            time_to_expiry,
-            dividend_yield.as_decimal(),
-            option_type,
-        )
-    }
-
     /// Create call-option market parameters with zero dividend yield.
     pub fn call(spot: f64, strike: f64, rate: f64, volatility: f64, time_to_expiry: f64) -> Self {
         Self::new(
@@ -177,25 +145,6 @@ impl OptionMarketParams {
             volatility,
             time_to_expiry,
             0.0,
-            OptionType::Call,
-        )
-    }
-
-    /// Create typed call-option market parameters with zero dividend yield.
-    pub fn call_typed(
-        spot: f64,
-        strike: f64,
-        rate: Rate,
-        volatility: Percentage,
-        time_to_expiry: f64,
-    ) -> Self {
-        Self::new_typed(
-            spot,
-            strike,
-            rate,
-            volatility,
-            time_to_expiry,
-            Percentage::ZERO,
             OptionType::Call,
         )
     }
@@ -211,39 +160,6 @@ impl OptionMarketParams {
             0.0,
             OptionType::Put,
         )
-    }
-
-    /// Create typed put-option market parameters with zero dividend yield.
-    pub fn put_typed(
-        spot: f64,
-        strike: f64,
-        rate: Rate,
-        volatility: Percentage,
-        time_to_expiry: f64,
-    ) -> Self {
-        Self::new_typed(
-            spot,
-            strike,
-            rate,
-            volatility,
-            time_to_expiry,
-            Percentage::ZERO,
-            OptionType::Put,
-        )
-    }
-
-    /// Replace the decimal continuous dividend yield.
-    #[must_use]
-    pub fn with_dividend_yield(mut self, dividend_yield: f64) -> Self {
-        self.dividend_yield = dividend_yield;
-        self
-    }
-
-    /// Replace the continuous dividend yield from a typed percentage.
-    #[must_use]
-    pub fn with_dividend_yield_pct(mut self, dividend_yield: Percentage) -> Self {
-        self.dividend_yield = dividend_yield.as_decimal();
-        self
     }
 
     /// Validate the structural invariants required by option models.
@@ -279,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_and_typed_builders_set_all_fields() {
+    fn constructors_set_all_fields() {
         let generic = OptionMarketParams::new(100.0, 95.0, 0.04, 0.20, 1.5, 0.015, OptionType::Put);
         assert_eq!(generic.spot, 100.0);
         assert_eq!(generic.strike, 95.0);
@@ -288,20 +204,7 @@ mod tests {
         assert_eq!(generic.time_to_expiry, 1.5);
         assert_eq!(generic.dividend_yield, 0.015);
         assert_eq!(generic.option_type, OptionType::Put);
-
-        let typed = OptionMarketParams::new_typed(
-            100.0,
-            95.0,
-            Rate::from_percent(4.0),
-            Percentage::new(20.0).expect("finite percentage"),
-            1.5,
-            Percentage::new(1.5).expect("finite percentage"),
-            OptionType::Put,
-        );
-        assert!((typed.rate - 0.04).abs() < 1e-12);
-        assert!((typed.volatility - 0.20).abs() < 1e-12);
-        assert!((typed.dividend_yield - 0.015).abs() < 1e-12);
-        assert!(typed.validate().is_ok());
+        assert!(generic.validate().is_ok());
     }
 
     #[test]
@@ -310,26 +213,9 @@ mod tests {
         assert_eq!(call.option_type, OptionType::Call);
         assert_eq!(call.dividend_yield, 0.0);
 
-        let put = OptionMarketParams::put_typed(
-            100.0,
-            95.0,
-            Rate::from_percent(4.0),
-            Percentage::new(20.0).expect("finite percentage"),
-            1.5,
-        );
+        let put = OptionMarketParams::put(100.0, 95.0, 0.04, 0.20, 1.5);
         assert_eq!(put.option_type, OptionType::Put);
         assert_eq!(put.dividend_yield, 0.0);
-    }
-
-    #[test]
-    fn dividend_yield_setters_override_existing_value() {
-        let decimal =
-            OptionMarketParams::call(100.0, 95.0, 0.04, 0.20, 1.5).with_dividend_yield(0.025);
-        assert_eq!(decimal.dividend_yield, 0.025);
-
-        let typed =
-            decimal.with_dividend_yield_pct(Percentage::new(1.5).expect("finite percentage"));
-        assert!((typed.dividend_yield - 0.015).abs() < 1e-12);
     }
 
     #[test]
@@ -368,10 +254,9 @@ mod tests {
         assert!(OptionMarketParams::call(100.0, 95.0, f64::NAN, 0.20, 1.5)
             .validate()
             .is_err());
-        assert!(OptionMarketParams::call(100.0, 95.0, 0.04, 0.20, 1.5)
-            .with_dividend_yield(f64::INFINITY)
-            .validate()
-            .is_err());
+        let mut params = OptionMarketParams::call(100.0, 95.0, 0.04, 0.20, 1.5);
+        params.dividend_yield = f64::INFINITY;
+        assert!(params.validate().is_err());
     }
 
     #[test]

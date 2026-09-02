@@ -22,9 +22,6 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 use finstack_quant_core::types::Attributes;
 use finstack_quant_models::factor::credit::calibration::CovarianceStrategy;
 use finstack_quant_models::factor::credit::decomposition::{decompose_levels, decompose_period};
-use finstack_quant_models::factor::credit::histories::{
-    covariance_from_histories, historical_factor_pnl,
-};
 use finstack_quant_models::factor::matching::{
     CascadeMatcher, CreditHierarchicalMatcher, FactorMatcher, FactorNode, HierarchicalMatcher,
     MappingTableMatcher,
@@ -34,7 +31,7 @@ use finstack_quant_models::factor::{
 };
 use fixtures::{
     credit_dependency, credit_hierarchical_config, factor_ids, known_issuer_attrs, mapping_rules,
-    psd_matrix, unit_sensitivities, unknown_issuer_attrs, zero_sensitivity_matrix, CreditBook,
+    psd_matrix, unknown_issuer_attrs, zero_sensitivity_matrix, CreditBook,
 };
 
 fn bench_covariance_construction(c: &mut Criterion) {
@@ -453,30 +450,6 @@ fn bench_credit_hierarchical_matcher(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_credit_histories(c: &mut Criterion) {
-    let mut group = c.benchmark_group("credit_histories");
-    group.sample_size(20);
-
-    let book = CreditBook::representative();
-    let model = book.calibrate();
-    let histories = model.factor_histories.as_ref().unwrap();
-    let (factor_ids, sensitivities) = unit_sensitivities(&model);
-
-    group.bench_function("covariance_from_histories/50x36", |b| {
-        b.iter(|| {
-            black_box(
-                covariance_from_histories(&model, CovarianceStrategy::FullSampleRepaired).unwrap(),
-            )
-        })
-    });
-
-    group.bench_function("historical_factor_pnl/50x36", |b| {
-        b.iter(|| black_box(historical_factor_pnl(histories, &factor_ids, &sensitivities).unwrap()))
-    });
-
-    group.finish();
-}
-
 fn bench_sensitivity_matrix(c: &mut Criterion) {
     let mut group = c.benchmark_group("sensitivity_matrix");
 
@@ -544,7 +517,6 @@ criterion_group!(
     bench_credit_calibration,
     bench_credit_decomposition,
     bench_credit_hierarchical_matcher,
-    bench_credit_histories,
     bench_sensitivity_matrix,
     bench_credit_validate,
 );

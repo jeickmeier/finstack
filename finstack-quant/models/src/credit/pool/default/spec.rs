@@ -304,21 +304,6 @@ impl StochasticDefaultSpec {
         }
     }
 
-    /// Create a hazard curve-based default spec with full parameters.
-    pub fn from_hazard_curve_full(
-        hazard_curve: HazardCurve,
-        factor_sensitivity: f64,
-        volatility: f64,
-        correlation: f64,
-    ) -> Self {
-        StochasticDefaultSpec::HazardCurveBased {
-            hazard_curve: Box::new(hazard_curve),
-            factor_sensitivity: factor_sensitivity.clamp(-2.0, 2.0),
-            volatility: volatility.clamp(0.0, 2.0),
-            correlation: correlation.clamp(0.0, 0.99),
-        }
-    }
-
     /// Build the stochastic default model from this specification.
     ///
     /// Returns `Ok(None)` for deterministic specs.

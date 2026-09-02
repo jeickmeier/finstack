@@ -13,12 +13,11 @@ use super::primitives::factor_types::{FactorId, FactorType};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::str::FromStr;
 
 /// Policy for handling dependencies that do not match any factor.
 ///
 /// Serializes in `snake_case`, matching the crate-wide wire convention and
-/// this type's own `Display`/`FromStr` representation.
+/// this type's own `Display` representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
@@ -52,21 +51,6 @@ impl fmt::Display for UnmatchedPolicy {
     }
 }
 
-impl FromStr for UnmatchedPolicy {
-    type Err = finstack_quant_core::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "strict" => Ok(Self::Strict),
-            "residual" => Ok(Self::Residual),
-            "warn" => Ok(Self::Warn),
-            _ => Err(finstack_quant_core::Error::Validation(format!(
-                "UnmatchedPolicy: unknown label {s:?}"
-            ))),
-        }
-    }
-}
-
 /// Strategy used when extracting factor sensitivities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -91,20 +75,6 @@ impl fmt::Display for PricingMode {
         match self {
             Self::DeltaBased => write!(f, "delta_based"),
             Self::FullRepricing => write!(f, "full_repricing"),
-        }
-    }
-}
-
-impl FromStr for PricingMode {
-    type Err = finstack_quant_core::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "delta_based" => Ok(Self::DeltaBased),
-            "full_repricing" => Ok(Self::FullRepricing),
-            _ => Err(finstack_quant_core::Error::Validation(format!(
-                "PricingMode: unknown label {s:?}"
-            ))),
         }
     }
 }
@@ -558,33 +528,6 @@ mod tests {
     }
 
     #[test]
-    fn test_unmatched_policy_fromstr_display_roundtrip() {
-        for (input, expected) in [
-            ("strict", UnmatchedPolicy::Strict),
-            ("residual", UnmatchedPolicy::Residual),
-            ("warn", UnmatchedPolicy::Warn),
-        ] {
-            assert!(matches!(input.parse::<UnmatchedPolicy>(), Ok(value) if value == expected));
-        }
-
-        for variant in [
-            UnmatchedPolicy::Strict,
-            UnmatchedPolicy::Residual,
-            UnmatchedPolicy::Warn,
-        ] {
-            let display = variant.to_string();
-            assert!(matches!(display.parse::<UnmatchedPolicy>(), Ok(value) if value == variant));
-        }
-    }
-
-    #[test]
-    fn test_unmatched_policy_fromstr_rejects_unknown() {
-        for rejected in ["error", "ignore", "Strict", " warn"] {
-            assert!(rejected.parse::<UnmatchedPolicy>().is_err());
-        }
-    }
-
-    #[test]
     fn unmatched_policy_serializes_snake_case_and_rejects_pascal_case() {
         let json = serde_json::to_string(&UnmatchedPolicy::Strict).unwrap_or_default();
         assert_eq!(json, "\"strict\"");
@@ -827,33 +770,6 @@ mod tests {
         assert_eq!(config.risk_measure, RiskMeasure::Variance);
         assert_eq!(config.bump_size, None);
         assert_eq!(config.unmatched_policy, None);
-    }
-
-    #[test]
-    fn test_pricing_mode_fromstr_display_roundtrip() {
-        for (input, expected) in [
-            ("delta_based", PricingMode::DeltaBased),
-            ("full_repricing", PricingMode::FullRepricing),
-        ] {
-            assert!(matches!(input.parse::<PricingMode>(), Ok(value) if value == expected));
-        }
-
-        for variant in [PricingMode::DeltaBased, PricingMode::FullRepricing] {
-            let display = variant.to_string();
-            assert!(matches!(display.parse::<PricingMode>(), Ok(value) if value == variant));
-        }
-    }
-
-    #[test]
-    fn test_pricing_mode_fromstr_rejects_unknown() {
-        for rejected in [
-            "deltabased",
-            "fullrepricing",
-            "DeltaBased",
-            "full-repricing",
-        ] {
-            assert!(rejected.parse::<PricingMode>().is_err());
-        }
     }
 
     // a vol bump of 1.0 vol point must convert to 0.01

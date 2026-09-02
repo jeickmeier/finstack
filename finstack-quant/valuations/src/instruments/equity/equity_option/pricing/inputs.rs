@@ -317,18 +317,17 @@ pub(crate) fn early_exercise_market_params(
             inst.notional.currency(),
         )?
     };
-    Ok((
-        OptionMarketParams {
-            spot,
-            strike: inst.strike,
-            rate: inputs.r,
-            dividend_yield: if dividends.is_empty() { inputs.q } else { 0.0 },
-            volatility: inputs.sigma,
-            time_to_expiry: inputs.t_vol,
-            option_type: inst.option_type,
-        },
-        dividends,
-    ))
+    let params = OptionMarketParams {
+        spot,
+        strike: inst.strike,
+        rate: inputs.r,
+        dividend_yield: if dividends.is_empty() { inputs.q } else { 0.0 },
+        volatility: inputs.sigma,
+        time_to_expiry: inputs.t_vol,
+        option_type: inst.option_type,
+    };
+    params.validate()?;
+    Ok((params, dividends))
 }
 
 /// Adjust spot price for discrete dividends using the present-value method.

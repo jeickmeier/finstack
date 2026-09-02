@@ -469,39 +469,6 @@ impl SabrCalibrator {
         }
     }
 
-    /// Calibrate SABR parameters with automatic negative rate detection and analytical derivatives
-    pub fn calibrate_auto_shift_with_derivatives(
-        &self,
-        forward: f64,
-        strikes: &[f64],
-        market_vols: &[f64],
-        time_to_expiry: f64,
-        beta: f64,
-    ) -> Result<SabrParameters> {
-        // Check if we need shift for negative rates
-        let min_strike = strikes
-            .iter()
-            .min_by(|a, b| a.total_cmp(b))
-            .ok_or_else(|| Error::Validation("Strikes should not be empty".to_string()))?;
-        let min_rate = forward.min(*min_strike);
-
-        if min_rate < 0.0 {
-            // Use shifted SABR (standardized shift) with derivatives
-            let shift = standard_shift(min_rate)?;
-            self.calibrate_shifted_with_derivatives(
-                forward,
-                strikes,
-                market_vols,
-                time_to_expiry,
-                beta,
-                shift,
-            )
-        } else {
-            // Use standard SABR with derivatives
-            self.calibrate_with_derivatives(forward, strikes, market_vols, time_to_expiry, beta)
-        }
-    }
-
     /// Calibrate shifted SABR parameters for negative rate environments
     pub fn calibrate_shifted(
         &self,
@@ -762,58 +729,6 @@ impl SabrCalibrator {
         let rho = solution[2];
 
         SabrParameters::new(alpha, beta, nu, rho)
-    }
-
-    /// Calibrate shifted SABR with analytical derivatives
-    pub fn calibrate_shifted_with_derivatives(
-        &self,
-        forward: f64,
-        strikes: &[f64],
-        market_vols: &[f64],
-        time_to_expiry: f64,
-        beta: f64,
-        shift: f64,
-    ) -> Result<SabrParameters> {
-        if strikes.len() != market_vols.len() {
-            return Err(Error::Validation(format!(
-                "SABR calibration: strikes length ({}) must match market_vols length ({})",
-                strikes.len(),
-                market_vols.len()
-            )));
-        }
-
-        let shifted_forward = forward + shift;
-        let shifted_strikes: Vec<f64> = strikes.iter().map(|&s| s + shift).collect();
-
-        if shifted_forward <= 0.0 || shifted_strikes.iter().any(|&s| s <= 0.0) {
-            let min_shifted_strike = shifted_strikes
-                .iter()
-                .copied()
-                .min_by(|a, b| a.total_cmp(b))
-                .unwrap_or(0.0);
-            return Err(Error::Validation(format!(
-                "Shifted SABR calibration: shift={:.6} is insufficient. \
-                 shifted_forward={:.6}, min_shifted_strike={:.6}. Increase shift.",
-                shift, shifted_forward, min_shifted_strike
-            )));
-        }
-
-        // Calibrate using shifted rates with derivatives
-        let base_params = self.calibrate_with_derivatives(
-            shifted_forward,
-            &shifted_strikes,
-            market_vols,
-            time_to_expiry,
-            beta,
-        )?;
-
-        SabrParameters::new_with_shift(
-            base_params.alpha,
-            beta,
-            base_params.nu,
-            base_params.rho,
-            shift,
-        )
     }
 
     /// Find the ATM volatility (volatility at `strike == forward`) from a

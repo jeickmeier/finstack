@@ -2,7 +2,6 @@
 //!
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::str::FromStr;
 
 /// Unique identifier for a risk factor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -63,33 +62,6 @@ impl fmt::Display for FactorType {
             Self::Commodity => write!(f, "commodity"),
             Self::Inflation => write!(f, "inflation"),
             Self::Custom(name) => write!(f, "custom:{name}"),
-        }
-    }
-}
-
-impl FromStr for FactorType {
-    type Err = finstack_quant_core::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some(name) = s.strip_prefix("custom:") {
-            if name.is_empty() || name != name.trim() {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "FactorType: custom factor label {s:?} has an empty name"
-                )));
-            }
-            return Ok(Self::Custom(name.to_string()));
-        }
-        match s {
-            "rates" => Ok(Self::Rates),
-            "credit" => Ok(Self::Credit),
-            "equity" => Ok(Self::Equity),
-            "fx" => Ok(Self::Fx),
-            "volatility" => Ok(Self::Volatility),
-            "commodity" => Ok(Self::Commodity),
-            "inflation" => Ok(Self::Inflation),
-            _ => Err(finstack_quant_core::Error::Validation(format!(
-                "FactorType: unknown label {s:?}"
-            ))),
         }
     }
 }
@@ -167,56 +139,5 @@ mod tests {
             return;
         };
         assert_eq!(ft, back);
-    }
-
-    #[test]
-    fn test_factor_type_fromstr_display_roundtrip() {
-        for (input, expected) in [
-            ("rates", FactorType::Rates),
-            ("credit", FactorType::Credit),
-            ("equity", FactorType::Equity),
-            ("fx", FactorType::Fx),
-            ("volatility", FactorType::Volatility),
-            ("commodity", FactorType::Commodity),
-            ("inflation", FactorType::Inflation),
-            ("custom:Weather", FactorType::Custom("Weather".into())),
-        ] {
-            assert!(matches!(input.parse::<FactorType>(), Ok(value) if value == expected));
-        }
-
-        // Display -> FromStr roundtrip for non-Custom variants
-        for variant in [
-            FactorType::Rates,
-            FactorType::Credit,
-            FactorType::Equity,
-            FactorType::Fx,
-            FactorType::Volatility,
-            FactorType::Commodity,
-            FactorType::Inflation,
-        ] {
-            let display = variant.to_string();
-            assert!(matches!(display.parse::<FactorType>(), Ok(value) if value == variant));
-        }
-
-        // Custom roundtrip
-        let custom = FactorType::Custom("Weather".into());
-        let display = custom.to_string();
-        assert_eq!(display, "custom:Weather");
-        assert!(matches!(display.parse::<FactorType>(), Ok(value) if value == custom));
-    }
-
-    #[test]
-    fn test_factor_type_fromstr_rejects_unknown() {
-        for rejected in [
-            "rate",
-            "ir",
-            "vol",
-            "Rates",
-            "custom_Weather",
-            "custom: Weather",
-            "custom:",
-        ] {
-            assert!(rejected.parse::<FactorType>().is_err());
-        }
     }
 }

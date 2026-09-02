@@ -541,43 +541,22 @@ fn validate_decomposition_inputs(
         )));
     }
 
-    // Check finite entries.
-    if covariance.iter().any(|v| !v.is_finite()) {
-        return Err(finstack_quant_core::Error::Validation(
-            "covariance matrix entries must be finite".to_string(),
-        ));
-    }
-
     if weights.iter().any(|v| !v.is_finite()) {
         return Err(finstack_quant_core::Error::Validation(
             "weight entries must be finite".to_string(),
         ));
     }
 
-    // Check symmetry.
-    for i in 0..n {
-        for j in (i + 1)..n {
-            if (covariance[i * n + j] - covariance[j * n + i]).abs() > VARIANCE_TOLERANCE {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "covariance matrix is not symmetric at ({i}, {j})"
-                )));
-            }
-        }
-    }
-
-    // Positive semi-definiteness via the rank-tolerant Cholesky shared with
-    // the factor-level engines (`ParametricDecomposer` / `SimulationDecomposer`).
-    // A strict positive-definite factorization would reject rank-deficient
-    // PSD covariance — perfectly collinear positions, factor structure
-    // `B Σ_f Bᵀ + D` with singular `Σ_f`, or sample covariance with fewer
-    // observations than positions — all of which are valid risk inputs:
-    // Euler allocation only requires `σ_p = √(wᵀΣw) ≥ 0`.
+    // Finiteness, symmetry and positive semi-definiteness via the
+    // rank-tolerant Cholesky shared with the factor-level engine
+    // (`ParametricDecomposer`). A strict positive-definite factorization
+    // would reject rank-deficient PSD covariance — perfectly collinear
+    // positions, factor structure `B Σ_f Bᵀ + D` with singular `Σ_f`, or
+    // sample covariance with fewer observations than positions — all of
+    // which are valid risk inputs: Euler allocation only requires
+    // `σ_p = √(wᵀΣw) ≥ 0`.
     if n > 0 {
-        super::simulation::cholesky(covariance, n).map_err(|e| {
-            finstack_quant_core::Error::Validation(format!(
-                "covariance matrix is not positive semi-definite: {e}"
-            ))
-        })?;
+        super::math::cholesky(covariance, n)?;
     }
 
     Ok(())

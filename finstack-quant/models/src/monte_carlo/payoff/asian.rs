@@ -404,7 +404,7 @@ pub fn geometric_asian_call_closed_form(
     volatility: f64,
     num_fixings: usize,
 ) -> f64 {
-    crate::closed_form::volatility::geometric_asian_call(
+    crate::closed_form::geometric_asian_call(
         spot,
         strike,
         time_to_maturity,

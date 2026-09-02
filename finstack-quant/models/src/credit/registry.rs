@@ -2,14 +2,10 @@
 
 use crate::credit::lgd::seniority::{BetaRecovery, SeniorityCalibration, SeniorityClass};
 use crate::credit::pd::MasterScaleGrade;
-use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::{Error, HashMap, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
-
-/// Configuration extension key for replacing the embedded credit assumptions registry.
-pub const CREDIT_ASSUMPTIONS_EXTENSION_KEY: &str = "models.credit_assumptions.v1";
 
 const CREDIT_ASSUMPTIONS: &str = include_str!("../../data/credit/credit_assumptions.v1.json");
 
@@ -288,39 +284,6 @@ pub fn embedded_registry() -> Result<&'static CreditAssumptionRegistry> {
     }
 }
 
-/// Load a credit-assumptions registry from configuration or the embedded fallback.
-///
-/// A value under [`CREDIT_ASSUMPTIONS_EXTENSION_KEY`] replaces every embedded
-/// default after strict registry validation. Without that extension, this
-/// returns a clone of the cached embedded registry, so callers can own their
-/// selected assumptions without mutating global state.
-///
-/// # Errors
-///
-/// Returns [`Error::Validation`] if a configured extension exists but is
-/// malformed or violates schema, ID, default-reference, probability, or
-/// recovery/calibration invariants. Invalid configured data does not silently
-/// fall back to the embedded registry, because that would conceal a material
-/// credit-model configuration error.
-///
-/// # Arguments
-///
-/// * `config` - Library configuration that may contain a validated credit
-///   assumption-registry extension; otherwise the embedded registry is cloned.
-pub fn registry_from_config(config: &FinstackConfig) -> Result<CreditAssumptionRegistry> {
-    if let Some(value) = config.extensions.get(CREDIT_ASSUMPTIONS_EXTENSION_KEY) {
-        let registry: CreditAssumptionRegistry =
-            serde_json::from_value(value.clone()).map_err(|err| {
-                Error::Validation(format!(
-                    "failed to parse credit assumptions extension: {err}"
-                ))
-            })?;
-        validate_registry(registry)
-    } else {
-        Ok(embedded_registry()?.clone())
-    }
-}
-
 fn parse_embedded_registry() -> Result<CreditAssumptionRegistry> {
     let registry: CreditAssumptionRegistry =
         serde_json::from_str(CREDIT_ASSUMPTIONS).map_err(|err| {
@@ -476,25 +439,6 @@ mod tests {
             .find(|(class, _)| *class == SeniorityClass::SeniorSecured)
             .expect("senior secured class should exist");
         assert!((senior_secured.1.mean() - 0.53).abs() < 1e-12);
-    }
-
-    #[test]
-    fn config_extension_loads_registry_schema() {
-        let embedded = embedded_registry()
-            .expect("embedded registry should load")
-            .clone();
-        let value = serde_json::to_value(&embedded).expect("registry should serialize");
-        let mut config = FinstackConfig::default();
-        config
-            .extensions
-            .insert(CREDIT_ASSUMPTIONS_EXTENSION_KEY, value)
-            .expect("valid extension key");
-
-        let loaded = registry_from_config(&config).expect("config registry should load");
-        assert_eq!(
-            loaded.default_rating_factor_table_id(),
-            embedded.default_rating_factor_table_id()
-        );
     }
 
     #[test]

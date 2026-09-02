@@ -7,23 +7,21 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use super::position::PositionRiskDecomposition;
-
 /// Default maximum acceptable utilization before a budget breach is flagged.
 ///
 /// 1.20 means a position may use up to 120% of its budgeted component VaR
 /// before [`RiskBudgetResult::has_breach`] is raised. This is the single
-/// source of truth for the default consumed by [`RiskBudget::new`],
-/// [`RiskBudget::default`], and both language bindings.
+/// source of truth for the default consumed by both language bindings.
 pub const DEFAULT_UTILIZATION_THRESHOLD: f64 = 1.20;
 
 /// Target risk allocation for a portfolio.
 ///
 /// A risk budget assigns a target share of total portfolio VaR to each
 /// position. The budgeting engine compares actual component VaR against
-/// targets and computes utilization ratios.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RiskBudget {
+/// targets and computes utilization ratios. Hosts reach it through
+/// [`evaluate_risk_budget_arrays`].
+#[derive(Debug, Clone)]
+pub(crate) struct RiskBudget {
     /// Per-position target allocations.
     ///
     /// Keys are position IDs; values are target fractions of portfolio VaR
@@ -34,15 +32,6 @@ pub struct RiskBudget {
     ///
     /// Default: 1.20 (120% of budget).
     pub utilization_threshold: f64,
-}
-
-impl Default for RiskBudget {
-    fn default() -> Self {
-        Self {
-            targets: IndexMap::new(),
-            utilization_threshold: DEFAULT_UTILIZATION_THRESHOLD,
-        }
-    }
 }
 
 /// Result of comparing actual risk decomposition against a risk budget.
@@ -96,58 +85,8 @@ pub struct PositionBudgetEntry {
 }
 
 impl RiskBudget {
-    /// Create a new risk budget from target allocations.
-    ///
-    /// # Arguments
-    ///
-    /// * `targets` - Per-position target fractions of portfolio VaR.
-    pub fn new(targets: IndexMap<String, f64>) -> Self {
-        Self {
-            targets,
-            utilization_threshold: DEFAULT_UTILIZATION_THRESHOLD,
-        }
-    }
-
-    /// Set a custom utilization threshold.
-    #[must_use]
-    pub fn with_threshold(mut self, threshold: f64) -> Self {
-        self.utilization_threshold = threshold;
-        self
-    }
-
-    /// Compare a decomposition result against this budget.
-    ///
-    /// # Arguments
-    ///
-    /// * `decomposition` - Actual position-level VaR decomposition.
-    ///
-    /// # Returns
-    ///
-    /// Per-position budget utilization report.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the budget targets do not sum close to 1.0 or
-    /// if the decomposition has zero portfolio VaR when targets are
-    /// non-empty.
-    pub fn evaluate(
-        &self,
-        decomposition: &PositionRiskDecomposition,
-    ) -> finstack_quant_core::Result<RiskBudgetResult> {
-        self.evaluate_components(
-            decomposition
-                .var_contributions
-                .iter()
-                .map(|c| (&c.position_id, c.component_var)),
-            decomposition.portfolio_var,
-        )
-    }
-
     /// Compare raw per-position component VaRs against this budget.
     ///
-    /// This is the narrow API used by binding layers that do not need to
-    /// materialise a full [`PositionRiskDecomposition`]. [`evaluate`] is
-    /// a thin wrapper over this method.
     ///
     /// # Arguments
     ///
@@ -158,9 +97,7 @@ impl RiskBudget {
     /// # Errors
     ///
     /// Returns an error if the budget targets do not sum close to 1.0.
-    ///
-    /// [`evaluate`]: Self::evaluate
-    pub fn evaluate_components<'a, I>(
+    pub(crate) fn evaluate_components<'a, I>(
         &self,
         components: I,
         portfolio_var: f64,
@@ -335,7 +272,10 @@ pub fn evaluate_risk_budget_arrays(
             )));
         }
     }
-    let budget = RiskBudget::new(targets).with_threshold(utilization_threshold);
+    let budget = RiskBudget {
+        targets,
+        utilization_threshold,
+    };
     budget.evaluate_components(
         shared_ids.iter().zip(actual_var.iter().copied()),
         portfolio_var,
@@ -351,6 +291,26 @@ mod tests {
     use super::*;
 
     type TestResult = finstack_quant_core::Result<()>;
+
+    fn budget(targets: IndexMap<String, f64>, utilization_threshold: f64) -> RiskBudget {
+        RiskBudget {
+            targets,
+            utilization_threshold,
+        }
+    }
+
+    fn evaluate(
+        budget: &RiskBudget,
+        decomposition: &PositionRiskDecomposition,
+    ) -> finstack_quant_core::Result<RiskBudgetResult> {
+        budget.evaluate_components(
+            decomposition
+                .var_contributions
+                .iter()
+                .map(|c| (&c.position_id, c.component_var)),
+            decomposition.portfolio_var,
+        )
+    }
 
     fn sample_decomposition() -> PositionRiskDecomposition {
         // Manually construct a decomposition for budget tests.
@@ -397,8 +357,8 @@ mod tests {
         targets.insert(String::from("B"), 0.34);
         targets.insert(String::from("C"), 0.33);
 
-        let budget = RiskBudget::new(targets);
-        let result = budget.evaluate(&decomp)?;
+        let budget = budget(targets, DEFAULT_UTILIZATION_THRESHOLD);
+        let result = evaluate(&budget, &decomp)?;
 
         // Position A: actual 40/100 = 40%, target 33% => over-budget.
         let a_entry = result
@@ -448,8 +408,8 @@ mod tests {
         targets.insert(String::from("B"), 0.40);
         targets.insert(String::from("C"), 0.40);
 
-        let budget = RiskBudget::new(targets).with_threshold(1.50);
-        let result = budget.evaluate(&decomp)?;
+        let budget = budget(targets, 1.50);
+        let result = evaluate(&budget, &decomp)?;
 
         assert!(result.has_breach, "should detect breach for position A");
         assert!(result.total_overbudget > 0.0);
@@ -463,7 +423,7 @@ mod tests {
         targets.insert(String::from("A"), 0.20);
         targets.insert(String::from("B"), 0.80);
 
-        let budget = RiskBudget::new(targets).with_threshold(1.50);
+        let budget = budget(targets, 1.50);
         let components = [(&String::from("A"), -40.0), (&String::from("B"), -60.0)];
         let result = budget.evaluate_components(components, -100.0)?;
 
@@ -486,7 +446,7 @@ mod tests {
         let mut targets = IndexMap::new();
         targets.insert(String::from("A"), 1.0);
 
-        let budget = RiskBudget::new(targets);
+        let budget = budget(targets, DEFAULT_UTILIZATION_THRESHOLD);
         let components = [
             (&String::from("A"), 80.0),
             (&String::from("UNBUDGETED"), 20.0),
@@ -542,8 +502,8 @@ mod tests {
         let mut targets = IndexMap::new();
         targets.insert(String::from("A"), 0.9);
         targets.insert(String::from("B"), 0.1);
-        let budget = RiskBudget::new(targets);
-        let result = budget.evaluate(&decomp)?;
+        let budget = budget(targets, DEFAULT_UTILIZATION_THRESHOLD);
+        let result = evaluate(&budget, &decomp)?;
 
         let a_entry = result
             .positions
@@ -608,8 +568,8 @@ mod tests {
         targets.insert(String::from("B"), 0.5);
         targets.insert(String::from("C"), 0.5);
 
-        let budget = RiskBudget::new(targets);
-        let result = budget.evaluate(&decomp);
+        let budget = budget(targets, DEFAULT_UTILIZATION_THRESHOLD);
+        let result = evaluate(&budget, &decomp);
         assert!(result.is_err());
     }
 
@@ -698,8 +658,8 @@ mod tests {
         targets.insert(String::from("B"), 0.34);
         targets.insert(String::from("C"), 0.33);
 
-        let budget = RiskBudget::new(targets);
-        let result = budget.evaluate(&decomp)?;
+        let budget = budget(targets, DEFAULT_UTILIZATION_THRESHOLD);
+        let result = evaluate(&budget, &decomp)?;
 
         assert_eq!(result.positions.len(), 3);
 

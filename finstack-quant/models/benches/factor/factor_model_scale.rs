@@ -17,14 +17,13 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 use finstack_quant_core::types::Attributes;
 use finstack_quant_models::factor::credit::calibration::{CovarianceStrategy, CreditCalibrator};
 use finstack_quant_models::factor::credit::decomposition::decompose_levels;
-use finstack_quant_models::factor::credit::histories::historical_factor_pnl;
 use finstack_quant_models::factor::matching::{
     CreditHierarchicalMatcher, FactorMatcher, MappingTableMatcher,
 };
 use finstack_quant_models::factor::{CurveType, FactorCovarianceMatrix, MarketDependency};
 use fixtures::{
     credit_dependency, credit_hierarchical_config, factor_ids, known_issuer_attrs, mapping_rules,
-    psd_matrix, unit_sensitivities, zero_sensitivity_matrix, CreditBook,
+    psd_matrix, zero_sensitivity_matrix, CreditBook,
 };
 
 fn scaling_covariance_construction(c: &mut Criterion) {
@@ -199,23 +198,6 @@ fn scaling_sensitivity_matrix(c: &mut Criterion) {
     group.finish();
 }
 
-fn scaling_historical_factor_pnl(c: &mut Criterion) {
-    let mut group = c.benchmark_group("scaling_historical_factor_pnl");
-    for n_months in [36_usize, 120] {
-        let book = CreditBook::new(50, n_months, 2).with_strategy(CovarianceStrategy::Diagonal);
-        let model = book.calibrate();
-        let histories = model.factor_histories.as_ref().unwrap().clone();
-        let (factor_ids, sensitivities) = unit_sensitivities(&model);
-        group.throughput(Throughput::Elements(n_months as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(n_months), &n_months, |b, _| {
-            b.iter(|| {
-                black_box(historical_factor_pnl(&histories, &factor_ids, &sensitivities).unwrap())
-            })
-        });
-    }
-    group.finish();
-}
-
 fn scaling_covariance_batch_lookups(c: &mut Criterion) {
     let mut group = c.benchmark_group("scaling_covariance_batch_lookups");
     for n in [20_usize, 50, 100] {
@@ -245,7 +227,6 @@ criterion_group!(
     scaling_calibration,
     scaling_decompose_levels,
     scaling_sensitivity_matrix,
-    scaling_historical_factor_pnl,
     scaling_covariance_batch_lookups,
 );
 criterion_main!(benches);

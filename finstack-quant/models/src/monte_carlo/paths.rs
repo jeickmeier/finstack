@@ -314,25 +314,6 @@ impl SimulatedPath {
     pub fn extract_cashflow_amounts(&self) -> Vec<f64> {
         self.extract_cf(|&(_, a, _)| a)
     }
-
-    /// Extract typed cashflows from the path.
-    ///
-    /// Returns all (time, amount, type) tuples across all timesteps.
-    pub fn extract_typed_cashflows(&self) -> Vec<(f64, f64, CashflowType)> {
-        self.extract_cf(|cf| *cf)
-    }
-
-    /// Extract cashflows by type.
-    ///
-    /// Returns all (time, amount) pairs for cashflows of the specified type.
-    pub fn extract_cashflows_by_type(&self, cf_type: CashflowType) -> Vec<(f64, f64)> {
-        self.points
-            .iter()
-            .flat_map(|p| p.cashflows.iter())
-            .filter(|(_, _, t)| *t == cf_type)
-            .map(|&(t, a, _)| (t, a))
-            .collect()
-    }
 }
 
 /// Records how a captured dataset was selected from the full simulation.

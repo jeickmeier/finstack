@@ -42,8 +42,8 @@ dependency, and sensitivity types. The public submodules are `matching`,
 | Persistence | `FactorModelConfigEnvelope`, `FactorModelConfigSchema`, `FACTOR_MODEL_CONFIG_CONTRACT` |
 | Matching (`matching`) | `MatchingConfig`, `MappingRule`, `DependencyFilter`, `AttributeFilter`, `FactorMatcher`, `CascadeMatcher`, `HierarchicalMatcher`, `MappingTableMatcher`, `CreditHierarchicalMatcher`, `HierarchicalConfig`, `CreditHierarchicalConfig`, `FactorMatchEntry`, `FactorMatchError`, `FactorNode`, `bucket_factor_id`, `dimension_key`, `CREDIT_GENERIC_FACTOR_ID`, `ISSUER_ID_META_KEY` |
 | Sensitivity | `SensitivityMatrix` |
-| Credit (`credit`) | `credit::hierarchy`, `credit::calibration`, `credit::decomposition`, `credit::histories` |
-| Schemas (`schema`) | `ARTIFACTS`, `FACTOR_MODEL_SCHEMA_BASE`, and the per-artifact filename/title/description constants |
+| Credit (`credit`) | `credit::hierarchy`, `credit::calibration`, `credit::decomposition` |
+| Schemas (`schema`) | `ARTIFACTS` and the four checked-in `*_schema()` accessors |
 
 ```rust
 use finstack_quant_models::factor::{FactorDefinition, FactorId, FactorType, MarketMapping};
@@ -173,10 +173,8 @@ a complete regular grid of that frequency with no `None` issuer observations.
 identity-correlation default silently drops cross-factor correlation and
 understates the vol of a correlated long book.
 
-Embedded `factor_histories` are dense bp series (no `None → 0.0`). Use
-`credit::histories::covariance_from_histories` to rebuild `Σ` and
-`historical_factor_pnl` for hist-sim factor P&L `s · F_t`. Parametric
-`sᵀΣs` remains the default portfolio risk engine.
+Embedded `factor_histories` are dense bp series (no `None → 0.0`) kept as
+calibration provenance. Parametric `sᵀΣs` is the portfolio risk engine.
 
 ### Determinism
 

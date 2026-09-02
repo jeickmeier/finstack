@@ -13,7 +13,7 @@ use finstack_quant_core::Result;
 use super::invalid_input;
 use serde::{Deserialize, Serialize};
 
-use super::impact::{ExecutionTrajectory, ImpactEstimate, MarketImpactModel, TradeParams};
+use super::impact::{ExecutionTrajectory, ImpactEstimate, TradeParams};
 
 /// Kyle (1985) price impact model.
 ///
@@ -112,8 +112,21 @@ impl KyleLambdaModel {
     }
 }
 
-impl MarketImpactModel for KyleLambdaModel {
-    fn estimate_cost(&self, params: &TradeParams) -> Result<ImpactEstimate> {
+impl KyleLambdaModel {
+    /// Estimate the total execution cost of a trade.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Trade parameters including size, urgency, and market data.
+    ///
+    /// # Returns
+    ///
+    /// Estimated total cost in the instrument's native currency.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error for non-finite or non-positive trade inputs.
+    pub fn estimate_cost(&self, params: &TradeParams) -> Result<ImpactEstimate> {
         if !params.quantity.is_finite() {
             return Err(invalid_input("quantity must be finite"));
         }
@@ -165,7 +178,24 @@ impl MarketImpactModel for KyleLambdaModel {
         })
     }
 
-    fn optimal_trajectory(
+    /// Compute the optimal execution trajectory.
+    ///
+    /// Returns the number of shares to trade in each time bucket to
+    /// minimize expected cost + risk aversion * variance.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Trade parameters.
+    /// * `num_buckets` - Number of time intervals to divide execution into.
+    ///
+    /// # Returns
+    ///
+    /// Optimal trajectory as quantities per bucket.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error for invalid trade inputs or a zero bucket count.
+    pub fn optimal_trajectory(
         &self,
         params: &TradeParams,
         num_buckets: usize,
@@ -235,7 +265,9 @@ impl MarketImpactModel for KyleLambdaModel {
         })
     }
 
-    fn model_name(&self) -> &str {
+    /// Human-readable model name for reporting.
+    #[must_use]
+    pub fn model_name(&self) -> &'static str {
         "Kyle-Lambda"
     }
 }

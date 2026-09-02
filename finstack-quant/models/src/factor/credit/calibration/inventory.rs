@@ -75,28 +75,19 @@ pub(super) fn build_bucket_inventory(
                     .insert(v.clone());
             }
         }
-        let mut paths = Vec::with_capacity(num_levels);
-        let mut path_buf = String::new();
-        for k in 0..num_levels {
-            if !hierarchy.write_bucket_path(&issuer_tags, k, &mut path_buf) {
-                let missing = hierarchy.levels[..=k]
-                    .iter()
-                    .find(|d| !issuer_tags.0.contains_key(dimension_key(d)))
-                    .map_or_else(|| format!("level_{k}"), |d| dimension_key(d).to_owned());
-                return Err(validation_err(format!(
-                    "CreditCalibrator: issuer {:?} is missing tag for dimension {:?}",
-                    issuer.as_str(),
-                    missing
-                )));
-            }
-            *bucket_sizes_per_level[k]
-                .entry(path_buf.clone())
-                .or_insert(0) += 1;
+        let paths = hierarchy.bucket_paths(&issuer_tags).map_err(|missing| {
+            validation_err(format!(
+                "CreditCalibrator: issuer {:?} is missing tag for dimension {:?}",
+                issuer.as_str(),
+                missing
+            ))
+        })?;
+        for (k, path) in paths.iter().enumerate() {
+            *bucket_sizes_per_level[k].entry(path.clone()).or_insert(0) += 1;
             bucket_members[k]
-                .entry(path_buf.clone())
+                .entry(path.clone())
                 .or_default()
                 .insert(issuer.clone());
-            paths.push(path_buf.clone());
         }
         bucket_paths.insert(issuer.clone(), paths);
     }

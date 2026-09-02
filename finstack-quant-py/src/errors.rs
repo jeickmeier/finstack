@@ -196,15 +196,9 @@ pub fn core_to_py(e: finstack_quant_core::Error) -> PyErr {
 
 /// Convert a `PdCalibrationError` into a Python exception.
 ///
-/// Mirrors [`core_to_py`]: unknown-rating lookups raise `KeyError`, all other
-/// (validation) failures raise `ValueError`.
+/// Every variant is a validation failure, so all map to `ValueError`.
 pub fn pd_calibration_to_py(e: finstack_quant_models::credit::pd::PdCalibrationError) -> PyErr {
-    use finstack_quant_models::credit::pd::PdCalibrationError as E;
-    let message = format_chain(&e);
-    match &e {
-        E::UnknownRating { .. } => PyKeyError::new_err(message),
-        _ => PyValueError::new_err(message),
-    }
+    PyValueError::new_err(format_chain(&e))
 }
 
 /// Convert a `MigrationError` into a Python exception.

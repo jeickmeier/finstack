@@ -1855,7 +1855,7 @@
       ]
     },
     "UnmatchedPolicy": {
-      "description": "Policy for handling dependencies that do not match any factor.\n\nSerializes in `snake_case`, matching the crate-wide wire convention and\nthis type's own `Display`/`FromStr` representation.",
+      "description": "Policy for handling dependencies that do not match any factor.\n\nSerializes in `snake_case`, matching the crate-wide wire convention and\nthis type's own `Display` representation.",
       "oneOf": [
         {
           "const": "strict",

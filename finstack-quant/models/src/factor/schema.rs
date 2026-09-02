@@ -4,40 +4,6 @@ use std::sync::OnceLock;
 
 use serde_json::Value;
 
-/// Stable base URI for factor-model-owned schemas.
-///
-/// This retains the published underscore URI used by the original credit
-/// factor-model schemas even though the Rust crate name is hyphenated.
-pub const FACTOR_MODEL_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/factor_model/1/";
-/// Filename of the published factor-model configuration schema.
-pub const FACTOR_MODEL_SCHEMA_FILENAME: &str = "factor_model_config.schema.json";
-/// Canonical title of the factor-model configuration schema.
-pub const FACTOR_MODEL_SCHEMA_TITLE: &str = "Finstack Quant Factor Model Configuration";
-/// Canonical description of the factor-model configuration schema.
-pub const FACTOR_MODEL_SCHEMA_DESCRIPTION: &str =
-    "Versioned factor-model configuration with typed factors, covariance, matching, pricing, and risk settings.";
-/// Filename of the published credit factor-model artifact schema.
-pub const CREDIT_FACTOR_MODEL_SCHEMA_FILENAME: &str = "credit_factor_model.schema.json";
-/// Canonical title of the credit factor-model artifact schema.
-pub const CREDIT_FACTOR_MODEL_SCHEMA_TITLE: &str = "CreditFactorModel";
-/// Canonical description of the credit factor-model artifact schema.
-pub const CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION: &str =
-    "Fully self-contained credit factor hierarchy model artifact.";
-/// Filename of the published credit calibration configuration schema.
-pub const CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME: &str = "credit_calibration_config.schema.json";
-/// Canonical title of the credit calibration configuration schema.
-pub const CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE: &str = "CreditCalibrationConfig";
-/// Canonical description of the credit calibration configuration schema.
-pub const CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION: &str =
-    "Configuration for the deterministic credit factor-model calibrator.";
-/// Filename of the published credit calibration input schema.
-pub const CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME: &str = "credit_calibration_inputs.schema.json";
-/// Canonical title of the credit calibration input schema.
-pub const CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE: &str = "CreditCalibrationInputs";
-/// Canonical description of the credit calibration input schema.
-pub const CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION: &str =
-    "Typed issuer histories, tags, generic factor series, anchor date, and overrides for one credit calibration run.";
-
 fn parse_schema(
     cache: &'static OnceLock<std::result::Result<Value, String>>,
     raw: &'static str,
@@ -63,7 +29,7 @@ pub fn factor_model_config_schema() -> finstack_quant_core::Result<&'static Valu
     parse_schema(
         &SCHEMA,
         include_str!("../../schemas/factor_model/1/factor_model_config.schema.json"),
-        FACTOR_MODEL_SCHEMA_FILENAME,
+        "factor_model_config.schema.json",
     )
 }
 
@@ -79,7 +45,7 @@ pub fn credit_factor_model_schema() -> finstack_quant_core::Result<&'static Valu
     parse_schema(
         &SCHEMA,
         include_str!("../../schemas/factor_model/1/credit_factor_model.schema.json"),
-        CREDIT_FACTOR_MODEL_SCHEMA_FILENAME,
+        "credit_factor_model.schema.json",
     )
 }
 
@@ -95,7 +61,7 @@ pub fn credit_calibration_config_schema() -> finstack_quant_core::Result<&'stati
     parse_schema(
         &SCHEMA,
         include_str!("../../schemas/factor_model/1/credit_calibration_config.schema.json"),
-        CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME,
+        "credit_calibration_config.schema.json",
     )
 }
 
@@ -111,7 +77,7 @@ pub fn credit_calibration_inputs_schema() -> finstack_quant_core::Result<&'stati
     parse_schema(
         &SCHEMA,
         include_str!("../../schemas/factor_model/1/credit_calibration_inputs.schema.json"),
-        CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME,
+        "credit_calibration_inputs.schema.json",
     )
 }
 
@@ -320,8 +286,8 @@ pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
     >(
         "schemas/factor_model/1/credit_calibration_config.schema.json",
         "https://finstack_quant.dev/schemas/factor_model/1/credit_calibration_config.schema.json",
-        CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE,
-        CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION,
+        "CreditCalibrationConfig",
+        "Configuration for the deterministic credit factor-model calibrator.",
     )
     .with_summary("Estimator choice and bounds for credit factor calibration.")
     .with_examples(credit_calibration_config_examples),
@@ -330,8 +296,8 @@ pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
     >(
         "schemas/factor_model/1/credit_calibration_inputs.schema.json",
         "https://finstack_quant.dev/schemas/factor_model/1/credit_calibration_inputs.schema.json",
-        CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE,
-        CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION,
+        "CreditCalibrationInputs",
+        "Typed issuer histories, tags, generic factor series, anchor date, and overrides for one credit calibration run.",
     )
     .with_summary("Observed spread panel feeding credit factor calibration.")
     .with_examples(credit_calibration_inputs_examples),
@@ -340,8 +306,8 @@ pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
     >(
         "schemas/factor_model/1/credit_factor_model.schema.json",
         "https://finstack_quant.dev/schemas/factor_model/1/credit_factor_model.schema.json",
-        CREDIT_FACTOR_MODEL_SCHEMA_TITLE,
-        CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION,
+        "CreditFactorModel",
+        "Fully self-contained credit factor hierarchy model artifact.",
     )
     .with_kind(finstack_quant_core::schema::SchemaKind::Input)
     .with_summary("Calibrated credit factor hierarchy, loadable as pricing input.")
@@ -349,8 +315,8 @@ pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
     finstack_quant_core::schema::SchemaArtifact::new::<crate::factor::FactorModelConfigEnvelope>(
         "schemas/factor_model/1/factor_model_config.schema.json",
         "https://finstack_quant.dev/schemas/factor_model/1/factor_model_config.schema.json",
-        FACTOR_MODEL_SCHEMA_TITLE,
-        FACTOR_MODEL_SCHEMA_DESCRIPTION,
+        "Finstack Quant Factor Model Configuration",
+        "Versioned factor-model configuration with typed factors, covariance, matching, pricing, and risk settings.",
     )
     .with_kind(finstack_quant_core::schema::SchemaKind::Input)
     .with_summary("Factor definitions, matchers and covariance settings.")

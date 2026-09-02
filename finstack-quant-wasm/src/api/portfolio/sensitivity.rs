@@ -239,13 +239,9 @@ pub fn decompose_factor_risk(
     };
 
     let decomposer = finstack_quant_models::factor::risk::ParametricDecomposer;
-    let result = finstack_quant_models::factor::risk::RiskDecomposer::decompose(
-        &decomposer,
-        &matrix,
-        &covariance,
-        &measure,
-    )
-    .map_err(to_js_err)?;
+    let result = decomposer
+        .decompose(&matrix, &covariance, &measure)
+        .map_err(to_js_err)?;
 
     let output = serde_json::json!({
         "total_risk": result.total_risk,

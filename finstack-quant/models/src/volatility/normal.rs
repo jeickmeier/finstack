@@ -20,7 +20,7 @@
 //! - Caps/floors in negative rate environments
 //! - Interest rate options generally
 
-use finstack_quant_core::math::{norm_cdf, norm_pdf};
+use crate::closed_form::volatility::{bachelier_call, bachelier_put};
 
 /// Calculate d parameter for Bachelier model
 ///
@@ -77,30 +77,11 @@ pub fn bachelier_price(
     t: f64,
     annuity: f64,
 ) -> f64 {
-    if t <= 0.0 {
-        return match option_type {
-            crate::types::OptionType::Call => (forward - strike).max(0.0) * annuity,
-            crate::types::OptionType::Put => (strike - forward).max(0.0) * annuity,
-        };
-    }
-
-    let d = d_bachelier(forward, strike, sigma, t);
-    let disc_vol = sigma * t.sqrt();
-
-    let term1 = (forward - strike) * norm_cdf(d);
-    let term2 = disc_vol * norm_pdf(d);
-
-    match option_type {
-        crate::types::OptionType::Call => annuity * (term1 + term2),
-        crate::types::OptionType::Put => {
-            // Put-Call Parity or direct formula:
-            // Put = Call - (F - K) * A
-            //     = A * [(F-K)N(d) + v*n(d) - (F-K)]
-            //     = A * [(F-K)(N(d)-1) + v*n(d)]
-            //     = A * [(K-F)N(-d) + v*n(d)]
-            // Since n(d) == n(-d)
-            let term1_put = (strike - forward) * norm_cdf(-d);
-            annuity * (term1_put + term2)
-        }
-    }
+    // Degenerate inputs (`t <= 0` or `sigma <= 0`) collapse to intrinsic value
+    // inside the unit-annuity kernels.
+    let unit_price = match option_type {
+        crate::types::OptionType::Call => bachelier_call(forward, strike, sigma, t),
+        crate::types::OptionType::Put => bachelier_put(forward, strike, sigma, t),
+    };
+    annuity * unit_price
 }

@@ -68,7 +68,7 @@ pub use estimators::{amihud_illiquidity, roll_effective_spread};
 pub use lvar::{lvar_bangia_scalar, LvarBangiaScalar};
 
 pub use almgren_chriss::AlmgrenChrissModel;
-pub use impact::{ExecutionTrajectory, ImpactEstimate, MarketImpactModel, TradeParams};
+pub use impact::{ExecutionTrajectory, ImpactEstimate, TradeParams};
 pub use kyle::KyleLambdaModel;
 
 /// Build and evaluate a uniform Almgren-Chriss market-impact estimate.

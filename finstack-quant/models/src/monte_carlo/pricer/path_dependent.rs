@@ -117,20 +117,6 @@ impl PathDependentPricerConfig {
         self
     }
 
-    /// Set chunk size.
-    #[must_use]
-    pub fn with_chunk_size(mut self, size: usize) -> Self {
-        self.chunk_size = size;
-        self
-    }
-
-    /// Set path capture configuration.
-    #[must_use]
-    pub fn with_path_capture(mut self, config: PathCaptureConfig) -> Self {
-        self.path_capture = config;
-        self
-    }
-
     /// Enable path capture for all paths.
     #[must_use]
     pub fn capture_all_paths(mut self) -> Self {
@@ -142,20 +128,6 @@ impl PathDependentPricerConfig {
     #[must_use]
     pub fn capture_sample_paths(mut self, count: usize, seed: u64) -> Self {
         self.path_capture = PathCaptureConfig::sample(count, seed);
-        self
-    }
-
-    /// Set steps per year for time discretization.
-    #[must_use]
-    pub fn with_steps_per_year(mut self, steps: f64) -> Self {
-        self.steps_per_year = steps;
-        self
-    }
-
-    /// Set minimum number of steps.
-    #[must_use]
-    pub fn with_min_steps(mut self, min_steps: usize) -> Self {
-        self.min_steps = min_steps;
         self
     }
 

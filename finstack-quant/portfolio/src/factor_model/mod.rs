@@ -11,12 +11,10 @@
 //!    a weighted sensitivity matrix.
 //! 4. Use [`crate::factor_model::FactorModel::analyze`] to decompose portfolio risk.
 //!
-//! The module exposes both closed-form covariance-based decomposition
-//! ([`finstack_quant_models::factor::risk::ParametricDecomposer`]) and simulation-based
-//! tail-risk decomposition
-//! ([`finstack_quant_models::factor::risk::SimulationDecomposer`]). All engines assume the upstream sensitivity
-//! engine has already scaled rows by position quantity, so downstream
-//! decomposition works on portfolio exposures directly.
+//! Risk is decomposed with the closed-form covariance-based
+//! [`finstack_quant_models::factor::risk::ParametricDecomposer`], which assumes
+//! the upstream sensitivity engine has already scaled rows by position
+//! quantity, so decomposition works on portfolio exposures directly.
 //!
 //! # Conventions
 //!

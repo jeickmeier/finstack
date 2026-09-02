@@ -63,15 +63,12 @@ mod peel_fit;
 mod statistics;
 mod validation;
 
-pub(crate) use assemble::assemble_factor_model_config;
 pub use calibrator::CreditCalibrator;
 pub use config::{
     BetaShrinkage, BucketSizeThresholds, BucketWeighting, CovarianceStrategy,
     CreditCalibrationConfig, PanelFrequency, PanelSpace, VolModelChoice,
 };
 pub use inputs::{CreditCalibrationInputs, GenericFactorSeries, HistoryPanel, IssuerTagPanel};
-pub(crate) use panel::diff_sparse;
-pub(crate) use statistics::factor_variances;
 
 #[cfg(test)]
 mod tests;

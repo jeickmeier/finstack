@@ -332,10 +332,3 @@ pub fn zero_sensitivity_matrix(n_positions: usize, n_factors: usize) -> Sensitiv
         factor_ids(n_factors),
     )
 }
-
-/// Unit sensitivities aligned with the calibrated factor universe.
-pub fn unit_sensitivities(model: &CreditFactorModel) -> (Vec<FactorId>, Vec<f64>) {
-    let ids = model.config.covariance.factor_ids().to_vec();
-    let n = ids.len();
-    (ids, vec![1.0; n])
-}

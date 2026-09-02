@@ -1,7 +1,6 @@
 //! Parametric factor risk decomposition using covariance-based Euler allocation.
 
-use super::simulation::cholesky;
-use super::traits::RiskDecomposer;
+use super::math::cholesky;
 use super::types::{FactorContribution, PositionFactorContribution, RiskDecomposition};
 use crate::factor::{FactorCovarianceMatrix, RiskMeasure, SensitivityMatrix};
 
@@ -87,27 +86,12 @@ impl ParametricDecomposer {
         let n = covariance.n_factors();
         let data = covariance.as_slice();
 
-        if data.iter().any(|entry| !entry.is_finite()) {
-            return Err(finstack_quant_core::Error::Validation(
-                "Covariance matrix entries must be finite".to_string(),
-            ));
-        }
-
-        for i in 0..n {
-            for j in (i + 1)..n {
-                if (data[i * n + j] - data[j * n + i]).abs() > Self::VARIANCE_TOLERANCE {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Covariance matrix is not symmetric at ({i}, {j})"
-                    )));
-                }
-            }
-        }
-
-        // Verify positive semi-definiteness via a rank-tolerant Cholesky.
-        // A non-PSD covariance matrix can produce meaningless (negative)
-        // factor contributions that look like diversification benefits.
-        // We reuse the simulation-module factorization which accepts
-        // rank-deficient (PSD-but-not-PD) matrices — these arise naturally
+        // Verify finiteness, symmetry and positive semi-definiteness via the
+        // shared rank-tolerant Cholesky (`super::math::cholesky`), which
+        // judges symmetry against the matrix's own scale. A non-PSD
+        // covariance matrix can produce meaningless (negative) factor
+        // contributions that look like diversification benefits. The
+        // factorization accepts rank-deficient (PSD-but-not-PD) matrices — these arise naturally
         // when users regularize a covariance matrix with shrinkage or when
         // two factors are perfectly collinear at a given as-of.
         //
@@ -189,7 +173,7 @@ impl ParametricDecomposer {
         cov_times_exposure
     }
 
-    fn scale_for_measure(
+    pub(super) fn scale_for_measure(
         measure: &RiskMeasure,
         variance: f64,
     ) -> finstack_quant_core::Result<(f64, f64)> {
@@ -245,8 +229,29 @@ impl ParametricDecomposer {
     }
 }
 
-impl RiskDecomposer for ParametricDecomposer {
-    fn decompose(
+impl ParametricDecomposer {
+    /// Decompose the requested portfolio risk measure into factor and residual components.
+    ///
+    /// `sensitivities` must already reflect any position sizing or weighting applied by the
+    /// upstream sensitivity engine: each row is aligned with
+    /// `sensitivities.position_ids()` and portfolio weights are not re-applied.
+    ///
+    /// # Arguments
+    ///
+    /// * `sensitivities` - Weighted position-factor sensitivity matrix.
+    /// * `covariance` - Factor covariance matrix aligned to the same factor order.
+    /// * `measure` - Risk measure to decompose.
+    ///
+    /// # Returns
+    ///
+    /// Factor and residual risk decomposition in the units implied by `measure`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when factor axes are inconsistent, the
+    /// covariance matrix is not finite, symmetric and positive semi-definite,
+    /// or the requested measure cannot be evaluated.
+    pub fn decompose(
         &self,
         sensitivities: &SensitivityMatrix,
         covariance: &FactorCovarianceMatrix,
@@ -342,7 +347,6 @@ impl RiskDecomposer for ParametricDecomposer {
 #[cfg(test)]
 mod tests {
     use super::ParametricDecomposer;
-    use super::RiskDecomposer;
     use crate::factor::SensitivityMatrix;
     use crate::factor::{FactorCovarianceMatrix, FactorId, RiskMeasure};
 
