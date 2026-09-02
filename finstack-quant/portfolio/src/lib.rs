@@ -237,7 +237,7 @@ pub mod replay;
 pub use builder::PortfolioBuilder;
 pub use error::{Error, Result};
 pub use portfolio::Portfolio;
-pub use types::{AttributeTest, AttributeValue, ComparisonOp, Entity, EntityId, PositionId};
+pub use types::{AttributeTest, AttributeValue, ComparisonOp, Entity, PositionId};
 
 // Headline analytics types at the crate root so callers don't have to thread
 // through long module paths for the most common workflows. Anything not
@@ -245,51 +245,42 @@ pub use types::{AttributeTest, AttributeValue, ComparisonOp, Entity, EntityId, P
 // to surface the canonical entry points.
 pub use brinson::{
     brinson_fachler, carino_link, carino_link_from_sector_periods, BrinsonPeriodResult,
-    CarinoLinkedAttribution, SectorEffect, SectorPeriod,
+    CarinoLinkedAttribution, SectorPeriod,
 };
 pub use dataframe::{
     aggregated_metrics_to_table, entities_to_table, metrics_to_table, positions_to_table,
 };
 pub use dependencies::{flatten_dependencies, DependencyIndex, MarketFactorKey};
 pub use excess_return::{
-    cell_returns_from_curves, cell_returns_from_reference, duration_cell_label, excess_returns,
-    CellConfig, CellReturn, DurationCellTable, ExcessReturnPosition, ExcessReturnResult,
-    PositionExcess, ReferenceReturn,
+    cell_returns_from_curves, cell_returns_from_reference, excess_returns, CellConfig,
+    DurationCellTable, ExcessReturnPosition, ExcessReturnResult, ReferenceReturn,
 };
 pub use factor_brinson::{
-    factor_brinson_attribution, AssetSpecificContribution, FactorBrinsonInput, FactorBrinsonResult,
-    FactorContribution,
+    factor_brinson_attribution, FactorBrinsonInput, FactorBrinsonResult, FactorContribution,
 };
 pub use factor_model::{
-    allocate_weights, allocate_weights_json, validate_allocation_json, AllocationDiagnostics,
-    AllocationScheme, StrategyAllocation, StrategyAllocationInput, WeightAllocationResult,
+    allocate_weights, allocate_weights_json, validate_allocation_json, WeightAllocationResult,
     WeightAllocationSpec,
 };
 pub use fi_attribution::{
     campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots,
-    FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult, FiComponents,
-    FiLinkedSectorEffect, FiPeriodInput, FiPositionSnapshot, FiReconciliationReport,
-    FiSectorEffect,
+    FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult, FiPeriodInput,
+    FiPositionSnapshot, FiReconciliationReport,
 };
 pub use grid_attribution::{
-    grid_attribution, grid_carino_link, GridAttributionResult, GridCarinoLinkedResult,
-    GridCellEffect, GridPosition, GridSectorEffect, GridSelectionEffect,
+    grid_attribution, grid_carino_link, GridAttributionResult, GridCarinoLinkedResult, GridPosition,
 };
 pub use margin::{NettingSetMargin, PortfolioMarginAggregator, PortfolioMarginResult};
 pub use performance::{
-    mwr_xirr, mwr_xirr_from_cashflows, twrr_linked, twrr_modified_dietz, DatedCashflow, DietzFlow,
+    mwr_xirr, mwr_xirr_from_cashflows, twrr_linked, twrr_modified_dietz, DatedCashflow,
     LinkedReturn, TwrrPeriod,
 };
 pub use portfolio::PortfolioSpec;
 pub use position::{Position, PositionUnit};
-pub use primitive::{
-    primitive_exposure_report, PortfolioPrimitiveAggregate, PortfolioPrimitiveExposureReport,
-    PortfolioPrimitivePath,
-};
+pub use primitive::primitive_exposure_report;
 pub use results::PortfolioResult;
 pub use valuation::{
-    revalue_affected, value_portfolio, PortfolioValuation, PortfolioValuationOptions,
-    PositionValue, RequestedMetrics,
+    value_portfolio, PortfolioValuation, PortfolioValuationOptions, RequestedMetrics,
 };
 
 /// Strict versioned portfolio materialization bundles and native bulk loading.
@@ -297,7 +288,7 @@ pub mod materialization;
 pub use materialization::{
     InstrumentArtifact, InstrumentArtifactCache, MaterializationPhases, MaterializationReport,
     MaterializedPosition, MaterializerInfo, PortfolioHeader, PortfolioMaterializationEnvelope,
-    PortfolioMaterializationSchema, PORTFOLIO_MATERIALIZATION_CONTRACT,
+    PortfolioMaterializationSchema,
 };
 
 /// Compiles the crate `README.md` Rust samples as doctests.

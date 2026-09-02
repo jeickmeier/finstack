@@ -37,7 +37,7 @@
 //! Modified Dietz and XIRR use **opposite** signs for the same economic
 //! flow. Do not pass one signed series to both APIs without flipping.
 //!
-//! | Economic flow | [`DietzFlow::amount`] / [`TwrrPeriod`] | [`DatedCashflow`] / [`mwr_xirr`] |
+//! | Economic flow | [`crate::performance::DietzFlow::amount`] / [`TwrrPeriod`] | [`DatedCashflow`] / [`mwr_xirr`] |
 //! | --- | --- | --- |
 //! | Contribution into the portfolio | **positive** | **negative** |
 //! | Withdrawal / distribution to the investor | **negative** | **positive** |
