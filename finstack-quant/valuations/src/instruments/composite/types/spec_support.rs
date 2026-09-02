@@ -229,6 +229,10 @@ impl RebalanceRule {
 /// [`CompositeSpec::initialize`] / [`CompositeSpec::initialize_fixed`] or
 /// [`CompositeInstrument::rebalance`].
 ///
+/// [`CompositeSpec::initialize`]: crate::instruments::composite::CompositeSpec::initialize
+/// [`CompositeSpec::initialize_fixed`]: crate::instruments::composite::CompositeSpec::initialize_fixed
+/// [`CompositeInstrument::rebalance`]: crate::instruments::composite::CompositeInstrument::rebalance
+///
 /// # Formulas
 ///
 /// Let `w_i` be the leg score, `G` a positive reporting-currency gross

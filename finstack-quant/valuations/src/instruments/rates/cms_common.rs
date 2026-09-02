@@ -8,6 +8,7 @@
 //! [`CmsOption`]: crate::instruments::rates::cms_option::CmsOption
 //! [`CmsSwap`]: crate::instruments::rates::cms_swap::CmsSwap
 //! [`CmsSpreadOption`]: crate::instruments::rates::cms_spread_option::CmsSpreadOption
+//! [`CmsReferenceSwap`]: crate::instruments::rates::cms_common::CmsReferenceSwap
 
 use crate::instruments::common_impl::parameters::IRSConvention;
 use crate::instruments::rates::hw1f::forward_swap_rate::{

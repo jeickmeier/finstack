@@ -478,8 +478,6 @@ impl MarketContext {
     }
 
     /// Clear the FX matrix, mutating in place.
-    ///
-    /// Mirrors [`Self::clear_fx`] but takes `&mut self`.
     pub fn clear_fx_mut(&mut self) -> &mut Self {
         self.fx = None;
         self

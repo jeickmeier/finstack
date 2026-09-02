@@ -119,7 +119,7 @@ impl Default for LlmProfile {
 /// property is required, with optionality moved into the type) and **looser**
 /// (tuples become fixed-length arrays, non-portable assertions are dropped).
 /// Validate against the artifact from
-/// [`SchemaArtifact::generate`](SchemaArtifact::generate) — never against this.
+/// [`SchemaArtifact::generate`](super::SchemaArtifact::generate) — never against this.
 ///
 /// # Arguments
 ///

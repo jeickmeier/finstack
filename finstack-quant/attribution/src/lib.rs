@@ -291,7 +291,7 @@ impl<'a> AttributionRequest<'a> {
 ///
 /// * `method` - Attribution methodology. `Parallel`, `Waterfall(order)` and
 ///   `Taylor(config)` are executed here; `MetricsBased` needs priced
-///   [`finstack_quant_valuations::instruments::ValuationResult`]s and must go
+///   [`finstack_quant_valuations::results::ValuationResult`]s and must go
 ///   through [`attribute_pnl_metrics_based`].
 /// * `request` - Instrument, market states, dates, configuration and the
 ///   optional overrides described on [`AttributionRequest`].

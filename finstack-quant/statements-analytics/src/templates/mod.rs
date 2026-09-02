@@ -22,9 +22,9 @@
 //!
 //! | Template | Build-time | Runtime Validation |
 //! |----------|------------|-------------------|
-//! | Roll-forward | [`roll_forward::add_roll_forward`] | [`crate::extensions::CorkscrewExtension`] |
-//! | Vintage | [`vintage::add_vintage_buildup`] | N/A |
-//! | Real estate | [`real_estate::add_property_operating_statement`] | Model-specific |
+//! | Roll-forward | [`crate::templates::roll_forward::add_roll_forward`] | [`crate::extensions::CorkscrewExtension`] |
+//! | Vintage | [`crate::templates::vintage::add_vintage_buildup`] | N/A |
+//! | Real estate | [`crate::templates::real_estate::add_property_operating_statement`] | Model-specific |
 //!
 //! ## Conventions
 //!

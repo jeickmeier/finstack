@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,37 @@ def files_by_relative_path(directory: Path) -> dict[str, bytes]:
         for path in sorted(directory.rglob("*"))
         if path.is_file()
     }
+
+
+def git_tracked_relative_paths(directory: Path, *, root: Path = ROOT) -> list[str]:
+    """Return git-recorded paths relative to ``directory``, preserving case."""
+    git = shutil.which("git")
+    if git is None:
+        raise RuntimeError("git is required to compare committed TypeScript declaration names")
+    rel = directory.relative_to(root).as_posix()
+    result = subprocess.run(  # noqa: S603
+        [git, "ls-files", "-z", "--", rel],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    prefix = f"{rel}/"
+    return [
+        text[len(prefix) :] for raw in result.stdout.split(b"\0") if (text := raw.decode()) and text.startswith(prefix)
+    ]
+
+
+def files_by_git_path(directory: Path, *, root: Path = ROOT) -> dict[str, bytes]:
+    """Read committed generated files keyed by git-recorded relative paths."""
+    return {name: (directory / name).read_bytes() for name in git_tracked_relative_paths(directory, root=root)}
+
+
+def inventory_drift(expected: dict[str, bytes], actual: dict[str, bytes]) -> tuple[list[str], list[str], list[str]]:
+    """Return missing, extra, and content-changed relative paths."""
+    missing = sorted(expected.keys() - actual.keys())
+    extra = sorted(actual.keys() - expected.keys())
+    changed = sorted(path for path in expected.keys() & actual.keys() if expected[path] != actual[path])
+    return missing, extra, changed
 
 
 def run_export(command: list[str], output_dir: Path) -> None:
@@ -71,11 +103,9 @@ def main() -> int:
             check=True,
         )
 
-        expected = files_by_relative_path(EXPECTED_DIR)
+        expected = files_by_git_path(EXPECTED_DIR)
         actual = files_by_relative_path(output_dir)
-        missing = sorted(expected.keys() - actual.keys())
-        extra = sorted(actual.keys() - expected.keys())
-        changed = sorted(path for path in expected.keys() & actual.keys() if expected[path] != actual[path])
+        missing, extra, changed = inventory_drift(expected, actual)
         if missing or extra or changed:
             print(
                 "generated TypeScript declarations are stale: "

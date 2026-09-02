@@ -29,8 +29,6 @@ use crate::dates::{Date, DayCount, DayCountContext};
 /// - [`day_count`](Self::day_count) - Day count convention (default: Act365F)
 /// - [`df_between_dates`](Self::df_between_dates) - Relative discount factor between dates
 /// - [`df_between_times`](Self::df_between_times) - Relative discount factor between times
-/// - [`forward_rate_between_times`](Self::forward_rate_between_times) - Forward rate from times
-/// - [`forward_rate_between_dates`](Self::forward_rate_between_dates) - Forward rate from dates
 /// - [`instantaneous_forward`](Self::instantaneous_forward) - Instantaneous forward rate
 ///
 /// # Implementation Guide
@@ -77,7 +75,7 @@ use crate::dates::{Date, DayCount, DayCountContext};
 ///
 /// # See Also
 ///
-/// - [`Forward`] - Trait for forward rate curves
+/// - [`crate::market_data::term_structures::ForwardCurve`] - Concrete forward rate curve
 /// - [`Survival`] - Trait for hazard/survival curves
 pub trait Discounting: Send + Sync {
     /// Unique identifier of the curve.
