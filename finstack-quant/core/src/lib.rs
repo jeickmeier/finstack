@@ -117,7 +117,7 @@ pub mod decimal;
 /// Shared loader for embedded JSON registries with config override support.
 ///
 /// Provides cached parsing and validation for versioned compile-time JSON assets.
-pub(crate) mod embedded_registry;
+pub mod embedded_registry;
 /// Error types for finstack-quant-core.
 ///
 /// The crate uses a unified `Error` enum with specific variants for

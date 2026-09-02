@@ -11,7 +11,7 @@ pub const RATING_SCALES_EXTENSION_KEY: &str = "core.rating_scales.v1";
 
 static EMBEDDED_REGISTRY: EmbeddedJsonRegistry<RatingScaleRegistry> = EmbeddedJsonRegistry::new(
     include_str!("../data/rating_scales/rating_scales.v1.json"),
-    RATING_SCALES_EXTENSION_KEY,
+    Some(RATING_SCALES_EXTENSION_KEY),
     "rating-scale",
 );
 
