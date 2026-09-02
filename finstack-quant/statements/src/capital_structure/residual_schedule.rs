@@ -40,7 +40,8 @@ fn is_rebuildable_interest(kind: CFKind) -> bool {
 ///
 /// Returns a capital-structure error when `new_outstanding` is a different
 /// currency from the schedule, when a missing rate cannot be inferred as a
-/// finite value, or when the outstanding path cannot be rebuilt.
+/// finite value, when rebuilt interest is non-finite or outside the monetary
+/// representation range, or when the outstanding path cannot be rebuilt.
 pub(crate) fn rebuild_residual_interest(
     schedule: &CashFlowSchedule,
     new_outstanding: Money,
@@ -58,14 +59,14 @@ pub(crate) fn rebuild_residual_interest(
     let initial = {
         let n = schedule.get_notional().initial;
         if n.amount() < 0.0 {
-            Money::new(-n.amount(), n.currency())
+            n.checked_neg()
         } else {
             n
         }
     };
     let abs_money = |m: Money| -> Money {
         if m.amount() < 0.0 {
-            Money::new(-m.amount(), m.currency())
+            m.checked_neg()
         } else {
             m
         }
@@ -106,10 +107,16 @@ pub(crate) fn rebuild_residual_interest(
             }
         };
         let sign = if cf.amount.amount() < 0.0 { -1.0 } else { 1.0 };
-        cf.amount = Money::new(
+        cf.amount = Money::try_new(
             sign * new_outstanding.amount() * rate * cf.accrual_factor,
             cf.amount.currency(),
-        );
+        )
+        .map_err(|error| {
+            Error::capital_structure(format!(
+                "cannot rebuild {:?} interest on {}: {error}",
+                cf.kind, cf.date
+            ))
+        })?;
         cf.rate = Some(rate);
     }
 
@@ -239,6 +246,35 @@ mod tests {
             "inferred 8% quarterly on 500k must be 10k, got {}",
             q2.amount.amount()
         );
+    }
+
+    #[test]
+    fn rebuild_rejects_unrepresentable_computed_interest() {
+        let issue = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let coupon_date = Date::from_calendar_date(2025, Month::May, 15).expect("valid date");
+        let from_date = Date::from_calendar_date(2025, Month::March, 31).expect("valid date");
+
+        // Both a finite Decimal overflow and an f64 overflow must return an
+        // error rather than panic while rebuilding an otherwise valid flow.
+        for rate in [2.0, f64::MAX] {
+            let original = schedule(
+                vec![CashFlow::new(
+                    coupon_date,
+                    None,
+                    Money::new(-1.0, Currency::USD),
+                    CFKind::Fixed,
+                    1.0,
+                    Some(rate),
+                )],
+                1.0,
+                issue,
+            );
+            let error =
+                rebuild_residual_interest(&original, Money::new(6e28, Currency::USD), from_date)
+                    .expect_err("unrepresentable rebuilt interest must return an error");
+            assert!(error.to_string().contains("cannot rebuild Fixed interest"));
+            assert_eq!(original.get_flows()[0].amount.amount(), -1.0);
+        }
     }
 
     #[test]

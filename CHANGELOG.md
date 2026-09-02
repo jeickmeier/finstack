@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed (BREAKING)
+
+- `AsianCall::new`, `AsianPut::new`, and both `with_history` constructors now
+  return `Result`. A payoff requires at least one future or historical fixing;
+  fully observed contracts may still have no future fixing steps.
+- Portfolio margin-result JSON uses the margin crate's canonical
+  `SimmSensitivitiesJson` tuple arrays for nested sensitivities. The duplicate
+  portfolio-specific sensitivity object format was removed.
+
+### Fixed
+
+- Taylor attribution records cashflow collection failures and marks the result
+  invalid instead of reporting successful theta with zero coupon income.
+- Computed waterfall allocations, balances, and residual interest return
+  errors when monetary conversion overflows instead of panicking.
+- Taylor VaR borrows the supplied instruments directly, avoiding redundant
+  instrument cloning and temporary reference collections.
+
 ## [0.8.0] - 2026-08-27
 
 ### Changed — model-engine consolidation (BREAKING)

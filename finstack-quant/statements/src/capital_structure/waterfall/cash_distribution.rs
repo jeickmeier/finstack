@@ -2,6 +2,7 @@
 //! the [`StagedInstrumentFlow`] working struct.
 
 use crate::capital_structure::cashflows::CashflowBreakdown;
+use crate::error::Result;
 use crate::evaluator::{CapitalStructureClaimCategory, CapitalStructureWarning, EvalWarning};
 use finstack_quant_core::money::Money;
 
@@ -51,7 +52,8 @@ pub(super) fn apply_cash_cap_to_category<F>(
     category: CapitalStructureClaimCategory,
     warnings: &mut Vec<EvalWarning>,
     mut field: F,
-) where
+) -> Result<()>
+where
     F: FnMut(&mut StagedInstrumentFlow) -> &mut Money,
 {
     for s in staged.iter_mut() {
@@ -83,15 +85,16 @@ pub(super) fn apply_cash_cap_to_category<F>(
                 }
             })
             .collect();
-        let allocations = allocate_pro_rata(&planned, remaining_cash);
+        let allocations = allocate_pro_rata(&planned, remaining_cash)?;
         for (s, allocated) in staged.iter_mut().zip(allocations) {
             if s.class_rank != rank {
                 continue;
             }
             let currency = field(s).currency();
-            *field(s) = Money::new(allocated, currency);
+            *field(s) = Money::try_new(allocated, currency)?;
         }
     }
+    Ok(())
 }
 
 /// Distribute `remaining_cash` proportionally across `planned` amounts.
@@ -100,17 +103,17 @@ pub(super) fn apply_cash_cap_to_category<F>(
 /// full. Otherwise, each entry receives its pro-rata share, with any
 /// residual rounding error assigned to the last entry to preserve the
 /// total exactly.
-pub(super) fn allocate_pro_rata(planned: &[f64], remaining_cash: &mut Money) -> Vec<f64> {
+pub(super) fn allocate_pro_rata(planned: &[f64], remaining_cash: &mut Money) -> Result<Vec<f64>> {
     let total_planned: f64 = planned.iter().sum();
     if total_planned <= 0.0 || remaining_cash.amount() <= 0.0 {
-        return vec![0.0; planned.len()];
+        return Ok(vec![0.0; planned.len()]);
     }
     if remaining_cash.amount() >= total_planned {
-        *remaining_cash = Money::new(
+        *remaining_cash = Money::try_new(
             remaining_cash.amount() - total_planned,
             remaining_cash.currency(),
-        );
-        return planned.to_vec();
+        )?;
+        return Ok(planned.to_vec());
     }
 
     let cash_before = remaining_cash.amount();
@@ -128,7 +131,7 @@ pub(super) fn allocate_pro_rata(planned: &[f64], remaining_cash: &mut Money) -> 
         }
     }
     *remaining_cash = Money::new(0.0, remaining_cash.currency());
-    allocations
+    Ok(allocations)
 }
 
 /// Allocate `remaining` across staged rows by class rank, then pro-rata
@@ -137,7 +140,7 @@ pub(super) fn allocate_by_class(
     staged: &[StagedInstrumentFlow],
     remaining: &mut Money,
     planned: impl Fn(&StagedInstrumentFlow) -> f64,
-) -> Vec<f64> {
+) -> Result<Vec<f64>> {
     let mut allocations = vec![0.0; staged.len()];
     let mut ranks: Vec<u32> = staged.iter().map(|s| s.class_rank).collect();
     ranks.sort_unstable();
@@ -153,12 +156,12 @@ pub(super) fn allocate_by_class(
                 }
             })
             .collect();
-        let class_alloc = allocate_pro_rata(&class_planned, remaining);
+        let class_alloc = allocate_pro_rata(&class_planned, remaining)?;
         for (idx, amount) in class_alloc.into_iter().enumerate() {
             if staged[idx].class_rank == rank {
                 allocations[idx] = amount;
             }
         }
     }
-    allocations
+    Ok(allocations)
 }

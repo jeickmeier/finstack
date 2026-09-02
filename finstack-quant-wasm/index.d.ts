@@ -2032,7 +2032,7 @@ export interface LmeAnalysis {
  * ```typescript
  * import init, { core } from "finstack-quant-wasm";
  * await init();
- * console.log(core.meanArray([1, 2, 3]));
+ * console.log(core.mean([1, 2, 3]));
  * ```
  */
 export interface CoreNamespace {

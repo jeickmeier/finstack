@@ -579,10 +579,8 @@ fn calculate_var_taylor(
     .entered();
 
     if instruments.len() == 1 {
-        // Use clone_box to get a sized type for Taylor approximation
-        let boxed = instruments[0].clone_box();
         return calculate_var_taylor_approximation(
-            &*boxed,
+            instruments[0],
             base_market,
             history,
             as_of,
@@ -591,9 +589,7 @@ fn calculate_var_taylor(
         );
     }
 
-    let boxed: Vec<Box<dyn Instrument>> = instruments.iter().map(|inst| inst.clone_box()).collect();
-    let refs: Vec<&dyn Instrument> = boxed.iter().map(|b| b.as_ref()).collect();
-    calculate_portfolio_var_taylor(&refs, base_market, history, as_of, config, dispatch)
+    calculate_portfolio_var_taylor(instruments, base_market, history, as_of, config, dispatch)
 }
 
 // Taylor Approximation

@@ -53,13 +53,11 @@ fn diebold_li_fit_factors<'py>(
         .factors()
         .ok_or_else(|| crate::errors::value_error("factor extraction produced no factors"))?;
     let mut columns = fts.columns().into_iter();
-    let (beta1, beta2, beta3) = match (columns.next(), columns.next(), columns.next()) {
-        (Some(b1), Some(b2), Some(b3)) => (b1, b2, b3),
-        _ => {
-            return Err(crate::errors::value_error(
-                "factor extraction produced fewer than three factor columns",
-            ))
-        }
+    let (Some(beta1), Some(beta2), Some(beta3)) = (columns.next(), columns.next(), columns.next())
+    else {
+        return Err(crate::errors::value_error(
+            "factor extraction produced fewer than three factor columns",
+        ));
     };
 
     let d = PyDict::new(py);

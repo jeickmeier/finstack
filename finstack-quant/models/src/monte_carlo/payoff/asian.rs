@@ -10,7 +10,17 @@ use crate::monte_carlo::traits::PathState;
 use crate::monte_carlo::traits::Payoff;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::{Error, Result};
 use std::collections::HashSet;
+
+fn validate_fixing_schedule(fixing_steps: &[usize], initial_count: usize) -> Result<()> {
+    if fixing_steps.is_empty() && initial_count == 0 {
+        return Err(Error::Validation(
+            "Asian payoff requires at least one fixing step or historical fixing".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 /// Default Asian fixing schedule for convenience pricers.
 ///
@@ -69,36 +79,33 @@ pub struct AsianCall {
 }
 
 impl AsianCall {
-    /// Create a new Asian call option.
+    /// Create an Asian call with at least one scheduled fixing and no history.
+    ///
+    /// Fixing indices may be unsorted or repeated. Each scheduled path event
+    /// contributes once; the original vector is retained as contract metadata.
     ///
     /// # Arguments
     ///
-    /// * `strike` - Strike price
-    /// * `notional` - Notional amount
-    /// * `averaging` - Averaging method (arithmetic or geometric)
-    /// * `fixing_steps` - Time step indices for averaging
+    /// * `strike` - Exercise level in the same price units as simulated spot.
+    /// * `notional` - Scalar multiplier applied to the positive difference
+    ///   between the fixing average and `strike`; the payoff currency is
+    ///   supplied separately to [`Payoff::value`].
+    /// * `averaging` - Arithmetic mean of spot levels or geometric mean formed
+    ///   from their natural logarithms.
+    /// * `fixing_steps` - Owned, nonempty path-step indices at which spot enters
+    ///   the average. Step `0` includes the initial spot; later indices refer
+    ///   to post-step events and must fit within the pricing engine's grid.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when `fixing_steps` is empty.
     pub fn new(
         strike: f64,
         notional: f64,
         averaging: AveragingMethod,
         fixing_steps: Vec<usize>,
-    ) -> Self {
-        let fixing_set: HashSet<usize> = fixing_steps.iter().copied().collect();
-        Self {
-            strike,
-            notional,
-            averaging,
-            fixing_steps,
-            fixing_set,
-            sum_spots: 0.0,
-            kahan_comp: 0.0,
-            product_spots: 0.0,
-            num_fixings_seen: 0,
-            initial_sum_spots: 0.0,
-            initial_kahan_comp: 0.0,
-            initial_product_spots: 0.0,
-            initial_count: 0,
-        }
+    ) -> Result<Self> {
+        Self::with_history(strike, notional, averaging, fixing_steps, 0.0, 0.0, 0)
     }
 
     /// Resume an Asian call after historical fixings have already occurred.
@@ -112,6 +119,32 @@ impl AsianCall {
     /// The constructor does not validate that the aggregates, count, and
     /// `fixing_steps` describe the same schedule, so callers restoring a
     /// partially observed trade must preserve that invariant.
+    ///
+    /// # Arguments
+    ///
+    /// * `strike` - Exercise level in the same price units as all historical
+    ///   and future spot fixings.
+    /// * `notional` - Scalar multiplier applied to the positive difference
+    ///   between the fixing average and `strike`; [`Payoff::value`] supplies
+    ///   the payoff currency separately.
+    /// * `averaging` - Arithmetic mean using `initial_sum`, or geometric mean
+    ///   using `initial_product_log`, combined with future simulated fixings.
+    /// * `fixing_steps` - Owned indices of future path events to observe. Step
+    ///   `0` includes the initial spot; indices may be unsorted or repeated,
+    ///   but each scheduled event contributes once. An empty vector is valid
+    ///   only when `initial_count` is positive, for a fully observed contract.
+    /// * `initial_sum` - Sum of historical spot levels in spot-price units,
+    ///   used for arithmetic averaging and restored before every new path.
+    /// * `initial_product_log` - Sum of the natural logarithms of positive
+    ///   historical spot levels, used for geometric averaging and restored
+    ///   before every new path.
+    /// * `initial_count` - Number of historical fixings represented by the
+    ///   supplied aggregates; zero is permitted when future fixings exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when `fixing_steps` is empty and
+    /// `initial_count` is zero, leaving no observations for the average.
     pub fn with_history(
         strike: f64,
         notional: f64,
@@ -120,9 +153,10 @@ impl AsianCall {
         initial_sum: f64,
         initial_product_log: f64,
         initial_count: usize,
-    ) -> Self {
+    ) -> Result<Self> {
+        validate_fixing_schedule(&fixing_steps, initial_count)?;
         let fixing_set: HashSet<usize> = fixing_steps.iter().copied().collect();
-        Self {
+        Ok(Self {
             strike,
             notional,
             averaging,
@@ -136,7 +170,7 @@ impl AsianCall {
             initial_kahan_comp: 0.0,
             initial_product_spots: initial_product_log,
             initial_count,
-        }
+        })
     }
 
     /// Compute the average based on accumulated samples.
@@ -249,28 +283,30 @@ impl AsianPut {
     /// is computed over the supplied path-step indices using `averaging`.
     /// Fixing indices are deduplicated for lookup while their original vector
     /// is retained as contract metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `strike` - Exercise level in the same price units as simulated spot.
+    /// * `notional` - Scalar multiplier applied to the positive difference
+    ///   between `strike` and the fixing average; the payoff currency is
+    ///   supplied separately to [`Payoff::value`].
+    /// * `averaging` - Arithmetic mean of spot levels or geometric mean formed
+    ///   from their natural logarithms.
+    /// * `fixing_steps` - Owned, nonempty path-step indices at which spot enters
+    ///   the average. Step `0` includes the initial spot; later indices refer
+    ///   to post-step events and must fit within the pricing engine's grid.
+    ///   Indices may be unsorted or repeated; each scheduled event contributes once.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when `fixing_steps` is empty.
     pub fn new(
         strike: f64,
         notional: f64,
         averaging: AveragingMethod,
         fixing_steps: Vec<usize>,
-    ) -> Self {
-        let fixing_set: HashSet<usize> = fixing_steps.iter().copied().collect();
-        Self {
-            strike,
-            notional,
-            averaging,
-            fixing_steps,
-            fixing_set,
-            sum_spots: 0.0,
-            kahan_comp: 0.0,
-            product_spots: 0.0,
-            num_fixings_seen: 0,
-            initial_sum_spots: 0.0,
-            initial_kahan_comp: 0.0,
-            initial_product_spots: 0.0,
-            initial_count: 0,
-        }
+    ) -> Result<Self> {
+        Self::with_history(strike, notional, averaging, fixing_steps, 0.0, 0.0, 0)
     }
 
     /// Resume an Asian put after historical fixings have already occurred.
@@ -284,6 +320,32 @@ impl AsianPut {
     /// The constructor does not validate that the aggregates, count, and
     /// `fixing_steps` describe the same schedule, so callers restoring a
     /// partially observed trade must preserve that invariant.
+    ///
+    /// # Arguments
+    ///
+    /// * `strike` - Exercise level in the same price units as all historical
+    ///   and future spot fixings.
+    /// * `notional` - Scalar multiplier applied to the positive difference
+    ///   between `strike` and the fixing average; [`Payoff::value`] supplies
+    ///   the payoff currency separately.
+    /// * `averaging` - Arithmetic mean using `initial_sum`, or geometric mean
+    ///   using `initial_product_log`, combined with future simulated fixings.
+    /// * `fixing_steps` - Owned indices of future path events to observe. Step
+    ///   `0` includes the initial spot; indices may be unsorted or repeated,
+    ///   but each scheduled event contributes once. An empty vector is valid
+    ///   only when `initial_count` is positive, for a fully observed contract.
+    /// * `initial_sum` - Sum of historical spot levels in spot-price units,
+    ///   used for arithmetic averaging and restored before every new path.
+    /// * `initial_product_log` - Sum of the natural logarithms of positive
+    ///   historical spot levels, used for geometric averaging and restored
+    ///   before every new path.
+    /// * `initial_count` - Number of historical fixings represented by the
+    ///   supplied aggregates; zero is permitted when future fixings exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when `fixing_steps` is empty and
+    /// `initial_count` is zero, leaving no observations for the average.
     pub fn with_history(
         strike: f64,
         notional: f64,
@@ -292,9 +354,10 @@ impl AsianPut {
         initial_sum: f64,
         initial_product_log: f64,
         initial_count: usize,
-    ) -> Self {
+    ) -> Result<Self> {
+        validate_fixing_schedule(&fixing_steps, initial_count)?;
         let fixing_set: HashSet<usize> = fixing_steps.iter().copied().collect();
-        Self {
+        Ok(Self {
             strike,
             notional,
             averaging,
@@ -308,7 +371,7 @@ impl AsianPut {
             initial_kahan_comp: 0.0,
             initial_product_spots: initial_product_log,
             initial_count,
-        }
+        })
     }
 
     fn compute_average(&self) -> f64 {
@@ -427,9 +490,77 @@ mod tests {
     }
 
     #[test]
+    fn test_asian_call_rejects_empty_fixings_without_history() {
+        for averaging in [AveragingMethod::Arithmetic, AveragingMethod::Geometric] {
+            let error = AsianCall::new(100.0, 1.0, averaging, Vec::new())
+                .expect_err("an average needs at least one fixing");
+            assert!(matches!(error, Error::Validation(_)));
+
+            let error = AsianCall::with_history(100.0, 1.0, averaging, Vec::new(), 0.0, 0.0, 0)
+                .expect_err("empty history does not supply a fixing");
+            assert!(matches!(error, Error::Validation(_)));
+        }
+    }
+
+    #[test]
+    fn test_asian_put_rejects_empty_fixings_without_history() {
+        for averaging in [AveragingMethod::Arithmetic, AveragingMethod::Geometric] {
+            let error = AsianPut::new(100.0, 1.0, averaging, Vec::new())
+                .expect_err("an average needs at least one fixing");
+            assert!(matches!(error, Error::Validation(_)));
+
+            let error = AsianPut::with_history(100.0, 1.0, averaging, Vec::new(), 0.0, 0.0, 0)
+                .expect_err("empty history does not supply a fixing");
+            assert!(matches!(error, Error::Validation(_)));
+        }
+    }
+
+    #[test]
+    fn test_asian_unsorted_duplicate_fixings_preserve_history_on_reset() {
+        let fixing_steps = vec![2, 0, 2];
+        let mut call = AsianCall::with_history(
+            100.0,
+            1.0,
+            AveragingMethod::Arithmetic,
+            fixing_steps.clone(),
+            90.0,
+            90.0_f64.ln(),
+            1,
+        )
+        .expect("historical and future fixings");
+        let mut put = AsianPut::with_history(
+            120.0,
+            1.0,
+            AveragingMethod::Arithmetic,
+            fixing_steps.clone(),
+            90.0,
+            90.0_f64.ln(),
+            1,
+        )
+        .expect("historical and future fixings");
+
+        assert_eq!(call.fixing_steps, fixing_steps);
+        assert_eq!(put.fixing_steps, fixing_steps);
+        for _ in 0..2 {
+            call.reset();
+            put.reset();
+            for (step, spot) in [(0, 100.0), (1, 1_000.0), (2, 140.0)] {
+                let mut state = create_state(step, spot);
+                call.on_event(&mut state).expect("valid call fixing");
+                put.on_event(&mut state).expect("valid put fixing");
+            }
+            assert_eq!(call.num_fixings_seen, 3);
+            assert_eq!(put.num_fixings_seen, 3);
+            assert_eq!(call.value(Currency::USD).amount(), 10.0);
+            assert_eq!(put.value(Currency::USD).amount(), 10.0);
+        }
+    }
+
+    #[test]
     fn test_arithmetic_asian_call() {
         let fixing_steps = vec![0, 5, 10];
-        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         // Simulate fixings: 90, 100, 110 -> average = 100
         let mut s0 = create_state(0, 90.0);
@@ -447,7 +578,8 @@ mod tests {
     #[test]
     fn test_arithmetic_asian_call_itm() {
         let fixing_steps = vec![0, 5, 10];
-        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         // Average = (100 + 110 + 120) / 3 = 110
         let mut s1 = create_state(0, 100.0);
@@ -465,7 +597,8 @@ mod tests {
     #[test]
     fn test_geometric_asian_call() {
         let fixing_steps = vec![0, 5, 10];
-        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Geometric, fixing_steps);
+        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Geometric, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         // Geometric average of (80, 100, 125) = (80*100*125)^(1/3) = 100
         let mut s4 = create_state(0, 80.0);
@@ -484,7 +617,8 @@ mod tests {
     #[test]
     fn test_asian_put() {
         let fixing_steps = vec![0, 5, 10];
-        let mut asian = AsianPut::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let mut asian = AsianPut::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         // Average = (90 + 95 + 100) / 3 = 95
         let mut s7 = create_state(0, 90.0);
@@ -502,7 +636,8 @@ mod tests {
     #[test]
     fn test_asian_reset() {
         let fixing_steps = vec![0, 5, 10];
-        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         let mut s10 = create_state(0, 100.0);
         asian.on_event(&mut s10).expect("valid payoff event");

@@ -225,8 +225,8 @@ fn simm_margin_with_scalar_credit_qualifying_delta_is_rejected() {
     ))
     .expect_err("the scalar credit-qualifying shape must be rejected");
     assert!(
-        err.to_string().contains("sector"),
-        "error must name the missing sector, got: {err}"
+        err.to_string().contains("unknown variant `CDX.NA.IG`"),
+        "the reference label must be rejected in the required sector slot, got: {err}"
     );
 }
 
@@ -252,15 +252,32 @@ fn test_netting_set_margin_json_roundtrip() {
     assert_roundtrip_value(&margin);
 
     let json = serde_json::to_value(&margin).expect("margin should serialize");
-    assert!(json.get("sensitivities").is_some());
-    assert!(json["sensitivities"]["ir_delta"].is_array());
-    assert!(json["sensitivities"]["fx_vega"].is_array());
     assert_eq!(
-        json["sensitivities"]["credit_qualifying_delta"]
-            .as_array()
-            .expect("bucketed credit delta is an array")
-            .len(),
-        1
+        json["sensitivities"],
+        serde_json::json!({
+            "base_currency": "USD",
+            "ir_delta": [["USD", "5Y", 12_500.0], ["EUR", "2Y", -2_500.0]],
+            "ir_vega": [["USD", "10Y", 3_250.0]],
+            "credit_qualifying_delta": [["financial", "BANK_A", "5Y", 725.0]],
+            "credit_qualifying_vega": [["financial", "BANK_A", "5Y", 77.0]],
+            "credit_non_qualifying_delta": [["RMBS_INDEX", "3Y", -1_100.0]],
+            "credit_non_qualifying_vega": [["RMBS_INDEX", "3Y", 61.0]],
+            "equity_delta": [["AAPL", 800.0]],
+            "equity_vega": [["AAPL", 125.0]],
+            "fx_delta": [["JPY", 2_200.0]],
+            "fx_vega": [["EUR", "USD", 410.0]],
+            "commodity_delta": [["Power", -95.0]],
+            "commodity_vega": [["Power", 42.0]],
+            "curvature": [["interest_rate", -75.0]],
+        }),
+        "portfolio results must use the canonical margin sensitivity tuples"
+    );
+    let canonical = sample_simm_sensitivities()
+        .to_json()
+        .expect("standalone SIMM sensitivities serialize");
+    assert_eq!(
+        json["sensitivities"],
+        serde_json::from_str::<serde_json::Value>(&canonical).expect("canonical JSON is valid")
     );
 }
 
@@ -344,16 +361,11 @@ fn minor17_portfolio_margin_deserialize_rejects_inconsistent_totals() {
     );
 }
 
-/// The portfolio wire (`portfolio/src/margin/wire.rs`) mirrors `SimmSensitivities`
-/// field by field. When credit-qualifying, credit-non-qualifying and commodity
-/// vega were added to the margin crate, the wire was NOT extended — so a
-/// round-trip through a `NettingSetMargin` silently dropped all three,
-/// recreating the exact silently-lost-input class the vega fix existed to close.
-///
-/// This asserts the VALUES survive, not merely that the round-trip succeeds:
-/// the previous behaviour deserialized perfectly well, just empty.
+/// Every sensitivity bucket must survive portfolio serialization, including
+/// the credit and commodity vegas previously lost by the duplicate wire type.
+/// Compare domain values because serializing both sides can hide dropped fields.
 #[test]
-fn portfolio_wire_round_trip_preserves_credit_and_commodity_vega() {
+fn portfolio_wire_round_trip_preserves_all_sensitivity_buckets() {
     let original = sample_simm_sensitivities();
     assert!(
         !original.credit_qualifying_vega.is_empty()
@@ -378,16 +390,5 @@ fn portfolio_wire_round_trip_preserves_credit_and_commodity_vega() {
         .sensitivities
         .expect("sensitivities survive the round-trip");
 
-    assert_eq!(
-        restored.credit_qualifying_vega, original.credit_qualifying_vega,
-        "credit-qualifying vega must survive the portfolio wire"
-    );
-    assert_eq!(
-        restored.credit_non_qualifying_vega, original.credit_non_qualifying_vega,
-        "credit-non-qualifying vega must survive the portfolio wire"
-    );
-    assert_eq!(
-        restored.commodity_vega, original.commodity_vega,
-        "commodity vega must survive the portfolio wire"
-    );
+    assert_eq!(restored, original, "every SIMM sensitivity must survive");
 }
