@@ -171,16 +171,13 @@ pub(crate) fn quoted_workout_path(
 pub(crate) fn register_bond_metrics(
     registry: &mut crate::metrics::MetricRegistry,
 ) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
-    use crate::metrics::{
-        make_credit_bumper, make_rates_bumper, CrossFactorCalculator, CrossFactorPair, MetricId,
-    };
+    use crate::metrics::{make_credit_bumper, make_rates_bumper, CrossFactorCalculator, MetricId};
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
     registry.replace_metric(
         MetricId::CrossGammaRatesCredit,
         Arc::new(CrossFactorCalculator::new(
-            CrossFactorPair::RatesCredit,
             make_rates_bumper,
             make_credit_bumper,
         )),

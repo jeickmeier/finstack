@@ -63,9 +63,8 @@ Constructors and builders:
 | `with_covenants`, `with_covenant(key, report)` | Attach covenant reports |
 
 Accessors: `metric(MetricId)`, `metric_str(&str)`, `metric_series(&MetricId)`
-(bucketed series read back as `(labels, value)` pairs), `get_measure(&MetricId)`
-(errors instead of returning `None`), `all_covenants_passed()`, and
-`failed_covenants()`.
+(bucketed series read back as `(labels, value)` pairs), `all_covenants_passed()`,
+and `failed_covenants()`.
 
 ## FX policy metadata
 

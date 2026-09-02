@@ -69,7 +69,7 @@ pub(crate) enum RateCurveSelection {
 }
 
 /// Configuration for DV01 calculations.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Dv01CalculatorConfig {
     /// Computation mode (parallel vs bucketed, triangular vs par-rate).
     pub(crate) mode: Dv01ComputationMode,
@@ -81,17 +81,6 @@ pub(crate) struct Dv01CalculatorConfig {
     pub(crate) series_id: MetricId,
     /// Subset of rate curves included in the bump.
     pub(crate) curve_selection: RateCurveSelection,
-}
-
-impl std::fmt::Debug for Dv01CalculatorConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Dv01CalculatorConfig")
-            .field("mode", &self.mode)
-            .field("buckets", &self.buckets)
-            .field("series_id", &self.series_id)
-            .field("curve_selection", &self.curve_selection)
-            .finish()
-    }
 }
 
 impl Default for Dv01CalculatorConfig {
@@ -215,12 +204,6 @@ impl<I> UnifiedDv01Calculator<I> {
         } else {
             self.config.buckets.as_ref()
         }
-    }
-}
-
-impl<I> Default for UnifiedDv01Calculator<I> {
-    fn default() -> Self {
-        Self::new(Dv01CalculatorConfig::default())
     }
 }
 
@@ -368,7 +351,7 @@ where
             Ok((pv_up, pv_down))
         })?;
 
-        let dv01 = calculate_dv01_central(pv_up, pv_down, bump_bp);
+        let dv01 = super::cs01::sensitivity_central_diff(pv_up, pv_down, bump_bp);
         Ok(dv01)
     }
 
@@ -401,7 +384,7 @@ where
                 let pv_down = context.reprice_raw(scratch, as_of)?;
                 scratch.revert_scratch_bump(token_down)?;
 
-                let dv01 = calculate_dv01_central(pv_up, pv_down, bump_bp);
+                let dv01 = super::cs01::sensitivity_central_diff(pv_up, pv_down, bump_bp);
                 series.push((curve_id.as_str().to_string(), dv01));
             }
             Ok(())
@@ -487,14 +470,7 @@ where
         // Triangular weight construction below assumes `buckets` is strictly
         // increasing; an unsorted slice produces zero-sum or inverted buckets
         // silently. Validate up-front rather than letting bad input through.
-        for win in buckets.windows(2) {
-            if win[1].partial_cmp(&win[0]) != Some(std::cmp::Ordering::Greater) {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "key-rate buckets must be strictly increasing, got {:?} (offending pair: {} -> {})",
-                    buckets, win[0], win[1]
-                )));
-            }
-        }
+        super::cs01::validate_buckets_strictly_increasing(buckets)?;
 
         let mut series: Vec<(std::borrow::Cow<'static, str>, f64)> =
             Vec::with_capacity(buckets.len());
@@ -542,7 +518,7 @@ where
                 let pv_down = context.reprice_raw(scratch, as_of)?;
                 scratch.revert_scratch_bump(token_down)?;
 
-                let dv01 = calculate_dv01_central(pv_up, pv_down, bump_bp);
+                let dv01 = super::cs01::sensitivity_central_diff(pv_up, pv_down, bump_bp);
                 series.push((label, dv01));
             }
             Ok(())
@@ -647,43 +623,6 @@ fn triangular_bucket_affects_horizon(
     // The first half-triangle is non-zero from time zero. Every later bucket
     // starts at its previous neighbour; at that exact point its weight is zero.
     bucket_index == 0 || buckets[bucket_index - 1] < risk_horizon
-}
-
-/// Calculate DV01 from PV changes using central differencing (high-precision f64 version).
-///
-/// Uses raw f64 values to avoid Money rounding precision loss in sensitivity calculations.
-/// Central difference formula: `(PV_up - PV_down) / (2 * bump)` provides O(h^2) accuracy,
-/// eliminating first-order convexity contamination that affects forward differencing.
-///
-/// # Units
-///
-/// Returns DV01 in **currency units per basis point**. For example:
-/// - If `pv_up = 999_500` and `pv_down = 1_000_500` with `bump_bp = 1.0`
-/// - DV01 = (999_500 - 1_000_500) / (2 * 1.0) = -500
-/// - This means the instrument loses $500 per 1bp rate increase
-///
-/// # Arguments
-///
-/// * `pv_up` - Present value after upward bump (in currency units)
-/// * `pv_down` - Present value after downward bump (in currency units)
-/// * `bump_bp` - Bump size in basis points (typically 1.0)
-const MIN_BUMP_BP_THRESHOLD: f64 = 1e-10;
-
-#[inline]
-fn calculate_dv01_central(pv_up: f64, pv_down: f64, bump_bp: f64) -> f64 {
-    // `bump_bp` originates from config validated with `ensure_finite_positive`,
-    // so a degenerate width is a misconfiguration, not normal input. Assert
-    // loudly in debug/test builds so a silent 0.0 (indistinguishable from a true
-    // zero Greek) cannot mask a bad bump; in release, fall back to 0.0 rather
-    // than divide by ~0 and emit inf/NaN.
-    debug_assert!(
-        bump_bp.abs() > MIN_BUMP_BP_THRESHOLD,
-        "DV01 bump_bp must exceed {MIN_BUMP_BP_THRESHOLD} (got {bump_bp}); validate upstream"
-    );
-    if bump_bp.abs() <= MIN_BUMP_BP_THRESHOLD {
-        return 0.0;
-    }
-    (pv_up - pv_down) / (2.0 * bump_bp)
 }
 
 #[cfg(test)]

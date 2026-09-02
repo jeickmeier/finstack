@@ -183,19 +183,6 @@ impl ConventionRegistry {
             .ok_or_else(|| Self::not_found(key.to_string()))
     }
 
-    /// Resolve CDS conventions, applying the same rules as [`Self::resolve_cds`].
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The CDS convention key (currency + doc clause)
-    ///
-    /// # Errors
-    ///
-    /// Returns `InputError::NotFound` if the key cannot be resolved.
-    pub fn require_cds(&self, key: &CdsConventionKey) -> Result<&CdsConventionSpec> {
-        self.resolve_cds(key)
-    }
-
     /// Explicit regional family for `currency`, if the JSON lists one.
     ///
     /// # Arguments

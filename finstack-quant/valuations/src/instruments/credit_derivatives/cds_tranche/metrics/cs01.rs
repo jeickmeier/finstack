@@ -27,7 +27,7 @@ use crate::instruments::credit_derivatives::cds_tranche::CDSTranche;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::{
     compute_key_rate_cs01_series_with_context_raw, compute_parallel_cs01_with_context_raw,
-    sensitivity_central_diff, KeyRateCs01Request,
+    sensitivity_central_diff, Cs01Request,
 };
 use crate::metrics::{MetricCalculator, MetricContext, MetricId};
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
@@ -86,30 +86,18 @@ impl MetricCalculator for CdsTrancheCs01Calculator {
                 credit_index_id.as_str(),
                 rebuild_index(index_data.as_ref(), bumped_hazard)?,
             );
-            match &dispatch {
-                crate::pricer::PricingDispatch::Registered { model, registry } => registry
-                    .price_raw(inst_arc.as_ref(), *model, &indexed_ctx, as_of)
-                    .map_err(Into::into),
-                crate::pricer::PricingDispatch::InstrumentDefault => {
-                    inst_arc.value_raw(&indexed_ctx, as_of)
-                }
-            }
+            dispatch.price_raw(inst_arc.as_ref(), &indexed_ctx, as_of)
         };
 
-        let cs01 = compute_parallel_cs01_with_context_raw(
-            context,
-            &hazard_id,
+        let request = Cs01Request::generic(
             bump_bp,
             discount_id.ok_or_else(|| {
                 finstack_quant_core::Error::Validation(
                     "CDS tranche CS01 requires a discount curve".to_string(),
                 )
             })?,
-            None,
-            None,
-            None,
-            reval,
-        )?;
+        );
+        let cs01 = compute_parallel_cs01_with_context_raw(context, &hazard_id, &request, reval)?;
 
         context.computed.insert(
             MetricId::custom(format!("cs01::{}", hazard_id.as_str())),
@@ -181,22 +169,16 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
 
         let series_id = MetricId::custom(format!("bucketed_cs01::{}", hazard_id.as_str()));
 
+        let request = Cs01Request::generic(
+            bump_bp,
+            discount_id.ok_or_else(|| {
+                finstack_quant_core::Error::Validation(
+                    "CDS tranche bucketed CS01 requires a discount curve".to_string(),
+                )
+            })?,
+        );
         compute_key_rate_cs01_series_with_context_raw(
-            context,
-            &hazard_id,
-            KeyRateCs01Request {
-                series_id,
-                bump_bp,
-                discount_curve_id: discount_id.ok_or_else(|| {
-                    finstack_quant_core::Error::Validation(
-                        "CDS tranche bucketed CS01 requires a discount curve".to_string(),
-                    )
-                })?,
-                doc_clause: None,
-                cds_valuation_convention: None,
-                deal_quote_override: None,
-            },
-            reval,
+            context, &hazard_id, series_id, &request, reval,
         )
     }
 }

@@ -31,8 +31,8 @@
 use crate::instruments::credit_derivatives::cds_index::{CDSIndex, IndexPricing};
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::{
-    compute_key_rate_cs01_series_with_context_raw, cs01_reval, sensitivity_central_diff,
-    KeyRateCs01Request,
+    compute_key_rate_cs01_series_with_context_raw, cs01_reval, reprice_with_hazard,
+    sensitivity_central_diff, Cs01Request,
 };
 use crate::metrics::{MetricCalculator, MetricContext, MetricId};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -167,14 +167,9 @@ impl MetricCalculator for CdsIndexBucketedCs01HazardCalculator {
                     hazard.with_tenor_hazard_rate_bumps_bp(&[(tenor, -bump_bp)])?
                 };
                 let (pv_up, pv_down) = context.with_market_scratch(|ctx, scratch| {
-                    scratch.insert_mut(bumped_up);
-                    let pv_up = ctx.reprice_raw(scratch, as_of)?;
-                    scratch.insert_mut(Arc::clone(&hazard));
-
-                    scratch.insert_mut(bumped_down);
-                    let pv_down = ctx.reprice_raw(scratch, as_of)?;
-                    scratch.insert_mut(Arc::clone(&hazard));
-
+                    let reval = |market: &MarketContext| ctx.reprice_raw(market, as_of);
+                    let pv_up = reprice_with_hazard(scratch, bumped_up, &hazard, reval)?;
+                    let pv_down = reprice_with_hazard(scratch, bumped_down, &hazard, reval)?;
                     Ok((pv_up, pv_down))
                 })?;
                 let cs01 = sensitivity_central_diff(pv_up, pv_down, bump_bp);
@@ -226,18 +221,9 @@ impl MetricCalculator for CdsIndexBucketedCs01Calculator {
         for credit_id in credit_ids {
             let series_id = MetricId::custom(format!("bucketed_cs01::{}", credit_id.as_str()));
             let reval = cs01_reval(context);
+            let request = Cs01Request::generic(bump_bp, discount_id.clone());
             total.add(compute_key_rate_cs01_series_with_context_raw(
-                context,
-                &credit_id,
-                KeyRateCs01Request {
-                    series_id,
-                    bump_bp,
-                    discount_curve_id: discount_id.clone(),
-                    doc_clause: None,
-                    cds_valuation_convention: None,
-                    deal_quote_override: None,
-                },
-                reval,
+                context, &credit_id, series_id, &request, reval,
             )?);
         }
         Ok(total.total())

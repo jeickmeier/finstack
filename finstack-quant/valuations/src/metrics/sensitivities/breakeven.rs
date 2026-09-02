@@ -180,15 +180,7 @@ fn bump_market_for_target(
                 .instrument
                 .market_dependencies()
                 .ok()
-                .map(|dependencies| {
-                    dependencies
-                        .unique_vol_surface_ids()
-                        .into_iter()
-                        .filter(|vol_surface_id| {
-                            context.curves.get_surface(vol_surface_id.as_str()).is_ok()
-                        })
-                        .collect::<Vec<_>>()
-                })
+                .map(|dependencies| dependencies.present_vol_surface_ids(&context.curves))
                 .filter(|vol_surface_ids| !vol_surface_ids.is_empty())
                 .ok_or_else(|| finstack_quant_core::InputError::NotFound {
                     id: "iterative_breakeven: no vol surface found for instrument".into(),

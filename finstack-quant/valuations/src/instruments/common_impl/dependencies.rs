@@ -270,6 +270,25 @@ impl MarketDependencies {
         ids
     }
 
+    /// Declared volatility surfaces that are actually present in `market`.
+    ///
+    /// Instruments may declare ordered fallback candidates, so missing
+    /// candidates are not errors while another is present; callers decide
+    /// what an empty result means.
+    ///
+    /// # Arguments
+    ///
+    /// * `market` - Market context whose surfaces are probed by id.
+    pub fn present_vol_surface_ids(
+        &self,
+        market: &finstack_quant_core::market_data::context::MarketContext,
+    ) -> Vec<CurveId> {
+        self.unique_vol_surface_ids()
+            .into_iter()
+            .filter(|vol_surface_id| market.get_surface(vol_surface_id.as_str()).is_ok())
+            .collect()
+    }
+
     /// Add a scalar time series identifier.
     pub fn add_series_id(&mut self, id: impl Into<String>) {
         push_unique_string(&mut self.series_ids, id.into());

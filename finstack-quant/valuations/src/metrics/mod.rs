@@ -325,7 +325,7 @@ pub(crate) use sensitivities::option_greeks::OptionGreekCalculator;
 pub(crate) use sensitivities::rf_component_dv01::{RfComponentDv01Calculator, RfComponentPriced};
 pub(crate) use sensitivities::theta::calculate_theta_date;
 pub(crate) use sensitivities::vega::KeyRateVega;
-pub(crate) use shared::df::{GenericDfEndCalculator, GenericDfStartCalculator};
+pub(crate) use shared::df::GenericDfCalculator;
 
 // Error helper functions
 

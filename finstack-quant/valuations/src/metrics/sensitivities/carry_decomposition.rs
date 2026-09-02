@@ -25,13 +25,8 @@ use finstack_quant_core::math::Compounding;
 use finstack_quant_core::Result;
 
 /// Computes carry decomposition and stores all components in `context.computed`.
+#[derive(Default)]
 pub(crate) struct CarryDecompositionCalculator;
-
-impl Default for CarryDecompositionCalculator {
-    fn default() -> Self {
-        Self
-    }
-}
 
 impl MetricCalculator for CarryDecompositionCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {

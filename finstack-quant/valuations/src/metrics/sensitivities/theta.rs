@@ -401,23 +401,14 @@ fn store_theta_breakdown(context: &mut crate::metrics::MetricContext, breakdown:
 ///
 /// This calculator works with `dyn Instrument` directly, using the trait's `value()` method,
 /// and is registered as the default theta calculator for all instruments.
+#[derive(Default)]
 pub(crate) struct GenericThetaAny;
-
-impl Default for GenericThetaAny {
-    fn default() -> Self {
-        Self
-    }
-}
 
 impl crate::metrics::MetricCalculator for GenericThetaAny {
     fn calculate(&self, context: &mut crate::metrics::MetricContext) -> Result<f64> {
         let breakdown = compute_theta_breakdown(context)?;
         store_theta_breakdown(context, breakdown);
         Ok(breakdown.total)
-    }
-
-    fn dependencies(&self) -> &[crate::metrics::MetricId] {
-        &[]
     }
 }
 

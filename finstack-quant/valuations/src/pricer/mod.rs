@@ -35,12 +35,10 @@ mod registry;
 pub use errors::{PricingError, PricingErrorContext};
 pub use json::{
     instrument_envelope_from_spec, list_models, list_models_grouped, list_standard_metrics,
-    list_standard_metrics_grouped, metric_value, metric_value_from_instrument_json,
-    parse_boxed_instrument_from_json, parse_instrument_from_json, parse_model_key,
-    present_metric_values, present_metric_values_from_instrument_json,
-    present_standard_option_greeks, present_standard_option_greeks_from_instrument_json,
-    pretty_instrument_json, price_instrument, price_instrument_from_json, validate_instrument_json,
-    validate_typed_instrument_json, JsonPricingRequest, ParsedInstrument, STANDARD_OPTION_GREEKS,
+    list_standard_metrics_grouped, metric_value, parse_boxed_instrument_from_json,
+    parse_instrument_from_json, parse_model_key, present_standard_option_greeks,
+    pretty_instrument_json, price_instrument, validate_instrument_json,
+    validate_typed_instrument_json, ParsedInstrument, STANDARD_OPTION_GREEKS,
 };
 pub use keys::{InstrumentType, ModelKey, PricerKey};
 pub use registry::{expect_inst, Pricer, PricerRegistry, PricingDispatch};
@@ -124,30 +122,27 @@ fn build_standard_registry() -> std::result::Result<PricerRegistry, PricingError
 
 static STANDARD_PRICER_REGISTRY: OnceLock<Arc<PricerRegistry>> = OnceLock::new();
 
+#[allow(clippy::expect_used)]
+fn registry_cell() -> &'static Arc<PricerRegistry> {
+    STANDARD_PRICER_REGISTRY.get_or_init(|| {
+        Arc::new(build_standard_registry().expect("built-in pricer registrations must be valid"))
+    })
+}
+
 /// Return the shared standard pricer registry by reference.
 ///
 /// This is the primary public entry point for accessing the built-in pricer set.
 /// Callers that need to mutate a registry should start from `standard_pricer_registry().clone()`.
-#[allow(clippy::expect_used)]
 pub fn standard_pricer_registry() -> &'static PricerRegistry {
-    STANDARD_PRICER_REGISTRY
-        .get_or_init(|| {
-            Arc::new(
-                build_standard_registry().expect("built-in pricer registrations must be valid"),
-            )
-        })
-        .as_ref()
+    registry_cell().as_ref()
 }
 
 /// Return the shared standard pricer registry.
 ///
 /// The registry is initialized once and then cloned via `Arc` for cheap reuse
 /// across instrument-side pricing calls.
-#[allow(clippy::expect_used)]
 pub(crate) fn shared_standard_registry() -> Arc<PricerRegistry> {
-    Arc::clone(STANDARD_PRICER_REGISTRY.get_or_init(|| {
-        Arc::new(build_standard_registry().expect("built-in pricer registrations must be valid"))
-    }))
+    Arc::clone(registry_cell())
 }
 
 #[cfg(test)]

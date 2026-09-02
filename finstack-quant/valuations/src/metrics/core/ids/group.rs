@@ -1,7 +1,6 @@
 use super::MetricId;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::sync::OnceLock;
 
 /// Logical grouping of standard metrics for discovery and display.
 ///
@@ -80,12 +79,6 @@ impl MetricGroup {
     pub fn metrics(&self) -> &'static [MetricId] {
         let (start, end) = self.metric_range();
         &MetricId::ALL_STANDARD[start..end]
-    }
-
-    /// All groups with their metrics, for iteration.
-    pub fn all_with_metrics() -> &'static [(MetricGroup, &'static [MetricId])] {
-        static DATA: OnceLock<Vec<(MetricGroup, &'static [MetricId])>> = OnceLock::new();
-        DATA.get_or_init(|| MetricGroup::ALL.iter().map(|g| (*g, g.metrics())).collect())
     }
 
     fn metric_range(&self) -> (usize, usize) {

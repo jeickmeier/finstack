@@ -35,8 +35,8 @@ pub(crate) fn register_deposit_metrics(
         instrument: InstrumentType::Deposit,
         metrics: [
             (Yf, YearFractionCalculator),
-            (DfStart, crate::metrics::GenericDfStartCalculator),
-            (DfEnd, crate::metrics::GenericDfEndCalculator),
+            (DfStart, crate::metrics::GenericDfCalculator::START),
+            (DfEnd, crate::metrics::GenericDfCalculator::END),
             (DepositParRate, DepositParRateCalculator),
             (DfEndFromQuote, DfEndFromQuoteCalculator),
             (QuoteRate, QuoteRateCalculator),

@@ -10,7 +10,10 @@ use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
 use crate::metrics::{MetricCalculator, MetricContext};
-use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump};
+use crate::recalibration::{
+    DiscountCurveRecalibrationRequest, HazardRecalibrationAction, HazardRecalibrationRequest,
+    QuoteBump,
+};
 use finstack_quant_core::market_data::bumps::BumpSpec;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
@@ -30,10 +33,14 @@ impl CdsDv01Calculator {
             .curves
             .get_discount(cds.premium.discount_curve_id.as_str())?;
         if let Some(calibration) = base_discount.rate_calibration() {
-            let bumped_discount = context.bump_discount_rate_quotes_cached(
-                base_discount.as_ref(),
-                calibration,
-                &QuoteBump::ParallelBp(bump_bp),
+            let bumped_discount = context.rebuild_discount_curve(
+                DiscountCurveRecalibrationRequest {
+                    curve: std::sync::Arc::clone(&base_discount),
+                    recipe: calibration.clone(),
+                    market: std::sync::Arc::clone(&context.curves),
+                    bump: QuoteBump::ParallelBp(bump_bp),
+                },
+                "dv01",
             )?;
             bumped_market = bumped_market.insert(bumped_discount.as_ref().clone());
         } else {

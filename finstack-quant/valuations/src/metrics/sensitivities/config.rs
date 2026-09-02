@@ -79,13 +79,6 @@ pub(crate) struct SensitivitiesConfig {
     pub(crate) dv01_buckets_years: Vec<f64>,
     /// Default CS01 key-rate buckets in years.
     pub(crate) cs01_buckets_years: Vec<f64>,
-    /// When `true`, sensitivity calculators that rescale a bucketed
-    /// decomposition to match a parallel total (currently `BucketedVega`)
-    /// return an error if the rescaling factor deviates from `1.0` by more
-    /// than the calculator's documented threshold, rather than silently
-    /// applying the rescale and emitting a `tracing::warn!`. Defaults to
-    /// `false` to preserve historical behaviour.
-    pub(crate) bucketed_rescale_strict: bool,
 }
 
 impl Default for SensitivitiesConfig {
@@ -97,7 +90,6 @@ impl Default for SensitivitiesConfig {
             vol_bump_pct: crate::metrics::bump_sizes::VOLATILITY,
             dv01_buckets_years: STANDARD_BUCKETS_YEARS.to_vec(),
             cs01_buckets_years: STANDARD_BUCKETS_YEARS.to_vec(),
-            bucketed_rescale_strict: false,
         }
     }
 }
@@ -121,9 +113,6 @@ pub(crate) struct SensitivitiesOverrides {
     pub(crate) dv01_buckets_years: Option<Vec<f64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) cs01_buckets_years: Option<Vec<f64>>,
-    /// See `SensitivitiesConfig::bucketed_rescale_strict`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) bucketed_rescale_strict: Option<bool>,
 }
 
 fn ensure_finite_positive(name: &str, v: f64) -> finstack_quant_core::Result<()> {
@@ -147,14 +136,12 @@ fn ensure_bucket_grid(name: &str, buckets: &[f64]) -> finstack_quant_core::Resul
                 "Invalid sensitivities config: '{name}[{i}]' must be finite and > 0, got {t}"
             )));
         }
-        if i > 0 && t <= buckets[i - 1] {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Invalid sensitivities config: '{name}' must be strictly increasing (got {prev} then {t})",
-                prev = buckets[i - 1]
-            )));
-        }
     }
-    Ok(())
+    super::cs01::validate_buckets_strictly_increasing(buckets).map_err(|e| {
+        finstack_quant_core::Error::Validation(format!(
+            "Invalid sensitivities config: '{name}' {e}"
+        ))
+    })
 }
 
 /// Resolve sensitivities defaults from a `FinstackConfig`.
@@ -201,9 +188,6 @@ pub(crate) fn from_finstack_config_or_default(
         if let Some(v) = overrides.cs01_buckets_years {
             ensure_bucket_grid("cs01_buckets_years", &v)?;
             base.cs01_buckets_years = v;
-        }
-        if let Some(v) = overrides.bucketed_rescale_strict {
-            base.bucketed_rescale_strict = v;
         }
     }
 

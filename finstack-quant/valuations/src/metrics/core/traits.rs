@@ -370,137 +370,60 @@ impl MetricContext {
         self.risk_rebuild.recalibration_provider = provider;
     }
 
-    /// Recalibrate linked discount and forward curves, reusing a batch result.
+    /// Recalibrate linked discount and forward curves for a parallel quote bump.
     pub(crate) fn bump_rate_market_cached(
         &self,
         discount_curve_id: &CurveId,
         forward_curve_id: &CurveId,
         bump_bp: f64,
     ) -> finstack_quant_core::Result<Arc<MarketContext>> {
-        let provider = self
-            .risk_rebuild
-            .recalibration_provider
-            .as_deref()
-            .ok_or_else(|| crate::recalibration::provider_missing("dv01"))?;
-        provider.rebuild_rate_market(
-            &crate::recalibration::RateMarketRecalibrationRequest::LinkedDiscountForward {
+        self.rebuild_rate_market(
+            crate::recalibration::RateMarketRecalibrationRequest::LinkedDiscountForward {
                 market: Arc::clone(&self.curves),
                 discount_curve_id: discount_curve_id.clone(),
                 forward_curve_id: forward_curve_id.clone(),
                 bump: crate::recalibration::QuoteBump::ParallelBp(bump_bp),
             },
+            "dv01",
         )
     }
 
-    /// Recalibrate a single OIS curve, reusing a batch result.
+    /// Recalibrate a single OIS curve for a parallel quote bump.
     pub(crate) fn bump_single_ois_rate_market_cached(
         &self,
         curve_id: &CurveId,
         bump_bp: f64,
     ) -> finstack_quant_core::Result<Arc<MarketContext>> {
-        let provider = self
-            .risk_rebuild
-            .recalibration_provider
-            .as_deref()
-            .ok_or_else(|| crate::recalibration::provider_missing("dv01"))?;
-        provider.rebuild_rate_market(
-            &crate::recalibration::RateMarketRecalibrationRequest::SingleOis {
+        self.rebuild_rate_market(
+            crate::recalibration::RateMarketRecalibrationRequest::SingleOis {
                 market: Arc::clone(&self.curves),
                 curve_id: curve_id.clone(),
                 bump: crate::recalibration::QuoteBump::ParallelBp(bump_bp),
             },
+            "dv01",
         )
     }
 
-    /// Recalibrate one discount curve, reusing a batch result.
-    pub(crate) fn bump_discount_rate_quotes_cached(
+    /// Execute one rate-market replay through the injected provider.
+    pub(crate) fn rebuild_rate_market(
         &self,
-        curve: &finstack_quant_core::market_data::term_structures::DiscountCurve,
-        calibration: &finstack_quant_core::market_data::term_structures::RateCalibrationRecipe,
-        bump: &crate::recalibration::QuoteBump,
+        request: crate::recalibration::RateMarketRecalibrationRequest,
+        operation: &str,
+    ) -> finstack_quant_core::Result<Arc<MarketContext>> {
+        self.recalibration_provider_ref(operation)?
+            .rebuild_rate_market(&request)
+    }
+
+    /// Execute one discount-curve replay through the injected provider.
+    pub(crate) fn rebuild_discount_curve(
+        &self,
+        request: crate::recalibration::DiscountCurveRecalibrationRequest,
+        operation: &str,
     ) -> finstack_quant_core::Result<
         Arc<finstack_quant_core::market_data::term_structures::DiscountCurve>,
     > {
-        let provider = self
-            .risk_rebuild
-            .recalibration_provider
-            .as_deref()
-            .ok_or_else(|| crate::recalibration::provider_missing("dv01"))?;
-        provider.rebuild_discount_curve(&crate::recalibration::DiscountCurveRecalibrationRequest {
-            curve: Arc::new(curve.clone()),
-            recipe: calibration.clone(),
-            market: Arc::clone(&self.curves),
-            bump: bump.clone(),
-        })
-    }
-
-    /// Recalibrate a hazard curve, reusing an identical batch-local result.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn bump_hazard_spreads_cached(
-        &self,
-        hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
-        market: &MarketContext,
-        bump: &crate::recalibration::QuoteBump,
-        discount_curve_id: CurveId,
-        doc_clause: Option<crate::market::conventions::ids::CdsDocClause>,
-        cds_valuation_convention: Option<
-            crate::instruments::credit_derivatives::cds::CdsValuationConvention,
-        >,
-        deal_quote_override: Option<crate::recalibration::DealCdsQuoteOverride>,
-    ) -> finstack_quant_core::Result<
-        Arc<finstack_quant_core::market_data::term_structures::HazardCurve>,
-    > {
-        let provider = self
-            .risk_rebuild
-            .recalibration_provider
-            .as_deref()
-            .ok_or_else(|| crate::recalibration::provider_missing("cs01"))?;
-        provider.rebuild_hazard_curve(&crate::recalibration::HazardRecalibrationRequest {
-            hazard: Arc::new(hazard.clone()),
-            source_market: Arc::clone(&self.curves),
-            target_market: Arc::new(market.clone()),
-            discount_curve_id,
-            doc_clause,
-            cds_valuation_convention,
-            deal_quote_override,
-            action: crate::recalibration::HazardRecalibrationAction::SpreadBump(bump.clone()),
-        })
-    }
-
-    /// Recalibrate after bumping one exact spread-risk recipe binding.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn bump_hazard_spread_risk_input_cached(
-        &self,
-        hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
-        market: &MarketContext,
-        quote_bump: (usize, f64),
-        discount_curve_id: CurveId,
-        doc_clause: Option<crate::market::conventions::ids::CdsDocClause>,
-        cds_valuation_convention: Option<
-            crate::instruments::credit_derivatives::cds::CdsValuationConvention,
-        >,
-        deal_quote_override: Option<crate::recalibration::DealCdsQuoteOverride>,
-    ) -> finstack_quant_core::Result<
-        Arc<finstack_quant_core::market_data::term_structures::HazardCurve>,
-    > {
-        let provider = self
-            .risk_rebuild
-            .recalibration_provider
-            .as_deref()
-            .ok_or_else(|| crate::recalibration::provider_missing("bucketed_cs01"))?;
-        provider.rebuild_hazard_curve(&crate::recalibration::HazardRecalibrationRequest {
-            hazard: Arc::new(hazard.clone()),
-            source_market: Arc::clone(&self.curves),
-            target_market: Arc::new(market.clone()),
-            discount_curve_id,
-            doc_clause,
-            cds_valuation_convention,
-            deal_quote_override,
-            action: crate::recalibration::HazardRecalibrationAction::ExactQuoteIndexBump {
-                quote_index: quote_bump.0,
-                bump_bp: quote_bump.1,
-            },
-        })
+        self.recalibration_provider_ref(operation)?
+            .rebuild_discount_curve(&request)
     }
 
     /// Return exact ordered quote bindings for bucketed spread risk.
@@ -508,12 +431,8 @@ impl MetricContext {
         &self,
         hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
     ) -> finstack_quant_core::Result<Vec<crate::recalibration::HazardSpreadRiskBucket>> {
-        let provider = self
-            .risk_rebuild
-            .recalibration_provider
-            .as_deref()
-            .ok_or_else(|| crate::recalibration::provider_missing("bucketed_cs01"))?;
-        provider.hazard_spread_risk_buckets(hazard)
+        self.recalibration_provider_ref("bucketed_cs01")?
+            .hazard_spread_risk_buckets(hazard)
     }
 
     /// Execute one hazard replay through the injected provider.
@@ -524,12 +443,18 @@ impl MetricContext {
     ) -> finstack_quant_core::Result<
         Arc<finstack_quant_core::market_data::term_structures::HazardCurve>,
     > {
-        let provider = self
-            .risk_rebuild
+        self.recalibration_provider_ref(operation)?
+            .rebuild_hazard_curve(&request)
+    }
+
+    fn recalibration_provider_ref(
+        &self,
+        operation: &str,
+    ) -> finstack_quant_core::Result<&dyn crate::recalibration::RecalibrationProvider> {
+        self.risk_rebuild
             .recalibration_provider
             .as_deref()
-            .ok_or_else(|| crate::recalibration::provider_missing(operation))?;
-        provider.rebuild_hazard_curve(&request)
+            .ok_or_else(|| crate::recalibration::provider_missing(operation))
     }
 
     /// Clone the injected provider for nested pricing operations.
@@ -619,16 +544,9 @@ impl MetricContext {
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<Money> {
-        match &self.pricing_dispatch {
-            PricingDispatch::Registered { model, registry } => {
-                let options =
-                    crate::instruments::PricingOptions::default().with_config(self.get_config());
-                Ok(registry
-                    .price_with_metrics(instrument, *model, market, as_of, &[], options)?
-                    .value)
-            }
-            PricingDispatch::InstrumentDefault => instrument.value(market, as_of),
-        }
+        let options = crate::instruments::PricingOptions::default().with_config(self.get_config());
+        self.pricing_dispatch
+            .price_money(instrument, market, as_of, options)
     }
 
     /// Reprice an arbitrary instrument as a raw amount using the active dispatch path.
@@ -638,12 +556,7 @@ impl MetricContext {
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        match &self.pricing_dispatch {
-            PricingDispatch::Registered { model, registry } => registry
-                .price_raw(instrument, *model, market, as_of)
-                .map_err(Into::into),
-            PricingDispatch::InstrumentDefault => instrument.value_raw(market, as_of),
-        }
+        self.pricing_dispatch.price_raw(instrument, market, as_of)
     }
 
     /// Return the instrument's signed canonical cashflows, computing and

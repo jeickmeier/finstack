@@ -9,7 +9,7 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
 use crate::metrics::{MetricCalculator, MetricContext};
-use crate::recalibration::QuoteBump;
+use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump};
 use finstack_quant_core::Result;
 
 /// Spread DV01 calculator for the option's synthetic underlying CDS.
@@ -24,14 +24,18 @@ impl MetricCalculator for UnderlyingSpreadDv01Calculator {
             hazard.as_ref(),
             "CDS option underlying spread DV01",
         )?;
-        let bumped_hazard = context.bump_hazard_spreads_cached(
-            hazard.as_ref(),
-            &context.curves,
-            &QuoteBump::ParallelBp(1.0),
-            option.discount_curve_id.clone(),
-            None,
-            None,
-            None,
+        let bumped_hazard = context.rebuild_hazard_curve(
+            HazardRecalibrationRequest {
+                hazard: std::sync::Arc::clone(&hazard),
+                source_market: std::sync::Arc::clone(&context.curves),
+                target_market: std::sync::Arc::clone(&context.curves),
+                discount_curve_id: option.discount_curve_id.clone(),
+                doc_clause: None,
+                cds_valuation_convention: None,
+                deal_quote_override: None,
+                action: HazardRecalibrationAction::SpreadBump(QuoteBump::ParallelBp(1.0)),
+            },
+            "cs01",
         )?;
         let bumped_market = context
             .curves

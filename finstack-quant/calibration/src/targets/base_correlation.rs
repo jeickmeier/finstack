@@ -296,7 +296,7 @@ impl BaseCorrelationTarget {
                     fields.series, self.params.series
                 )));
             }
-            ConventionRegistry::try_global()?.require_cds(fields.convention)?;
+            ConventionRegistry::try_global()?.resolve_cds(fields.convention)?;
 
             let detachment_pct = normalize_pct(fields.detachment);
             validate_detachment_in_expected(detachment_pct, &expected_detachments)?;

@@ -16,9 +16,7 @@ use crate::metrics::MetricRegistry;
 pub(crate) fn register_equity_option_metrics(
     registry: &mut MetricRegistry,
 ) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
-    use crate::metrics::{
-        make_spot_bumper, make_vol_bumper, CrossFactorCalculator, CrossFactorPair, MetricId,
-    };
+    use crate::metrics::{make_spot_bumper, make_vol_bumper, CrossFactorCalculator, MetricId};
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
@@ -31,7 +29,6 @@ pub(crate) fn register_equity_option_metrics(
     registry.replace_metric(
         MetricId::CrossGammaSpotVol,
         Arc::new(CrossFactorCalculator::new(
-            CrossFactorPair::SpotVol,
             make_spot_bumper,
             make_vol_bumper,
         )),
@@ -47,7 +44,7 @@ pub(crate) fn register_equity_option_metrics(
             (Vega, crate::metrics::OptionGreekCalculator::<crate::instruments::EquityOption>::vega()),
             (BucketedVega, crate::metrics::KeyRateVega::<
                 crate::instruments::EquityOption,
-            >::standard()),
+            >::default()),
             (Dv01, crate::metrics::UnifiedDv01Calculator::<
                 crate::instruments::EquityOption,
             >::new(crate::metrics::Dv01CalculatorConfig::parallel_combined())),

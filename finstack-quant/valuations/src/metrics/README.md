@@ -60,7 +60,7 @@ the grouped cross-language contract.
 
 Discovery:
 
-- Rust: `MetricGroup::ALL`, `MetricGroup::metrics()`, `MetricGroup::all_with_metrics()`
+- Rust: `MetricGroup::ALL`, `MetricGroup::metrics()`
 - Registry: `MetricRegistry::available_metrics_grouped()` — registered standard
   metrics only, deterministic and sorted within each group
 - Python: `finstack_quant.valuations.instruments.list_standard_metrics_grouped()`

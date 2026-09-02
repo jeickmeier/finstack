@@ -13,7 +13,7 @@ use crate::instruments::credit_derivatives::cds_option::CDSOption;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
 use crate::metrics::{MetricCalculator, MetricContext};
-use crate::recalibration::QuoteBump;
+use crate::recalibration::{DiscountCurveRecalibrationRequest, QuoteBump};
 use finstack_quant_core::market_data::bumps::BumpSpec;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
@@ -40,10 +40,14 @@ impl CdsOptionDv01Calculator {
         // directly-specified curve still yields a well-defined IR DV01 (matches
         // `CdsDv01Calculator`).
         if let Some(calibration) = base_discount.rate_calibration() {
-            let bumped_discount = context.bump_discount_rate_quotes_cached(
-                base_discount.as_ref(),
-                calibration,
-                &QuoteBump::ParallelBp(bump_bp),
+            let bumped_discount = context.rebuild_discount_curve(
+                DiscountCurveRecalibrationRequest {
+                    curve: std::sync::Arc::clone(&base_discount),
+                    recipe: calibration.clone(),
+                    market: std::sync::Arc::clone(&context.curves),
+                    bump: QuoteBump::ParallelBp(bump_bp),
+                },
+                "dv01",
             )?;
             bumped_market = bumped_market.insert(bumped_discount.as_ref().clone());
         } else {

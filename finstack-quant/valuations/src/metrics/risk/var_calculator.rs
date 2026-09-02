@@ -16,7 +16,6 @@ use crate::pricer::PricingDispatch;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::math::{neumaier_sum, NeumaierAccumulator};
 use finstack_quant_core::money::fx::FxConversionPolicy;
 use finstack_quant_core::money::fx::FxQuery;
@@ -472,12 +471,7 @@ fn reprice_with_dispatch(
     as_of: Date,
     dispatch: &PricingDispatch,
 ) -> Result<Money> {
-    match dispatch {
-        PricingDispatch::Registered { model, registry } => Ok(registry
-            .price_with_metrics(instrument, *model, market, as_of, &[], Default::default())?
-            .value),
-        PricingDispatch::InstrumentDefault => instrument.value(market, as_of),
-    }
+    dispatch.price_money(instrument, market, as_of, Default::default())
 }
 
 /// Aggregate scenario P&Ls in parallel using rayon.
@@ -1098,11 +1092,10 @@ fn collect_bucketed_series(
 }
 
 fn spot_from_market(market: &MarketContext, ticker: &str) -> Option<f64> {
-    match market.get_price(ticker) {
-        Ok(MarketScalar::Unitless(v)) => Some(*v),
-        Ok(MarketScalar::Price(m)) => Some(m.amount()),
-        _ => None,
-    }
+    market
+        .get_price(ticker)
+        .ok()
+        .map(crate::metrics::core::finite_difference::scalar_numeric_value)
 }
 
 fn calculate_portfolio_var_taylor(

@@ -5,10 +5,7 @@
 
 use super::{register_generic, InstrumentType, PricerRegistry};
 
-/// Register a minimal set of pricers for rates instruments.
-///
-/// Intended for environments (like WASM) where registering *all* pricers may be
-/// too memory intensive.
+/// Register the rates-instrument shard of the standard pricer registry.
 pub(crate) fn register_rates_pricers(
     registry: &mut PricerRegistry,
 ) -> std::result::Result<(), crate::pricer::PricingError> {

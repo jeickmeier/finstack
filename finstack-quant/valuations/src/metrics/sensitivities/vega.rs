@@ -4,61 +4,21 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::metrics::core::finite_difference::{
-    apply_parallel_surface_bumps_in_place, revert_scratch_bumps,
+    apply_parallel_surface_bumps_in_place, min_grid_vol, revert_scratch_bumps,
+    scalar_numeric_value, VOL_POINTS_PER_ABSOLUTE_VOL,
 };
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::MetricCalculator;
 use crate::metrics::{MetricContext, MetricId};
-use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::math::NeumaierAccumulator;
 use std::marker::PhantomData;
 
-const VOL_POINTS_PER_ABSOLUTE_VOL: f64 = 100.0;
-
-/// Standard expiry buckets in years for equity options.
-pub(crate) fn standard_equity_expiry_buckets() -> Vec<f64> {
-    vec![
-        1.0 / 12.0, // 1m
-        3.0 / 12.0, // 3m
-        6.0 / 12.0, // 6m
-        1.0,        // 1y
-        2.0,        // 2y
-        3.0,        // 3y
-        5.0,        // 5y
-    ]
-}
+/// Standard expiry buckets in years for equity options (1m, 3m, 6m, 1y, 2y, 3y, 5y).
+const STANDARD_EQUITY_EXPIRY_BUCKETS: [f64; 7] =
+    [1.0 / 12.0, 3.0 / 12.0, 6.0 / 12.0, 1.0, 2.0, 3.0, 5.0];
 
 /// Standard strike buckets (relative to spot) for equity options.
-pub(crate) fn standard_strike_ratios() -> Vec<f64> {
-    vec![0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5]
-}
-
-/// Smallest implied vol on a surface's `(expiry, strike)` grid.
-///
-/// Used to detect whether an additive parallel down-bump of size `h` would
-/// clamp `σ - h` at zero (which happens wherever `σ < h`), in which case a
-/// central difference divided by `2h` is biased.
-fn min_grid_vol(surface: &finstack_quant_core::market_data::surfaces::VolSurface) -> Option<f64> {
-    let mut min_vol: Option<f64> = None;
-    for &expiry in surface.expiries() {
-        for &strike in surface.strikes() {
-            if let Ok(vol) =
-                finstack_quant_models::volatility::get_surface_vol(surface, expiry, strike)
-            {
-                min_vol = Some(min_vol.map_or(vol, |m: f64| m.min(vol)));
-            }
-        }
-    }
-    min_vol
-}
-
-fn expiry_label(t: f64) -> String {
-    if t < 1.0 {
-        format!("{:.0}m", (t * 12.0).round())
-    } else {
-        format!("{:.0}y", t)
-    }
-}
+const STANDARD_STRIKE_RATIOS: [f64; 7] = [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5];
 
 /// Key-rate vega calculator: bumps individual (expiry, strike) points.
 ///
@@ -90,19 +50,15 @@ impl<I> KeyRateVega<I> {
             _phantom: PhantomData,
         }
     }
-
-    /// Create a key-rate vega calculator with standard equity buckets.
-    ///
-    /// Uses standard expiry buckets (1m, 3m, 6m, 1y, 2y, 3y, 5y) and
-    /// standard strike ratios (0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5).
-    pub(crate) fn standard() -> Self {
-        Self::new(standard_equity_expiry_buckets(), standard_strike_ratios())
-    }
 }
 
 impl<I> Default for KeyRateVega<I> {
+    /// Standard equity buckets: expiries 1m–5y and strike ratios 0.5–1.5.
     fn default() -> Self {
-        Self::standard()
+        Self::new(
+            STANDARD_EQUITY_EXPIRY_BUCKETS.to_vec(),
+            STANDARD_STRIKE_RATIOS.to_vec(),
+        )
     }
 }
 
@@ -118,11 +74,7 @@ where
         )?;
 
         let dependencies = instrument.market_dependencies()?;
-        let vol_surface_ids: Vec<_> = dependencies
-            .unique_vol_surface_ids()
-            .into_iter()
-            .filter(|vol_surface_id| context.curves.get_surface(vol_surface_id.as_str()).is_ok())
-            .collect();
+        let vol_surface_ids = dependencies.present_vol_surface_ids(&context.curves);
         if vol_surface_ids.is_empty() {
             return Err(finstack_quant_core::InputError::Invalid.into());
         }
@@ -209,10 +161,7 @@ where
                     .ok_or_else(|| {
                         finstack_quant_core::Error::from(finstack_quant_core::InputError::Invalid)
                     })?;
-                let spot = match base_ctx.get_price(spot_id)? {
-                    MarketScalar::Price(m) => m.amount(),
-                    MarketScalar::Unitless(v) => *v,
-                };
+                let spot = scalar_numeric_value(base_ctx.get_price(spot_id)?);
                 Ok(self.strikes.iter().map(|k| k * spot).collect())
             })
             .collect::<finstack_quant_core::Result<Vec<Vec<f64>>>>()?;
@@ -262,7 +211,7 @@ where
                         raw_total.add(vega);
                     }
                     raw_matrix.push(row);
-                    let expiry = expiry_label(expiry);
+                    let expiry = sens_config::format_bucket_label_cow(expiry).into_owned();
                     row_labels.push(if multiple_surfaces {
                         format!("{}::{expiry}", vol_surface_id.as_str())
                     } else {

@@ -32,7 +32,7 @@ pub(crate) fn register_convertible_metrics(
 ) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{
         make_credit_bumper, make_rates_bumper, make_spot_bumper, make_vol_bumper,
-        CrossFactorCalculator, CrossFactorPair, MetricId,
+        CrossFactorCalculator, MetricId,
     };
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
@@ -82,7 +82,6 @@ pub(crate) fn register_convertible_metrics(
     registry.replace_metric(
         MetricId::CrossGammaSpotVol,
         Arc::new(CrossFactorCalculator::new(
-            CrossFactorPair::SpotVol,
             make_spot_bumper,
             make_vol_bumper,
         )),
@@ -91,7 +90,6 @@ pub(crate) fn register_convertible_metrics(
     registry.replace_metric(
         MetricId::CrossGammaSpotCredit,
         Arc::new(CrossFactorCalculator::new(
-            CrossFactorPair::SpotCredit,
             make_spot_bumper,
             make_credit_bumper,
         )),
@@ -100,7 +98,6 @@ pub(crate) fn register_convertible_metrics(
     registry.replace_metric(
         MetricId::CrossGammaRatesCredit,
         Arc::new(CrossFactorCalculator::new(
-            CrossFactorPair::RatesCredit,
             make_rates_bumper,
             make_credit_bumper,
         )),
@@ -109,7 +106,6 @@ pub(crate) fn register_convertible_metrics(
     registry.replace_metric(
         MetricId::CrossGammaCreditVol,
         Arc::new(CrossFactorCalculator::new(
-            CrossFactorPair::CreditVol,
             make_credit_bumper,
             make_vol_bumper,
         )),

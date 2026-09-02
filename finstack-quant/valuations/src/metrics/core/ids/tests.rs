@@ -219,15 +219,6 @@ fn test_group_union_equals_all_standard() {
 }
 
 #[test]
-fn test_metric_group_all_with_metrics() {
-    let grouped = MetricGroup::all_with_metrics();
-    assert_eq!(grouped.len(), MetricGroup::ALL.len());
-    for (group, metrics) in grouped {
-        assert!(!metrics.is_empty(), "group {:?} has no metrics", group);
-    }
-}
-
-#[test]
 fn composite_codec_round_trips_utf8_empty_and_reserved_components() {
     let key = MetricId::composite(&MetricId::BucketedDv01, &["USD-OIS", "10_y", "", "Δ"]);
 

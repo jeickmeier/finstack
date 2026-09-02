@@ -573,16 +573,16 @@ impl CDSTranchePricer {
         let hazard = Arc::clone(&original_index_arc.index_credit_curve);
         let bump_bp = self.params.cs01_bump_size;
         let source_market = Arc::new(market_ctx.clone());
+        let request = crate::metrics::sensitivities::cs01::Cs01Request::generic(
+            bump_bp,
+            tranche.discount_curve_id.clone(),
+        );
         crate::metrics::sensitivities::cs01::compute_parallel_cs01_with_provider_raw(
             provider,
             hazard,
             Arc::clone(&source_market),
             source_market,
-            bump_bp,
-            tranche.discount_curve_id.clone(),
-            None,
-            None,
-            None,
+            &request,
             |bumped_hazard| {
                 let bumped_index = self.rebuild_credit_index(
                     original_index_arc.as_ref(),

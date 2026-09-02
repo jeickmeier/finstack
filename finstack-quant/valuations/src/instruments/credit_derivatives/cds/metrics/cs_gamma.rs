@@ -93,37 +93,28 @@ impl MetricCalculator for CsGammaCalculator {
                     "CDS CS-Gamma",
                 )?;
 
-                let bumped_hazard_up = context.bump_hazard_spreads_cached(
-                    hazard_ref,
-                    base_ctx,
-                    &QuoteBump::ParallelBp(bump_bp),
-                    prepared.discount_id.clone(),
-                    Some(prepared.doc_clause),
-                    Some(prepared.valuation_convention),
-                    prepared.deal_quote_override,
-                )?;
-                let bumped_hazard_dn = context.bump_hazard_spreads_cached(
-                    hazard_ref,
-                    base_ctx,
-                    &QuoteBump::ParallelBp(-bump_bp),
-                    prepared.discount_id.clone(),
-                    Some(prepared.doc_clause),
-                    Some(prepared.valuation_convention),
-                    prepared.deal_quote_override,
-                )?;
-                let bumped_hazard_0 = context.rebuild_hazard_curve(
-                    HazardRecalibrationRequest {
-                        hazard: std::sync::Arc::clone(&hazard),
-                        source_market: std::sync::Arc::clone(&context.curves),
-                        target_market: std::sync::Arc::clone(&context.curves),
-                        discount_curve_id: prepared.discount_id.clone(),
-                        doc_clause: Some(prepared.doc_clause),
-                        cds_valuation_convention: Some(prepared.valuation_convention),
-                        deal_quote_override: prepared.deal_quote_override,
-                        action: HazardRecalibrationAction::SpreadRiskCenterReplay,
-                    },
-                    "cs_gamma",
-                )?;
+                let rebuild = |action: HazardRecalibrationAction| {
+                    context.rebuild_hazard_curve(
+                        HazardRecalibrationRequest {
+                            hazard: std::sync::Arc::clone(&hazard),
+                            source_market: std::sync::Arc::clone(&context.curves),
+                            target_market: std::sync::Arc::clone(&context.curves),
+                            discount_curve_id: prepared.discount_id.clone(),
+                            doc_clause: Some(prepared.doc_clause),
+                            cds_valuation_convention: Some(prepared.valuation_convention),
+                            deal_quote_override: prepared.deal_quote_override,
+                            action,
+                        },
+                        "cs_gamma",
+                    )
+                };
+                let bumped_hazard_up = rebuild(HazardRecalibrationAction::SpreadBump(
+                    QuoteBump::ParallelBp(bump_bp),
+                ))?;
+                let bumped_hazard_dn = rebuild(HazardRecalibrationAction::SpreadBump(
+                    QuoteBump::ParallelBp(-bump_bp),
+                ))?;
+                let bumped_hazard_0 = rebuild(HazardRecalibrationAction::SpreadRiskCenterReplay)?;
 
                 let (pv_up, pv_0, pv_dn) = context.with_market_scratch(|ctx, scratch| {
                     // PV at s + Δ

@@ -38,6 +38,32 @@ pub(crate) mod bump_sizes {
 /// `(bump_abs * VOL_POINTS_PER_ABSOLUTE_VOL)²`.
 pub(crate) const VOL_POINTS_PER_ABSOLUTE_VOL: f64 = 100.0;
 
+/// Smallest implied vol on a surface's `(expiry, strike)` grid.
+///
+/// An additive parallel vol bump of size `h` clamps the down-bumped surface
+/// (`σ - h`) at zero wherever `σ < h` (see `VolSurface`'s `Bumpable` impl).
+/// When that happens the down-bump no longer represents a `-h` move, so a
+/// central difference divided by the full `2h` is wrong. Callers use this
+/// minimum to detect the clamp and fall back to a one-sided difference.
+///
+/// Returns `None` for an empty grid.
+pub(crate) fn min_grid_vol(
+    surface: &finstack_quant_core::market_data::surfaces::VolSurface,
+) -> Option<f64> {
+    let mut min_vol: Option<f64> = None;
+    for &expiry in surface.expiries() {
+        for &strike in surface.strikes() {
+            // Exact grid points evaluate to the stored vol with no interpolation.
+            if let Ok(vol) =
+                finstack_quant_models::volatility::get_surface_vol(surface, expiry, strike)
+            {
+                min_vol = Some(min_vol.map_or(vol, |m: f64| m.min(vol)));
+            }
+        }
+    }
+    min_vol
+}
+
 /// Apply the same absolute parallel bump to each unique volatility surface.
 ///
 /// The returned tokens restore the scratch context in reverse application

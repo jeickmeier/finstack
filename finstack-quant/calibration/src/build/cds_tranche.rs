@@ -320,7 +320,7 @@ mod tests {
 
         let conv = ConventionRegistry::try_global()
             .expect("registry")
-            .require_cds(&convention_key)
+            .resolve_cds(&convention_key)
             .expect("convention should exist");
         let spot = resolve_spot_date(
             as_of,

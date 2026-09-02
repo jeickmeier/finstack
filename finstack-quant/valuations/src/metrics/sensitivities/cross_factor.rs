@@ -61,19 +61,6 @@ impl CrossFactorPair {
             Self::CreditVol => MetricId::CrossGammaCreditVol,
         }
     }
-
-    /// Human-readable label for explanations and attribution detail keys.
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::RatesCredit => "Rates×Credit",
-            Self::RatesVol => "Rates×Vol",
-            Self::SpotVol => "Spot×Vol",
-            Self::SpotCredit => "Spot×Credit",
-            Self::FxVol => "FX×Vol",
-            Self::FxRates => "FX×Rates",
-            Self::CreditVol => "Credit×Vol",
-        }
-    }
 }
 
 pub(crate) trait FactorBumper: Send + Sync {
@@ -288,11 +275,7 @@ pub(crate) fn make_credit_bumper(context: &MetricContext) -> Result<Option<Box<d
 /// Create a volatility bumper from runtime instrument dependencies.
 pub(crate) fn make_vol_bumper(context: &MetricContext) -> Result<Option<Box<dyn FactorBumper>>> {
     let deps = context.instrument.market_dependencies()?;
-    let vol_surface_ids: Vec<_> = deps
-        .unique_vol_surface_ids()
-        .into_iter()
-        .filter(|vol_surface_id| context.curves.get_surface(vol_surface_id.as_str()).is_ok())
-        .collect();
+    let vol_surface_ids = deps.present_vol_surface_ids(&context.curves);
     if vol_surface_ids.is_empty() {
         return Ok(None);
     }
@@ -342,12 +325,8 @@ pub struct CrossFactorCalculator {
 }
 
 impl CrossFactorCalculator {
-    /// Creates a reusable cross-factor calculator for the given pair.
-    pub(crate) fn new(
-        _pair: CrossFactorPair,
-        factory_a: BumperFactoryFn,
-        factory_b: BumperFactoryFn,
-    ) -> Self {
+    /// Creates a reusable cross-factor calculator from two bumper factories.
+    pub(crate) fn new(factory_a: BumperFactoryFn, factory_b: BumperFactoryFn) -> Self {
         Self {
             factory_a,
             factory_b,
@@ -488,7 +467,7 @@ mod tests {
     #[test]
     fn cross_factor_pair_labels_are_nonempty() {
         for pair in CrossFactorPair::ALL {
-            assert!(!pair.label().is_empty());
+            assert!(!pair.metric_id().as_str().is_empty());
         }
     }
 }

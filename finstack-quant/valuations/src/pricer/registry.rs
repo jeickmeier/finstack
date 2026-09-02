@@ -10,11 +10,24 @@ use finstack_quant_core::market_data::context::MarketContext as Market;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// Helper function to safely downcast a trait object to a concrete instrument type.
+/// Downcast a boxed instrument to its concrete type, checking the
+/// [`InstrumentType`] key first.
 ///
-/// This performs both enum-based type checking and actual type downcasting,
-/// ensuring type safety at both levels.
-#[doc(hidden)]
+/// Every non-generic [`Pricer::price_dyn`] implementation should use this
+/// instead of hand-rolling `as_any().downcast_ref()`: it checks the enum key
+/// before the type-id downcast so a mismatch reports the expected and actual
+/// instrument types.
+///
+/// # Arguments
+///
+/// * `inst` - The dynamically typed instrument handed to the pricer.
+/// * `expected` - The [`InstrumentType`] this pricer handles; must equal
+///   `inst.key()` and correspond to the concrete type `T`.
+///
+/// # Errors
+///
+/// Returns [`PricingError::TypeMismatch`] when `inst.key() != expected` or
+/// when the concrete type is not `T`.
 pub fn expect_inst<T: Priceable + 'static>(
     inst: &dyn Priceable,
     expected: InstrumentType,
@@ -71,9 +84,8 @@ pub trait Pricer: Send + Sync {
 
 /// Registry mapping (instrument type, model) pairs to pricer implementations.
 ///
-/// Provides type-safe pricing dispatch without string comparisons or runtime
-/// registration errors. Pricers are registered at compile time and looked up
-/// via strongly-typed keys.
+/// Provides type-safe pricing dispatch: pricers are registered once at
+/// registry construction and looked up via strongly-typed keys.
 ///
 /// The ordered pricer map is shared behind [`Arc`]. Cloning a registry is
 /// therefore O(1); registration and replacement use copy-on-write so cloned
@@ -114,6 +126,51 @@ impl PricingDispatch {
         match self {
             Self::InstrumentDefault => None,
             Self::Registered { model, .. } => Some(*model),
+        }
+    }
+
+    /// Price `instrument` as `Money` through this dispatch path.
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument` - Instrument to value.
+    /// * `market` - Market context supplying curves, surfaces and scalars.
+    /// * `as_of` - Valuation date.
+    /// * `options` - Pricing options forwarded to the registry path; ignored
+    ///   by `InstrumentDefault`, which calls `Instrument::value` directly.
+    pub(crate) fn price_money(
+        &self,
+        instrument: &dyn Priceable,
+        market: &Market,
+        as_of: finstack_quant_core::dates::Date,
+        options: crate::instruments::PricingOptions,
+    ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
+        match self {
+            Self::Registered { model, registry } => Ok(registry
+                .price_with_metrics(instrument, *model, market, as_of, &[], options)?
+                .value),
+            Self::InstrumentDefault => instrument.value(market, as_of),
+        }
+    }
+
+    /// Price `instrument` as an unrounded `f64` through this dispatch path.
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument` - Instrument to value.
+    /// * `market` - Market context supplying curves, surfaces and scalars.
+    /// * `as_of` - Valuation date.
+    pub(crate) fn price_raw(
+        &self,
+        instrument: &dyn Priceable,
+        market: &Market,
+        as_of: finstack_quant_core::dates::Date,
+    ) -> finstack_quant_core::Result<f64> {
+        match self {
+            Self::Registered { model, registry } => registry
+                .price_raw(instrument, *model, market, as_of)
+                .map_err(Into::into),
+            Self::InstrumentDefault => instrument.value_raw(market, as_of),
         }
     }
 }

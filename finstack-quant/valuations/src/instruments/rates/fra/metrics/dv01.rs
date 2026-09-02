@@ -12,7 +12,7 @@ use crate::instruments::rates::fra::ForwardRateAgreement;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
 use crate::metrics::{MetricCalculator, MetricContext};
-use crate::recalibration::QuoteBump;
+use crate::recalibration::{DiscountCurveRecalibrationRequest, QuoteBump};
 use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
@@ -59,10 +59,14 @@ impl MetricCalculator for FraRateCurveDv01Calculator {
                 // Basis forwards aren't supported by the shared helper; use the
                 // shared discount path and rebuild the forward locally.
                 let make_market = |bp: f64| -> Result<MarketContext> {
-                    let bumped_discount = context.bump_discount_rate_quotes_cached(
-                        discount.as_ref(),
-                        discount_cal,
-                        &QuoteBump::ParallelBp(bp),
+                    let bumped_discount = context.rebuild_discount_curve(
+                        DiscountCurveRecalibrationRequest {
+                            curve: std::sync::Arc::clone(&discount),
+                            recipe: discount_cal.clone(),
+                            market: std::sync::Arc::clone(&context.curves),
+                            bump: QuoteBump::ParallelBp(bp),
+                        },
+                        "dv01",
                     )?;
                     let with_discount = market.clone().insert(bumped_discount.as_ref().clone());
                     let bumped_discount_ref = with_discount.get_discount(discount_id.as_str())?;

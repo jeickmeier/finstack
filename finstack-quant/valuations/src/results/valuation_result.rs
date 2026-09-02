@@ -569,22 +569,6 @@ impl ValuationResult {
             .collect()
     }
 
-    /// Retrieve a metric by [`MetricId`], returning a `Validation` error if
-    /// the metric is not present.
-    ///
-    /// This is the non-panicking replacement for the former
-    /// `Index<MetricId>`/`Index<&MetricId>` impls. Use it when a missing
-    /// metric is a recoverable condition; use [`Self::metric`] when it is
-    /// expected to be optional.
-    pub fn get_measure(&self, id: &MetricId) -> finstack_quant_core::Result<f64> {
-        self.measures.get(id).copied().ok_or_else(|| {
-            finstack_quant_core::Error::Validation(format!(
-                "ValuationResult: metric '{}' not found",
-                id.as_str()
-            ))
-        })
-    }
-
     /// Attach multiple covenant reports to the result.
     ///
     /// Replaces any existing covenant reports with the provided map.
@@ -798,8 +782,7 @@ impl ValuationResult {
 
 // Note: a previous revision exposed `impl Index<MetricId>` / `impl Index<&MetricId>`
 // on `ValuationResult`, which silently panicked on missing keys. Callers must now
-// use `metric(id)` / `metric_str(id)` (option-returning), `get_measure(id)`
-// (`Result`-returning), or index the backing `measures` map directly when a
+// use `metric(id)` / `metric_str(id)` (option-returning), or index the backing `measures` map directly when a
 // missing key truly is a programming error at the call site.
 
 #[cfg(test)]
@@ -829,8 +812,8 @@ mod tests {
         assert_eq!(result.metric_str("dv01_extra"), Some(99.0));
         assert_eq!(result.metric_str("dv"), None);
         assert_eq!(result.metric(MetricId::Dv01), Some(12.5));
-        assert_eq!(result.get_measure(&MetricId::Dv01).ok(), Some(12.5));
-        assert!(result.get_measure(&MetricId::Cs01).is_err());
+        assert_eq!(result.metric(MetricId::Dv01), Some(12.5));
+        assert_eq!(result.metric(MetricId::Cs01), None);
     }
 
     #[test]

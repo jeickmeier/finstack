@@ -23,7 +23,7 @@ use crate::instruments::common_impl::{
     dependencies::MarketDependencies, dependencies::VolatilityDependency,
 };
 use crate::metrics::core::finite_difference::{
-    apply_parallel_surface_bumps_in_place, revert_scratch_bumps,
+    apply_parallel_surface_bumps_in_place, revert_scratch_bumps, scalar_numeric_value,
 };
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::{MetricCalculator, MetricContext};
@@ -55,7 +55,7 @@ use finstack_quant_core::Result;
 /// this floor.
 pub const MIN_ABSOLUTE_BUMP: f64 = 1e-8;
 
-use crate::metrics::core::finite_difference::VOL_POINTS_PER_ABSOLUTE_VOL;
+use crate::metrics::core::finite_difference::{min_grid_vol, VOL_POINTS_PER_ABSOLUTE_VOL};
 
 /// Common random number seed scenario for MC greek calculations.
 ///
@@ -98,32 +98,6 @@ fn effective_spot_bump(spot: f64, bump_pct: f64) -> SpotBump {
     }
 }
 
-/// Smallest implied vol on a surface's `(expiry, strike)` grid.
-///
-/// An additive parallel vol bump of size `h` clamps the down-bumped surface
-/// (`σ - h`) at zero wherever `σ < h` (see `VolSurface`'s `Bumpable` impl).
-/// When that happens the down-bump no longer represents a `-h` move, so a
-/// central difference divided by the full `2h` is wrong. Callers use this
-/// minimum to detect the clamp and fall back to a one-sided difference.
-///
-/// Returns `None` for an empty grid.
-fn min_surface_vol(
-    surface: &finstack_quant_core::market_data::surfaces::VolSurface,
-) -> Option<f64> {
-    let mut min_vol: Option<f64> = None;
-    for &expiry in surface.expiries() {
-        for &strike in surface.strikes() {
-            // Exact grid points evaluate to the stored vol with no interpolation.
-            if let Ok(vol) =
-                finstack_quant_models::volatility::get_surface_vol(surface, expiry, strike)
-            {
-                min_vol = Some(min_vol.map_or(vol, |m: f64| m.min(vol)));
-            }
-        }
-    }
-    min_vol
-}
-
 /// Smallest implied vol on a surface that is *relevant* to a single-strike
 /// option, used to decide whether a `±h` vol bump would clamp at zero on
 /// any cell the option's pricing actually touches.
@@ -138,7 +112,7 @@ fn min_surface_vol(
 ///
 /// Without a reference strike (e.g. basket payoffs, autocallables where
 /// pricing samples the surface along a path), this conservatively falls
-/// back to [`min_surface_vol`] — the previous global-min behaviour.
+/// back to [`min_grid_vol`] — the previous global-min behaviour.
 ///
 /// Returns `None` when the surface has no usable strike grid.
 fn min_relevant_surface_vol(
@@ -146,7 +120,7 @@ fn min_relevant_surface_vol(
     reference_strike: Option<f64>,
 ) -> Option<f64> {
     let Some(strike) = reference_strike else {
-        return min_surface_vol(surface);
+        return min_grid_vol(surface);
     };
     let strikes = surface.strikes();
     if strikes.is_empty() {
@@ -190,7 +164,7 @@ fn min_dependency_surface_vol(
         .clone()
         .any(|dependency| dependency.reference_strike.is_none())
     {
-        return min_surface_vol(surface);
+        return min_grid_vol(surface);
     }
     matching
         .filter_map(|dependency| min_relevant_surface_vol(surface, dependency.reference_strike))
@@ -214,11 +188,7 @@ fn present_vol_surface_ids(
     }
 
     let declared = dependencies.unique_vol_surface_ids();
-    let present = declared
-        .iter()
-        .filter(|vol_surface_id| market.get_surface(vol_surface_id.as_str()).is_ok())
-        .cloned()
-        .collect::<Vec<_>>();
+    let present = dependencies.present_vol_surface_ids(market);
     if present.is_empty() {
         return Err(finstack_quant_core::InputError::NotFound {
             id: format!(
@@ -382,10 +352,7 @@ where
         })?;
 
         let spot_scalar = context.curves.get_price(spot_id)?;
-        let current_spot = match spot_scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-        };
+        let current_spot = scalar_numeric_value(spot_scalar);
 
         validate_spot(current_spot, "delta")?;
 
@@ -467,10 +434,7 @@ where
         })?;
 
         let spot_scalar = context.curves.get_price(spot_id)?;
-        let current_spot = match spot_scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-        };
+        let current_spot = scalar_numeric_value(spot_scalar);
 
         validate_spot(current_spot, "gamma")?;
 
@@ -756,10 +720,7 @@ where
 
         // Spot level for bump sizing
         let spot_scalar = context.curves.get_price(spot_id)?;
-        let current_spot = match spot_scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-        };
+        let current_spot = scalar_numeric_value(spot_scalar);
 
         validate_spot(current_spot, "vanna")?;
 
