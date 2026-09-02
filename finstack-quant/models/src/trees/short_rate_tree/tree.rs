@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use finstack_quant_core::market_data::traits::Discounting;
-use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, Result};
-
-use crate::trees::tree_framework::TreeBranching;
 
 use super::black_karasinski::BkTrinomialLattice;
 use super::{ShortRateModel, ShortRateTreeConfig};
@@ -31,12 +28,6 @@ impl TreeCalibrationResult {
     pub fn is_acceptable(&self) -> bool {
         self.converged && self.max_error_bp < 1.0 && self.fallback_count == 0
     }
-
-    /// Returns true if calibration quality is good (max error < 0.1bp).
-    #[must_use]
-    pub fn is_good(&self) -> bool {
-        self.converged && self.max_error_bp < 0.1 && self.fallback_count == 0
-    }
 }
 
 /// Short-rate tree for valuing bonds with embedded options
@@ -45,12 +36,8 @@ pub struct ShortRateTree {
     pub(super) config: ShortRateTreeConfig,
     /// Calibrated short rates at each node: `rates[step][node]`
     pub(super) rates: Arc<Vec<Vec<f64>>>,
-    /// Transition probabilities: `probs[step]` gives (p_up, p_down) for that step
-    pub(super) probs: Vec<(f64, f64)>,
     /// Time steps in years
     pub(super) time_steps: Vec<f64>,
-    /// Discount curve used for calibration
-    pub(super) calibration_curve_id: CurveId,
     /// Calibration quality metrics (populated after calibration).
     pub(super) calibration_quality: Option<TreeCalibrationResult>,
     /// Trinomial Black-Karasinski lattice (set when BDT model has κ ≠ 0).
@@ -63,9 +50,7 @@ impl ShortRateTree {
         Self {
             config,
             rates: Arc::new(Vec::new()),
-            probs: Vec::new(),
             time_steps: Vec::new(),
-            calibration_curve_id: CurveId::new(""),
             calibration_quality: None,
             bk_trinomial: None,
         }
@@ -82,91 +67,47 @@ impl ShortRateTree {
         self.calibration_quality.as_ref()
     }
 
-    /// Create a Ho-Lee tree with specified normal (absolute) volatility.
-    ///
-    /// # Arguments
-    ///
-    /// * `steps` - Number of tree steps (50-200 typical)
-    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bp/yr)
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_models::trees::short_rate_tree::ShortRateTree;
-    ///
-    /// // Ho-Lee with 100 bp annual volatility
-    /// let tree = ShortRateTree::ho_lee(100, 0.01);
-    /// ```
-    pub fn ho_lee(steps: usize, normal_vol: f64) -> Self {
-        Self::new(ShortRateTreeConfig::ho_lee(steps, normal_vol))
-    }
-
-    /// Create a Black-Derman-Toy tree with specified lognormal (relative) volatility.
-    ///
-    /// # Arguments
-    ///
-    /// * `steps` - Number of tree steps (50-200 typical)
-    /// * `lognormal_vol` - Lognormal volatility (e.g., 0.20 = 20%/yr)
-    /// * `mean_reversion` - `0.0` for standard binomial BDT; positive values
-    ///   calibrate a trinomial Black-Karasinski lattice in x = ln r
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_models::trees::short_rate_tree::ShortRateTree;
-    ///
-    /// // BDT with 20% lognormal volatility
-    /// let tree = ShortRateTree::black_derman_toy(100, 0.20, 0.0);
-    /// ```
-    ///
-    /// # Warning
-    ///
-    /// ⚠️ The volatility parameter is **lognormal** (relative), not normal (absolute).
-    /// A value of 0.20 means 20% annual rate volatility, not 20 bp.
-    /// Use `crate::volatility::convert_atm_volatility` to convert from normal if needed.
-    pub fn black_derman_toy(steps: usize, lognormal_vol: f64, mean_reversion: f64) -> Self {
-        Self::new(ShortRateTreeConfig::bdt(
-            steps,
-            lognormal_vol,
-            mean_reversion,
-        ))
-    }
-
-    /// Create a Ho-Lee tree with default normal volatility (100 bp).
-    pub fn default_ho_lee(steps: usize) -> Self {
-        Self::new(ShortRateTreeConfig::default_ho_lee(steps))
-    }
-
-    /// Create a BDT tree with default lognormal volatility (20%).
-    pub fn default_bdt(steps: usize) -> Self {
-        Self::new(ShortRateTreeConfig::default_bdt(steps))
-    }
-
     /// Calibrate the tree to match a given discount curve.
     ///
-    /// The `curve_id` is stored so that
-    /// [`calculate_greeks`](crate::trees::TreeModel::calculate_greeks) can
-    /// look up the curve from the `MarketContext` when recalibrating bumped trees
-    /// for vega and theta.
+    /// # Arguments
+    ///
+    /// * `discount_curve` - Risk-free discount curve the lattice must reprice
+    ///   at every step (Arrow-Debreu forward induction).
+    /// * `time_to_maturity` - Positive lattice horizon in years; the step
+    ///   width is `time_to_maturity / steps`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] if `steps == 0`, if `time_to_maturity`
+    /// is not finite and positive, if the configured model rejects its
+    /// parameters (e.g. Ho-Lee with non-zero mean reversion), or if the
+    /// calibrated lattice fails to reprice the curve.
     pub fn calibrate(
         &mut self,
-        curve_id: &CurveId,
         discount_curve: &dyn Discounting,
         time_to_maturity: f64,
     ) -> Result<()> {
-        self.calibration_curve_id = curve_id.clone();
+        if self.config.steps == 0 {
+            return Err(Error::Validation(
+                "short-rate tree requires at least one step".into(),
+            ));
+        }
+        if !time_to_maturity.is_finite() || time_to_maturity <= 0.0 {
+            return Err(Error::Validation(format!(
+                "short-rate tree requires a finite, positive time to maturity, got {time_to_maturity}"
+            )));
+        }
 
         let dt = time_to_maturity / self.config.steps as f64;
         self.time_steps = (0..=self.config.steps).map(|i| i as f64 * dt).collect();
 
         let mut rates = vec![Vec::new(); self.config.steps + 1];
-        self.probs = vec![(0.5, 0.5); self.config.steps]; // Default to equal probabilities
         self.bk_trinomial = None;
 
         match self.config.model {
             ShortRateModel::HoLee => self.calibrate_ho_lee(&mut rates, discount_curve, dt)?,
             ShortRateModel::BlackDermanToy => {
-                let kappa = self.config.mean_reversion.unwrap_or(0.0);
+                let kappa = self.config.mean_reversion;
                 if kappa < 0.0 {
                     return Err(Error::Validation(format!(
                         "Black-Karasinski mean reversion must be non-negative, got {kappa}"
@@ -208,16 +149,6 @@ impl ShortRateTree {
         Ok(self.rates[step][node])
     }
 
-    /// Get transition probabilities at a step
-    pub fn probabilities(&self, step: usize) -> Result<(f64, f64)> {
-        if step >= self.probs.len() {
-            return Err(Error::internal(format!(
-                "short-rate tree probability row out of bounds: step={step}"
-            )));
-        }
-        Ok(self.probs[step])
-    }
-
     /// Get time at step
     pub fn time_at_step(&self, step: usize) -> Result<f64> {
         if step >= self.time_steps.len() {
@@ -226,13 +157,6 @@ impl ShortRateTree {
             )));
         }
         Ok(self.time_steps[step])
-    }
-
-    fn expected_nodes_at_step(branching: TreeBranching, step: usize) -> usize {
-        match branching {
-            TreeBranching::Binomial => step + 1,
-            TreeBranching::Trinomial => 2 * step + 1,
-        }
     }
 
     pub(super) fn validate_lattice_geometry(&self) -> Result<()> {
@@ -245,29 +169,16 @@ impl ShortRateTree {
         }
 
         // Black-Karasinski trinomial lattice: width grows 2·step+1 until the
-        // j_max cap, then stays at 2·j_max+1.
-        if let Some(lattice) = &self.bk_trinomial {
-            for (step, rates_at_step) in self.rates.iter().enumerate() {
-                let expected = 2 * step.min(lattice.j_max) + 1;
-                if rates_at_step.len() != expected {
-                    return Err(Error::internal(format!(
-                        "Black-Karasinski lattice geometry mismatch: step {} expected {} \
-                         nodes, got {}",
-                        step,
-                        expected,
-                        rates_at_step.len()
-                    )));
-                }
-            }
-            return Ok(());
-        }
-
+        // j_max cap, then stays at 2·j_max+1. Binomial lattices grow step+1.
+        let expected_width = |step: usize| match &self.bk_trinomial {
+            Some(lattice) => 2 * step.min(lattice.j_max) + 1,
+            None => step + 1,
+        };
         for (step, rates_at_step) in self.rates.iter().enumerate() {
-            let expected = Self::expected_nodes_at_step(self.config.branching, step);
+            let expected = expected_width(step);
             if rates_at_step.len() != expected {
                 return Err(Error::internal(format!(
-                    "short-rate tree lattice geometry mismatch for {:?}: step {} expected {} nodes, got {}",
-                    self.config.branching,
+                    "short-rate tree lattice geometry mismatch: step {} expected {} nodes, got {}",
                     step,
                     expected,
                     rates_at_step.len()

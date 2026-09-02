@@ -62,20 +62,13 @@ impl ShortRateTree {
         let mut clamp_engaged = false;
         let mut clamp_engaged_step = 0_usize;
 
-        let r0 = if self.time_steps[1] > 0.0 {
-            // Use initial forward rate from discount curve
-            -discount_curve.df(self.time_steps[1]).ln() / self.time_steps[1]
-        } else {
-            0.03 // Fallback rate
-        };
+        // Initial continuous zero rate from the discount curve. `calibrate`
+        // guarantees steps >= 1 and a positive horizon, so T1 > 0.
+        let t1 = self.time_steps[1];
+        let r0 = -discount_curve.df(t1).ln() / t1;
 
         rates[0] = vec![r0.clamp(alpha_lb, alpha_ub)]; // Ensure within bounds
         let mut state_prices = vec![vec![1.0]]; // Q[0] = [1.0]
-
-        // Set transition probabilities (constant for BDT)
-        for i in 0..self.config.steps {
-            self.probs[i] = (p, 1.0 - p);
-        }
 
         // Track calibration quality for diagnostics
         let mut max_error_bp = 0.0_f64;
@@ -126,12 +119,9 @@ impl ShortRateTree {
             let (alpha, used_fallback) = match solver.solve(objective, initial_alpha) {
                 Ok(a) => (a.clamp(alpha_lb, alpha_ub), false),
                 Err(_) => {
-                    // Solver failed - use fallback based on market rate
-                    let market_rate = if current_time > 0.0 {
-                        -target_df.ln() / current_time
-                    } else {
-                        0.03
-                    };
+                    // Solver failed - use fallback based on the market zero
+                    // rate (current_time > 0 for every calibrated step).
+                    let market_rate = -target_df.ln() / current_time;
                     fallback_count += 1;
                     (market_rate.clamp(alpha_lb, alpha_ub), true)
                 }

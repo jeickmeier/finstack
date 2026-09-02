@@ -1,7 +1,6 @@
 //! Shared node, evolution, and backward-induction components for pricing trees.
 //!
 use finstack_quant_core::market_data::context::MarketContext;
-pub use finstack_quant_core::types::BarrierType;
 use finstack_quant_core::HashMap;
 
 use super::state_keys;
@@ -17,8 +16,6 @@ pub struct NodeState<'a> {
     pub vars: &'a HashMap<&'static str, f64>,
     /// Access to market context for additional data
     pub market_context: &'a MarketContext,
-    /// Barrier state tracking (if applicable)
-    pub barrier_state: Option<BarrierState>,
     /// Cached spot price for performance (avoids hash lookup)
     pub spot: Option<f64>,
     /// Cached interest rate for performance (avoids hash lookup)
@@ -27,17 +24,6 @@ pub struct NodeState<'a> {
     pub hazard_rate: Option<f64>,
     /// Cached discount factor for performance (avoids hash lookup)
     pub df: Option<f64>,
-}
-
-/// Simple barrier state tracking for barrier options
-#[derive(Debug, Clone, Copy, Default)]
-pub struct BarrierState {
-    /// Whether barrier has been hit during the path
-    pub barrier_hit: bool,
-    /// Barrier level (for checking)
-    pub barrier_level: f64,
-    /// Barrier type
-    pub barrier_type: BarrierType,
 }
 
 /// Pre-extracted state variable cache to avoid redundant HashMap lookups in hot paths.
@@ -54,7 +40,14 @@ pub(crate) struct CachedValues {
 }
 
 impl<'a> NodeState<'a> {
-    /// Create a new node state
+    /// Create a new node state, extracting the cached fields from `vars`.
+    ///
+    /// # Arguments
+    ///
+    /// * `step` - Zero-based time-step index of the node.
+    /// * `time` - Node time in years from the valuation date.
+    /// * `vars` - State variables at this node keyed by [`state_keys`] constants.
+    /// * `market_context` - Market data made available to the valuator.
     pub fn new(
         step: usize,
         time: f64,
@@ -67,18 +60,7 @@ impl<'a> NodeState<'a> {
             hazard_rate: vars.get(state_keys::HAZARD_RATE).copied(),
             df: vars.get(state_keys::DF).copied(),
         };
-
-        Self {
-            step,
-            time,
-            vars,
-            market_context,
-            barrier_state: None,
-            spot: cached.spot,
-            interest_rate: cached.interest_rate,
-            hazard_rate: cached.hazard_rate,
-            df: cached.df,
-        }
+        Self::with_cached(step, time, vars, market_context, cached)
     }
 
     /// Create a new node state with pre-extracted cached values.
@@ -98,61 +80,10 @@ impl<'a> NodeState<'a> {
             time,
             vars,
             market_context,
-            barrier_state: None,
             spot: cached.spot,
             interest_rate: cached.interest_rate,
             hazard_rate: cached.hazard_rate,
             df: cached.df,
-        }
-    }
-
-    /// Create a new node state with barrier tracking and pre-extracted cached values.
-    #[inline]
-    pub(crate) fn with_cached_barrier(
-        step: usize,
-        time: f64,
-        vars: &'a HashMap<&'static str, f64>,
-        market_context: &'a MarketContext,
-        barrier_state: BarrierState,
-        cached: CachedValues,
-    ) -> Self {
-        Self {
-            step,
-            time,
-            vars,
-            market_context,
-            barrier_state: Some(barrier_state),
-            spot: cached.spot,
-            interest_rate: cached.interest_rate,
-            hazard_rate: cached.hazard_rate,
-            df: cached.df,
-        }
-    }
-
-    /// Create a new node state with barrier tracking
-    pub fn new_with_barrier(
-        step: usize,
-        time: f64,
-        vars: &'a HashMap<&'static str, f64>,
-        market_context: &'a MarketContext,
-        barrier_state: BarrierState,
-    ) -> Self {
-        // Pre-extract commonly accessed variables to avoid hash lookups in hot path
-        let spot = vars.get(state_keys::SPOT).copied();
-        let interest_rate = vars.get(state_keys::INTEREST_RATE).copied();
-        let hazard_rate = vars.get(state_keys::HAZARD_RATE).copied();
-        let df = vars.get(state_keys::DF).copied();
-
-        Self {
-            step,
-            time,
-            vars,
-            market_context,
-            barrier_state: Some(barrier_state),
-            spot,
-            interest_rate,
-            hazard_rate,
-            df,
         }
     }
 
@@ -180,12 +111,6 @@ impl<'a> NodeState<'a> {
         self.interest_rate
     }
 
-    /// Get credit spread (convenience method)
-    #[inline]
-    pub fn credit_spread(&self) -> Option<f64> {
-        self.get_var(state_keys::CREDIT_SPREAD)
-    }
-
     /// Get hazard rate (convenience method, uses cached value)
     #[inline]
     pub fn hazard_rate(&self) -> Option<f64> {
@@ -196,56 +121,5 @@ impl<'a> NodeState<'a> {
     #[inline]
     pub fn discount_factor(&self) -> Option<f64> {
         self.df
-    }
-
-    /// Check if barrier has been hit (for barrier options)
-    pub fn is_barrier_hit(&self) -> bool {
-        self.barrier_state.as_ref().is_some_and(|bs| bs.barrier_hit)
-    }
-
-    /// Update barrier state based on current spot price
-    pub fn update_barrier_state(&mut self, spot_price: f64) {
-        if let Some(ref mut barrier_state) = self.barrier_state {
-            if !barrier_state.barrier_hit {
-                let hit = if barrier_state.barrier_type.is_up() {
-                    spot_price >= barrier_state.barrier_level
-                } else {
-                    spot_price <= barrier_state.barrier_level
-                };
-                barrier_state.barrier_hit = hit;
-            }
-        }
-    }
-
-    /// Check if option should be knocked out (for barrier options)
-    pub fn is_knocked_out(&self) -> bool {
-        if let Some(ref barrier_state) = self.barrier_state {
-            barrier_state.barrier_hit && barrier_state.barrier_type.is_knock_out()
-        } else {
-            false
-        }
-    }
-
-    /// Check if option should be knocked in (for barrier options)
-    pub fn is_knocked_in(&self) -> bool {
-        if let Some(ref barrier_state) = self.barrier_state {
-            barrier_state.barrier_hit && barrier_state.barrier_type.is_knock_in()
-        } else {
-            true // If no barrier, always "knocked in"
-        }
-    }
-
-    /// Whether the up barrier was touched at this node (discrete monitoring flag)
-    pub fn barrier_touched_up(&self) -> bool {
-        self.get_var(state_keys::BARRIER_TOUCHED_UP)
-            .map(|v| v > 0.5)
-            .unwrap_or(false)
-    }
-
-    /// Whether the down barrier was touched at this node (discrete monitoring flag)
-    pub fn barrier_touched_down(&self) -> bool {
-        self.get_var(state_keys::BARRIER_TOUCHED_DOWN)
-            .map(|v| v > 0.5)
-            .unwrap_or(false)
     }
 }

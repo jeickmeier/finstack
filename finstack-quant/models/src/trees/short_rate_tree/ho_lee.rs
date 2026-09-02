@@ -26,14 +26,12 @@ impl ShortRateTree {
         discount_curve: &dyn Discounting,
         dt: f64,
     ) -> Result<()> {
-        if let Some(kappa) = self.config.mean_reversion {
-            if kappa.abs() > 1e-12 {
-                return Err(Error::Validation(
-                    "Ho-Lee model does not support mean reversion (breaks lattice recombination); \
-                     use HullWhiteTree for mean-reverting normal short-rate models"
-                        .into(),
-                ));
-            }
+        if self.config.mean_reversion.abs() > 1e-12 {
+            return Err(Error::Validation(
+                "Ho-Lee model does not support mean reversion (breaks lattice recombination); \
+                 use HullWhiteTree for mean-reverting normal short-rate models"
+                    .into(),
+            ));
         }
 
         let sigma = self.config.volatility;
@@ -45,11 +43,9 @@ impl ShortRateTree {
 
         // Initialize first step with current short rate: r0 satisfies
         // comp.df(r0, T1) = P(0, T1) under the configured convention.
-        let r0 = if self.time_steps[1] > 0.0 {
-            comp.rate_from_df(discount_curve.df(self.time_steps[1]), self.time_steps[1])
-        } else {
-            0.03 // Fallback rate
-        };
+        // `calibrate` guarantees steps >= 1 and a positive horizon, so T1 > 0.
+        let t1 = self.time_steps[1];
+        let r0 = comp.rate_from_df(discount_curve.df(t1), t1);
 
         rates[0] = vec![r0];
 

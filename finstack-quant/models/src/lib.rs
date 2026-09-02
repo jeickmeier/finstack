@@ -59,10 +59,9 @@ pub use closed_form::{
     heston_put_price_fourier, vanilla_expiry_payoff, BsGreeks, HestonPricingParams, ONE_PERCENT,
 };
 pub use trees::{
-    short_rate_keys, single_factor_equity_state, state_keys, two_factor_equity_rates_state,
-    BarrierSpec, BarrierStyle, BinomialTree, EvolutionParams, HullWhiteTree, HullWhiteTreeConfig,
-    NodeState, ShortRateModel, ShortRateTree, ShortRateTreeConfig, TreeBranching, TreeCompounding,
-    TreeGreeks, TreeModel, TreeParameters, TreeType, TreeValuator,
+    short_rate_keys, single_factor_equity_state, state_keys, BinomialTree, EvolutionParams,
+    HullWhiteTree, HullWhiteTreeConfig, NodeState, ShortRateModel, ShortRateTree,
+    ShortRateTreeConfig, TreeCompounding, TreeGreeks, TreeModel, TreeValuator,
 };
 pub use types::{ExerciseStyle, OptionMarketParams, OptionType};
 pub use volatility::{

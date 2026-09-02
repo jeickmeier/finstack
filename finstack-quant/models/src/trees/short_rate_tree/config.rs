@@ -1,4 +1,3 @@
-use crate::trees::tree_framework::TreeBranching;
 use finstack_quant_core::Result;
 
 /// Default normal (absolute) volatility for Ho-Lee model.
@@ -6,12 +5,6 @@ use finstack_quant_core::Result;
 /// 100 basis points per year, typical for developed market government bonds
 /// in a normal rate environment (2-5% rates).
 pub const DEFAULT_NORMAL_VOL: f64 = 0.01; // 100 bp/yr
-
-/// Default lognormal (relative) volatility for Black-Derman-Toy model.
-///
-/// 20% annualized, typical for developed market government bonds.
-/// This corresponds to ~100 bp normal vol at a 5% rate level.
-pub const DEFAULT_LOGNORMAL_VOL: f64 = 0.20; // 20%
 
 /// Default maximum initial-curve repricing error for calibrated trees, in basis points.
 pub const DEFAULT_CURVE_FIT_TOLERANCE_BP: f64 = 0.1;
@@ -180,8 +173,8 @@ pub enum ShortRateModel {
     /// - High vol/stress: 25-40% (0.25-0.40)
     ///
     /// ## Important
-    /// ⚠️ The default 1% volatility in older code is **far too low** for BDT.
-    /// Use [`DEFAULT_LOGNORMAL_VOL`] (20%) or calibrate to swaption market.
+    /// ⚠️ A normal-vol-sized value such as 1% is **far too low** for BDT.
+    /// Use ~20% or calibrate to the swaption market.
     BlackDermanToy,
 }
 
@@ -203,7 +196,7 @@ pub enum ShortRateModel {
 ///
 /// ```
 /// use finstack_quant_models::trees::short_rate_tree::{
-///     ShortRateTreeConfig, ShortRateModel, DEFAULT_NORMAL_VOL, DEFAULT_LOGNORMAL_VOL,
+///     ShortRateTreeConfig, ShortRateModel, DEFAULT_NORMAL_VOL,
 /// };
 ///
 /// // Ho-Lee with 100 bp normal vol (recommended for negative rate environments)
@@ -214,12 +207,9 @@ pub enum ShortRateModel {
 /// let bdt = ShortRateTreeConfig::bdt(100, 0.20, 0.03);
 /// assert_eq!(bdt.model, ShortRateModel::BlackDermanToy);
 ///
-/// // Use defaults with model-appropriate volatility
-/// let ho_lee_default = ShortRateTreeConfig::default_ho_lee(100);
-/// assert_eq!(ho_lee_default.volatility, DEFAULT_NORMAL_VOL);
-///
-/// let bdt_default = ShortRateTreeConfig::default_bdt(100);
-/// assert_eq!(bdt_default.volatility, DEFAULT_LOGNORMAL_VOL);
+/// // `Default` is Ho-Lee with 100 steps and the default normal volatility
+/// let default = ShortRateTreeConfig::default();
+/// assert_eq!(default.volatility, DEFAULT_NORMAL_VOL);
 /// ```
 #[derive(Debug, Clone)]
 pub struct ShortRateTreeConfig {
@@ -241,25 +231,15 @@ pub struct ShortRateTreeConfig {
     /// See [`ShortRateModel`] for typical ranges per model type.
     pub volatility: f64,
 
-    /// Mean reversion parameter.
+    /// Mean reversion speed κ (per year).
     ///
-    /// Controls how quickly rates revert to the long-term mean.
     /// - Typical values: 0.01-0.10 (1-10% per year)
     /// - Higher values = faster reversion, less rate dispersion
-    /// - Ho-Lee: not supported (breaks lattice recombination); use
-    ///   `HullWhiteTree` for mean-reverting normal models
+    /// - Ho-Lee: must be `0.0` (mean reversion breaks lattice recombination);
+    ///   use `HullWhiteTree` for mean-reverting normal models
     /// - BDT/Black-Karasinski: κ = 0 calibrates standard binomial BDT;
     ///   κ > 0 calibrates a trinomial Black-Karasinski lattice in x = ln r
-    pub mean_reversion: Option<f64>,
-
-    /// Tree branching type (binomial or trinomial).
-    ///
-    /// - **Binomial**: Standard two-branch tree (up/down)
-    /// - **Trinomial**: Three-branch tree (up/mid/down) for models with
-    ///   trinomial calibration support
-    ///
-    /// Default: Binomial. Use trinomial only with a matching calibrated lattice.
-    pub branching: TreeBranching,
+    pub mean_reversion: f64,
 
     /// Per-node discount factor convention.
     ///
@@ -276,19 +256,14 @@ pub struct ShortRateTreeConfig {
 }
 
 impl Default for ShortRateTreeConfig {
-    /// Default configuration using Ho-Lee model with appropriate normal volatility.
-    ///
-    /// For BDT model, use [`ShortRateTreeConfig::default_bdt`] instead.
+    /// Ho-Lee with 100 steps and [`DEFAULT_NORMAL_VOL`].
     fn default() -> Self {
-        Self::default_ho_lee(100)
+        Self::ho_lee(100, DEFAULT_NORMAL_VOL)
     }
 }
 
 impl ShortRateTreeConfig {
     /// Create a Ho-Lee configuration with specified normal volatility.
-    ///
-    /// Uses binomial branching by default. For trinomial branching,
-    /// use [`with_trinomial`](Self::with_trinomial) after construction.
     ///
     /// # Arguments
     ///
@@ -308,16 +283,13 @@ impl ShortRateTreeConfig {
             steps,
             model: ShortRateModel::HoLee,
             volatility: normal_vol,
-            mean_reversion: None,
-            branching: TreeBranching::Binomial,
+            mean_reversion: 0.0,
             compounding: TreeCompounding::default(),
             curve_fit_tolerance_bp: DEFAULT_CURVE_FIT_TOLERANCE_BP,
         }
     }
 
     /// Create a Black-Derman-Toy / Black-Karasinski configuration.
-    ///
-    /// Uses binomial branching with state-price recursion calibration.
     ///
     /// # Arguments
     ///
@@ -340,8 +312,7 @@ impl ShortRateTreeConfig {
             steps,
             model: ShortRateModel::BlackDermanToy,
             volatility: lognormal_vol,
-            mean_reversion: Some(mean_reversion),
-            branching: TreeBranching::Binomial,
+            mean_reversion,
             compounding: TreeCompounding::default(),
             curve_fit_tolerance_bp: DEFAULT_CURVE_FIT_TOLERANCE_BP,
         }
@@ -367,89 +338,5 @@ impl ShortRateTreeConfig {
         }
         self.curve_fit_tolerance_bp = tolerance_bp;
         Ok(self)
-    }
-
-    /// Create Ho-Lee configuration with default normal volatility (100 bp).
-    ///
-    /// Suitable for developed market government bonds in normal rate environments.
-    pub fn default_ho_lee(steps: usize) -> Self {
-        Self::ho_lee(steps, DEFAULT_NORMAL_VOL)
-    }
-
-    /// Create BDT configuration with default lognormal volatility (20%).
-    ///
-    /// Suitable for developed market government bonds with positive rates.
-    /// Uses the non-mean-reverting (κ = 0) binomial BDT calibration.
-    ///
-    /// # Arguments
-    ///
-    /// * `steps` - Steps used by the algorithm, subject to the enclosing type invariants and documented units.
-    pub fn default_bdt(steps: usize) -> Self {
-        Self::bdt(steps, DEFAULT_LOGNORMAL_VOL, 0.0)
-    }
-
-    /// Set trinomial branching.
-    ///
-    /// The selected model must calibrate a matching `2 * step + 1` lattice.
-    #[must_use]
-    pub fn with_trinomial(mut self) -> Self {
-        self.branching = TreeBranching::Trinomial;
-        self
-    }
-
-    /// Set binomial branching (standard two-branch tree).
-    #[must_use]
-    pub fn with_binomial(mut self) -> Self {
-        self.branching = TreeBranching::Binomial;
-        self
-    }
-
-    /// Create configuration from normal volatility, automatically selecting
-    /// the appropriate model based on rate environment.
-    ///
-    /// # Arguments
-    ///
-    /// * `steps` - Number of tree steps
-    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bp)
-    /// * `rate_level` - Current/reference rate level for model selection
-    ///
-    /// # Model Selection
-    ///
-    /// - If `rate_level < 0.01` (1%): Uses Ho-Lee (handles negative rates)
-    /// - Otherwise: Uses BDT with converted lognormal vol
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use finstack_quant_models::trees::short_rate_tree::{
-    ///     ShortRateTreeConfig, ShortRateModel,
-    /// };
-    ///
-    /// // Low rate environment → Ho-Lee
-    /// let config = ShortRateTreeConfig::from_normal_vol(100, 0.008, 0.005)?;
-    /// assert_eq!(config.model, ShortRateModel::HoLee);
-    ///
-    /// // Normal rate environment → BDT with converted vol
-    /// let config = ShortRateTreeConfig::from_normal_vol(100, 0.01, 0.05)?;
-    /// assert_eq!(config.model, ShortRateModel::BlackDermanToy);
-    /// // Vol should be approximately 20% (price-matching conversion)
-    /// assert!(config.volatility > 0.15 && config.volatility < 0.25);
-    /// # Ok::<(), finstack_quant_core::Error>(())
-    /// ```
-    pub fn from_normal_vol(steps: usize, normal_vol: f64, rate_level: f64) -> Result<Self> {
-        if rate_level < 0.01 {
-            // Low/negative rate environment: use Ho-Lee
-            Ok(Self::ho_lee(steps, normal_vol))
-        } else {
-            // Positive rate environment: use BDT with converted vol
-            let lognormal_vol = crate::volatility::convert_atm_volatility(
-                normal_vol,
-                crate::volatility::VolatilityConvention::Normal,
-                crate::volatility::VolatilityConvention::Lognormal,
-                rate_level,
-                1.0,
-            )?;
-            Ok(Self::bdt(steps, lognormal_vol, 0.0))
-        }
     }
 }

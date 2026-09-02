@@ -693,7 +693,7 @@ impl TermLoanTreePricer {
                 volatility: rate_volatility,
                 ..Default::default()
             });
-            tree.calibrate(&loan.discount_curve_id, disc.as_ref(), time_to_maturity)?;
+            tree.calibrate(disc.as_ref(), time_to_maturity)?;
 
             let initial_rate = tree.rate_at_node(0, 0)?;
             let mut vars = HashMap::<&'static str, f64>::default();
@@ -817,7 +817,7 @@ impl TermLoanTreePricer {
                 volatility: rate_volatility,
                 ..Default::default()
             });
-            tree.calibrate(&loan.discount_curve_id, disc.as_ref(), time_to_maturity)
+            tree.calibrate(disc.as_ref(), time_to_maturity)
                 .map_err(|e| {
                     finstack_quant_core::Error::Validation(format!(
                         "TermLoan OAS short-rate tree calibration failed: {e}"
@@ -850,7 +850,7 @@ impl TermLoanTreePricer {
             if let Some(tree) = rc_tree.as_ref() {
                 // Calibrated credit tree: OAS as a parallel shift to calibrated rates.
                 let mut vars = HashMap::<&'static str, f64>::default();
-                vars.insert("oas", oas_bp);
+                vars.insert(short_rate_keys::OAS, oas_bp);
                 match tree.price_with_node_coupons(
                     vars,
                     time_to_maturity,

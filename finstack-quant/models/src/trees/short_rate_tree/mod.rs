@@ -60,7 +60,7 @@ mod tree_model;
 
 pub use config::{
     ShortRateModel, ShortRateTreeConfig, TreeCompounding, DEFAULT_CURVE_FIT_TOLERANCE_BP,
-    DEFAULT_LOGNORMAL_VOL, DEFAULT_NORMAL_VOL,
+    DEFAULT_NORMAL_VOL,
 };
 pub use tree::{ShortRateTree, TreeCalibrationResult};
 

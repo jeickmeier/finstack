@@ -148,9 +148,11 @@ use finstack_quant_cashflows::builder::rate_helpers::{
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::market_data::traits::Discounting;
+use finstack_quant_core::math::BrentSolver;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::{Error, Result};
 
+use super::short_rate_keys;
 use super::tree_framework::{CachedValues, NodeState, TreeModel, TreeValuator};
 
 /// Maximum allowed mean-reversion speed (κ) for either factor.
@@ -1206,25 +1208,18 @@ impl RatesCreditTree {
         }
 
         // Expand upward from the all-floored point until survival drops below
-        // the target, then bisect. Survival is monotone non-increasing in θ.
-        let (mut lo, mut hi) = (theta_all_floored, theta_all_floored.max(0.0) + 1.0);
+        // the target, then solve in that bracket. Survival is monotone
+        // non-increasing in θ, so the bracket holds exactly one root.
+        let lo = theta_all_floored;
+        let mut hi = theta_all_floored.max(0.0) + 1.0;
         let mut guard = 0;
         while survival_at(hi) > target && guard < 200 {
             hi = theta_all_floored + (hi - theta_all_floored) * 2.0;
             guard += 1;
         }
-        for _ in 0..200 {
-            let mid = 0.5 * (lo + hi);
-            if survival_at(mid) > target {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-            if (hi - lo).abs() <= 1e-14 * (1.0 + hi.abs()) {
-                break;
-            }
-        }
-        0.5 * (lo + hi)
+        BrentSolver::new()
+            .solve_in_bracket(|theta| survival_at(theta) - target, lo, hi)
+            .unwrap_or(0.5 * (lo + hi))
     }
 
     /// Record how much state-price mass sits on the zero hazard floor at a
@@ -1583,7 +1578,11 @@ impl RatesCreditTree {
         let dt = time_to_maturity / steps as f64;
 
         // OAS from initial variables (bp units, same convention as ShortRateTree)
-        let oas_decimal = initial_vars.get("oas").copied().unwrap_or(0.0) / 10_000.0;
+        let oas_decimal = initial_vars
+            .get(short_rate_keys::OAS)
+            .copied()
+            .unwrap_or(0.0)
+            / 10_000.0;
 
         // Fold every node coupon's increment onto its reset slice up front;
         // the claims are independent of the instrument value function, so
@@ -2408,7 +2407,7 @@ mod tests {
             });
             tree.calibrate(&disc, &haz, ttm).expect("calibration");
             let mut vars = HashMap::<&'static str, f64>::default();
-            vars.insert("oas", 175.0);
+            vars.insert(short_rate_keys::OAS, 175.0);
             tree.price_with_node_coupons(
                 vars,
                 ttm,
@@ -2829,7 +2828,6 @@ mod tests {
     #[test]
     fn rate_factor_matches_short_rate_tree_at_zero_mean_reversion() {
         use super::super::short_rate_tree::{ShortRateTree, ShortRateTreeConfig};
-        use finstack_quant_core::types::CurveId;
 
         let disc = sloped_discount_curve();
         let haz = test_hazard_curve();
@@ -2849,9 +2847,7 @@ mod tests {
             .expect("calibrate 2F");
 
         let mut short_rate = ShortRateTree::new(ShortRateTreeConfig::ho_lee(steps, vol));
-        short_rate
-            .calibrate(&CurveId::new("USD-OIS"), &disc, ttm)
-            .expect("calibrate SR");
+        short_rate.calibrate(&disc, ttm).expect("calibrate SR");
 
         // Compare every calibrated rate node. The terminal row (step == steps)
         // is geometry-only and excluded from both trees' discounting, so the

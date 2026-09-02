@@ -6,7 +6,6 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::CurveId;
 use finstack_quant_core::HashMap;
 use finstack_quant_models::{short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel};
 use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::BondValuator;
@@ -69,12 +68,8 @@ fn call_friction_raises_callable_price_toward_straight() {
         volatility: vol,
         ..Default::default()
     });
-    tree.calibrate(
-        &CurveId::new("USD-OIS"),
-        discount_curve.as_ref(),
-        time_to_maturity,
-    )
-    .unwrap();
+    tree.calibrate(discount_curve.as_ref(), time_to_maturity)
+        .unwrap();
 
     let mut vars = HashMap::<&'static str, f64>::default();
     vars.insert(short_rate_keys::OAS, 0.0);

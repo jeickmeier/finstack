@@ -1,29 +1,5 @@
 //! Shared node, evolution, and backward-induction components for pricing trees.
 //!
-use finstack_quant_core::HashMap;
-
-/// Tree branching type for evolution
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeBranching {
-    /// Two-way branching (up/down)
-    Binomial,
-    /// Three-way branching (up/middle/down)
-    Trinomial,
-}
-
-/// Generic tree parameters for state variable evolution
-#[derive(Debug, Clone)]
-pub struct TreeParameters {
-    /// Number of time steps
-    pub steps: usize,
-    /// Time step size
-    pub dt: f64,
-    /// Tree branching type
-    pub branching: TreeBranching,
-    /// Evolution parameters for each state variable
-    pub evolution_params: HashMap<&'static str, EvolutionParams>,
-}
-
 /// Parameters controlling how a state variable evolves in the tree
 #[derive(Debug, Clone)]
 pub struct EvolutionParams {
@@ -216,39 +192,4 @@ mod tests {
             "equity_crr degenerate error must mention 'degenerate', got: {msg}"
         );
     }
-}
-
-/// Barrier option configuration for discrete monitoring.
-#[derive(Debug, Clone)]
-pub enum BarrierStyle {
-    /// Knock-out barrier: option becomes void upon breach (rebate may apply)
-    KnockOut,
-    /// Knock-in barrier: engine tracks barrier hit state for path-dependent pricing
-    KnockIn,
-}
-
-/// Barrier specification for discrete barrier monitoring in tree pricing.
-///
-/// Defines barrier levels, rebate, and style for incorporating barrier
-/// conditions into recombining tree valuation.
-///
-/// # Barrier Touch Convention
-///
-/// This implementation uses **non-strict inequality** for barrier observation:
-/// - Up barrier: triggered when `spot >= up_level`
-/// - Down barrier: triggered when `spot <= down_level`
-///
-/// This differs from QuantLib's default (strict inequality: `>` and `<`).
-/// The non-strict convention is more conservative for knock-out options
-/// (barrier is triggered at the exact level) and matches Bloomberg's behavior.
-#[derive(Debug, Clone)]
-pub struct BarrierSpec {
-    /// Up barrier level (S >= up triggers a touch; non-strict inequality)
-    pub up_level: Option<f64>,
-    /// Down barrier level (S <= down triggers a touch; non-strict inequality)
-    pub down_level: Option<f64>,
-    /// Rebate amount paid on knock-out (or at expiry if knock-in never triggers)
-    pub rebate: f64,
-    /// Barrier style (engine only enforces KnockOut directly)
-    pub style: BarrierStyle,
 }

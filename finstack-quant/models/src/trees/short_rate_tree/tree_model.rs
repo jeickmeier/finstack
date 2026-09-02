@@ -3,12 +3,12 @@ use finstack_quant_core::{Error, HashMap, Result};
 
 use crate::trees::hull_white_tree::HullWhiteTree;
 use crate::trees::tree_framework::{
-    price_recombining_tree, state_keys, CachedValues, NodeState, RecombiningInputs, TreeBranching,
-    TreeGreeks, TreeModel, TreeValuator,
+    price_recombining_tree, state_keys, CachedValues, NodeState, RecombiningInputs, TreeModel,
+    TreeValuator,
 };
 
 use super::black_karasinski::BkTrinomialLattice;
-use super::ShortRateTree;
+use super::{short_rate_keys, ShortRateTree};
 
 impl ShortRateTree {
     /// Backward induction over the Black-Karasinski trinomial lattice.
@@ -131,8 +131,11 @@ impl TreeModel for ShortRateTree {
             }
         }
 
-        // Get OAS from initial variables (default to 0)
-        let oas = initial_vars.get("oas").copied().unwrap_or(0.0);
+        // OAS in basis points from initial variables (default to 0)
+        let oas = initial_vars
+            .get(short_rate_keys::OAS)
+            .copied()
+            .unwrap_or(0.0);
 
         // Black-Karasinski trinomial lattice: per-node probabilities and
         // capped width with branch switching cannot be expressed through the
@@ -174,22 +177,9 @@ impl TreeModel for ShortRateTree {
                 compounding.to_continuous(r, dt_pricing) + oas / 10000.0
             });
 
-        // Set up branching probabilities based on tree type
-        let (p_up, p_down, p_middle) = match self.config.branching {
-            TreeBranching::Trinomial => {
-                // Trinomial: equal probabilities for up/mid/down
-                // This provides better numerical stability for mean-reverting models
-                (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
-            }
-            TreeBranching::Binomial => {
-                // Binomial: use calibrated probabilities if available, else 50/50
-                let (pu, pd) = self.probs.first().copied().unwrap_or((0.5, 0.5));
-                (pu, pd, 0.0)
-            }
-        };
-
+        // Ho-Lee and binomial BDT lattices are calibrated with equal
+        // up/down probabilities; the drift lives in the calibrated node rates.
         price_recombining_tree(RecombiningInputs {
-            branching: self.config.branching,
             steps: self.config.steps,
             initial_vars,
             time_to_maturity,
@@ -197,163 +187,11 @@ impl TreeModel for ShortRateTree {
             valuator,
             up_factor: 1.0,   // Not used with custom_state_generator
             down_factor: 1.0, // Not used with custom_state_generator
-            middle_factor: if self.config.branching == TreeBranching::Trinomial {
-                Some(1.0)
-            } else {
-                None
-            },
-            prob_up: p_up,
-            prob_down: p_down,
-            prob_middle: Some(p_middle),
+            prob_up: 0.5,
+            prob_down: 0.5,
             interest_rate: 0.0, // Not used with custom_rate_generator
-            barrier: None,
             custom_state_generator: Some(&*state_gen),
             custom_rate_generator: Some(&*rate_gen),
         })
-    }
-
-    fn calculate_greeks<V: TreeValuator>(
-        &self,
-        initial_vars: HashMap<&'static str, f64>,
-        time_to_maturity: f64,
-        market_context: &MarketContext,
-        valuator: &V,
-        bump_size: Option<f64>,
-    ) -> Result<TreeGreeks> {
-        let base_price = self.price(
-            initial_vars.clone(),
-            time_to_maturity,
-            market_context,
-            valuator,
-        )?;
-
-        let mut greeks = TreeGreeks {
-            price: base_price,
-            delta: 0.0,
-            gamma: 0.0,
-            vega: 0.0,
-            theta: 0.0,
-            rho: 0.0,
-            oas01: 0.0,
-        };
-
-        // Default: relative 10% of the calibrated vol, floored at 1 bp. A
-        // fixed absolute 0.01 bump was a 100% relative bump for a typical
-        // normal σ = 1% short-rate vol, which badly distorts the FD vega.
-        // Vega is still reported per 1% (absolute) vol move below.
-        let vol_bump = bump_size.unwrap_or((0.1 * self.config.volatility).max(1e-4));
-        let curve_id = &self.calibration_curve_id;
-
-        // Vega and theta require recalibrating fresh trees against the discount
-        // curve.  The curve is looked up from MarketContext using the CurveId
-        // stored during calibrate().
-        if let Ok(discount_curve) = market_context.get_discount(curve_id) {
-            // --- Vega (central difference with correct denominator) -----------
-            let vol_up = self.config.volatility + vol_bump;
-            let vol_down = (self.config.volatility - vol_bump).max(1e-6);
-
-            let mut config_up = self.config.clone();
-            config_up.volatility = vol_up;
-            let mut tree_up = ShortRateTree::new(config_up);
-            if tree_up
-                .calibrate(curve_id, discount_curve.as_ref(), time_to_maturity)
-                .is_ok()
-            {
-                let price_up = tree_up.price(
-                    initial_vars.clone(),
-                    time_to_maturity,
-                    market_context,
-                    valuator,
-                )?;
-
-                let mut config_down = self.config.clone();
-                config_down.volatility = vol_down;
-                let mut tree_down = ShortRateTree::new(config_down);
-                if tree_down
-                    .calibrate(curve_id, discount_curve.as_ref(), time_to_maturity)
-                    .is_ok()
-                {
-                    let price_down = tree_down.price(
-                        initial_vars.clone(),
-                        time_to_maturity,
-                        market_context,
-                        valuator,
-                    )?;
-
-                    let actual_span = vol_up - vol_down;
-                    greeks.vega = (price_up - price_down) / actual_span * 0.01;
-                } else {
-                    greeks.vega = (price_up - base_price) / vol_bump * 0.01;
-                }
-            }
-
-            // --- Theta (recalibrate a fresh tree for bumped maturity) ---------
-            let dt_theta = 1.0 / 365.25;
-            let ttm_tomorrow = time_to_maturity - dt_theta;
-            if ttm_tomorrow > 0.0 {
-                let mut tree_tomorrow = ShortRateTree::new(self.config.clone());
-                if tree_tomorrow
-                    .calibrate(curve_id, discount_curve.as_ref(), ttm_tomorrow)
-                    .is_ok()
-                {
-                    let price_tomorrow = tree_tomorrow.price(
-                        initial_vars.clone(),
-                        ttm_tomorrow,
-                        market_context,
-                        valuator,
-                    )?;
-                    greeks.theta = price_tomorrow - base_price;
-                }
-            }
-
-            // --- Rho (central ±1bp parallel discount-curve bump) -------------
-            use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
-
-            let market_up = market_context.bump([MarketBump::Curve {
-                id: curve_id.clone(),
-                spec: BumpSpec::parallel_bp(1.0),
-            }])?;
-            let market_down = market_context.bump([MarketBump::Curve {
-                id: curve_id.clone(),
-                spec: BumpSpec::parallel_bp(-1.0),
-            }])?;
-
-            let curve_up = market_up.get_discount(curve_id)?;
-            let curve_down = market_down.get_discount(curve_id)?;
-            let mut tree_up = ShortRateTree::new(self.config.clone());
-            let mut tree_down = ShortRateTree::new(self.config.clone());
-            tree_up.calibrate(curve_id, curve_up.as_ref(), time_to_maturity)?;
-            tree_down.calibrate(curve_id, curve_down.as_ref(), time_to_maturity)?;
-
-            let price_up =
-                tree_up.price(initial_vars.clone(), time_to_maturity, &market_up, valuator)?;
-            let price_down = tree_down.price(
-                initial_vars.clone(),
-                time_to_maturity,
-                &market_down,
-                valuator,
-            )?;
-            greeks.rho = (price_up - price_down) / 2.0;
-        } else {
-            tracing::debug!(
-                "ShortRateTree::calculate_greeks: discount curve '{}' not found; \
-                 vega and theta set to 0",
-                curve_id.as_str()
-            );
-        }
-
-        // OAS01: price change per 1bp parallel option-adjusted-spread bump.
-        // Note: this measures sensitivity to the option-adjusted spread, not to
-        // a parallel shift of the underlying yield curve. For bonds with embedded
-        // options the two are not equivalent because an OAS bump does not change
-        // the exercise boundary while a curve bump does.
-        let mut bumped_vars = initial_vars;
-        let base_oas = bumped_vars.get("oas").copied().unwrap_or(0.0);
-        bumped_vars.insert("oas", base_oas + 1.0);
-
-        let bumped_price = self.price(bumped_vars, time_to_maturity, market_context, valuator)?;
-        greeks.oas01 = bumped_price - base_price;
-
-        Ok(greeks)
     }
 }

@@ -493,11 +493,18 @@ impl HullWhiteTree {
 
         let a = (variance + eta * eta) / (dx * dx);
         let b = eta / dx;
-        let mut p_up = (a + b) / 2.0;
-        let mut p_mid = 1.0 - a;
-        let mut p_down = (a - b) / 2.0;
+        Self::normalize_probabilities((a + b) / 2.0, 1.0 - a, (a - b) / 2.0, j)
+    }
 
-        // Ensure probabilities are valid (handle numerical edge cases)
+    /// Reject negative or non-finite branch probabilities, normalize them to
+    /// sum to one, and enforce the sum-to-one invariant in all builds so a
+    /// mispriced lattice can never escape silently.
+    fn normalize_probabilities(
+        p_up: f64,
+        p_mid: f64,
+        p_down: f64,
+        j: i32,
+    ) -> Result<(f64, f64, f64)> {
         if p_up < 0.0
             || p_mid < 0.0
             || p_down < 0.0
@@ -510,17 +517,13 @@ impl HullWhiteTree {
             )));
         }
 
-        // Normalize to ensure sum = 1
         let sum = p_up + p_mid + p_down;
-        if sum > 0.0 && sum.is_finite() {
-            p_up /= sum;
-            p_mid /= sum;
-            p_down /= sum;
-        } else {
+        if !(sum > 0.0 && sum.is_finite()) {
             return Err(Error::Validation(
                 "Hull-White probabilities did not sum to a finite value".to_string(),
             ));
         }
+        let (p_up, p_mid, p_down) = (p_up / sum, p_mid / sum, p_down / sum);
 
         let normalized_sum = p_up + p_mid + p_down;
         if (normalized_sum - 1.0).abs() > 1.0e-9 {
@@ -595,47 +598,7 @@ impl HullWhiteTree {
             }
         }
 
-        // Ensure probabilities are valid (handle numerical edge cases)
-        if p_up < 0.0
-            || p_mid < 0.0
-            || p_down < 0.0
-            || !p_up.is_finite()
-            || !p_mid.is_finite()
-            || !p_down.is_finite()
-        {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Hull-White probabilities invalid at j={j} (p_up={p_up}, p_mid={p_mid}, p_down={p_down})"
-            )));
-        }
-
-        // Normalize to ensure sum = 1
-        let sum = p_up + p_mid + p_down;
-        if sum > 0.0 && sum.is_finite() {
-            p_up /= sum;
-            p_mid /= sum;
-            p_down /= sum;
-        } else {
-            return Err(finstack_quant_core::Error::Validation(
-                "Hull-White probabilities did not sum to a finite value".to_string(),
-            ));
-        }
-
-        // Enforce the probability-sum invariant in *all* builds. Each branch
-        // is already non-negative (checked above) and `sum` is strictly
-        // positive, so dividing keeps every branch in `[0, 1]` and the three
-        // sum to 1 up to rounding — no redundant final clamp is needed (a
-        // clamp here could only re-break the sum it is meant to protect).
-        // A release-mode check (rather than `debug_assert!`) guarantees a
-        // mispriced lattice can never escape this function silently.
-        let normalized_sum = p_up + p_mid + p_down;
-        if (normalized_sum - 1.0).abs() > 1.0e-9 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Hull-White probabilities failed the sum-to-one invariant at \
-                 j={j}: p_up={p_up}, p_mid={p_mid}, p_down={p_down} (sum={normalized_sum})"
-            )));
-        }
-
-        Ok((p_up, p_mid, p_down))
+        Self::normalize_probabilities(p_up, p_mid, p_down, j)
     }
 
     pub(crate) fn transition_offsets(

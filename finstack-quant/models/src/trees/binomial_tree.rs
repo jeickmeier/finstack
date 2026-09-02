@@ -6,18 +6,16 @@
 //! Now includes generic TreeModel implementation for pricing arbitrary instruments.
 
 use crate::trees::NodeState;
-use crate::types::{ExerciseStyle, OptionMarketParams, OptionType};
+use crate::types::{OptionMarketParams, OptionType};
 use crate::volatility::black::d1_d2;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::HashSet;
 use finstack_quant_core::{Error, Result};
 
-// Import the generic tree framework
 use super::tree_framework::{
     map_exercise_dates_to_steps, price_recombining_tree, single_factor_equity_state, state_keys,
-    BarrierSpec, BarrierStyle, RecombiningInputs, TreeBranching, TreeGreeks, TreeModel,
-    TreeValuator,
+    EvolutionParams, RecombiningInputs, TreeModel, TreeValuator,
 };
 
 /// Binomial tree types
@@ -26,109 +24,43 @@ use super::tree_framework::{
 pub enum TreeType {
     /// Cox-Ross-Rubinstein (standard binomial)
     CRR,
-    /// Jarrow-Rudd (equal-probability) lattice.
-    ///
-    /// Fixes the up/down probability at `p = 0.5` and pushes the drift into
-    /// the lattice factors:
-    ///
-    /// ```text
-    /// u = exp((r - q - sigma^2/2) * dt + sigma * sqrt(dt))
-    /// d = exp((r - q - sigma^2/2) * dt - sigma * sqrt(dt))
-    /// ```
-    ///
-    /// # Known forward-price bias
-    ///
-    /// JR is **not** risk-neutral exact. The one-step expected gross return is
-    ///
-    /// ```text
-    /// 0.5 * (u + d) = exp((r - q) * dt) * exp(-sigma^2 * dt / 2) * cosh(sigma * sqrt(dt))
-    /// ```
-    ///
-    /// Since `exp(-sigma^2*dt/2) * cosh(sigma*sqrt(dt)) = 1 + O(dt^2)`, the
-    /// per-step expected return differs from the true forward `exp((r-q)*dt)`
-    /// by `O(dt^2)`, i.e. an `O(dt)` bias accumulated over the `1/dt` steps of
-    /// the tree. This is a well-known, accepted property of the equal-
-    /// probability scheme (Jarrow & Rudd, 1983), not a defect: the bias
-    /// vanishes as the step count grows and JR retains first-order
-    /// convergence. Use [`TreeType::CRR`] or [`TreeType::Tian`] when an exact
-    /// per-step forward match is required.
-    JR,
     /// Leisen-Reimer (improved convergence)
     LeisenReimer,
-    /// Tian (moment matching)
-    Tian,
 }
 
-/// Vanilla / Bermudan / barrier option valuator for the binomial recombining
-/// engine.
+/// Vanilla / Bermudan option valuator for the binomial recombining engine.
 ///
-/// Single source of truth for the call/put intrinsic-vs-continuation logic. The
-/// previous implementation declared three near-identical `struct OptionValuator`
-/// variants inline inside `price`, `price_barrier_out`, and `price_barrier_in*`;
-/// the only meaningful difference was whether early-exercise dates were
-/// supplied. With `exercise_steps = None` the valuator behaves like a pure
-/// European; otherwise it applies American/Bermudan early exercise at the
-/// requested step indices.
+/// With `exercise_steps = None` the valuator behaves like a pure European;
+/// otherwise it applies American/Bermudan early exercise at the requested step
+/// indices. For an escrowed stock process with known cash dividends,
+/// `remaining_dividend_values[step]` holds the value of the dividends still to
+/// be paid at that step: the lattice evolves the ex-dividend component and the
+/// exercise decision compares against the full pre-dividend spot.
 struct OptionValuator {
     strike: f64,
     option_type: OptionType,
     exercise_steps: Option<HashSet<usize>>,
+    remaining_dividend_values: Option<Vec<f64>>,
+}
+
+impl OptionValuator {
+    fn spot(&self, state: &NodeState) -> Result<f64> {
+        let spot = state
+            .spot()
+            .ok_or_else(|| Error::internal("option node state missing spot"))?;
+        match &self.remaining_dividend_values {
+            None => Ok(spot),
+            Some(remaining) => remaining
+                .get(state.step)
+                .map(|value| spot + value)
+                .ok_or_else(|| Error::internal("missing discrete-dividend tree step")),
+        }
+    }
 }
 
 impl TreeValuator for OptionValuator {
     fn value_at_maturity(&self, state: &NodeState) -> Result<f64> {
-        let s = state
-            .spot()
-            .ok_or_else(|| Error::internal("option node state missing spot at maturity"))?;
-        Ok(intrinsic(self.option_type, s, self.strike))
-    }
-
-    fn value_at_node(&self, state: &NodeState, continuation_value: f64, _dt: f64) -> Result<f64> {
-        if let Some(steps) = &self.exercise_steps {
-            if steps.contains(&state.step) {
-                let s = state
-                    .spot()
-                    .ok_or_else(|| Error::internal("option node state missing spot"))?;
-                let exercise = intrinsic(self.option_type, s, self.strike);
-                return Ok(continuation_value.max(exercise));
-            }
-        }
-        Ok(continuation_value)
-    }
-}
-
-/// Recombining-tree valuator for an escrowed stock process with known cash
-/// dividends. The lattice evolves the ex-dividend component; node exercise
-/// compares continuation against the full pre-dividend spot obtained by adding
-/// the remaining dividend value at that step.
-struct DiscreteDividendOptionValuator {
-    strike: f64,
-    option_type: OptionType,
-    exercise_steps: Option<HashSet<usize>>,
-    remaining_dividend_values: Vec<f64>,
-}
-
-impl DiscreteDividendOptionValuator {
-    fn spot_with_dividends(&self, state: &NodeState) -> Result<f64> {
-        let escrowed_spot = state
-            .spot()
-            .ok_or_else(|| Error::internal("option node state missing escrowed spot"))?;
-        let remaining = self
-            .remaining_dividend_values
-            .get(state.step)
-            .copied()
-            .ok_or_else(|| Error::internal("missing discrete-dividend tree step"))?;
-        Ok(escrowed_spot + remaining)
-    }
-}
-
-impl TreeValuator for DiscreteDividendOptionValuator {
-    fn value_at_maturity(&self, state: &NodeState) -> Result<f64> {
-        Ok(intrinsic(
-            self.option_type,
-            self.spot_with_dividends(state)?,
-            self.strike,
-        ))
+        Ok(intrinsic(self.option_type, self.spot(state)?, self.strike))
     }
 
     fn value_at_node(&self, state: &NodeState, continuation_value: f64, _dt: f64) -> Result<f64> {
@@ -137,11 +69,7 @@ impl TreeValuator for DiscreteDividendOptionValuator {
             .as_ref()
             .is_some_and(|steps| steps.contains(&state.step))
         {
-            let exercise = intrinsic(
-                self.option_type,
-                self.spot_with_dividends(state)?,
-                self.strike,
-            );
+            let exercise = intrinsic(self.option_type, self.spot(state)?, self.strike);
             return Ok(continuation_value.max(exercise));
         }
         Ok(continuation_value)
@@ -282,15 +210,7 @@ impl BinomialTree {
             TreeType::LeisenReimer => {
                 // Fallback to CRR if strike/spot are not usable (e.g., generic tree)
                 if spot <= 0.0 || strike <= 0.0 {
-                    let u = (sigma * dt.sqrt()).exp();
-                    let d = 1.0 / u;
-                    let p = (((r - q) * dt).exp() - d) / (u - d);
-                    if !(0.0..=1.0).contains(&p) {
-                        return Err(Error::internal(
-                            "Leisen-Reimer fallback probability fell outside [0, 1]",
-                        ));
-                    }
-                    return Ok((u, d, p));
+                    return Self::crr_parameters(sigma, r, q, dt);
                 }
 
                 // Leisen–Reimer: use Peizer–Pratt inversion to determine probabilities
@@ -324,104 +244,43 @@ impl BinomialTree {
 
                 (u, d, p)
             }
-            TreeType::CRR => {
-                // Cox-Ross-Rubinstein parameters
-                let u = (sigma * dt.sqrt()).exp();
-                let d = 1.0 / u;
-                let spread = u - d;
-                // Guard: if σ√dt is so small that u ≈ d (spread underflows to 0),
-                // the probability formula produces 0/0 = NaN.  Catch it explicitly
-                // before the division so the error message is descriptive.
-                if spread < 1e-14 {
-                    return Err(Error::Validation(format!(
-                        "CRR tree is degenerate: u ≈ d (spread = {spread:.3e}). \
-                         σ√dt = {:.3e} is too small — increase volatility or maturity.",
-                        sigma * dt.sqrt()
-                    )));
-                }
-                let p = (((r - q) * dt).exp() - d) / spread;
-
-                if !(0.0..=1.0).contains(&p) {
-                    return Err(Error::Validation(format!(
-                        "CRR probability p={p:.6} fell outside [0, 1]; \
-                         check parameters: sigma={sigma}, r={r}, q={q}, dt={dt:.3e}"
-                    )));
-                }
-
-                (u, d, p)
-            }
-            TreeType::JR => {
-                // Jarrow-Rudd (equal-probability) parameters: p = 0.5 with the
-                // drift carried in u/d. This scheme carries a known O(dt)
-                // cumulative forward-price bias (see `TreeType::JR` docs); that
-                // is an accepted property of the scheme, intentionally NOT
-                // enforced here. We do, however, validate that u/d are finite
-                // and strictly positive — a non-finite or non-positive lattice
-                // factor would silently corrupt every node price.
-                let u = ((r - q - 0.5 * sigma * sigma) * dt + sigma * dt.sqrt()).exp();
-                let d = ((r - q - 0.5 * sigma * sigma) * dt - sigma * dt.sqrt()).exp();
-                let p = 0.5;
-
-                if !(u.is_finite() && d.is_finite() && u > 0.0 && d > 0.0) {
-                    return Err(Error::Validation(format!(
-                        "JR parameters invalid: u={u}, d={d} (must be finite and > 0). \
-                         Check parameters: sigma={sigma}, r={r}, q={q}, dt={dt}"
-                    )));
-                }
-
-                (u, d, p)
-            }
-            TreeType::Tian => {
-                // Tian (1993) third-order moment matching.
-                //
-                // Reference: Tian, Y. (1993). "A Modified Lattice Approach to
-                // Option Pricing." Journal of Futures Markets, 13(5), 563-577.
-                //
-                // Three-moment conditions: pu^k + (1-p)d^k = M_k for k=1,2,3
-                //   M1 = exp((r-q)*dt),  V = exp(sigma^2*dt)
-                //   A = u+d = M1*V*(V+1),  B = u*d = M1^2*V^2
-                //
-                // u = (M1*V/2) * (V + 1 + sqrt(V^2 + 2V - 3))
-                // d = (M1*V/2) * (V + 1 - sqrt(V^2 + 2V - 3))
-                // p = (M1 - d) / (u - d)
-                let m1 = ((r - q) * dt).exp();
-                let v = (sigma * sigma * dt).exp();
-                // Guard: when σ²dt → 0, V → 1 and disc → 0, collapsing u = d.
-                // Catch this before the division so the error is descriptive.
-                let var_term = v * v + 2.0 * v - 3.0;
-                if var_term < 1e-28 {
-                    return Err(Error::Validation(format!(
-                        "Tian tree is degenerate: σ²·dt = {:.3e} is too small — \
-                         up/down factors collapse (V ≈ 1, discriminant ≈ 0). \
-                         Increase volatility or maturity.",
-                        sigma * sigma * dt
-                    )));
-                }
-                let disc = var_term.sqrt();
-                let half_m1v = m1 * v / 2.0;
-                let u = half_m1v * (v + 1.0 + disc);
-                let d = half_m1v * (v + 1.0 - disc);
-                let spread = u - d;
-                if spread < 1e-14 {
-                    return Err(Error::Validation(format!(
-                        "Tian tree is degenerate: u ≈ d (spread = {spread:.3e}). \
-                         σ√dt is too small — increase volatility or maturity."
-                    )));
-                }
-                let p = (m1 - d) / spread;
-
-                if !(0.0..=1.0).contains(&p) {
-                    return Err(Error::Validation(format!(
-                        "Tian probability p={p:.6} out of bounds. \
-                         Check parameters: sigma={sigma}, r={r}, q={q}, dt={dt:.3e}"
-                    )));
-                }
-
-                (u, d, p)
-            }
+            TreeType::CRR => Self::crr_parameters(sigma, r, q, dt)?,
         };
 
         Ok((u, d, p))
+    }
+
+    /// Cox-Ross-Rubinstein lattice factors `(u, d, p)` for one step.
+    fn crr_parameters(sigma: f64, r: f64, q: f64, dt: f64) -> Result<(f64, f64, f64)> {
+        let params = EvolutionParams::equity_crr(sigma, r, q, dt)?;
+        Ok((params.up_factor, params.down_factor, params.prob_up))
+    }
+
+    /// Run backward induction on the shared recombining engine with flat
+    /// discounting at `rate` and the lattice factors `(u, d, p)`.
+    fn induct<V: TreeValuator>(
+        &self,
+        (u, d, p): (f64, f64, f64),
+        initial_vars: HashMap<&'static str, f64>,
+        time_to_maturity: f64,
+        rate: f64,
+        market_context: &MarketContext,
+        valuator: &V,
+    ) -> Result<f64> {
+        price_recombining_tree(RecombiningInputs {
+            steps: self.steps,
+            initial_vars,
+            time_to_maturity,
+            market_context,
+            valuator,
+            up_factor: u,
+            down_factor: d,
+            prob_up: p,
+            prob_down: 1.0 - p,
+            interest_rate: rate,
+            custom_state_generator: None,
+            custom_rate_generator: None,
+        })
     }
 
     /// Internal unified pricer supporting European, American, and Bermudan styles
@@ -432,7 +291,7 @@ impl BinomialTree {
         exercise_steps: Option<&[usize]>,
     ) -> Result<f64> {
         // Compute lattice parameters honoring the configured binomial model
-        let (u, d, p) = self.calculate_parameters(
+        let factors = self.calculate_parameters(
             market_params.spot,
             market_params.strike,
             market_params.rate,
@@ -441,14 +300,11 @@ impl BinomialTree {
             market_params.dividend_yield,
         )?;
 
-        // Build an option valuator that applies early exercise at requested steps
-        let exercise_set: Option<HashSet<usize>> =
-            exercise_steps.map(|steps| steps.iter().copied().collect::<HashSet<usize>>());
-
         let valuator = OptionValuator {
             strike: market_params.strike,
             option_type: market_params.option_type,
-            exercise_steps: exercise_set,
+            exercise_steps: exercise_steps.map(|steps| steps.iter().copied().collect()),
+            remaining_dividend_values: None,
         };
 
         let initial_vars = single_factor_equity_state(
@@ -458,25 +314,14 @@ impl BinomialTree {
             market_params.volatility,
         );
 
-        // Delegate to the shared recombining engine
-        price_recombining_tree(RecombiningInputs {
-            branching: TreeBranching::Binomial,
-            steps: self.steps,
+        self.induct(
+            factors,
             initial_vars,
-            time_to_maturity: market_params.time_to_expiry,
-            market_context: &MarketContext::new(), // not used by valuator
-            valuator: &valuator,
-            up_factor: u,
-            down_factor: d,
-            middle_factor: None,
-            prob_up: p,
-            prob_down: 1.0 - p,
-            prob_middle: None,
-            interest_rate: market_params.rate,
-            barrier: None,
-            custom_state_generator: None,
-            custom_rate_generator: None,
-        })
+            market_params.time_to_expiry,
+            market_params.rate,
+            &MarketContext::new(), // not used by valuator
+            &valuator,
+        )
     }
 
     fn price_with_discrete_dividends(
@@ -528,7 +373,7 @@ impl BinomialTree {
             )));
         }
 
-        let (u, d, p) = self.calculate_parameters(
+        let factors = self.calculate_parameters(
             escrowed_spot,
             market_params.strike,
             market_params.rate,
@@ -548,12 +393,11 @@ impl BinomialTree {
                     .sum()
             })
             .collect();
-        let valuator = DiscreteDividendOptionValuator {
+        let valuator = OptionValuator {
             strike: market_params.strike,
             option_type: market_params.option_type,
-            exercise_steps: exercise_steps
-                .map(|steps| steps.iter().copied().collect::<HashSet<usize>>()),
-            remaining_dividend_values,
+            exercise_steps: exercise_steps.map(|steps| steps.iter().copied().collect()),
+            remaining_dividend_values: Some(remaining_dividend_values),
         };
         let initial_vars = single_factor_equity_state(
             escrowed_spot,
@@ -562,24 +406,14 @@ impl BinomialTree {
             market_params.volatility,
         );
 
-        price_recombining_tree(RecombiningInputs {
-            branching: TreeBranching::Binomial,
-            steps: self.steps,
+        self.induct(
+            factors,
             initial_vars,
-            time_to_maturity: market_params.time_to_expiry,
-            market_context: &MarketContext::new(),
-            valuator: &valuator,
-            up_factor: u,
-            down_factor: d,
-            middle_factor: None,
-            prob_up: p,
-            prob_down: 1.0 - p,
-            prob_middle: None,
-            interest_rate: market_params.rate,
-            barrier: None,
-            custom_state_generator: None,
-            custom_rate_generator: None,
-        })
+            market_params.time_to_expiry,
+            market_params.rate,
+            &MarketContext::new(),
+            &valuator,
+        )
     }
 
     /// Price an American option with known cash dividends.
@@ -644,265 +478,6 @@ impl BinomialTree {
         self.price_with_exercise(market_params, Some(&steps))
     }
 
-    /// Calculate Greeks using binomial tree
-    pub fn calculate_greeks(
-        &self,
-        market_params: &OptionMarketParams,
-        exercise_style: ExerciseStyle,
-    ) -> Result<BinomialGreeks> {
-        let base_price = match exercise_style {
-            ExerciseStyle::American => self.price_american(market_params)?,
-            ExerciseStyle::European => self.price_european(market_params)?,
-            ExerciseStyle::Bermudan => {
-                return Err(Error::internal(
-                    "binomial greeks only support American and European exercise styles",
-                ))
-            }
-        };
-
-        // Delta: use small bump
-        let h = 0.01 * market_params.spot;
-        let mut params_up = market_params.clone();
-        params_up.spot += h;
-        let price_up = match exercise_style {
-            ExerciseStyle::American => self.price_american(&params_up)?,
-            ExerciseStyle::European => self.price_european(&params_up)?,
-            ExerciseStyle::Bermudan => {
-                return Err(Error::internal(
-                    "binomial greeks only support American and European exercise styles",
-                ))
-            }
-        };
-
-        let mut params_down = market_params.clone();
-        params_down.spot -= h;
-        let price_down = match exercise_style {
-            ExerciseStyle::American => self.price_american(&params_down)?,
-            ExerciseStyle::European => self.price_european(&params_down)?,
-            ExerciseStyle::Bermudan => {
-                return Err(Error::internal(
-                    "binomial greeks only support American and European exercise styles",
-                ))
-            }
-        };
-
-        let delta = (price_up - price_down) / (2.0 * h);
-        let gamma = (price_up - 2.0 * base_price + price_down) / (h * h);
-
-        // Theta: use 1-day bump
-        let dt = 1.0 / 365.25;
-        let theta = if market_params.time_to_expiry > dt {
-            let mut params_later = market_params.clone();
-            params_later.time_to_expiry -= dt;
-            let price_later = match exercise_style {
-                ExerciseStyle::American => self.price_american(&params_later)?,
-                ExerciseStyle::European => self.price_european(&params_later)?,
-                ExerciseStyle::Bermudan => {
-                    return Err(Error::internal(
-                        "binomial greeks only support American and European exercise styles",
-                    ))
-                }
-            };
-            -(base_price - price_later) / dt
-        } else {
-            0.0
-        };
-
-        Ok(BinomialGreeks {
-            price: base_price,
-            delta,
-            gamma,
-            theta,
-        })
-    }
-
-    /// Price barrier knock-out option (up/down) with rebate using binomial tree (discrete monitoring)
-    pub fn price_barrier_out(
-        &self,
-        market_params: &OptionMarketParams,
-        up_level: Option<f64>,
-        down_level: Option<f64>,
-        rebate: f64,
-    ) -> Result<f64> {
-        let (u, d, p) = self.calculate_parameters(
-            market_params.spot,
-            market_params.strike,
-            market_params.rate,
-            market_params.volatility,
-            market_params.time_to_expiry,
-            market_params.dividend_yield,
-        )?;
-
-        // Pure-European barrier — no early exercise; reuse the shared valuator
-        // with `exercise_steps: None`.
-        let valuator = OptionValuator {
-            strike: market_params.strike,
-            option_type: market_params.option_type,
-            exercise_steps: None,
-        };
-
-        let initial_vars = single_factor_equity_state(
-            market_params.spot,
-            market_params.rate,
-            market_params.dividend_yield,
-            market_params.volatility,
-        );
-
-        // Barrier configuration
-        let barrier = Some(BarrierSpec {
-            up_level,
-            down_level,
-            rebate,
-            style: BarrierStyle::KnockOut,
-        });
-
-        price_recombining_tree(RecombiningInputs {
-            branching: TreeBranching::Binomial,
-            steps: self.steps,
-            initial_vars,
-            time_to_maturity: market_params.time_to_expiry,
-            market_context: &MarketContext::new(),
-            valuator: &valuator,
-            up_factor: u,
-            down_factor: d,
-            middle_factor: None,
-            prob_up: p,
-            prob_down: 1.0 - p,
-            prob_middle: None,
-            interest_rate: market_params.rate,
-            barrier,
-            custom_state_generator: None,
-            custom_rate_generator: None,
-        })
-    }
-
-    fn price_barrier_in_with_exercise(
-        &self,
-        market_params: &OptionMarketParams,
-        up_level: Option<f64>,
-        down_level: Option<f64>,
-        rebate: f64,
-        exercise_steps: Option<&[usize]>,
-    ) -> Result<f64> {
-        let (u, d, p) = self.calculate_parameters(
-            market_params.spot,
-            market_params.strike,
-            market_params.rate,
-            market_params.volatility,
-            market_params.time_to_expiry,
-            market_params.dividend_yield,
-        )?;
-
-        let exercise_set =
-            exercise_steps.map(|steps| steps.iter().copied().collect::<HashSet<_>>());
-
-        let valuator = OptionValuator {
-            strike: market_params.strike,
-            option_type: market_params.option_type,
-            exercise_steps: exercise_set,
-        };
-
-        let initial_vars = single_factor_equity_state(
-            market_params.spot,
-            market_params.rate,
-            market_params.dividend_yield,
-            market_params.volatility,
-        );
-
-        let barrier = Some(BarrierSpec {
-            up_level,
-            down_level,
-            rebate,
-            style: BarrierStyle::KnockIn,
-        });
-
-        price_recombining_tree(RecombiningInputs {
-            branching: TreeBranching::Binomial,
-            steps: self.steps,
-            initial_vars,
-            time_to_maturity: market_params.time_to_expiry,
-            market_context: &MarketContext::new(),
-            valuator: &valuator,
-            up_factor: u,
-            down_factor: d,
-            middle_factor: None,
-            prob_up: p,
-            prob_down: 1.0 - p,
-            prob_middle: None,
-            interest_rate: market_params.rate,
-            barrier,
-            custom_state_generator: None,
-            custom_rate_generator: None,
-        })
-    }
-
-    /// Price barrier knock-in option (discrete monitoring) using path-dependent tracking.
-    ///
-    /// # Constraints
-    ///
-    /// - Only supported when exactly one of `up_level`/`down_level` is `Some`
-    /// - Uses European exercise by default (no early exercise)
-    ///
-    /// # Arguments
-    ///
-    /// * `market_params` - Option parameters
-    /// * `up_level` - Up barrier level (optional)
-    /// * `down_level` - Down barrier level (optional)
-    /// * `rebate` - Rebate paid at expiry if barrier never triggers
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if both or neither barrier levels are specified.
-    pub fn price_barrier_in(
-        &self,
-        market_params: &OptionMarketParams,
-        up_level: Option<f64>,
-        down_level: Option<f64>,
-        rebate: f64,
-    ) -> Result<f64> {
-        self.price_barrier_in_with_exercise(market_params, up_level, down_level, rebate, None)
-    }
-
-    /// Price barrier knock-in option with American exercise.
-    pub fn price_barrier_in_american(
-        &self,
-        market_params: &OptionMarketParams,
-        up_level: Option<f64>,
-        down_level: Option<f64>,
-        rebate: f64,
-    ) -> Result<f64> {
-        let all_steps: Vec<usize> = (0..self.steps).collect();
-        self.price_barrier_in_with_exercise(
-            market_params,
-            up_level,
-            down_level,
-            rebate,
-            Some(&all_steps),
-        )
-    }
-
-    /// Price barrier knock-in option with Bermudan exercise dates.
-    pub fn price_barrier_in_bermudan(
-        &self,
-        market_params: &OptionMarketParams,
-        up_level: Option<f64>,
-        down_level: Option<f64>,
-        rebate: f64,
-        exercise_dates: &[f64],
-    ) -> Result<f64> {
-        let mut steps =
-            map_exercise_dates_to_steps(exercise_dates, market_params.time_to_expiry, self.steps);
-        steps.sort();
-        steps.dedup();
-        self.price_barrier_in_with_exercise(
-            market_params,
-            up_level,
-            down_level,
-            rebate,
-            Some(&steps),
-        )
-    }
-
     /// Generic pricing engine for arbitrary instruments
     ///
     /// This method implements the TreeModel trait, providing a flexible
@@ -933,59 +508,15 @@ impl BinomialTree {
             .ok_or_else(|| Error::internal("binomial tree requires initial volatility"))?;
 
         // Calculate binomial parameters and delegate to the shared engine
-        let (u, d, p) = self.calculate_parameters(0.0, 0.0, r, sigma, time_to_maturity, q)?;
-
-        price_recombining_tree(RecombiningInputs {
-            branching: TreeBranching::Binomial,
-            steps: self.steps,
+        let factors = self.calculate_parameters(0.0, 0.0, r, sigma, time_to_maturity, q)?;
+        self.induct(
+            factors,
             initial_vars,
             time_to_maturity,
+            r,
             market_context,
             valuator,
-            up_factor: u,
-            down_factor: d,
-            middle_factor: None,
-            prob_up: p,
-            prob_down: 1.0 - p,
-            prob_middle: None,
-            interest_rate: r,
-            barrier: None,
-            custom_state_generator: None,
-            custom_rate_generator: None,
-        })
-    }
-}
-
-/// Greeks calculated from binomial tree
-#[derive(Debug, Clone)]
-pub struct BinomialGreeks {
-    /// Option price
-    pub price: f64,
-    /// Delta
-    pub delta: f64,
-    /// Gamma
-    pub gamma: f64,
-    /// Theta
-    pub theta: f64,
-}
-
-impl BinomialGreeks {
-    /// Apply Richardson extrapolation to improve accuracy.
-    ///
-    /// Combines Greeks from trees with N and 2N steps using:
-    /// ```text
-    /// result = (4 × fine - coarse) / 3
-    /// ```
-    ///
-    /// This achieves O(h⁴) accuracy instead of O(h²).
-    #[must_use]
-    pub fn richardson_extrapolate(coarse: &Self, fine: &Self) -> Self {
-        Self {
-            price: (4.0 * fine.price - coarse.price) / 3.0,
-            delta: (4.0 * fine.delta - coarse.delta) / 3.0,
-            gamma: (4.0 * fine.gamma - coarse.gamma) / 3.0,
-            theta: (4.0 * fine.theta - coarse.theta) / 3.0,
-        }
+        )
     }
 }
 
@@ -999,101 +530,6 @@ impl TreeModel for BinomialTree {
         valuator: &V,
     ) -> Result<f64> {
         self.price_generic(initial_vars, time_to_maturity, market_context, valuator)
-    }
-
-    fn calculate_greeks<V: TreeValuator>(
-        &self,
-        initial_vars: HashMap<&'static str, f64>,
-        time_to_maturity: f64,
-        market_context: &MarketContext,
-        valuator: &V,
-        bump_size: Option<f64>,
-    ) -> Result<TreeGreeks> {
-        let bump = bump_size.unwrap_or(0.01);
-
-        // Base price
-        let base_price = self.price(
-            initial_vars.clone(),
-            time_to_maturity,
-            market_context,
-            valuator,
-        )?;
-
-        let mut greeks = TreeGreeks {
-            price: base_price,
-            delta: 0.0,
-            gamma: 0.0,
-            vega: 0.0,
-            theta: 0.0,
-            rho: 0.0,
-            oas01: 0.0,
-        };
-
-        // Calculate Delta and Gamma (spot sensitivity)
-        if let Some(&spot) = initial_vars.get(state_keys::SPOT) {
-            let h = bump * spot;
-
-            // Spot up
-            let mut vars_up = initial_vars.clone();
-            vars_up.insert(state_keys::SPOT, spot + h);
-            let price_up = self.price(vars_up, time_to_maturity, market_context, valuator)?;
-
-            // Spot down
-            let mut vars_down = initial_vars.clone();
-            vars_down.insert(state_keys::SPOT, spot - h);
-            let price_down = self.price(vars_down, time_to_maturity, market_context, valuator)?;
-
-            greeks.delta = (price_up - price_down) / (2.0 * h);
-            greeks.gamma = (price_up - 2.0 * base_price + price_down) / (h * h);
-        }
-
-        // Calculate Vega (volatility sensitivity)
-        if let Some(&vol) = initial_vars.get(state_keys::VOLATILITY) {
-            let h = 0.01; // 1% vol bump
-
-            let mut vars_vol_up = initial_vars.clone();
-            vars_vol_up.insert(state_keys::VOLATILITY, vol + h);
-            let price_vol_up =
-                self.price(vars_vol_up, time_to_maturity, market_context, valuator)?;
-
-            let mut vars_vol_down = initial_vars.clone();
-            vars_vol_down.insert(state_keys::VOLATILITY, (vol - h).max(1e-6));
-            let price_vol_down =
-                self.price(vars_vol_down, time_to_maturity, market_context, valuator)?;
-
-            greeks.vega = (price_vol_up - price_vol_down) / 2.0;
-        }
-
-        // Calculate Rho (rate sensitivity) with a central ±1bp stencil.
-        if let Some(&rate) = initial_vars.get(state_keys::INTEREST_RATE) {
-            let h = 0.0001; // 1bp rate bump
-
-            let mut vars_rate_up = initial_vars.clone();
-            vars_rate_up.insert(state_keys::INTEREST_RATE, rate + h);
-            let price_rate_up =
-                self.price(vars_rate_up, time_to_maturity, market_context, valuator)?;
-
-            let mut vars_rate_down = initial_vars.clone();
-            vars_rate_down.insert(state_keys::INTEREST_RATE, rate - h);
-            let price_rate_down =
-                self.price(vars_rate_down, time_to_maturity, market_context, valuator)?;
-
-            greeks.rho = (price_rate_up - price_rate_down) / 2.0;
-        }
-
-        // Calculate Theta (time decay) - use 1 day bump
-        let dt = 1.0 / 365.25;
-        if time_to_maturity > dt {
-            let price_tomorrow = self.price(
-                initial_vars,
-                time_to_maturity - dt,
-                market_context,
-                valuator,
-            )?;
-            greeks.theta = price_tomorrow - base_price;
-        }
-
-        Ok(greeks)
     }
 }
 
@@ -1270,89 +706,6 @@ mod tests {
     }
 
     #[test]
-    fn barrier_prices_respect_bounds_and_zero_rebate_in_out_parity() {
-        let tree = BinomialTree::crr(120);
-
-        let call = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 1.0);
-        let vanilla_call = tree
-            .price_european(&call)
-            .expect("vanilla call pricing should succeed");
-        let up_and_out = tree
-            .price_barrier_out(&call, Some(101.0), None, 0.0)
-            .expect("up-and-out call pricing should succeed");
-
-        assert!(up_and_out.is_finite() && up_and_out >= 0.0);
-        assert!(
-            up_and_out < vanilla_call,
-            "a nearby zero-rebate up barrier should strictly reduce the call value: \
-             barrier={up_and_out}, vanilla={vanilla_call}"
-        );
-
-        let put = OptionMarketParams::put(100.0, 95.0, 0.03, 0.25, 0.5);
-        let vanilla_put = tree
-            .price_european(&put)
-            .expect("vanilla put pricing should succeed");
-        let down_and_out = tree
-            .price_barrier_out(&put, None, Some(99.0), 0.0)
-            .expect("down-and-out put pricing should succeed");
-        let down_and_in = tree
-            .price_barrier_in(&put, None, Some(99.0), 0.0)
-            .expect("down-and-in put pricing should succeed");
-
-        for (label, value) in [("down-and-out", down_and_out), ("down-and-in", down_and_in)] {
-            assert!(
-                value.is_finite() && value >= 0.0 && value <= vanilla_put + 1e-10,
-                "{label} price must lie in [0, vanilla]: price={value}, vanilla={vanilla_put}"
-            );
-        }
-        assert!(
-            (vanilla_put - (down_and_out + down_and_in)).abs() < 1e-6,
-            "zero-rebate in/out parity failed: vanilla={vanilla_put}, \
-             knock_out={down_and_out}, knock_in={down_and_in}"
-        );
-    }
-
-    #[test]
-    fn knock_in_exercise_values_are_ordered_european_bermudan_american() {
-        let market_params = OptionMarketParams::put(100.0, 105.0, 0.03, 0.25, 1.0);
-        let tree = BinomialTree::crr(120);
-        let exercise_dates = [0.25, 0.5, 0.75, 1.0];
-
-        let european = tree
-            .price_barrier_in(&market_params, None, Some(95.0), 0.0)
-            .expect("European knock-in pricing should succeed");
-        let bermudan = tree
-            .price_barrier_in_bermudan(&market_params, None, Some(95.0), 0.0, &exercise_dates)
-            .expect("Bermudan knock-in pricing should succeed");
-        let american = tree
-            .price_barrier_in_american(&market_params, None, Some(95.0), 0.0)
-            .expect("American knock-in pricing should succeed");
-
-        assert!(
-            european <= bermudan + 1e-10,
-            "Bermudan knock-in must be worth at least European: \
-             european={european}, bermudan={bermudan}"
-        );
-        assert!(
-            bermudan <= american + 1e-10,
-            "American knock-in must be worth at least Bermudan: \
-             bermudan={bermudan}, american={american}"
-        );
-    }
-
-    #[test]
-    fn knock_in_requires_exactly_one_barrier_level() {
-        let market_params = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 1.0);
-        let tree = BinomialTree::crr(40);
-
-        let neither = tree.price_barrier_in(&market_params, None, None, 0.0);
-        let both = tree.price_barrier_in(&market_params, Some(120.0), Some(80.0), 0.0);
-
-        assert!(neither.is_err(), "knock-in without a barrier must fail");
-        assert!(both.is_err(), "knock-in with two barriers must fail");
-    }
-
-    #[test]
     fn test_exercise_schedule_mapping() {
         // Map quarterly exercise dates over 1Y with 4 steps
         let dates = vec![0.0, 0.25, 0.5, 0.75, 1.0];
@@ -1405,48 +758,6 @@ mod tests {
         );
     }
 
-    /// Golden test: Tian tree converges to Black-Scholes for European call
-    #[test]
-    fn test_tian_converges_to_black_scholes() {
-        let market_params = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 1.0);
-        let bs_analytical = 10.4506;
-
-        let tree = BinomialTree::new(500, TreeType::Tian);
-        let tian_price = tree.price_european(&market_params).expect("should succeed");
-
-        let relative_error = ((tian_price - bs_analytical) / bs_analytical).abs();
-        assert!(
-            relative_error < 0.001,
-            "Tian(500) price {} should be within 0.1% of BS {} (error={}%)",
-            tian_price,
-            bs_analytical,
-            relative_error * 100.0
-        );
-    }
-
-    /// Golden test: Tian matches put-call parity
-    #[test]
-    fn test_tian_put_call_parity() {
-        let call_params = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 1.0);
-        let put_params = OptionMarketParams::put(100.0, 100.0, 0.05, 0.20, 1.0);
-
-        let tree = BinomialTree::new(200, TreeType::Tian);
-        let call_price = tree.price_european(&call_params).expect("should succeed");
-        let put_price = tree.price_european(&put_params).expect("should succeed");
-
-        // Put-call parity: C - P = S - K*exp(-rT)
-        let parity_lhs = call_price - put_price;
-        let parity_rhs = 100.0 - 100.0 * (-0.05_f64).exp();
-
-        assert!(
-            (parity_lhs - parity_rhs).abs() < 0.10,
-            "Put-call parity violation: C-P={}, S-Ke^(-rT)={}, diff={}",
-            parity_lhs,
-            parity_rhs,
-            (parity_lhs - parity_rhs).abs()
-        );
-    }
-
     /// Golden test: LR odd-step tree achieves better convergence
     #[test]
     fn test_golden_lr_odd_converges_faster() {
@@ -1468,71 +779,6 @@ mod tests {
             lr_price,
             bs_analytical,
             error
-        );
-    }
-
-    #[test]
-    fn test_binomial_greeks_richardson_extrapolation_matches_formula() {
-        let coarse = BinomialGreeks {
-            price: 10.0,
-            delta: 0.4,
-            gamma: 0.03,
-            theta: -1.2,
-        };
-        let fine = BinomialGreeks {
-            price: 10.9,
-            delta: 0.46,
-            gamma: 0.035,
-            theta: -1.0,
-        };
-
-        let improved = BinomialGreeks::richardson_extrapolate(&coarse, &fine);
-        assert!((improved.price - ((4.0 * 10.9 - 10.0) / 3.0)).abs() < 1e-12);
-        assert!((improved.delta - ((4.0 * 0.46 - 0.4) / 3.0)).abs() < 1e-12);
-        assert!((improved.gamma - ((4.0 * 0.035 - 0.03) / 3.0)).abs() < 1e-12);
-        assert!((improved.theta - ((-4.0 + 1.2) / 3.0)).abs() < 1e-12);
-    }
-
-    #[test]
-    fn tree_model_vega_uses_central_difference_per_one_percent_vol() {
-        let tree = BinomialTree::crr(101);
-        let market_context = MarketContext::new();
-        let initial_vars = single_factor_equity_state(100.0, 0.05, 0.0, 0.20);
-        let valuator = OptionValuator {
-            strike: 100.0,
-            option_type: OptionType::Call,
-            exercise_steps: None,
-        };
-
-        let greeks = TreeModel::calculate_greeks(
-            &tree,
-            initial_vars.clone(),
-            1.0,
-            &market_context,
-            &valuator,
-            None,
-        )
-        .expect("greeks should compute");
-
-        let h = 0.01;
-        let mut vars_up = initial_vars.clone();
-        vars_up.insert(state_keys::VOLATILITY, 0.20 + h);
-        let price_up = tree
-            .price(vars_up, 1.0, &market_context, &valuator)
-            .expect("up-vol price");
-
-        let mut vars_down = initial_vars;
-        vars_down.insert(state_keys::VOLATILITY, 0.20 - h);
-        let price_down = tree
-            .price(vars_down, 1.0, &market_context, &valuator)
-            .expect("down-vol price");
-
-        let expected_vega = (price_up - price_down) / 2.0;
-        assert!(
-            (greeks.vega - expected_vega).abs() < 1e-12,
-            "vega should use central difference per 1 percentage-point vol move: got={}, expected={}",
-            greeks.vega,
-            expected_vega
         );
     }
 
@@ -1574,17 +820,6 @@ mod tests {
             msg.contains("degenerate"),
             "CRR degenerate error must mention 'degenerate', got: {msg}"
         );
-
-        // Tian: must return an explicit degenerate error
-        let tian_tree = BinomialTree::new(steps, TreeType::Tian);
-        let tian_err = tian_tree
-            .calculate_parameters(100.0, 100.0, 0.05, epsilon_vol, 1.0, 0.0)
-            .expect_err("Tian with degenerate vol should fail");
-        let msg_tian = tian_err.to_string();
-        assert!(
-            msg_tian.contains("degenerate"),
-            "Tian degenerate error must mention 'degenerate', got: {msg_tian}"
-        );
     }
 
     #[test]
@@ -1598,93 +833,5 @@ mod tests {
             assert!(u > 1.0 && d < 1.0 && u > d);
             assert!((0.0..=1.0).contains(&p));
         }
-    }
-
-    #[test]
-    fn test_jarrow_rudd_tree_prices_european_option_reasonably() {
-        let market_params = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 1.0);
-        let tree = BinomialTree::new(400, TreeType::JR);
-
-        let price = tree
-            .price_european(&market_params)
-            .expect("JR tree should price successfully");
-
-        assert!(price.is_finite());
-        assert!((price - 10.4506).abs() < 0.25);
-    }
-
-    #[test]
-    fn jarrow_rudd_up_down_factors_are_positive_and_finite() {
-        // JR sets `p = 0.5` and pushes the drift into `u`/`d`. The parameter
-        // builder must validate that the resulting `u`/`d` are finite and
-        // strictly positive (a lattice factor of zero or `inf` would corrupt
-        // every node price). Exercise a spread of market regimes.
-        let tree = BinomialTree::new(256, TreeType::JR);
-        for &(r, q, sigma, t) in &[
-            (0.05, 0.00, 0.20, 1.0),
-            (0.00, 0.08, 0.40, 2.0),
-            (0.10, 0.02, 0.05, 0.25),
-            (-0.01, 0.03, 0.60, 5.0),
-        ] {
-            let (u, d, p) = tree
-                .calculate_parameters(100.0, 100.0, r, sigma, t, q)
-                .expect("JR parameters should be valid");
-            assert!(u.is_finite() && u > 0.0, "u must be finite and >0, got {u}");
-            assert!(d.is_finite() && d > 0.0, "d must be finite and >0, got {d}");
-            assert!((p - 0.5).abs() < 1e-15, "JR probability must be 0.5");
-        }
-    }
-
-    #[test]
-    fn jarrow_rudd_forward_bias_is_small_and_shrinks_with_steps() {
-        // JR is NOT risk-neutral exact: with `p = 0.5` the one-step expected
-        // gross return `0.5*(u + d)` equals `exp((r-q)*dt) * exp(-sigma^2*dt/2)
-        // * cosh(sigma*sqrt(dt))`, which differs from the true forward
-        // `exp((r-q)*dt)` by an `O(dt^2)`-per-step (hence `O(dt)` cumulative)
-        // bias. This test locks that documented behaviour: the per-step bias
-        // is tiny and shrinks quadratically as `dt` shrinks.
-        let (r, q, sigma, t) = (0.05_f64, 0.01_f64, 0.25_f64, 1.0_f64);
-        let true_fwd_growth = (r - q) * t; // log forward over the whole horizon
-
-        let mut prev_bias = f64::INFINITY;
-        for &steps in &[50_usize, 100, 200, 400] {
-            let tree = BinomialTree::new(steps, TreeType::JR);
-            let (u, d, p) = tree
-                .calculate_parameters(100.0, 100.0, r, sigma, t, q)
-                .expect("JR parameters valid");
-            // Expected gross return per step under the JR measure.
-            let step_return = p * u + (1.0 - p) * d;
-            // Compounded over all steps, compared with the true forward.
-            let tree_fwd_growth = steps as f64 * step_return.ln();
-            let bias = (tree_fwd_growth - true_fwd_growth).abs();
-            assert!(
-                bias < 1e-2,
-                "JR cumulative forward bias must stay small, got {bias} at {steps} steps"
-            );
-            assert!(
-                bias < prev_bias,
-                "JR forward bias must shrink as steps increase: {bias} !< {prev_bias}"
-            );
-            prev_bias = bias;
-        }
-    }
-
-    #[test]
-    fn test_option_greeks_reject_unsupported_exercise_and_zero_theta_near_expiry() {
-        let tree = BinomialTree::crr(100);
-        let params = OptionMarketParams::put(100.0, 100.0, 0.05, 0.20, 0.5);
-
-        let err = tree
-            .calculate_greeks(&params, ExerciseStyle::Bermudan)
-            .expect_err("bermudan binomial greeks should be rejected");
-        assert!(err
-            .to_string()
-            .contains("only support American and European"));
-
-        let near_expiry = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 0.5 / 365.25);
-        let greeks = tree
-            .calculate_greeks(&near_expiry, ExerciseStyle::European)
-            .expect("near-expiry greeks should compute");
-        assert_eq!(greeks.theta, 0.0);
     }
 }

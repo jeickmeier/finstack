@@ -314,7 +314,7 @@ impl TreePricer {
                 Vec::new()
             };
             let mut vars = HashMap::<&'static str, f64>::default();
-            vars.insert("oas", continuous_oas_bp);
+            vars.insert(short_rate_keys::OAS, continuous_oas_bp);
             return tree.price_with_node_coupons(
                 vars,
                 time_to_maturity,
@@ -378,11 +378,7 @@ impl TreePricer {
                 let tree_config = ShortRateTreeConfig::bdt(tree_steps, sigma, mean_reversion)
                     .with_compounding(self.config.tree_compounding);
                 let mut tree = ShortRateTree::new(tree_config);
-                tree.calibrate(
-                    tree_discount_curve_id,
-                    discount_curve.as_ref(),
-                    time_to_maturity,
-                )?;
+                tree.calibrate(discount_curve.as_ref(), time_to_maturity)?;
                 validate_bdt_calibration_quality(tree.calibration_result())?;
                 let mut vars = HashMap::<&'static str, f64>::default();
                 vars.insert(short_rate_keys::SHORT_RATE, tree.rate_at_node(0, 0)?);
@@ -393,16 +389,12 @@ impl TreePricer {
                 let tree_config = ShortRateTreeConfig {
                     steps: self.config.tree_steps,
                     volatility: self.config.volatility,
-                    mean_reversion: None,
+                    mean_reversion: 0.0,
                     compounding: self.config.tree_compounding,
                     ..Default::default()
                 };
                 let mut tree = ShortRateTree::new(tree_config);
-                tree.calibrate(
-                    tree_discount_curve_id,
-                    discount_curve.as_ref(),
-                    time_to_maturity,
-                )?;
+                tree.calibrate(discount_curve.as_ref(), time_to_maturity)?;
                 let mut vars = HashMap::<&'static str, f64>::default();
                 vars.insert(short_rate_keys::SHORT_RATE, tree.rate_at_node(0, 0)?);
                 vars.insert(short_rate_keys::OAS, continuous_oas_bp);
@@ -552,15 +544,11 @@ impl TreePricer {
                     let tree_config = ShortRateTreeConfig {
                         steps: self.config.tree_steps,
                         volatility: self.config.volatility,
-                        mean_reversion: None,
+                        mean_reversion: 0.0,
                         ..Default::default()
                     };
                     let mut tree = ShortRateTree::new(tree_config);
-                    tree.calibrate(
-                        tree_discount_curve_id,
-                        discount_curve.as_ref(),
-                        time_to_maturity,
-                    )?;
+                    tree.calibrate(discount_curve.as_ref(), time_to_maturity)?;
                     sr_tree = Some(tree);
                 }
                 TreeModelChoice::BlackDermanToy {
@@ -577,11 +565,7 @@ impl TreePricer {
                         ShortRateTreeConfig::bdt(valuation_steps, *sigma, *mean_reversion)
                             .with_compounding(self.config.tree_compounding);
                     let mut tree = ShortRateTree::new(tree_config);
-                    tree.calibrate(
-                        tree_discount_curve_id,
-                        discount_curve.as_ref(),
-                        time_to_maturity,
-                    )?;
+                    tree.calibrate(discount_curve.as_ref(), time_to_maturity)?;
                     validate_bdt_calibration_quality(tree.calibration_result())?;
                     sr_tree = Some(tree);
                 }
@@ -648,7 +632,7 @@ impl TreePricer {
         let objective_fn = |oas: f64| -> f64 {
             if use_rates_credit {
                 let mut vars = HashMap::<&'static str, f64>::default();
-                vars.insert("oas", oas);
+                vars.insert(short_rate_keys::OAS, oas);
                 if let Some(tree) = rc_tree.as_ref() {
                     match tree.price_with_node_coupons(
                         vars,

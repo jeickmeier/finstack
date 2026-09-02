@@ -8,7 +8,6 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::CurveId;
 use finstack_quant_core::HashMap;
 use finstack_quant_models::{
     NodeState, ShortRateTree, ShortRateTreeConfig, TreeModel, TreeValuator,
@@ -65,8 +64,7 @@ fn test_tree_calibrates_to_curve() {
 
     let mut tree = ShortRateTree::new(tree_config);
     let time_to_maturity = 5.0;
-    tree.calibrate(&CurveId::new("USD-OIS"), &curve, time_to_maturity)
-        .unwrap();
+    tree.calibrate(&curve, time_to_maturity).unwrap();
 
     // Check that tree produces correct discount factors at key points
     let test_times = [0.5, 1.0, 2.0, 3.0, 5.0];
@@ -306,71 +304,6 @@ fn test_putable_bond_tree_pricing_reasonable() {
         option_value < straight_pv.amount() * 0.15,
         "Option value should be < 15% of bond value"
     );
-}
-
-// Test 5: Hull-White Mean Reversion Default Behavior
-// With mean_reversion = None, tree should produce results equivalent to Ho-Lee.
-
-#[test]
-fn test_mean_reversion_none_matches_ho_lee() {
-    let as_of = date!(2020 - 01 - 01);
-    let rate = 0.05;
-    let curve = create_flat_curve(as_of, rate, "USD-OIS");
-
-    let ho_lee_config = ShortRateTreeConfig {
-        steps: 100,
-        volatility: 0.01,
-        mean_reversion: None,
-        ..Default::default()
-    };
-
-    let hw_zero_config = ShortRateTreeConfig {
-        steps: 100,
-        volatility: 0.01,
-        mean_reversion: Some(0.0),
-        ..Default::default()
-    };
-
-    let mut tree_hl = ShortRateTree::new(ho_lee_config);
-    let mut tree_hw = ShortRateTree::new(hw_zero_config);
-    let ttm = 5.0;
-
-    tree_hl
-        .calibrate(&CurveId::new("USD-OIS"), &curve, ttm)
-        .unwrap();
-    tree_hw
-        .calibrate(&CurveId::new("USD-OIS"), &curve, ttm)
-        .unwrap();
-
-    let valuator = ZeroCouponValuator { notional: 1.0 };
-    let market = MarketContext::new();
-
-    for &t in &[1.0, 3.0, 5.0] {
-        let pv_hl = tree_hl
-            .price(
-                HashMap::<&'static str, f64>::default(),
-                t,
-                &market,
-                &valuator,
-            )
-            .unwrap();
-        let pv_hw = tree_hw
-            .price(
-                HashMap::<&'static str, f64>::default(),
-                t,
-                &market,
-                &valuator,
-            )
-            .unwrap();
-
-        assert!(
-            (pv_hl - pv_hw).abs() < 1e-10,
-            "Ho-Lee and HW(a=0) should match at t={}: HL={}, HW={}",
-            t,
-            pv_hl,
-            pv_hw,
-        );
-    }
 }
 
 // Test 6: Hull-White Mean Reversion Reduces Rate Dispersion
