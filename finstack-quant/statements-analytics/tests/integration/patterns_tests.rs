@@ -2,34 +2,37 @@
 //!
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::prelude::*;
-use finstack_quant_statements_analytics::templates::{TemplatesExtension, VintageExtension};
+use finstack_quant_statements_analytics::templates::{roll_forward, vintage};
 
 #[test]
 fn test_roll_forward_pattern_arr() -> Result<()> {
-    let model = ModelBuilder::new("SaaS Model")
-        .periods("2025Q1..2025Q4", None)?
-        // Inputs
-        .value_scalar(
-            "new_arr",
-            &[
-                (PeriodId::quarter(2025, 1), 100.0),
-                (PeriodId::quarter(2025, 2), 120.0),
-                (PeriodId::quarter(2025, 3), 140.0),
-                (PeriodId::quarter(2025, 4), 160.0),
-            ],
-        )
-        .value_scalar(
-            "churn_arr",
-            &[
-                (PeriodId::quarter(2025, 1), 10.0),
-                (PeriodId::quarter(2025, 2), 12.0),
-                (PeriodId::quarter(2025, 3), 14.0),
-                (PeriodId::quarter(2025, 4), 16.0),
-            ],
-        )
-        // Apply Pattern
-        .add_roll_forward("arr", &["new_arr"], &["churn_arr"])?
-        .build()?;
+    let model = roll_forward::add_roll_forward(
+        ModelBuilder::new("SaaS Model")
+            .periods("2025Q1..2025Q4", None)?
+            // Inputs
+            .value_scalar(
+                "new_arr",
+                &[
+                    (PeriodId::quarter(2025, 1), 100.0),
+                    (PeriodId::quarter(2025, 2), 120.0),
+                    (PeriodId::quarter(2025, 3), 140.0),
+                    (PeriodId::quarter(2025, 4), 160.0),
+                ],
+            )
+            .value_scalar(
+                "churn_arr",
+                &[
+                    (PeriodId::quarter(2025, 1), 10.0),
+                    (PeriodId::quarter(2025, 2), 12.0),
+                    (PeriodId::quarter(2025, 3), 14.0),
+                    (PeriodId::quarter(2025, 4), 16.0),
+                ],
+            ),
+        "arr",
+        &["new_arr"],
+        &["churn_arr"],
+    )?
+    .build()?;
 
     let mut evaluator = Evaluator::new();
     let results = evaluator.evaluate(&model)?;
@@ -72,19 +75,23 @@ fn test_vintage_buildup_pattern_revenue() -> Result<()> {
     // Decay curve: 100% in period 0, 80% in period 1, 50% in period 2, 0% thereafter
     let decay_curve = vec![1.0, 0.8, 0.5, 0.0];
 
-    let model = ModelBuilder::new("Cohort Model")
-        .periods("2025Q1..2025Q4", None)?
-        .value_scalar(
-            "new_sales",
-            &[
-                (PeriodId::quarter(2025, 1), 100.0),
-                (PeriodId::quarter(2025, 2), 200.0),
-                (PeriodId::quarter(2025, 3), 300.0),
-                (PeriodId::quarter(2025, 4), 400.0),
-            ],
-        )
-        .add_vintage_buildup("revenue", "new_sales", &decay_curve)?
-        .build()?;
+    let model = vintage::add_vintage_buildup(
+        ModelBuilder::new("Cohort Model")
+            .periods("2025Q1..2025Q4", None)?
+            .value_scalar(
+                "new_sales",
+                &[
+                    (PeriodId::quarter(2025, 1), 100.0),
+                    (PeriodId::quarter(2025, 2), 200.0),
+                    (PeriodId::quarter(2025, 3), 300.0),
+                    (PeriodId::quarter(2025, 4), 400.0),
+                ],
+            ),
+        "revenue",
+        "new_sales",
+        &decay_curve,
+    )?
+    .build()?;
 
     let mut evaluator = Evaluator::new();
     let results = evaluator.evaluate(&model)?;

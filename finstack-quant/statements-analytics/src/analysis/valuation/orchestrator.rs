@@ -34,15 +34,13 @@ pub struct CorporateAnalysis {
     pub ev_suppressed_non_positive: bool,
 }
 
-/// Equity valuation mode.
-enum EquityMode {
-    Dcf {
-        wacc: f64,
-        terminal_value: TerminalValueSpec,
-        ufcf_node: String,
-        net_debt_override: Option<f64>,
-        dcf_options: DcfOptions,
-    },
+/// DCF equity valuation inputs configured on the builder.
+struct DcfSpec {
+    wacc: f64,
+    terminal_value: TerminalValueSpec,
+    ufcf_node: String,
+    net_debt_override: Option<f64>,
+    dcf_options: DcfOptions,
 }
 
 /// Builder for corporate analysis.
@@ -99,7 +97,7 @@ pub struct CorporateAnalysisBuilder {
     model: FinancialModelSpec,
     market: Option<MarketContext>,
     as_of: Option<Date>,
-    equity_mode: Option<EquityMode>,
+    dcf: Option<DcfSpec>,
     cfads_node: Option<String>,
     interest_coverage_node: String,
     ltv_value_node: Option<String>,
@@ -135,7 +133,7 @@ impl CorporateAnalysisBuilder {
             model,
             market: None,
             as_of: None,
-            equity_mode: None,
+            dcf: None,
             cfads_node: None,
             interest_coverage_node: "ebitda".to_string(),
             ltv_value_node: None,
@@ -206,7 +204,7 @@ impl CorporateAnalysisBuilder {
     /// # }
     /// ```
     pub fn dcf(mut self, wacc: f64, terminal_value: TerminalValueSpec) -> Self {
-        self.equity_mode = Some(EquityMode::Dcf {
+        self.dcf = Some(DcfSpec {
             wacc,
             terminal_value,
             ufcf_node: "ufcf".to_string(),
@@ -229,12 +227,8 @@ impl CorporateAnalysisBuilder {
     /// The updated builder. If DCF has not been configured, the builder is
     /// returned unchanged.
     pub fn net_debt_override(mut self, net_debt: f64) -> Self {
-        if let Some(EquityMode::Dcf {
-            net_debt_override: ref mut nd,
-            ..
-        }) = self.equity_mode
-        {
-            *nd = Some(net_debt);
+        if let Some(dcf) = self.dcf.as_mut() {
+            dcf.net_debt_override = Some(net_debt);
         }
         self
     }
@@ -365,7 +359,7 @@ impl CorporateAnalysisBuilder {
     /// # }
     /// ```
     pub fn analyze(self) -> Result<CorporateAnalysis> {
-        let requires_checks = self.equity_mode.is_some() || self.model.capital_structure.is_some();
+        let requires_checks = self.dcf.is_some() || self.model.capital_structure.is_some();
         let mut evaluator = if requires_checks {
             let suite = self.check_suite.ok_or_else(|| {
                 Error::eval(
@@ -406,8 +400,8 @@ impl CorporateAnalysisBuilder {
         }
 
         // Step 2: Equity valuation (if configured)
-        let equity = match self.equity_mode {
-            Some(EquityMode::Dcf {
+        let equity = match self.dcf {
+            Some(DcfSpec {
                 wacc,
                 terminal_value,
                 ufcf_node,

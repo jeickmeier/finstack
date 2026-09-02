@@ -8,7 +8,7 @@ use finstack_quant_statements_analytics::extensions::{
     AccountType, CorkscrewAccount, CorkscrewConfig, CorkscrewExtension, CorkscrewStatus,
     CreditScorecardExtension, ScorecardConfig, ScorecardMetric, ScorecardStatus,
 };
-use finstack_quant_statements_analytics::templates::TemplatesExtension;
+use finstack_quant_statements_analytics::templates::roll_forward;
 
 // Corkscrew Extension Full Execution Tests
 
@@ -72,7 +72,7 @@ fn test_corkscrew_extension_with_valid_config() {
         fail_on_error: false,
     };
 
-    let mut extension = CorkscrewExtension::with_config(config);
+    let mut extension = CorkscrewExtension::new(config);
 
     // Execute extension via inherent method
     let report = extension.execute(&model, &results).unwrap();
@@ -133,57 +133,39 @@ fn test_corkscrew_with_multiple_accounts() {
         fail_on_error: false,
     };
 
-    let mut extension = CorkscrewExtension::with_config(config);
+    let mut extension = CorkscrewExtension::new(config);
 
     let report = extension.execute(&model, &results).unwrap();
     assert_eq!(report.status, CorkscrewStatus::Success);
 }
 
 #[test]
-fn test_corkscrew_set_config() {
-    let mut extension = CorkscrewExtension::new();
-    assert!(extension.config().is_none());
-
-    let config = CorkscrewConfig {
-        accounts: vec![CorkscrewAccount {
-            node_id: "test".into(),
-            account_type: AccountType::Asset,
-            changes: vec![],
-            decreases: vec![],
-            beginning_balance_node: None,
-        }],
-        tolerance: 0.01,
-        fail_on_error: false,
-    };
-
-    extension.set_config(config);
-    assert!(extension.config().is_some());
-    assert_eq!(extension.config().unwrap().tolerance, 0.01);
-}
-
-#[test]
 fn roll_forward_inventory_pairs_with_corkscrew_decreases() {
-    let model = ModelBuilder::new("inventory_roll")
-        .periods("2025Q1..Q2", None)
-        .unwrap()
-        .value(
-            "additions",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(50.0)),
-            ],
-        )
-        .value(
-            "disposals",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(20.0)),
-            ],
-        )
-        .add_roll_forward("inventory", &["additions"], &["disposals"])
-        .unwrap()
-        .build()
-        .unwrap();
+    let model = roll_forward::add_roll_forward(
+        ModelBuilder::new("inventory_roll")
+            .periods("2025Q1..Q2", None)
+            .unwrap()
+            .value(
+                "additions",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(50.0)),
+                ],
+            )
+            .value(
+                "disposals",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(20.0)),
+                ],
+            ),
+        "inventory",
+        &["additions"],
+        &["disposals"],
+    )
+    .unwrap()
+    .build()
+    .unwrap();
 
     let mut evaluator = Evaluator::new();
     let results = evaluator.evaluate(&model).unwrap();
@@ -205,7 +187,7 @@ fn roll_forward_inventory_pairs_with_corkscrew_decreases() {
         tolerance: 0.01,
         fail_on_error: false,
     };
-    let mut extension = CorkscrewExtension::with_config(paired);
+    let mut extension = CorkscrewExtension::new(paired);
     let report = extension.execute(&model, &results).unwrap();
     assert_eq!(
         report.data["validations"][0]["is_valid"].as_bool(),
@@ -232,7 +214,7 @@ fn roll_forward_inventory_pairs_with_corkscrew_decreases() {
         tolerance: 0.01,
         fail_on_error: false,
     };
-    let mut flipped_ext = CorkscrewExtension::with_config(flipped);
+    let mut flipped_ext = CorkscrewExtension::new(flipped);
     let flipped_report = flipped_ext.execute(&model, &results).unwrap();
     assert_eq!(
         flipped_report.data["validations"][0]["is_valid"].as_bool(),
@@ -352,7 +334,7 @@ fn test_scorecard_extension_with_valid_config() {
         period: None,
     };
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
 
     // Execute extension via inherent method
     let report = extension.execute(&model, &results).unwrap();
@@ -361,29 +343,6 @@ fn test_scorecard_extension_with_valid_config() {
     assert!(report.data.contains_key("rating"));
     assert!(report.data.contains_key("total_score"));
     assert!(report.data.contains_key("metric_scores"));
-}
-
-#[test]
-fn test_scorecard_set_config() {
-    let mut extension = CreditScorecardExtension::new();
-    assert!(extension.config().is_none());
-
-    let config = ScorecardConfig {
-        rating_scale: "Moody's".into(),
-        metrics: vec![ScorecardMetric {
-            name: "leverage".into(),
-            formula: "debt / ebitda".into(),
-            weight: 1.0,
-            thresholds: indexmap::IndexMap::new(),
-            description: None,
-        }],
-        min_rating: None,
-        period: None,
-    };
-
-    extension.set_config(config);
-    assert!(extension.config().is_some());
-    assert_eq!(extension.config().unwrap().rating_scale, "Moody's");
 }
 
 #[test]
@@ -434,7 +393,7 @@ fn test_scorecard_moodys_rating_scale() {
         period: None,
     };
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
 
     let report = extension.execute(&model, &results).unwrap();
 
@@ -473,7 +432,7 @@ fn test_scorecard_fitch_rating_scale() {
         period: None,
     };
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
 
     let report = extension.execute(&model, &results).unwrap();
     assert_eq!(report.status, ScorecardStatus::Success);
@@ -528,7 +487,7 @@ fn test_scorecard_with_minimum_rating_warning() {
         period: None,
     };
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
 
     let report = extension.execute(&model, &results).unwrap();
 
@@ -600,7 +559,7 @@ fn test_scorecard_multiple_metrics_weighted() {
         period: None,
     };
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
 
     let report = extension.execute(&model, &results).unwrap();
 
@@ -639,7 +598,7 @@ fn test_scorecard_metric_evaluation_error_handling() {
         period: None,
     };
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
 
     let report = extension.execute(&model, &results).unwrap();
 
@@ -725,7 +684,7 @@ fn test_scorecard_non_finite_metric_excluded_and_weights_renormalized() {
     let (model, results) = two_metric_model();
 
     // Default period = last (Q2, no actuals): leverage = 150/0 = inf → NM.
-    let mut extension = CreditScorecardExtension::with_config(leverage_coverage_config());
+    let mut extension = CreditScorecardExtension::new(leverage_coverage_config());
     let report = extension.execute(&model, &results).unwrap();
 
     assert_eq!(report.status, ScorecardStatus::Success);
@@ -767,7 +726,7 @@ fn test_scorecard_period_selection() {
     let mut config = leverage_coverage_config();
     config.period = Some("2025Q1".into());
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
     let report = extension.execute(&model, &results).unwrap();
 
     assert_eq!(report.status, ScorecardStatus::Success);
@@ -796,7 +755,7 @@ fn test_scorecard_unknown_period_is_error() {
     let mut config = leverage_coverage_config();
     config.period = Some("2030Q4".into());
 
-    let mut extension = CreditScorecardExtension::with_config(config);
+    let mut extension = CreditScorecardExtension::new(config);
     let err = extension
         .execute(&model, &results)
         .expect_err("period absent from the model must be an error");

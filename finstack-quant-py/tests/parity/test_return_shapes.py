@@ -63,7 +63,6 @@ ENTRY_SHAPES: list[tuple[str, str, str]] = [
     ("finstack_quant.statements_analytics", "add_noi_buildup", "wrapper"),
     ("finstack_quant.statements_analytics", "add_ncf_buildup", "wrapper"),
     ("finstack_quant.statements_analytics", "add_rent_roll", "wrapper"),
-    ("finstack_quant.statements_analytics", "add_rent_roll_rental_revenue", "wrapper"),
     ("finstack_quant.statements_analytics", "add_property_operating_statement", "wrapper"),
     # portfolio
     ("finstack_quant.portfolio", "value_portfolio", "wrapper"),

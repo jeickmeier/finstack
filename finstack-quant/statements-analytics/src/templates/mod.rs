@@ -1,8 +1,9 @@
 //! Financial statement modeling templates.
 //!
 //! Each template lives in its own subdirectory. To add a new template, create a
-//! directory under `templates/` with a `mod.rs`, register it here, and wire the
-//! builder trait in [`crate::templates::builder`].
+//! directory under `templates/` with a `mod.rs` and register it here. Templates
+//! are free functions that take and return a
+//! [`ModelBuilder`](finstack_quant_statements::builder::ModelBuilder).
 //!
 //! - [`crate::templates::roll_forward`] — beginning + changes = ending balance pattern
 //! - [`crate::templates::real_estate`] — NOI/NCF/rent-roll/property operating statement builders
@@ -21,9 +22,9 @@
 //!
 //! | Template | Build-time | Runtime Validation |
 //! |----------|------------|-------------------|
-//! | Roll-forward | [`TemplatesExtension::add_roll_forward`](crate::templates::TemplatesExtension::add_roll_forward) | [`crate::extensions::CorkscrewExtension`] |
-//! | Vintage | [`VintageExtension::add_vintage_buildup`](crate::templates::VintageExtension::add_vintage_buildup) | N/A |
-//! | Real estate | [`RealEstateExtension::add_property_operating_statement`](crate::templates::RealEstateExtension::add_property_operating_statement) | Model-specific |
+//! | Roll-forward | [`roll_forward::add_roll_forward`] | [`crate::extensions::CorkscrewExtension`] |
+//! | Vintage | [`vintage::add_vintage_buildup`] | N/A |
+//! | Real estate | [`real_estate::add_property_operating_statement`] | Model-specific |
 //!
 //! ## Conventions
 //!
@@ -44,27 +45,23 @@
 //!
 //! ```
 //! use finstack_quant_statements::prelude::*;
-//! use finstack_quant_statements_analytics::templates::TemplatesExtension;
+//! use finstack_quant_statements_analytics::templates::roll_forward::add_roll_forward;
 //!
 //! # fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 //! # let values: &[(PeriodId, AmountOrScalar)] = &[];
-//! let model = ModelBuilder::new("demo")
+//! let builder = ModelBuilder::new("demo")
 //!     .periods("2025Q1..2025Q4", None)?
 //!     .value("additions", values)
-//!     .value("disposals", values)
-//!     .add_roll_forward("inventory", &["additions"], &["disposals"])?
-//!     .build()?;
+//!     .value("disposals", values);
+//! let model = add_roll_forward(builder, "inventory", &["additions"], &["disposals"])?.build()?;
 //! # let _ = model;
 //! # Ok(())
 //! # }
 //! ```
 
-pub mod builder;
 pub mod real_estate;
 pub mod roll_forward;
 pub mod vintage;
-
-pub use builder::{RealEstateExtension, TemplatesExtension, VintageExtension};
 
 /// Format an `f64` for embedding in a generated formula at full
 /// (shortest-roundtrip) precision, ensuring the literal still looks like a

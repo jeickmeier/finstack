@@ -9,7 +9,7 @@ use finstack_quant_statements::evaluator::{
     node_to_dated_schedule, Evaluator, PeriodDateConvention,
 };
 use finstack_quant_statements::types::AmountOrScalar;
-use finstack_quant_statements_analytics::templates::RealEstateExtension;
+use finstack_quant_statements_analytics::templates::real_estate;
 use finstack_quant_valuations::instruments::equity::real_estate::{
     RealEstateAsset, RealEstateValuationMethod,
 };
@@ -20,34 +20,40 @@ fn e2e_statements_to_real_estate_asset_cashflows_prices() {
     let as_of = Date::from_calendar_date(2025, time::Month::January, 1).unwrap();
 
     // Build a tiny statement model with NOI and CapEx, then export to dated schedules.
-    let model = ModelBuilder::new("re_e2e")
-        .periods("2025Q1..Q2", None)
-        .expect("periods should parse")
-        .value(
-            "rent",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(110.0)),
-            ],
-        )
-        .value(
-            "taxes",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(20.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(22.0)),
-            ],
-        )
-        .value(
-            "capex",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(5.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(6.0)),
-            ],
-        )
-        .add_noi_buildup("total_rev", &["rent"], "total_exp", &["taxes"], "noi")
-        .expect("noi template")
-        .build()
-        .expect("build");
+    let model = real_estate::add_noi_buildup(
+        ModelBuilder::new("re_e2e")
+            .periods("2025Q1..Q2", None)
+            .expect("periods should parse")
+            .value(
+                "rent",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(110.0)),
+                ],
+            )
+            .value(
+                "taxes",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(20.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(22.0)),
+                ],
+            )
+            .value(
+                "capex",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(5.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(6.0)),
+                ],
+            ),
+        "total_rev",
+        &["rent"],
+        "total_exp",
+        &["taxes"],
+        "noi",
+    )
+    .expect("noi template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");

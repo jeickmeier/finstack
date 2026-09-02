@@ -4,7 +4,6 @@ use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
 use super::engine::{compute_ecl_weighted, EclConfigBuilder, MacroScenario, WeightedEclResult};
-use super::policy::default_staging_config;
 use super::staging::{classify_stage, StageResult, StagingConfig};
 use super::types::{Exposure, PdTermStructure, QualitativeFlags, RawPdCurve, Stage};
 
@@ -70,7 +69,7 @@ impl EclStageRequest {
     /// Returns an error if the synthetic PD source cannot resolve the current
     /// or origination rating used during SICR comparison.
     pub fn classify(&self) -> Result<StageResult> {
-        let defaults = default_staging_config();
+        let defaults = StagingConfig::default();
         let config = StagingConfig {
             pd_delta_absolute: self.pd_delta_absolute.unwrap_or(defaults.pd_delta_absolute),
             pd_delta_relative: f64::INFINITY,

@@ -232,12 +232,6 @@ pub struct StagingConfig {
     pub cure_periods_stage3_to_2: u32,
 }
 
-impl Default for StagingConfig {
-    fn default() -> Self {
-        super::policy::default_staging_config()
-    }
-}
-
 /// Count downgrade notches between two rating labels on the configured scale.
 ///
 /// Returns `None` when either label is absent from the scale (the trigger is

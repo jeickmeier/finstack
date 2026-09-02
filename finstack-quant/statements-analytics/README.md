@@ -110,9 +110,9 @@ a submodule.
 | Goal seek | `goal_seek` |
 | Backtesting | `backtest_forecast`, `ForecastMetrics` |
 | Introspection | `DependencyTracer`, `DependencyTree`, `FormulaExplainer`, `Explanation`, `render_tree_ascii`, `render_tree_detailed` |
-| Reports | `TableBuilder`, `PLSummaryReport`, `CreditAssessmentReport`, `CreditAssessment`, `Report`, `Alignment` |
+| Reports | `PLSummaryReport`, `CreditAssessmentReport`, `CreditAssessment` |
 | `extensions` | `CorkscrewExtension` + `CorkscrewConfig`/`CorkscrewReport`/`CorkscrewAccount`/`AccountType`/`CorkscrewStatus`; `CreditScorecardExtension` + `ScorecardConfig`/`ScorecardMetric`/`ScorecardReport`/`ScorecardStatus` |
-| `templates` | `TemplatesExtension`, `VintageExtension`, `RealEstateExtension` (builder traits), plus the `roll_forward`, `vintage`, and `real_estate` modules |
+| `templates` | the `roll_forward`, `vintage`, and `real_estate` modules (free functions over `ModelBuilder`) |
 
 Item-level detail is in the rustdoc:
 `cargo doc -p finstack-quant-statements-analytics --open`.
@@ -168,11 +168,11 @@ rating-keyed map of `RawPdCurve` values; a missing rating skips the SICR
 PD-delta rather than failing the run. `EclConfig` can be persisted through
 the `ECL_POLICY_EXTENSION_KEY` `FinstackConfig` extension.
 
-**Templates.** Build-time `ModelBuilder` extension traits:
-`TemplatesExtension::add_roll_forward` (beginning + increases − decreases =
-ending), `VintageExtension::add_vintage_buildup` (cohort convolution;
+**Templates.** Build-time free functions over `ModelBuilder`:
+`roll_forward::add_roll_forward` (beginning + increases − decreases =
+ending), `vintage::add_vintage_buildup` (cohort convolution;
 `decay_curve[k]` is in **model periods**, not calendar years), and
-`RealEstateExtension` (`add_rent_roll`, `add_noi_buildup`, `add_ncf_buildup`,
+`real_estate` (`add_rent_roll`, `add_noi_buildup`, `add_ncf_buildup`,
 `add_property_operating_statement`, the last driven by `LeaseSpec`,
 `ManagementFeeSpec`, and friends). `LeaseGrowthConvention` defaults to
 `AnnualEscalator` (Argus/NCREIF anniversary bumps); `PerPeriod` must be set
@@ -184,9 +184,8 @@ says otherwise.
 after evaluation (`expected = prev + Σ changes − Σ decreases`); pair
 `add_roll_forward` increase/disposal nodes with `CorkscrewAccount.changes` /
 `decreases`. `CreditScorecardExtension` applies weighted metric scoring with
-embedded S&P / Moody's / Fitch scales. Both are plain structs — `new()` /
-`with_config(cfg)` / `set_config(cfg)` then `execute(&model, &results)` — not
-trait objects, and both error if no configuration was supplied.
+embedded S&P / Moody's / Fitch scales. Both are plain structs — `new(cfg)`
+then `execute(&model, &results)` — not trait objects.
 
 ## Conventions
 

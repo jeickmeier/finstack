@@ -28,43 +28,24 @@ use finstack_quant_statements::evaluator::StatementResult;
 use serde::Serialize;
 use std::fmt::{self, Write as FmtWrite};
 
-// Report Trait
-
-/// Core reporting trait.
-///
-/// Implement this trait to provide multiple output formats for a report.
-pub trait Report: fmt::Display {
-    /// Print report to stdout.
-    fn print(&self) {
-        println!("{self}");
-    }
-
-    /// Convert report to Markdown format.
-    fn to_markdown(&self) -> String {
-        self.to_string() // Default implementation - subclasses can override
-    }
-}
-
 // Table Formatting
 
 /// Alignment options for table columns.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum Alignment {
+pub(crate) enum Alignment {
     /// Left-aligned
     #[default]
     Left,
     /// Right-aligned
     Right,
-    /// Center-aligned
-    Center,
 }
 
-/// Builder for ASCII and Markdown tables.
+/// Builder for ASCII tables.
 ///
 /// # Examples
 ///
-/// ```rust
-/// use finstack_quant_statements_analytics::analysis::{TableBuilder, Alignment};
+/// ```rust,ignore
+/// use finstack_quant_statements_analytics::analysis::reports::{TableBuilder, Alignment};
 ///
 /// let mut table = TableBuilder::new();
 /// table.add_header("Name");
@@ -76,7 +57,7 @@ pub enum Alignment {
 /// println!("{}", ascii);
 /// ```
 #[derive(Debug, Clone)]
-pub struct TableBuilder {
+pub(crate) struct TableBuilder {
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
     alignment: Vec<Alignment>,
@@ -176,66 +157,6 @@ impl TableBuilder {
         output
     }
 
-    /// Build Markdown table.
-    ///
-    /// Returns a formatted Markdown table.
-    #[allow(clippy::expect_used)] // write! to String is infallible
-    pub fn build_markdown(&self) -> String {
-        if self.headers.is_empty() {
-            return String::new();
-        }
-
-        let mut output = String::new();
-
-        // Calculate column widths
-        let widths = self.calculate_column_widths();
-
-        output.push('|');
-        for (i, header) in self.headers.iter().enumerate() {
-            let width = widths[i];
-            let aligned = self.align_text(header, width, Alignment::Left);
-            write!(&mut output, " {} |", aligned).expect("writing to String cannot fail");
-        }
-        output.push('\n');
-
-        output.push('|');
-        for (i, &width) in widths.iter().enumerate() {
-            let align = if i < self.alignment.len() {
-                self.alignment[i]
-            } else {
-                Alignment::Left
-            };
-
-            let sep = match align {
-                Alignment::Left => format!(":{}", "-".repeat(width)),
-                Alignment::Right => format!("{}:", "-".repeat(width)),
-                Alignment::Center => format!(":{}:", "-".repeat(width.saturating_sub(1).max(1))),
-            };
-            write!(&mut output, " {} |", sep).expect("writing to String cannot fail");
-        }
-        output.push('\n');
-
-        // Data rows
-        for row in &self.rows {
-            output.push('|');
-            for (i, cell) in row.iter().enumerate() {
-                if i < widths.len() {
-                    let width = widths[i];
-                    let align = if i < self.alignment.len() {
-                        self.alignment[i]
-                    } else {
-                        Alignment::Left
-                    };
-                    let aligned = self.align_text(cell, width, align);
-                    write!(&mut output, " {} |", aligned).expect("writing to String cannot fail");
-                }
-            }
-            output.push('\n');
-        }
-
-        output
-    }
-
     fn calculate_column_widths(&self) -> Vec<usize> {
         let mut widths = self.headers.iter().map(|h| h.len()).collect::<Vec<_>>();
 
@@ -261,11 +182,6 @@ impl TableBuilder {
         match alignment {
             Alignment::Left => format!("{}{}", text, " ".repeat(padding)),
             Alignment::Right => format!("{}{}", " ".repeat(padding), text),
-            Alignment::Center => {
-                let left_pad = padding / 2;
-                let right_pad = padding - left_pad;
-                format!("{}{}{}", " ".repeat(left_pad), text, " ".repeat(right_pad))
-            }
         }
     }
 
@@ -374,8 +290,6 @@ impl fmt::Display for PLSummaryReport<'_> {
         write!(formatter, "P&L Summary\n\n{}", table.build())
     }
 }
-
-impl Report for PLSummaryReport<'_> {}
 
 // Shared credit metric helpers
 
@@ -585,8 +499,6 @@ impl fmt::Display for CreditAssessmentReport<'_> {
     }
 }
 
-impl Report for CreditAssessmentReport<'_> {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,29 +527,10 @@ mod tests {
     }
 
     #[test]
-    fn test_markdown_table() {
-        let mut table = TableBuilder::new();
-        table.add_header("Name");
-        table.add_header_with_alignment("Value", Alignment::Right);
-        table.add_row(vec!["Revenue".to_string(), "100".to_string()]);
-
-        let output = table.build_markdown();
-        println!("Output:\n{}", output);
-        assert!(output.contains("| Name"));
-        assert!(output.contains("| Value |"));
-        // Markdown alignment markers should be present
-        assert!(output.contains(":---") || output.contains("---:"));
-    }
-
-    #[test]
     fn test_alignment() {
         let table = TableBuilder::new();
         assert_eq!(table.align_text("test", 10, Alignment::Left), "test      ");
         assert_eq!(table.align_text("test", 10, Alignment::Right), "      test");
-        assert_eq!(
-            table.align_text("test", 10, Alignment::Center),
-            "   test   "
-        );
     }
 
     #[test]

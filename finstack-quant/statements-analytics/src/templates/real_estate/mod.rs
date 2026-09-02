@@ -199,194 +199,8 @@ pub fn add_ncf_buildup(
     builder.compute(ncf_node, format!("{noi_node} - ({capex_expr})"))
 }
 
-/// Simple lease-level rent schedule spec for rent-roll style revenue generation.
-///
-/// Values are per-model-period amounts (i.e., if the model is quarterly,
-/// `base_rent` is per quarter). `growth_rate` is also per model period.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SimpleLeaseSpec {
-    /// Node id to store this lease's rent revenue series.
-    pub node_id: String,
-    /// First period (inclusive) when the lease is active.
-    pub start: PeriodId,
-    /// Last period (inclusive) when the lease is active. `None` means through model end.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub end: Option<PeriodId>,
-    /// Base rent per period at `start`.
-    pub base_rent: f64,
-    /// Growth rate applied per period after `start` (e.g., 0.03 for +3% per period).
-    #[serde(default)]
-    pub growth_rate: f64,
-    /// Number of periods of free rent starting at `start`.
-    #[serde(default)]
-    pub free_rent_periods: u32,
-    /// Occupancy factor in `0..=1` applied to rent (useful for probability/vacancy).
-    #[serde(default = "default_occupancy")]
-    pub occupancy: f64,
-}
-
 fn default_occupancy() -> f64 {
     1.0
-}
-
-impl SimpleLeaseSpec {
-    /// Validate lease inputs that are independent of the model period grid.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the node id is empty, or if numeric fields are non-finite
-    /// or outside their supported ranges.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(())` when the lease fields are structurally valid.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_core::dates::PeriodId;
-    /// use finstack_quant_statements_analytics::templates::real_estate::SimpleLeaseSpec;
-    ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let lease = SimpleLeaseSpec {
-    ///     node_id: "tenant_a".to_string(),
-    ///     start: PeriodId::quarter(2025, 1),
-    ///     end: None,
-    ///     base_rent: 25_000.0,
-    ///     growth_rate: 0.01,
-    ///     free_rent_periods: 0,
-    ///     occupancy: 1.0,
-    /// };
-    ///
-    /// lease.validate()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn validate(&self) -> Result<()> {
-        if self.node_id.trim().is_empty() {
-            return Err(Error::build(
-                "SimpleLeaseSpec: node_id cannot be empty".to_string(),
-            ));
-        }
-        if !self.base_rent.is_finite() {
-            return Err(Error::build(
-                "SimpleLeaseSpec: base_rent must be finite".to_string(),
-            ));
-        }
-        if !self.growth_rate.is_finite() {
-            return Err(Error::build(
-                "SimpleLeaseSpec: growth_rate must be finite".to_string(),
-            ));
-        }
-        if !(0.0..=1.0).contains(&self.occupancy) {
-            return Err(Error::build(
-                "SimpleLeaseSpec: occupancy must be in [0, 1]".to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-/// Add a minimal rent roll by generating lease rent series and summing into a total rent node.
-///
-/// - Creates one **value** node per lease (`SimpleLeaseSpec::node_id`) with an explicit per-period series.
-/// - Creates a **calculated** node `total_rent_node = sum(lease_nodes)`.
-///
-/// This intentionally stays simple (no reimbursements, % rent, downtime, TI/LC). It’s meant to
-/// be a foundation for more market-standard templates.
-///
-/// # Arguments
-///
-/// * `builder` - Ready builder whose periods define the lease timeline
-/// * `leases` - Lease specifications, each expressed in per-period rent terms
-/// * `total_rent_node` - Aggregated output node id
-///
-/// # Returns
-///
-/// Returns the updated builder with per-lease value nodes plus a summed total.
-///
-/// # Errors
-///
-/// Returns an error if `leases` is empty, if any lease contains invalid numeric
-/// inputs, or if generated nodes cannot be added to the builder.
-pub fn add_rent_roll_rental_revenue(
-    mut builder: ModelBuilder<Ready>,
-    leases: &[SimpleLeaseSpec],
-    total_rent_node: &str,
-) -> Result<ModelBuilder<Ready>> {
-    if leases.is_empty() {
-        return Err(Error::build(
-            "add_rent_roll_rental_revenue: expected at least one lease",
-        ));
-    }
-
-    // Build each lease's explicit series from builder periods.
-    for lease in leases {
-        if lease.node_id.trim().is_empty() {
-            return Err(Error::build(
-                "add_rent_roll_rental_revenue: lease node_id cannot be empty",
-            ));
-        }
-        if !lease.base_rent.is_finite() {
-            return Err(Error::build(
-                "add_rent_roll_rental_revenue: base_rent must be finite",
-            ));
-        }
-        if !lease.growth_rate.is_finite() {
-            return Err(Error::build(
-                "add_rent_roll_rental_revenue: growth_rate must be finite",
-            ));
-        }
-        if !(0.0..=1.0).contains(&lease.occupancy) {
-            return Err(Error::build(
-                "add_rent_roll_rental_revenue: occupancy must be in [0, 1]",
-            ));
-        }
-
-        let mut values: Vec<(PeriodId, AmountOrScalar)> =
-            Vec::with_capacity(builder.periods_slice().len());
-        let mut periods_since_start: u32 = 0;
-
-        for p in builder.periods_slice() {
-            let pid = p.id;
-            let active = pid >= lease.start && lease.end.is_none_or(|e| pid <= e);
-            let rent = if active {
-                let exp = checked_growth_exponent(periods_since_start).map_err(|e| {
-                    Error::build(format!(
-                        "add_rent_roll_rental_revenue: {} (period index {})",
-                        e, periods_since_start
-                    ))
-                })?;
-                let rent_before_free = lease.base_rent * (1.0 + lease.growth_rate).powi(exp);
-                if !rent_before_free.is_finite() {
-                    return Err(Error::build(
-                        "add_rent_roll_rental_revenue: rent growth overflow (base_rent * (1+g)^n is not finite)",
-                    ));
-                }
-                let rent_after_free = if periods_since_start < lease.free_rent_periods {
-                    0.0
-                } else {
-                    rent_before_free
-                };
-                periods_since_start = periods_since_start.saturating_add(1);
-                rent_after_free * lease.occupancy
-            } else {
-                0.0
-            };
-
-            values.push((pid, AmountOrScalar::scalar(rent)));
-        }
-
-        builder = builder.value(lease.node_id.clone(), &values);
-    }
-
-    let lease_nodes = leases
-        .iter()
-        .map(|l| l.node_id.as_str())
-        .collect::<Vec<_>>();
-    let total_expr = sum_expr(&lease_nodes)?;
-    builder.compute(total_rent_node, &total_expr)
 }
 
 /// Rent step that resets the base rent starting at `start` (inclusive).
@@ -757,18 +571,7 @@ pub fn add_rent_roll(
         .unwrap_or(4);
 
     for lease in leases {
-        if lease.node_id.trim().is_empty() {
-            return Err(Error::build("add_rent_roll: lease node_id cannot be empty"));
-        }
-        if !lease.base_rent.is_finite() {
-            return Err(Error::build("add_rent_roll: base_rent must be finite"));
-        }
-        if !lease.growth_rate.is_finite() {
-            return Err(Error::build("add_rent_roll: growth_rate must be finite"));
-        }
-        if !(0.0..=1.0).contains(&lease.occupancy) {
-            return Err(Error::build("add_rent_roll: occupancy must be in [0, 1]"));
-        }
+        lease.validate()?;
 
         let start_idx = find_period_idx(builder.periods_slice(), lease.start)?;
         let end_idx = if let Some(e) = lease.end {
@@ -792,18 +595,7 @@ pub fn add_rent_roll(
         }
 
         let (renewal_start_idx, renewal_end_idx, renewal_prob, renewal_free_periods) =
-            if let (Some(end_pid), Some(r)) = (lease.end, lease.renewal.as_ref()) {
-                if !r.probability.is_finite() || !(0.0..=1.0).contains(&r.probability) {
-                    return Err(Error::build(
-                        "add_rent_roll: renewal.probability must be in [0, 1]",
-                    ));
-                }
-                if !r.rent_factor.is_finite() || r.rent_factor <= 0.0 {
-                    return Err(Error::build(
-                        "add_rent_roll: renewal.rent_factor must be positive",
-                    ));
-                }
-                let _ = end_pid; // already validated via end_idx
+            if let (Some(_end_pid), Some(r)) = (lease.end, lease.renewal.as_ref()) {
                 let start = end_idx + 1 + r.downtime_periods as usize;
                 let end = start + r.term_periods as usize;
                 (
@@ -819,11 +611,6 @@ pub fn add_rent_roll(
         let mut step_points: Vec<(usize, f64)> = Vec::new();
         step_points.push((start_idx, lease.base_rent));
         for s in &lease.rent_steps {
-            if !s.rent.is_finite() {
-                return Err(Error::build(
-                    "add_rent_roll: rent_steps rent must be finite",
-                ));
-            }
             let idx = find_period_idx(builder.periods_slice(), s.start)?;
             step_points.push((idx, s.rent));
         }

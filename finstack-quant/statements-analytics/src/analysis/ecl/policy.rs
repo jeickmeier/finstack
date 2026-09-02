@@ -279,10 +279,12 @@ fn default_cecl_discount_expected_losses() -> bool {
     true
 }
 
-/// Return the default IFRS 9 ECL configuration from the embedded policy registry.
-pub fn default_ecl_config() -> EclConfig {
-    let policy = required_policy(registry().default_ifrs9_policy());
-    ecl_config_from_policy(policy)
+impl Default for EclConfig {
+    /// The default IFRS 9 ECL configuration from the embedded policy registry.
+    fn default() -> Self {
+        let policy = required_policy(registry().default_ifrs9_policy());
+        ecl_config_from_policy(policy)
+    }
 }
 
 /// Return the default IFRS 9 ECL configuration from config or embedded policy.
@@ -320,11 +322,13 @@ fn ecl_config_from_policy(policy: &Ifrs9PolicyRecord) -> EclConfig {
     }
 }
 
-/// Return the default IFRS 9 staging configuration from the embedded policy registry.
-pub fn default_staging_config() -> StagingConfig {
-    required_policy(registry().default_ifrs9_policy())
-        .staging
-        .config()
+impl Default for StagingConfig {
+    /// The default IFRS 9 staging configuration from the embedded policy registry.
+    fn default() -> Self {
+        required_policy(registry().default_ifrs9_policy())
+            .staging
+            .config()
+    }
 }
 
 /// Return the default IFRS 9 staging configuration from config or embedded policy.
@@ -345,10 +349,12 @@ pub fn default_staging_config_from_config(config: &FinstackConfig) -> Result<Sta
         .map(|policy| policy.staging.config())
 }
 
-/// Return the default CECL configuration from the embedded policy registry.
-pub fn default_cecl_config() -> CeclConfig {
-    let policy = required_policy(registry().default_cecl_policy());
-    cecl_config_from_policy(policy)
+impl Default for CeclConfig {
+    /// The default CECL configuration from the embedded policy registry.
+    fn default() -> Self {
+        let policy = required_policy(registry().default_cecl_policy());
+        cecl_config_from_policy(policy)
+    }
 }
 
 /// Return the default CECL configuration from config or embedded policy.
@@ -447,7 +453,7 @@ mod tests {
 
     #[test]
     fn embedded_registry_preserves_ifrs9_defaults() {
-        let staging = default_staging_config();
+        let staging = StagingConfig::default();
         assert_eq!(staging.pd_delta_absolute, 0.01);
         assert_eq!(staging.pd_delta_relative, 2.0);
         assert_eq!(staging.dpd_stage2_threshold, 30);
@@ -455,7 +461,7 @@ mod tests {
         assert_eq!(staging.cure_periods_stage2_to_1, 3);
         assert_eq!(staging.cure_periods_stage3_to_2, 12);
 
-        let config = default_ecl_config();
+        let config = EclConfig::default();
         assert_eq!(config.bucket_width_years, 0.25);
         assert_eq!(config.scenarios[0].id, "base");
         assert_eq!(config.scenarios[0].weight, 1.0);
@@ -464,7 +470,7 @@ mod tests {
 
     #[test]
     fn embedded_registry_preserves_cecl_defaults() {
-        let config = default_cecl_config();
+        let config = CeclConfig::default();
         assert_eq!(config.bucket_width_years, 0.25);
         assert_eq!(config.forecast_horizon_years, 2.0);
         assert_eq!(config.reversion_method, ReversionMethod::Immediate);

@@ -6,62 +6,65 @@ use finstack_quant_statements::evaluator::Evaluator;
 use finstack_quant_statements::types::AmountOrScalar;
 use finstack_quant_statements_analytics::templates::real_estate::{
     self, LeaseGrowthConvention, LeaseSpec, ManagementFeeBase, ManagementFeeSpec,
-    PropertyTemplateNodes, RenewalSpec, RentRollOutputNodes, RentStepSpec, SimpleLeaseSpec,
+    PropertyTemplateNodes, RenewalSpec, RentRollOutputNodes, RentStepSpec,
 };
-use finstack_quant_statements_analytics::templates::RealEstateExtension;
 
 #[test]
 fn real_estate_noi_and_ncf_templates_compute_expected_values() {
-    let model = ModelBuilder::new("re_template")
-        .periods("2025Q1..Q2", None)
-        .expect("periods should parse")
-        .value(
-            "rent",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(110.0)),
-            ],
-        )
-        .value(
-            "other_income",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(10.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(12.0)),
-            ],
-        )
-        .value(
-            "taxes",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(20.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(22.0)),
-            ],
-        )
-        .value(
-            "repairs",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(5.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(6.0)),
-            ],
-        )
-        .value(
-            "capex",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(3.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(4.0)),
-            ],
-        )
-        .add_noi_buildup(
+    let model = real_estate::add_ncf_buildup(
+        real_estate::add_noi_buildup(
+            ModelBuilder::new("re_template")
+                .periods("2025Q1..Q2", None)
+                .expect("periods should parse")
+                .value(
+                    "rent",
+                    &[
+                        (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
+                        (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(110.0)),
+                    ],
+                )
+                .value(
+                    "other_income",
+                    &[
+                        (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(10.0)),
+                        (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(12.0)),
+                    ],
+                )
+                .value(
+                    "taxes",
+                    &[
+                        (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(20.0)),
+                        (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(22.0)),
+                    ],
+                )
+                .value(
+                    "repairs",
+                    &[
+                        (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(5.0)),
+                        (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(6.0)),
+                    ],
+                )
+                .value(
+                    "capex",
+                    &[
+                        (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(3.0)),
+                        (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(4.0)),
+                    ],
+                ),
             "total_revenue",
             &["rent", "other_income"],
             "total_expenses",
             &["taxes", "repairs"],
             "noi",
         )
-        .expect("noi template")
-        .add_ncf_buildup("noi", &["capex"], "ncf")
-        .expect("ncf template")
-        .build()
-        .expect("build");
+        .expect("noi template"),
+        "noi",
+        &["capex"],
+        "ncf",
+    )
+    .expect("ncf template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");
@@ -79,53 +82,6 @@ fn real_estate_noi_and_ncf_templates_compute_expected_values() {
     // NCF = NOI - capex
     assert_eq!(ncf[&q1], ((100.0 + 10.0) - (20.0 + 5.0)) - 3.0);
     assert_eq!(ncf[&q2], ((110.0 + 12.0) - (22.0 + 6.0)) - 4.0);
-}
-
-#[test]
-fn real_estate_rent_roll_template_builds_lease_series_and_total_rent() {
-    let leases = vec![
-        SimpleLeaseSpec {
-            node_id: "lease_a_rent".into(),
-            start: PeriodId::quarter(2025, 1),
-            end: Some(PeriodId::quarter(2025, 4)),
-            base_rent: 100.0,
-            growth_rate: 0.0,
-            free_rent_periods: 0,
-            occupancy: 1.0,
-        },
-        SimpleLeaseSpec {
-            node_id: "lease_b_rent".into(),
-            start: PeriodId::quarter(2025, 3),
-            end: Some(PeriodId::quarter(2025, 4)),
-            base_rent: 50.0,
-            growth_rate: 0.0,
-            free_rent_periods: 1, // free rent in first active period (Q3)
-            occupancy: 0.9,
-        },
-    ];
-
-    let builder = ModelBuilder::new("re_rent_roll")
-        .periods("2025Q1..Q4", None)
-        .expect("periods should parse");
-    let model = real_estate::add_rent_roll_rental_revenue(builder, &leases, "rent_total")
-        .expect("rent roll template")
-        .build()
-        .expect("build");
-
-    let mut eval = Evaluator::new();
-    let results = eval.evaluate(&model).expect("evaluate");
-
-    let q1 = PeriodId::quarter(2025, 1);
-    let q2 = PeriodId::quarter(2025, 2);
-    let q3 = PeriodId::quarter(2025, 3);
-    let q4 = PeriodId::quarter(2025, 4);
-
-    let rent_total = results.get_node("rent_total").expect("rent_total node");
-    assert_eq!(rent_total[&q1], 100.0);
-    assert_eq!(rent_total[&q2], 100.0);
-    // Lease B is free in Q3.
-    assert_eq!(rent_total[&q3], 100.0);
-    assert_eq!(rent_total[&q4], 145.0);
 }
 
 #[test]
@@ -175,13 +131,16 @@ fn real_estate_rent_roll_handles_steps_free_rent_and_renewal_downtime() {
         },
     ];
 
-    let model = ModelBuilder::new("re_rent_roll")
-        .periods("2025Q1..Q4", None)
-        .expect("periods should parse")
-        .add_rent_roll(&leases, &nodes)
-        .expect("rent roll v2 template")
-        .build()
-        .expect("build");
+    let model = real_estate::add_rent_roll(
+        ModelBuilder::new("re_rent_roll")
+            .periods("2025Q1..Q4", None)
+            .expect("periods should parse"),
+        &leases,
+        &nodes,
+    )
+    .expect("rent roll v2 template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");
@@ -224,30 +183,6 @@ fn real_estate_rent_roll_handles_steps_free_rent_and_renewal_downtime() {
 }
 
 #[test]
-fn real_estate_rent_roll_rejects_non_finite_growth_output() {
-    let leases = vec![SimpleLeaseSpec {
-        node_id: "lease_overflow_rent".into(),
-        start: PeriodId::quarter(2025, 1),
-        end: Some(PeriodId::quarter(2025, 4)),
-        base_rent: 1.0e308,
-        growth_rate: 1.0,
-        free_rent_periods: 0,
-        occupancy: 1.0,
-    }];
-
-    let builder = ModelBuilder::new("re_rent_roll_overflow")
-        .periods("2025Q1..Q4", None)
-        .expect("periods should parse");
-    let result = real_estate::add_rent_roll_rental_revenue(builder, &leases, "rent_total");
-
-    assert!(result.is_err());
-    assert!(result
-        .expect_err("overflowing rent growth should fail")
-        .to_string()
-        .contains("rent growth overflow"));
-}
-
-#[test]
 fn real_estate_rich_rent_roll_rejects_non_finite_growth_output() {
     let nodes = RentRollOutputNodes {
         rent_pgi_node: "rent_pgi".into(),
@@ -270,10 +205,13 @@ fn real_estate_rich_rent_roll_rejects_non_finite_growth_output() {
         renewal: None,
     }];
 
-    let result = ModelBuilder::new("re_rent_roll_overflow")
-        .periods("2025Q1..Q4", None)
-        .expect("periods should parse")
-        .add_rent_roll(&leases, &nodes);
+    let result = real_estate::add_rent_roll(
+        ModelBuilder::new("re_rent_roll_overflow")
+            .periods("2025Q1..Q4", None)
+            .expect("periods should parse"),
+        &leases,
+        &nodes,
+    );
 
     assert!(result.is_err());
     assert!(result
@@ -315,51 +253,51 @@ fn real_estate_full_property_template_computes_egi_noi_ncf() {
 
     let nodes = PropertyTemplateNodes::default();
 
-    let model = ModelBuilder::new("re_full_property")
-        .periods("2025Q1..Q2", None)
-        .expect("periods should parse")
-        .value(
-            "parking_income",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(10.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(10.0)),
-            ],
-        )
-        .value(
-            "taxes",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(5.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(5.0)),
-            ],
-        )
-        .value(
-            "repairs",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(2.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(2.0)),
-            ],
-        )
-        .value(
-            "capex",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(3.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(3.0)),
-            ],
-        )
-        .add_property_operating_statement(
-            &leases,
-            &["parking_income"],
-            &["taxes", "repairs"],
-            &["capex"],
-            Some(ManagementFeeSpec {
-                rate: 0.10,
-                base: ManagementFeeBase::Egi,
-            }),
-            &nodes,
-        )
-        .expect("property template")
-        .build()
-        .expect("build");
+    let model = real_estate::add_property_operating_statement(
+        ModelBuilder::new("re_full_property")
+            .periods("2025Q1..Q2", None)
+            .expect("periods should parse")
+            .value(
+                "parking_income",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(10.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(10.0)),
+                ],
+            )
+            .value(
+                "taxes",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(5.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(5.0)),
+                ],
+            )
+            .value(
+                "repairs",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(2.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(2.0)),
+                ],
+            )
+            .value(
+                "capex",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(3.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(3.0)),
+                ],
+            ),
+        &leases,
+        &["parking_income"],
+        &["taxes", "repairs"],
+        &["capex"],
+        Some(ManagementFeeSpec {
+            rate: 0.10,
+            base: ManagementFeeBase::Egi,
+        }),
+        &nodes,
+    )
+    .expect("property template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");
@@ -408,13 +346,16 @@ fn real_estate_annual_escalator_bumps_on_lease_anniversary() {
         renewal: None,
     }];
 
-    let model = ModelBuilder::new("re_annual_esc")
-        .periods("2025Q1..2026Q4", None)
-        .expect("periods should parse")
-        .add_rent_roll(&leases, &nodes)
-        .expect("rent roll v2 template")
-        .build()
-        .expect("build");
+    let model = real_estate::add_rent_roll(
+        ModelBuilder::new("re_annual_esc")
+            .periods("2025Q1..2026Q4", None)
+            .expect("periods should parse"),
+        &leases,
+        &nodes,
+    )
+    .expect("rent roll v2 template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");
@@ -472,13 +413,16 @@ fn real_estate_annual_escalator_resets_at_rent_step() {
         renewal: None,
     }];
 
-    let model = ModelBuilder::new("re_annual_step_reset")
-        .periods("2025Q1..2026Q4", None)
-        .expect("periods should parse")
-        .add_rent_roll(&leases, &nodes)
-        .expect("rent roll v2 template")
-        .build()
-        .expect("build");
+    let model = real_estate::add_rent_roll(
+        ModelBuilder::new("re_annual_step_reset")
+            .periods("2025Q1..2026Q4", None)
+            .expect("periods should parse"),
+        &leases,
+        &nodes,
+    )
+    .expect("rent roll v2 template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");
@@ -560,13 +504,16 @@ fn real_estate_default_growth_convention_is_annual_escalator() {
         renewal: None,
     }];
 
-    let model = ModelBuilder::new("re_default_annual")
-        .periods("2025Q1..2026Q4", None)
-        .expect("periods should parse")
-        .add_rent_roll(&leases, &nodes)
-        .expect("rent roll template")
-        .build()
-        .expect("build");
+    let model = real_estate::add_rent_roll(
+        ModelBuilder::new("re_default_annual")
+            .periods("2025Q1..2026Q4", None)
+            .expect("periods should parse"),
+        &leases,
+        &nodes,
+    )
+    .expect("rent roll template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");
@@ -611,13 +558,16 @@ fn real_estate_per_period_growth_convention_compounds_each_period() {
         renewal: None,
     }];
 
-    let model = ModelBuilder::new("re_per_period")
-        .periods("2025Q1..Q4", None)
-        .expect("periods should parse")
-        .add_rent_roll(&leases, &nodes)
-        .expect("rent roll v2 template")
-        .build()
-        .expect("build");
+    let model = real_estate::add_rent_roll(
+        ModelBuilder::new("re_per_period")
+            .periods("2025Q1..Q4", None)
+            .expect("periods should parse"),
+        &leases,
+        &nodes,
+    )
+    .expect("rent roll v2 template")
+    .build()
+    .expect("build");
 
     let mut eval = Evaluator::new();
     let results = eval.evaluate(&model).expect("evaluate");
@@ -631,84 +581,6 @@ fn real_estate_per_period_growth_convention_compounds_each_period() {
             (pgi[&PeriodId::quarter(2025, q)] - expected).abs() < 1e-10,
             "Q{q}: expected {expected}, got {}",
             pgi[&PeriodId::quarter(2025, q)]
-        );
-    }
-}
-
-// --- Parity: SimpleLeaseSpec vs LeaseSpec produce same simple effective rent ---
-
-#[test]
-fn parity_rent_roll_simple_and_rich_match_for_simple_leases() {
-    use finstack_quant_statements_analytics::templates::real_estate::{
-        LeaseSpec, RentRollOutputNodes, SimpleLeaseSpec,
-    };
-
-    let start = PeriodId::quarter(2025, 1);
-
-    // Simple lease spec
-    let simple_lease = SimpleLeaseSpec {
-        node_id: "lease1".into(),
-        start,
-        end: None,
-        base_rent: 100.0,
-        growth_rate: 0.05,
-        free_rent_periods: 0,
-        occupancy: 1.0,
-    };
-
-    // Rich lease spec with the same economic parameters
-    let rich_lease = LeaseSpec {
-        node_id: "lease1".into(),
-        start,
-        end: None,
-        base_rent: 100.0,
-        growth_rate: 0.05,
-        growth_convention:
-            finstack_quant_statements_analytics::templates::real_estate::LeaseGrowthConvention::PerPeriod,
-        rent_steps: vec![],
-        free_rent_periods: 0,
-        free_rent_windows: vec![],
-        occupancy: 1.0,
-        renewal: None,
-    };
-
-    let make_base = || {
-        ModelBuilder::new("parity-rent")
-            .periods("2025Q1..Q4", None)
-            .expect("valid periods")
-    };
-
-    // Build simple model
-    let model_simple =
-        real_estate::add_rent_roll_rental_revenue(make_base(), &[simple_lease], "total_rent")
-            .expect("simple rent roll")
-            .build()
-            .expect("valid model");
-
-    // Build rich model
-    let nodes = RentRollOutputNodes::default();
-    let model_rich = make_base()
-        .add_rent_roll(&[rich_lease], &nodes)
-        .expect("rich rent roll")
-        .build()
-        .expect("valid model");
-
-    let mut eval = Evaluator::new();
-    let r_simple = eval.evaluate(&model_simple).expect("simple eval");
-    let r_rich = eval.evaluate(&model_rich).expect("rich eval");
-
-    // The simple total_rent and rich rent_effective_node should match
-    for q in 1u8..=4 {
-        let period = PeriodId::quarter(2025, q);
-        let simple_val = r_simple
-            .get("total_rent", &period)
-            .expect("simple total_rent");
-        let rich_val = r_rich
-            .get(&nodes.rent_effective_node, &period)
-            .expect("rich rent_effective");
-        assert!(
-            (simple_val - rich_val).abs() < 1e-9,
-            "Q{q}: simple total_rent ({simple_val}) must match rich rent_effective ({rich_val})"
         );
     }
 }

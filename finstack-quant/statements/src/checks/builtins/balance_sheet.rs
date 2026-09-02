@@ -22,6 +22,7 @@ pub struct BalanceSheetArticulation {
     pub equity_nodes: Vec<NodeId>,
     /// Tolerance override; falls back to
     /// [`CheckConfig::default_tolerance`](crate::checks::CheckConfig::default_tolerance).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<f64>,
 }
 

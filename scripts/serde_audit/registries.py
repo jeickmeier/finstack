@@ -288,7 +288,6 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
         "statements-analytics",
         "src/templates/real_estate/mod.rs",
         (
-            "SimpleLeaseSpec",
             "RentStepSpec",
             "FreeRentWindowSpec",
             "RenewalSpec",
@@ -419,12 +418,6 @@ RUNTIME_RESULT_EXCEPTIONS = (
         "models",
         "src/trees/short_rate_tree/tree.rs",
         ("TreeCalibrationResult",),
-    ),
-    *_runtime_exception(
-        "models",
-        "src/trees/tree_framework/evolution.rs",
-        ("BarrierSpec",),
-        "runtime-spec",
     ),
 )
 

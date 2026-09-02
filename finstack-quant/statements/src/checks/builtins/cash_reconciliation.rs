@@ -19,13 +19,17 @@ pub struct CashReconciliation {
     /// Node for total cash flow.
     pub total_cash_flow_node: NodeId,
     /// Optional node for cash from operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cfo_node: Option<NodeId>,
     /// Optional node for cash from investing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cfi_node: Option<NodeId>,
     /// Optional node for cash from financing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cff_node: Option<NodeId>,
     /// Tolerance override; falls back to
     /// [`CheckConfig::default_tolerance`](crate::checks::CheckConfig::default_tolerance).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<f64>,
 }
 

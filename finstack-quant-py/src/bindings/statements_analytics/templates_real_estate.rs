@@ -23,188 +23,6 @@ fn parse_period(s: &str) -> PyResult<PeriodId> {
     s.parse().map_err(display_to_py)
 }
 
-/// Lightweight per-lease rent schedule.
-///
-/// Parameters
-/// ----------
-/// node_id : str
-///     Node id to store this lease's rent revenue series.
-/// start : str
-///     First active period (e.g. ``"2025Q1"``).
-/// base_rent : float
-///     Base rent per model period at ``start``.
-/// end : str | None
-///     Last active period (inclusive). ``None`` means through model end.
-/// growth_rate : float
-///     Growth rate applied per model period from ``start``.
-/// free_rent_periods : int
-///     Free-rent periods from ``start``.
-/// occupancy : float
-///     Occupancy factor in ``[0, 1]``.
-#[pyclass(
-    name = "SimpleLeaseSpec",
-    module = "finstack_quant.statements_analytics",
-    from_py_object
-)]
-#[derive(Clone)]
-pub struct PySimpleLeaseSpec {
-    pub(crate) inner: rust_re::SimpleLeaseSpec,
-}
-
-#[pymethods]
-impl PySimpleLeaseSpec {
-    #[new]
-    #[pyo3(signature = (node_id, start, base_rent, end=None, growth_rate=0.0, free_rent_periods=0, occupancy=1.0))]
-    fn new(
-        node_id: &str,
-        start: &str,
-        base_rent: f64,
-        end: Option<&str>,
-        growth_rate: f64,
-        free_rent_periods: u32,
-        occupancy: f64,
-    ) -> PyResult<Self> {
-        let inner = rust_re::SimpleLeaseSpec {
-            node_id: node_id.to_string(),
-            start: parse_period(start)?,
-            end: end.map(parse_period).transpose()?,
-            base_rent,
-            growth_rate,
-            free_rent_periods,
-            occupancy,
-        };
-        Ok(Self { inner })
-    }
-
-    /// Node id storing this lease's rent revenue series.
-    #[getter]
-    fn node_id(&self) -> &str {
-        &self.inner.node_id
-    }
-
-    /// First period (inclusive) the lease is active, as a period-id string
-    /// (e.g. ``"2025Q1"``).
-    #[getter]
-    fn start(&self) -> String {
-        self.inner.start.to_string()
-    }
-
-    /// Last period (inclusive) the lease is active, or ``None`` to run
-    /// through the model end.
-    #[getter]
-    fn end(&self) -> Option<String> {
-        self.inner.end.map(|p| p.to_string())
-    }
-
-    /// Base rent for one model period at ``start``, in model currency units.
-    ///
-    /// A quarterly model means rent per quarter, not per year.
-    #[getter]
-    fn base_rent(&self) -> f64 {
-        self.inner.base_rent
-    }
-
-    /// Growth rate compounded every model period after ``start``, as a
-    /// decimal fraction (``0.03`` = +3% per period).
-    #[getter]
-    fn growth_rate(&self) -> f64 {
-        self.inner.growth_rate
-    }
-
-    /// Number of model periods of free rent counted from ``start``.
-    #[getter]
-    fn free_rent_periods(&self) -> u32 {
-        self.inner.free_rent_periods
-    }
-
-    /// Occupancy factor in ``[0, 1]`` applied to rent.
-    #[getter]
-    fn occupancy(&self) -> f64 {
-        self.inner.occupancy
-    }
-
-    /// Validate lease fields.
-    fn validate(&self) -> PyResult<()> {
-        self.inner.validate().map_err(display_to_py)
-    }
-
-    /// Export the lease spec as a single-row pandas ``DataFrame``.
-    ///
-    /// Columns: ``node_id``, ``start``, ``end``, ``base_rent``,
-    /// ``growth_rate``, ``free_rent_periods``, ``occupancy``.
-    ///
-    /// ``start`` and ``end`` are period-id strings (``end`` is ``None`` for a
-    /// lease running to the model end). ``base_rent`` is per model period,
-    /// ``growth_rate`` and ``occupancy`` are decimal fractions, and
-    /// ``free_rent_periods`` is a count of model periods.
-    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let row = serde_json::json!({
-            "node_id": self.inner.node_id,
-            "start": self.inner.start.to_string(),
-            // Emitted explicitly rather than through the inner type's serde,
-            // which skips a `None` `end` and would drop the column.
-            "end": self.inner.end.map(|p| p.to_string()),
-            "base_rent": self.inner.base_rent,
-            "growth_rate": self.inner.growth_rate,
-            "free_rent_periods": self.inner.free_rent_periods,
-            "occupancy": self.inner.occupancy,
-        });
-        serde_object_to_single_row_dataframe_with_schema(
-            py,
-            &row,
-            &[
-                "node_id",
-                "start",
-                "end",
-                "base_rent",
-                "growth_rate",
-                "free_rent_periods",
-                "occupancy",
-            ],
-        )
-    }
-
-    fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
-    }
-
-    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
-    ///
-    /// Reconstruction goes through the same strict serde round-trip as
-    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
-    /// format defines — there is no second state format that can drift.
-    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
-    }
-
-    #[staticmethod]
-    fn from_json(json: &str) -> PyResult<Self> {
-        let inner: rust_re::SimpleLeaseSpec = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
-    }
-
-    /// Render as an HTML table in Jupyter notebooks.
-    ///
-    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
-    /// truncation applies and a large result stays a small repr. Returns
-    /// `None` if the frame cannot be built, which makes IPython fall back to
-    /// `__repr__` instead of raising from the display hook.
-    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
-        let frame = self.to_dataframe(py).ok()?;
-        frame.call_method0("_repr_html_").ok()?.extract().ok()
-    }
-
-    /// Identify this value in notebooks and logs.
-    ///
-    /// Rendered from the wire representation, so the fields shown are the
-    /// fields `to_json()` names. Collections are summarised by length; use
-    /// `to_json()` or a DataFrame exit when the contents matter.
-    fn __repr__(&self) -> String {
-        crate::bindings::repr_support::repr_from_serde("SimpleLeaseSpec", &self.inner)
-    }
-}
-
 /// Rent step that resets the base rent starting at ``start`` (inclusive).
 #[pyclass(
     name = "RentStepSpec",
@@ -1231,25 +1049,6 @@ fn add_rent_roll(
     finish_builder(builder)
 }
 
-// add_rent_roll_rental_revenue
-
-/// Apply the simple rent-roll rental revenue template to a model spec.
-#[pyfunction]
-fn add_rent_roll_rental_revenue(
-    model: &Bound<'_, PyAny>,
-    leases: Vec<PySimpleLeaseSpec>,
-    total_rent_node: &str,
-) -> PyResult<PyFinancialModelSpec> {
-    let lease_specs: Vec<rust_re::SimpleLeaseSpec> = leases.into_iter().map(|l| l.inner).collect();
-    let builder = rust_re::add_rent_roll_rental_revenue(
-        extract_builder(model)?,
-        &lease_specs,
-        total_rent_node,
-    )
-    .map_err(display_to_py)?;
-    finish_builder(builder)
-}
-
 // add_property_operating_statement
 
 /// Apply the full property operating-statement template to a model spec.
@@ -1293,7 +1092,6 @@ fn add_property_operating_statement(
 
 /// Register real-estate template types and functions on the parent module.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PySimpleLeaseSpec>()?;
     m.add_class::<PyRentStepSpec>()?;
     m.add_class::<PyFreeRentWindowSpec>()?;
     m.add_class::<PyRenewalSpec>()?;
@@ -1306,7 +1104,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(add_noi_buildup, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(add_ncf_buildup, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(add_rent_roll, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(add_rent_roll_rental_revenue, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(add_property_operating_statement, m)?)?;
     Ok(())
 }

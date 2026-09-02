@@ -15,8 +15,10 @@ use crate::Result;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignConventionCheck {
     /// Nodes expected to carry positive values.
+    #[serde(default)]
     pub positive_nodes: Vec<NodeId>,
     /// Nodes expected to carry negative values.
+    #[serde(default)]
     pub negative_nodes: Vec<NodeId>,
 }
 

@@ -143,12 +143,6 @@ fn default_discount_expected_losses() -> bool {
     true
 }
 
-impl Default for CeclConfig {
-    fn default() -> Self {
-        super::policy::default_cecl_config()
-    }
-}
-
 impl CeclConfig {
     /// Validate the configuration.
     ///

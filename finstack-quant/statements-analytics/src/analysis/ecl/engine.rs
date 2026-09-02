@@ -169,12 +169,6 @@ fn default_stage3_time_to_recovery_years() -> f64 {
     DEFAULT_STAGE3_TIME_TO_RECOVERY_YEARS
 }
 
-impl Default for EclConfig {
-    fn default() -> Self {
-        super::policy::default_ecl_config()
-    }
-}
-
 impl EclConfig {
     /// Validate the configuration invariants: scenario weights sum to 1.0
     /// (within 1e-6), bucket width is strictly positive, and at least one

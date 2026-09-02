@@ -4,6 +4,10 @@
 
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::builder::ModelBuilder;
+use finstack_quant_statements::checks::builtins::{
+    BalanceSheetArticulation, CashReconciliation, MissingValueCheck, NonFiniteCheck,
+    RetainedEarningsReconciliation, SignConventionCheck,
+};
 use finstack_quant_statements::checks::{
     BuiltinCheckSpec, CheckCategory, CheckSuite, CheckSuiteSpec, FormulaCheckSpec, PeriodScope,
     Severity,
@@ -42,19 +46,19 @@ fn suite_spec_json_roundtrip_and_resolve() {
         name: "roundtrip_suite".into(),
         description: Some("Testing JSON roundtrip".into()),
         builtin_checks: vec![
-            BuiltinCheckSpec::BalanceSheetArticulation {
+            BuiltinCheckSpec::BalanceSheetArticulation(BalanceSheetArticulation {
                 assets_nodes: vec![NodeId::new("total_assets")],
                 liabilities_nodes: vec![NodeId::new("total_liabilities")],
                 equity_nodes: vec![NodeId::new("total_equity")],
                 tolerance: Some(0.5),
-            },
-            BuiltinCheckSpec::NonFinite {
+            }),
+            BuiltinCheckSpec::NonFinite(NonFiniteCheck {
                 nodes: vec![NodeId::new("revenue")],
-            },
-            BuiltinCheckSpec::MissingValue {
+            }),
+            BuiltinCheckSpec::MissingValue(MissingValueCheck {
                 required_nodes: vec![NodeId::new("revenue"), NodeId::new("cogs")],
                 scope: PeriodScope::AllPeriods,
-            },
+            }),
         ],
         formula_checks: vec![FormulaCheckSpec {
             id: "revenue_positive".into(),
@@ -99,12 +103,12 @@ fn builtin_check_spec_tagged_serde() {
 
     let spec: BuiltinCheckSpec = serde_json::from_str(json).unwrap();
     match &spec {
-        BuiltinCheckSpec::BalanceSheetArticulation {
+        BuiltinCheckSpec::BalanceSheetArticulation(BalanceSheetArticulation {
             assets_nodes,
             liabilities_nodes,
             equity_nodes,
             tolerance,
-        } => {
+        }) => {
             assert_eq!(assets_nodes, &[NodeId::new("total_assets")]);
             assert_eq!(liabilities_nodes, &[NodeId::new("total_liabilities")]);
             assert_eq!(equity_nodes, &[NodeId::new("total_equity")]);
@@ -128,12 +132,12 @@ fn retained_earnings_spec_tagged_serde() {
 
     let spec: BuiltinCheckSpec = serde_json::from_str(json).unwrap();
     match &spec {
-        BuiltinCheckSpec::RetainedEarningsReconciliation {
+        BuiltinCheckSpec::RetainedEarningsReconciliation(RetainedEarningsReconciliation {
             retained_earnings_node,
             net_income_node,
             dividends_node,
             ..
-        } => {
+        }) => {
             assert_eq!(retained_earnings_node, &NodeId::new("re"));
             assert_eq!(net_income_node, &NodeId::new("ni"));
             assert_eq!(dividends_node, &Some(NodeId::new("divs")));
@@ -155,12 +159,12 @@ fn cash_reconciliation_spec_tagged_serde() {
 
     let spec: BuiltinCheckSpec = serde_json::from_str(json).unwrap();
     match &spec {
-        BuiltinCheckSpec::CashReconciliation {
+        BuiltinCheckSpec::CashReconciliation(CashReconciliation {
             cash_balance_node,
             total_cash_flow_node,
             cfo_node,
             ..
-        } => {
+        }) => {
             assert_eq!(cash_balance_node, &NodeId::new("cash"));
             assert_eq!(total_cash_flow_node, &NodeId::new("total_cf"));
             assert_eq!(cfo_node, &Some(NodeId::new("cfo")));
@@ -179,10 +183,10 @@ fn sign_convention_spec_tagged_serde() {
 
     let spec: BuiltinCheckSpec = serde_json::from_str(json).unwrap();
     match &spec {
-        BuiltinCheckSpec::SignConvention {
+        BuiltinCheckSpec::SignConvention(SignConventionCheck {
             positive_nodes,
             negative_nodes,
-        } => {
+        }) => {
             assert_eq!(positive_nodes, &[NodeId::new("revenue")]);
             assert_eq!(negative_nodes, &[NodeId::new("cogs")]);
         }
@@ -215,12 +219,14 @@ fn resolved_suite_runs_against_model() {
     let spec = CheckSuiteSpec {
         name: "bs_check".into(),
         description: None,
-        builtin_checks: vec![BuiltinCheckSpec::BalanceSheetArticulation {
-            assets_nodes: vec![NodeId::new("total_assets")],
-            liabilities_nodes: vec![NodeId::new("total_liabilities")],
-            equity_nodes: vec![NodeId::new("total_equity")],
-            tolerance: None,
-        }],
+        builtin_checks: vec![BuiltinCheckSpec::BalanceSheetArticulation(
+            BalanceSheetArticulation {
+                assets_nodes: vec![NodeId::new("total_assets")],
+                liabilities_nodes: vec![NodeId::new("total_liabilities")],
+                equity_nodes: vec![NodeId::new("total_equity")],
+                tolerance: None,
+            },
+        )],
         formula_checks: vec![],
         config: Default::default(),
     };

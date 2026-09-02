@@ -7,12 +7,9 @@ use super::builtins::{
     RetainedEarningsReconciliation, SignConventionCheck,
 };
 use super::traits::{Check, CheckContext};
-use super::types::{
-    CheckCategory, CheckConfig, CheckReport, CheckResult, CheckSummary, PeriodScope, Severity,
-    SignConventionPolicy,
-};
+use super::types::{CheckCategory, CheckConfig, CheckReport, CheckResult, CheckSummary, Severity};
 use crate::evaluator::{Evaluator, StatementResult};
-use crate::types::{FinancialModelSpec, NodeId};
+use crate::types::FinancialModelSpec;
 use crate::Result;
 
 /// A named, self-contained collection of checks with its own configuration.
@@ -306,143 +303,36 @@ impl CheckSuiteSpec {
 
 /// Tagged enum describing any built-in check in a serializable form.
 ///
-/// Each variant mirrors its corresponding check struct and can be converted
-/// into a boxed [`Check`] via [`BuiltinCheckSpec::to_check`].
+/// Each variant wraps its check struct, so the struct is the single schema;
+/// the JSON shape is the struct's fields plus a `type` tag. Convert into a
+/// boxed [`Check`] via [`BuiltinCheckSpec::to_check`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BuiltinCheckSpec {
     /// Balance sheet articulation: Assets = Liabilities + Equity.
-    BalanceSheetArticulation {
-        /// Nodes representing total assets.
-        assets_nodes: Vec<NodeId>,
-        /// Nodes representing total liabilities.
-        liabilities_nodes: Vec<NodeId>,
-        /// Nodes representing total equity.
-        equity_nodes: Vec<NodeId>,
-        /// Tolerance override.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        tolerance: Option<f64>,
-    },
+    BalanceSheetArticulation(BalanceSheetArticulation),
     /// Retained earnings reconciliation across periods.
-    RetainedEarningsReconciliation {
-        /// Node for retained earnings balance.
-        retained_earnings_node: NodeId,
-        /// Node for net income.
-        net_income_node: NodeId,
-        /// Optional node for dividends paid.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        dividends_node: Option<NodeId>,
-        /// Additional adjustment nodes (buybacks, AOCI, etc.).
-        #[serde(default)]
-        other_adjustments: Vec<NodeId>,
-        /// Tolerance override.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        tolerance: Option<f64>,
-    },
+    RetainedEarningsReconciliation(RetainedEarningsReconciliation),
     /// Cash balance reconciliation: Cash(t) = Cash(t-1) + TotalCF(t).
-    CashReconciliation {
-        /// Node for cash balance.
-        cash_balance_node: NodeId,
-        /// Node for total cash flow.
-        total_cash_flow_node: NodeId,
-        /// Optional node for cash from operations.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        cfo_node: Option<NodeId>,
-        /// Optional node for cash from investing.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        cfi_node: Option<NodeId>,
-        /// Optional node for cash from financing.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        cff_node: Option<NodeId>,
-        /// Tolerance override.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        tolerance: Option<f64>,
-    },
+    CashReconciliation(CashReconciliation),
     /// Flags required nodes that lack values in applicable periods.
-    MissingValue {
-        /// Nodes that must have values in every in-scope period.
-        required_nodes: Vec<NodeId>,
-        /// Which periods to inspect.
-        scope: PeriodScope,
-    },
+    MissingValue(MissingValueCheck),
     /// Flags values with unexpected signs.
-    SignConvention {
-        /// Nodes expected to carry positive values.
-        #[serde(default)]
-        positive_nodes: Vec<NodeId>,
-        /// Nodes expected to carry negative values.
-        #[serde(default)]
-        negative_nodes: Vec<NodeId>,
-    },
+    SignConvention(SignConventionCheck),
     /// Detects NaN or infinite values.
-    NonFinite {
-        /// Specific nodes to check; if empty, all nodes are inspected.
-        #[serde(default)]
-        nodes: Vec<NodeId>,
-    },
+    NonFinite(NonFiniteCheck),
 }
 
 impl BuiltinCheckSpec {
     /// Convert this spec into a boxed [`Check`] implementation.
     pub fn to_check(&self) -> Box<dyn Check> {
         match self {
-            Self::BalanceSheetArticulation {
-                assets_nodes,
-                liabilities_nodes,
-                equity_nodes,
-                tolerance,
-            } => Box::new(BalanceSheetArticulation {
-                assets_nodes: assets_nodes.clone(),
-                liabilities_nodes: liabilities_nodes.clone(),
-                equity_nodes: equity_nodes.clone(),
-                tolerance: *tolerance,
-            }),
-            Self::RetainedEarningsReconciliation {
-                retained_earnings_node,
-                net_income_node,
-                dividends_node,
-                other_adjustments,
-                tolerance,
-            } => Box::new(RetainedEarningsReconciliation {
-                retained_earnings_node: retained_earnings_node.clone(),
-                net_income_node: net_income_node.clone(),
-                dividends_node: dividends_node.clone(),
-                other_adjustments: other_adjustments.clone(),
-                tolerance: *tolerance,
-                dividends_sign_convention: SignConventionPolicy::default(),
-            }),
-            Self::CashReconciliation {
-                cash_balance_node,
-                total_cash_flow_node,
-                cfo_node,
-                cfi_node,
-                cff_node,
-                tolerance,
-            } => Box::new(CashReconciliation {
-                cash_balance_node: cash_balance_node.clone(),
-                total_cash_flow_node: total_cash_flow_node.clone(),
-                cfo_node: cfo_node.clone(),
-                cfi_node: cfi_node.clone(),
-                cff_node: cff_node.clone(),
-                tolerance: *tolerance,
-            }),
-            Self::MissingValue {
-                required_nodes,
-                scope,
-            } => Box::new(MissingValueCheck {
-                required_nodes: required_nodes.clone(),
-                scope: *scope,
-            }),
-            Self::SignConvention {
-                positive_nodes,
-                negative_nodes,
-            } => Box::new(SignConventionCheck {
-                positive_nodes: positive_nodes.clone(),
-                negative_nodes: negative_nodes.clone(),
-            }),
-            Self::NonFinite { nodes } => Box::new(NonFiniteCheck {
-                nodes: nodes.clone(),
-            }),
+            Self::BalanceSheetArticulation(check) => Box::new(check.clone()),
+            Self::RetainedEarningsReconciliation(check) => Box::new(check.clone()),
+            Self::CashReconciliation(check) => Box::new(check.clone()),
+            Self::MissingValue(check) => Box::new(check.clone()),
+            Self::SignConvention(check) => Box::new(check.clone()),
+            Self::NonFinite(check) => Box::new(check.clone()),
         }
     }
 }

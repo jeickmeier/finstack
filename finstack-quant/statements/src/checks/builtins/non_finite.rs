@@ -14,6 +14,7 @@ use crate::Result;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NonFiniteCheck {
     /// Specific nodes to check; if empty, all nodes in results are inspected.
+    #[serde(default)]
     pub nodes: Vec<NodeId>,
 }
 

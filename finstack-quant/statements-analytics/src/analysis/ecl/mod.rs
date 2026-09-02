@@ -85,9 +85,8 @@ pub use request::{EclRequest, EclStageRequest};
 pub use cecl::{CeclConfig, CeclEngine, CeclMethodology, CeclResult, ReversionMethod};
 
 pub use policy::{
-    default_cecl_config, default_cecl_config_from_config, default_ecl_config,
-    default_ecl_config_from_config, default_staging_config, default_staging_config_from_config,
-    ECL_POLICY_EXTENSION_KEY,
+    default_cecl_config_from_config, default_ecl_config_from_config,
+    default_staging_config_from_config, ECL_POLICY_EXTENSION_KEY,
 };
 
 pub use portfolio::{compute_waterfall, PortfolioEclResult, ProvisionWaterfall};

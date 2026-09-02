@@ -41,9 +41,6 @@ pl_summary_report_text = _sa.pl_summary_report_text
 credit_assessment_report_text = _sa.credit_assessment_report_text
 credit_assessment = _sa.credit_assessment
 DependencyTracer = _sa.DependencyTracer
-direct_dependencies = _sa.direct_dependencies
-all_dependencies = _sa.all_dependencies
-dependents = _sa.dependents
 explain_formula = _sa.explain_formula
 explain_formula_text = _sa.explain_formula_text
 run_checks = _sa.run_checks
@@ -88,7 +85,6 @@ add_roll_forward = _sa.add_roll_forward
 add_roll_forward_with_opening = _sa.add_roll_forward_with_opening
 
 # Real estate templates
-SimpleLeaseSpec = _sa.SimpleLeaseSpec
 RentStepSpec = _sa.RentStepSpec
 FreeRentWindowSpec = _sa.FreeRentWindowSpec
 RenewalSpec = _sa.RenewalSpec
@@ -101,7 +97,6 @@ PropertyTemplateNodes = _sa.PropertyTemplateNodes
 add_noi_buildup = _sa.add_noi_buildup
 add_ncf_buildup = _sa.add_ncf_buildup
 add_rent_roll = _sa.add_rent_roll
-add_rent_roll_rental_revenue = _sa.add_rent_roll_rental_revenue
 add_property_operating_statement = _sa.add_property_operating_statement
 
 __all__: list[str] = [
@@ -132,7 +127,6 @@ __all__: list[str] = [
     "ScorecardReport",
     "SensitivityConfig",
     "SensitivityResult",
-    "SimpleLeaseSpec",
     "TornadoEntry",
     "VarianceConfig",
     "VarianceReport",
@@ -141,11 +135,9 @@ __all__: list[str] = [
     "add_noi_buildup",
     "add_property_operating_statement",
     "add_rent_roll",
-    "add_rent_roll_rental_revenue",
     "add_roll_forward",
     "add_roll_forward_with_opening",
     "add_vintage_buildup",
-    "all_dependencies",
     "backtest_forecast",
     "classify_stage",
     "compute_ecl",
@@ -154,8 +146,6 @@ __all__: list[str] = [
     "credit_assessment",
     "credit_assessment_report_text",
     "dcf_sensitivity",
-    "dependents",
-    "direct_dependencies",
     "evaluate_dcf",
     "evaluate_lbo",
     "evaluate_scenario_set",

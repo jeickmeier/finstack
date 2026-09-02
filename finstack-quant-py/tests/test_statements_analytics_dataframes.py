@@ -29,7 +29,6 @@ from finstack_quant.statements_analytics import (
     ScorecardReport,
     SensitivityConfig,
     SensitivityResult,
-    SimpleLeaseSpec,
     VarianceReport,
 )
 
@@ -474,43 +473,6 @@ def test_exposure_to_dataframe_defaults_dpd_to_zero() -> None:
 
 
 # Real-estate template specs
-
-
-def test_simple_lease_spec_to_dataframe() -> None:
-    lease = SimpleLeaseSpec(
-        "tenant_a",
-        "2025Q1",
-        25_000.0,
-        end="2025Q4",
-        growth_rate=0.03,
-        free_rent_periods=1,
-        occupancy=0.95,
-    )
-    df = lease.to_dataframe()
-
-    assert isinstance(df, pd.DataFrame)
-    assert len(df) == 1
-    assert list(df.columns) == [
-        "node_id",
-        "start",
-        "end",
-        "base_rent",
-        "growth_rate",
-        "free_rent_periods",
-        "occupancy",
-    ]
-    row = df.iloc[0]
-    assert row["node_id"] == "tenant_a"
-    assert row["start"] == "2025Q1"
-    assert row["end"] == "2025Q4"
-    assert row["occupancy"] == pytest.approx(0.95)
-
-
-def test_simple_lease_spec_to_dataframe_keeps_end_column_when_open_ended() -> None:
-    """``end`` is skipped by the Rust serde when ``None``; the column stays."""
-    df = SimpleLeaseSpec("tenant_b", "2025Q1", 10_000.0).to_dataframe()
-    assert "end" in df.columns
-    assert df["end"].isna().all()
 
 
 def test_renewal_spec_to_dataframe() -> None:

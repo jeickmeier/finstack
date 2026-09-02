@@ -60,8 +60,7 @@ pub use introspection::{
     ExplanationStep, FormulaExplainer,
 };
 pub use reports::{
-    Alignment, CreditAssessment, CreditAssessmentPoint, CreditAssessmentReport, PLSummaryReport,
-    Report, TableBuilder,
+    CreditAssessment, CreditAssessmentPoint, CreditAssessmentReport, PLSummaryReport,
 };
 pub use scenarios::{
     generate_tornado_entries, BridgeChart, BridgeStep, ParameterSpec, ScenarioDefinition,
@@ -77,18 +76,18 @@ pub use valuation::{
 
 pub use checks::{
     credit_underwriting_checks, lbo_model_checks, three_statement_checks, CheckReportRenderer,
-    CreditMapping, FormulaCheckSpec, ThreeStatementMapping, TrendDirection,
+    CreditMapping, ThreeStatementMapping, TrendDirection,
 };
 
 pub use ecl::{
     classify_stage, compute_ecl_single, compute_ecl_weighted, compute_waterfall,
-    default_cecl_config, default_cecl_config_from_config, default_ecl_config,
-    default_ecl_config_from_config, default_staging_config, default_staging_config_from_config,
-    CeclConfig, CeclEngine, CeclMethodology, CeclResult, EclBucket, EclConfig, EclConfigBuilder,
-    EclEngine, EclRequest, EclResult, EclStageRequest, Exposure, ExposureEclResult, LgdType,
-    MacroScenario, PdTermStructure, PortfolioEclResult, ProvisionWaterfall, QualitativeFlags,
-    RatingPdMap, RawPdCurve, ReversionMethod, Stage, StageResult, StagingConfig, StagingTrigger,
-    WeightedEclResult, DEFAULT_REVOLVER_CCF, ECL_POLICY_EXTENSION_KEY,
+    default_cecl_config_from_config, default_ecl_config_from_config,
+    default_staging_config_from_config, CeclConfig, CeclEngine, CeclMethodology, CeclResult,
+    EclBucket, EclConfig, EclConfigBuilder, EclEngine, EclRequest, EclResult, EclStageRequest,
+    Exposure, ExposureEclResult, LgdType, MacroScenario, PdTermStructure, PortfolioEclResult,
+    ProvisionWaterfall, QualitativeFlags, RatingPdMap, RawPdCurve, ReversionMethod, Stage,
+    StageResult, StagingConfig, StagingTrigger, WeightedEclResult, DEFAULT_REVOLVER_CCF,
+    ECL_POLICY_EXTENSION_KEY,
 };
 
 pub use comps::{

@@ -50,9 +50,6 @@ __all__ = [
     "credit_assessment_report_text",
     "credit_assessment",
     "DependencyTracer",
-    "direct_dependencies",
-    "all_dependencies",
-    "dependents",
     "explain_formula",
     "explain_formula_text",
     "run_checks",
@@ -88,7 +85,6 @@ __all__ = [
     "add_roll_forward",
     "add_roll_forward_with_opening",
     # Real-estate template
-    "SimpleLeaseSpec",
     "RentStepSpec",
     "FreeRentWindowSpec",
     "RenewalSpec",
@@ -101,7 +97,6 @@ __all__ = [
     "add_noi_buildup",
     "add_ncf_buildup",
     "add_rent_roll",
-    "add_rent_roll_rental_revenue",
     "add_property_operating_statement",
 ]
 
@@ -2102,117 +2097,6 @@ class DependencyTracer:
         """
         ...
 
-def direct_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[str]:
-    """
-    List immediate dependencies of a node.
-
-    Parameters
-    ----------
-    model : FinancialModelSpec or str
-        ``FinancialModelSpec`` object or JSON string.
-    node_id : str
-        Node whose direct dependencies are listed.
-
-    Returns
-    -------
-    list[str]
-        Direct dependency node IDs.
-
-    Raises
-    ------
-    ValueError
-        If model JSON is malformed or node_id cannot be resolved.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements_analytics import direct_dependencies
-    >>> from finstack_quant.statements import Evaluator, ModelBuilder
-    >>> builder = ModelBuilder("demo")
-    >>> _ = builder.periods("2025Q1..Q1")
-    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
-    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
-    >>> _ = builder.compute("profit", "revenue - cost")
-    >>> model = builder.build()
-    >>> sorted(direct_dependencies(model, "profit"))
-    ['cost', 'revenue']
-
-    """
-    ...
-
-def all_dependencies(model: FinancialModelSpec | str, node_id: str) -> list[str]:
-    """
-    List all transitive dependencies of a node in dependency order.
-
-    Parameters
-    ----------
-    model : FinancialModelSpec or str
-        ``FinancialModelSpec`` object or JSON string.
-    node_id : str
-        Root node for the dependency walk.
-
-    Returns
-    -------
-    list[str]
-        Transitive dependency node IDs.
-
-    Raises
-    ------
-    ValueError
-        If model JSON is malformed or the dependency traversal fails for node_id.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements_analytics import all_dependencies
-    >>> from finstack_quant.statements import Evaluator, ModelBuilder
-    >>> builder = ModelBuilder("demo")
-    >>> _ = builder.periods("2025Q1..Q1")
-    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
-    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
-    >>> _ = builder.compute("profit", "revenue - cost")
-    >>> model = builder.build()
-    >>> sorted(all_dependencies(model, "profit"))
-    ['cost', 'revenue']
-
-    """
-    ...
-
-def dependents(model: FinancialModelSpec | str, node_id: str) -> list[str]:
-    """
-    List nodes that depend on the given node (reverse dependencies).
-
-    Parameters
-    ----------
-    model : FinancialModelSpec or str
-        ``FinancialModelSpec`` object or JSON string.
-    node_id : str
-        Node whose dependents are listed.
-
-    Returns
-    -------
-    list[str]
-        Dependent node IDs.
-
-    Raises
-    ------
-    ValueError
-        If model JSON is malformed or node_id cannot be resolved.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements_analytics import dependents
-    >>> from finstack_quant.statements import Evaluator, ModelBuilder
-    >>> builder = ModelBuilder("demo")
-    >>> _ = builder.periods("2025Q1..Q1")
-    >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
-    >>> _ = builder.value("cost", [("2025Q1", 60.0)])
-    >>> _ = builder.compute("profit", "revenue - cost")
-    >>> model = builder.build()
-    >>> dependents(model, "revenue")
-    ['profit']
-
-    """
-    ...
-
 def explain_formula(
     model: FinancialModelSpec | str,
     results: StatementResult | str,
@@ -3596,15 +3480,20 @@ class CreditScorecardExtension:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import CreditScorecardExtension
-    >>> CreditScorecardExtension().config() is None
-    True
+    >>> from finstack_quant.statements_analytics import ScorecardConfig, CreditScorecardExtension
+    >>> CreditScorecardExtension(ScorecardConfig()).config().rating_scale
+    'S&P'
 
     """
 
-    def __init__(self) -> None:
+    def __init__(self, config: ScorecardConfig) -> None:
         """
-        Create an extension with no configuration loaded.
+        Create an extension driven by ``config``.
+
+        Parameters
+        ----------
+        config : ScorecardConfig
+            Rating scale, weighted metrics, and period-selection policy to use.
 
         Returns
         -------
@@ -3615,59 +3504,18 @@ class CreditScorecardExtension:
         Construction does not raise; arguments are stored as supplied.
         """
         ...
-    @staticmethod
-    def with_config(config: ScorecardConfig) -> CreditScorecardExtension:
+    def config(self) -> ScorecardConfig:
         """
-        Create a scorecard extension with a validated configuration.
-
-        Parameters
-        ----------
-        config : ScorecardConfig
-            Rating scale, weighted metrics, and period-selection policy to use.
+        Return the configuration this extension runs with.
 
         Returns
         -------
-        CreditScorecardExtension
-            New extension preloaded with ``config``.
+        ScorecardConfig
+            The configuration supplied at construction.
 
         Notes
         -----
-        This builder returns a copy with the field set and does not raise.
-
-        Examples
-        --------
-        >>> from finstack_quant.statements_analytics import CreditScorecardExtension, ScorecardConfig
-        >>> extension = CreditScorecardExtension.with_config(ScorecardConfig())
-        >>> extension.config().rating_scale
-        'S&P'
-
-        """
-        ...
-    def set_config(self, config: ScorecardConfig) -> None:
-        """
-        Replace the extension's scorecard configuration.
-
-        Parameters
-        ----------
-        config : ScorecardConfig
-            New rating scale, metric set, and period-selection policy to apply.
-
-        Notes
-        -----
-        This method does not raise; it updates stored state in place.
-        """
-        ...
-    def config(self) -> ScorecardConfig | None:
-        """
-        Return the currently loaded configuration, or ``None``.
-
-        Returns
-        -------
-        ScorecardConfig or None
-
-        Notes
-        -----
-        This method does not raise; a missing result is ``None`` rather than an exception.
+        This method does not raise.
         """
         ...
     def execute(self, model: FinancialModelSpec | str, results: StatementResult | str) -> ScorecardReport:
@@ -4301,15 +4149,20 @@ class CorkscrewExtension:
 
     Examples
     --------
-    >>> from finstack_quant.statements_analytics import CorkscrewExtension
-    >>> CorkscrewExtension().config() is None
-    True
+    >>> from finstack_quant.statements_analytics import CorkscrewConfig, CorkscrewExtension
+    >>> CorkscrewExtension(CorkscrewConfig()).config().tolerance
+    0.01
 
     """
 
-    def __init__(self) -> None:
+    def __init__(self, config: CorkscrewConfig) -> None:
         """
-        Create an extension with no configuration loaded.
+        Create an extension driven by ``config``.
+
+        Parameters
+        ----------
+        config : CorkscrewConfig
+            Accounts, tolerance, and error policy used during reconciliation.
 
         Returns
         -------
@@ -4320,59 +4173,18 @@ class CorkscrewExtension:
         Construction does not raise; arguments are stored as supplied.
         """
         ...
-    @staticmethod
-    def with_config(config: CorkscrewConfig) -> CorkscrewExtension:
+    def config(self) -> CorkscrewConfig:
         """
-        Create a corkscrew extension with reconciliation settings.
-
-        Parameters
-        ----------
-        config : CorkscrewConfig
-            Accounts, tolerance, and error policy used during reconciliation.
+        Return the configuration this extension runs with.
 
         Returns
         -------
-        CorkscrewExtension
-            New extension preloaded with ``config``.
+        CorkscrewConfig
+            The configuration supplied at construction.
 
         Notes
         -----
-        This builder returns a copy with the field set and does not raise.
-
-        Examples
-        --------
-        >>> from finstack_quant.statements_analytics import CorkscrewConfig, CorkscrewExtension
-        >>> extension = CorkscrewExtension.with_config(CorkscrewConfig())
-        >>> extension.config().tolerance
-        0.01
-
-        """
-        ...
-    def set_config(self, config: CorkscrewConfig) -> None:
-        """
-        Replace the extension's reconciliation configuration.
-
-        Parameters
-        ----------
-        config : CorkscrewConfig
-            Accounts, tolerance, and error policy to apply on the next run.
-
-        Notes
-        -----
-        This method does not raise; it updates stored state in place.
-        """
-        ...
-    def config(self) -> CorkscrewConfig | None:
-        """
-        Return the currently loaded configuration, or ``None``.
-
-        Returns
-        -------
-        CorkscrewConfig or None
-
-        Notes
-        -----
-        This method does not raise; a missing result is ``None`` rather than an exception.
+        This method does not raise.
         """
         ...
     def execute(self, model: FinancialModelSpec | str, results: StatementResult | str) -> CorkscrewReport:
@@ -4554,270 +4366,6 @@ def add_roll_forward_with_opening(
     ...
 
 # Real-estate template
-
-class SimpleLeaseSpec:
-    """
-    Describe a simple per-lease rent schedule for a property model.
-
-    Parameters
-    ----------
-    node_id : str
-        Statement node ID receiving the lease's rental-revenue series.
-    start : str
-        First included model period label for the lease term.
-    base_rent : float
-        Contractual rent per modeled period before growth, concessions, and
-        occupancy scaling, in the model's currency units.
-    end : str or None
-        Optional final included model period; ``None`` extends through the
-        model horizon.
-    growth_rate : float
-        Periodic decimal rent-growth rate, such as ``0.03`` for 3%; defaults
-        to zero growth.
-    free_rent_periods : int
-        Number of initial included periods with rent set to zero; defaults to
-        no concession.
-    occupancy : float
-        Decimal occupancy multiplier applied to scheduled rent; defaults to
-        fully occupied ``1.0``.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements_analytics import SimpleLeaseSpec
-    >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0, end="2025Q4")
-    >>> (lease.node_id, lease.start, lease.end)
-    ('lease_a', '2025Q1', '2025Q4')
-
-    """
-
-    def __init__(
-        self,
-        node_id: str,
-        start: str,
-        base_rent: float,
-        end: str | None = None,
-        growth_rate: float = 0.0,
-        free_rent_periods: int = 0,
-        occupancy: float = 1.0,
-    ) -> None:
-        """
-        Define a basic lease term, rent, growth, concessions, and occupancy.
-
-        Parameters
-        ----------
-        node_id : str
-            Statement node receiving the lease's rental-revenue series.
-        start : str
-            First included model-period label for the lease term.
-        base_rent : float
-            Contractual periodic rent before growth, concessions, and occupancy
-            scaling, in the model's currency units.
-        end : str or None, default None
-            Optional final included model period; ``None`` extends through the
-            model horizon.
-        growth_rate : float, default 0.0
-            Periodic decimal rent-growth rate, such as ``0.03`` for 3%.
-        free_rent_periods : int, default 0
-            Number of initial included periods with rent set to zero.
-        occupancy : float, default 1.0
-            Decimal occupancy multiplier applied to scheduled rent.
-
-        Raises
-        ------
-        ValueError
-            If start or end is not a valid model period.
-
-        """
-        ...
-
-    @property
-    def node_id(self) -> str:
-        """
-        Node id storing this lease's rent revenue series.
-
-        Returns
-        -------
-        str
-            Node id for the lease's rent revenue series.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-    @property
-    def start(self) -> str:
-        """
-        First period (inclusive) the lease is active, as a period-id string (e.g.
-        ``"2025Q1"``).
-
-        Returns
-        -------
-        str
-            First active period as a period-id string.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-    @property
-    def end(self) -> str | None:
-        """
-        Last period (inclusive) the lease is active, or ``None`` to run through the
-        model end.
-
-        Returns
-        -------
-        str or None
-            Last active period as a period-id string, or ``None``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-    @property
-    def base_rent(self) -> float:
-        """
-        Base rent for one model period at ``start``, in model currency units.
-
-        A quarterly model means rent per quarter, not per year.
-
-        Returns
-        -------
-        float
-            Base rent per model period at ``start``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-    @property
-    def growth_rate(self) -> float:
-        """
-        Growth rate compounded every model period after ``start``, as a decimal fraction
-        (``0.03`` = +3% per period).
-
-        Returns
-        -------
-        float
-            Per-period growth rate as a decimal fraction.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-    @property
-    def free_rent_periods(self) -> int:
-        """
-        Number of model periods of free rent counted from ``start``.
-
-        Returns
-        -------
-        int
-            Count of free-rent model periods from ``start``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-    @property
-    def occupancy(self) -> float:
-        """
-        Occupancy factor in ``[0, 1]`` applied to rent.
-
-        Returns
-        -------
-        float
-            Occupancy factor in ``[0, 1]``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-    def validate(self) -> None:
-        """
-        Validate this object's invariants without executing a report.
-
-        Raises
-        ------
-        ValueError
-            If required fields are missing, out of range, or internally inconsistent.
-        """
-        ...
-    def to_json(self) -> str:
-        """
-        Serialize this object to canonical JSON.
-
-        Returns
-        -------
-        str
-            Canonical JSON representation of this `SimpleLeaseSpec`, suitable for a matching `from_json` call.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-    @staticmethod
-    def from_json(json: str) -> SimpleLeaseSpec:
-        """
-        Deserialize a simple lease schedule from canonical JSON.
-
-        Parameters
-        ----------
-        json : str
-            JSON payload containing lease term, rent, growth, and occupancy.
-
-        Returns
-        -------
-        SimpleLeaseSpec
-            Validated `SimpleLeaseSpec` instance reconstructed from the canonical JSON payload.
-
-        Raises
-        ------
-        ValueError
-            If ``json`` is malformed or violates this type's serialized schema.
-
-        Examples
-        --------
-        >>> from finstack_quant.statements_analytics import SimpleLeaseSpec
-        >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0)
-        >>> SimpleLeaseSpec.from_json(lease.to_json()).base_rent
-        100.0
-
-        """
-        ...
-
-    def to_dataframe(self) -> pd.DataFrame:
-        """
-        Export the lease spec as a single-row pandas ``DataFrame``.
-
-        Columns: ``node_id``, ``start``, ``end``, ``base_rent``,
-        ``growth_rate``, ``free_rent_periods``, ``occupancy``.
-
-        ``start`` and ``end`` are period-id strings (``end`` is ``None`` for a
-        lease running to the model end). ``base_rent`` is per model period,
-        ``growth_rate`` and ``occupancy`` are decimal fractions, and
-        ``free_rent_periods`` is a count of model periods.
-
-        Returns
-        -------
-        pd.DataFrame
-            One row describing the lease.
-
-        Raises
-        ------
-        ValueError
-            If the result cannot be serialized into a pandas object.
-        """
-        ...
 
 class RentStepSpec:
     """
@@ -6391,48 +5939,6 @@ def add_rent_roll(
     >>> model = builder.build()
     >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
     >>> add_rent_roll(model, [lease]).has_node("rent_effective")
-    True
-
-    """
-    ...
-
-def add_rent_roll_rental_revenue(
-    model: FinancialModelSpec | str,
-    leases: list[SimpleLeaseSpec],
-    total_rent_node: str,
-) -> FinancialModelSpec:
-    """
-    Apply the simple rent-roll template and return a typed ``FinancialModelSpec``.
-
-    Parameters
-    ----------
-    model : FinancialModelSpec or str
-        Model specification object or JSON to augment with rental-revenue nodes.
-    leases : list[SimpleLeaseSpec]
-        Simple lease schedules to calculate and aggregate into rental revenue.
-    total_rent_node : str
-        Output node ID that sums all calculated simple-lease rent series.
-
-    Returns
-    -------
-    FinancialModelSpec
-        Typed model specification containing simple lease schedules and total rental revenue.
-
-    Raises
-    ------
-    ValueError
-        If model JSON, a lease specification, or total_rent_node is invalid.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements_analytics import SimpleLeaseSpec, add_rent_roll_rental_revenue
-    >>> from finstack_quant.statements import FinancialModelSpec, ModelBuilder
-    >>> builder = ModelBuilder("template")
-    >>> _ = builder.periods("2025Q1..Q2")
-    >>> model = builder.build()
-    >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0)
-    >>> updated = add_rent_roll_rental_revenue(model, [lease], "rental_revenue")
-    >>> updated.has_node("rental_revenue")
     True
 
     """

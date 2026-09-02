@@ -32,11 +32,14 @@ pub struct RetainedEarningsReconciliation {
     /// Node for net income.
     pub net_income_node: NodeId,
     /// Optional node for dividends paid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dividends_node: Option<NodeId>,
     /// Additional adjustment nodes (buybacks, AOCI, etc.).
+    #[serde(default)]
     pub other_adjustments: Vec<NodeId>,
     /// Tolerance override; falls back to
     /// [`CheckConfig::default_tolerance`](crate::checks::CheckConfig::default_tolerance).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<f64>,
     /// Sign convention applied to the `dividends_node` input. Defaults
     /// to [`SignConventionPolicy::MagnitudePositive`].
