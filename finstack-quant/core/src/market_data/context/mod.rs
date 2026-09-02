@@ -62,7 +62,7 @@ pub use super::bumps::{BumpMode, BumpSpec, BumpUnits};
 
 use std::sync::Arc;
 
-use crate::collections::{HashMap, HashSet};
+use crate::collections::HashMap;
 use crate::currency::Currency;
 use crate::dates::Date;
 use crate::error::InputError;
@@ -72,7 +72,7 @@ use crate::types::CurveId;
 
 use super::{
     dividends::DividendSchedule,
-    hierarchy::{CompletenessReport, MarketDataHierarchy, SubtreeCoverage},
+    hierarchy::MarketDataHierarchy,
     scalars::{InflationIndex, MarketScalar, ScalarTimeSeries},
     surfaces::{FxDeltaVolSurface, VolCube, VolSurface},
     term_structures::CreditIndexData,
@@ -89,15 +89,6 @@ pub struct ContextMutationInfo {
     /// required curves are no longer present or changed type.
     pub invalidated_credit_indices: Vec<CurveId>,
 }
-
-impl ContextMutationInfo {
-    /// Returns `true` if any credit indices were invalidated.
-    #[must_use]
-    pub fn has_invalidations(&self) -> bool {
-        !self.invalidated_credit_indices.is_empty()
-    }
-}
-
 /// Reversible in-place bump token for scratch market-context workflows.
 ///
 /// This is intended for hot-path finite-difference calculations that need to
@@ -323,75 +314,6 @@ impl MarketContext {
     pub fn set_hierarchy(&mut self, h: MarketDataHierarchy) {
         self.hierarchy = Some(h);
     }
-
-    /// Generate a completeness report comparing hierarchy declarations against
-    /// all `CurveId`-keyed data stores. Returns `None` if no hierarchy is attached.
-    pub fn completeness_report(&self) -> Option<CompletenessReport> {
-        let hierarchy = self.hierarchy.as_ref()?;
-
-        // Collect all CurveIds present in any store.
-        let mut present: HashSet<CurveId> = HashSet::default();
-        present.extend(self.curves.keys().cloned());
-        present.extend(self.surfaces.keys().cloned());
-        present.extend(self.prices.keys().cloned());
-        present.extend(self.series.keys().cloned());
-        present.extend(self.inflation_indices.keys().cloned());
-        present.extend(self.credit_indices.keys().cloned());
-        present.extend(self.dividends.keys().cloned());
-        present.extend(self.fx_delta_vol_surfaces.keys().cloned());
-        present.extend(self.vol_cubes.keys().cloned());
-
-        let declared = hierarchy.all_curve_ids();
-        let declared_set: HashSet<CurveId> = declared.iter().cloned().collect();
-
-        // Find missing: declared in hierarchy but absent from all stores.
-        let mut missing = Vec::new();
-        for id in &declared {
-            if !present.contains(id) {
-                let path = hierarchy.path_for_curve(id).unwrap_or_default();
-                debug_assert!(!path.is_empty(), "CurveId {id:?} found by all_curve_ids but not path_for_curve — tree inconsistency");
-                missing.push((path, id.clone()));
-            }
-        }
-        missing.sort_unstable_by(|a, b| a.1.cmp(&b.1));
-
-        // Find unclassified: present in stores but not in hierarchy.
-        let mut unclassified: Vec<CurveId> = present
-            .iter()
-            .filter(|id| !declared_set.contains(*id))
-            .cloned()
-            .collect();
-        unclassified.sort_unstable();
-
-        // Coverage per root subtree.
-        let mut coverage = Vec::new();
-        for (name, root) in hierarchy.roots() {
-            let subtree_ids = root.all_curve_ids();
-            let total_expected = subtree_ids.len();
-            let total_present = subtree_ids
-                .iter()
-                .filter(|id| present.contains(*id))
-                .count();
-            let percent = if total_expected == 0 {
-                100.0
-            } else {
-                (total_present as f64 / total_expected as f64) * 100.0
-            };
-            coverage.push(SubtreeCoverage {
-                path: vec![name.clone()],
-                total_expected,
-                total_present,
-                percent,
-            });
-        }
-
-        Some(CompletenessReport {
-            missing,
-            unclassified,
-            coverage,
-        })
-    }
-
     /// Returns `true` if any credit index references the given curve ID
     /// as its hazard curve, base correlation curve, or issuer curve.
     fn curve_affects_credit_indices(&self, curve_id: &CurveId) -> bool {

@@ -213,15 +213,6 @@ impl CreditIndexDataBuilder {
         self.issuer_credit_curves = Some(curves.into_iter().collect());
         self
     }
-
-    /// Add a single issuer credit curve.
-    pub fn add_issuer_curve(mut self, issuer_id: String, curve: Arc<HazardCurve>) -> Self {
-        self.issuer_credit_curves
-            .get_or_insert_with(BTreeMap::new)
-            .insert(issuer_id, curve);
-        self
-    }
-
     /// Set issuer-specific recovery rates for heterogeneous portfolio modeling.
     ///
     /// Entries are stored in lexicographic issuer order. Repeated identifiers

@@ -41,7 +41,7 @@
 
 use crate::{
     dates::{Date, DayCount},
-    market_data::traits::{Discounting, TermStructure},
+    market_data::traits::Discounting,
     types::CurveId,
 };
 use serde::{Deserialize, Serialize};
@@ -171,16 +171,6 @@ impl NelsonSiegelModel {
             }
         }
     }
-
-    /// Number of parameters in this model.
-    #[must_use]
-    pub fn num_params(&self) -> usize {
-        match self {
-            Self::Ns { .. } => 4,
-            Self::Nss { .. } => 6,
-        }
-    }
-
     /// Convert parameters to a flat vector for optimizer consumption.
     #[must_use]
     pub fn to_params_vec(&self) -> Vec<f64> {
@@ -275,15 +265,6 @@ impl NelsonSiegelModel {
             }
         }
         Ok(())
-    }
-
-    /// Variant selector for this model.
-    #[must_use]
-    pub fn variant(&self) -> NsVariant {
-        match self {
-            Self::Ns { .. } => NsVariant::Ns,
-            Self::Nss { .. } => NsVariant::Nss,
-        }
     }
 }
 
@@ -409,13 +390,11 @@ impl ParametricCurve {
     }
 }
 
-impl TermStructure for ParametricCurve {
+impl Discounting for ParametricCurve {
     fn id(&self) -> &CurveId {
         &self.id
     }
-}
 
-impl Discounting for ParametricCurve {
     fn base_date(&self) -> Date {
         self.base_date
     }

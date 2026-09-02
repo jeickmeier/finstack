@@ -1,11 +1,25 @@
 //! Discount-curve bumping and roll-forward transformations.
 
-use super::super::common::{roll_knots, triangular_weight};
+use super::super::common::roll_knots;
 use super::DiscountCurve;
 use crate::dates::DayCountContext;
-use crate::market_data::bumps::BumpType;
+use crate::market_data::bumps::{BumpMode, BumpSpec, BumpType, BumpUnits};
 
 impl DiscountCurve {
+    /// Clone the curve under `id` and apply `spec` through [`Self::bump_in_place`],
+    /// the single bump implementation; the `with_*` helpers and `Bumpable`
+    /// are thin wrappers over this.
+    pub(crate) fn bumped_with_id(
+        &self,
+        id: crate::types::CurveId,
+        spec: &crate::market_data::bumps::BumpSpec,
+    ) -> crate::Result<Self> {
+        let mut bumped = self.clone();
+        bumped.id = id;
+        bumped.bump_in_place(spec)?;
+        Ok(bumped)
+    }
+
     /// Apply a bump specification in-place, mutating values and rebuilding the interpolator.
     ///
     /// Additive bumps are **continuously compounded zero-space** shocks
@@ -95,20 +109,10 @@ impl DiscountCurve {
     /// Returns an error when the bumped knots violate this curve's interpolation,
     /// discount-factor monotonicity, or forward-rate validation policy.
     pub fn with_parallel_bump(&self, bp: f64) -> crate::Result<Self> {
-        let bump_rate = bp / 10_000.0;
-        let bumped_points: Vec<(f64, f64)> = self
-            .knots
-            .iter()
-            .zip(self.dfs.iter())
-            .map(|(&t, &df)| (t, df * (-bump_rate * t).exp()))
-            .collect();
-
-        // Derive new ID with suffix
-        let new_id = crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp);
-
-        // Rebuild preserving the full metadata (interpolation, extrapolation,
-        // calibration settings, fx_policy, non-monotonic settings).
-        self.metadata_builder(new_id).knots(bumped_points).build()
+        self.bumped_with_id(
+            crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp),
+            &BumpSpec::parallel_bp(bp),
+        )
     }
 
     /// Create a new curve with a triangular key-rate bump using explicit bucket neighbors.
@@ -185,43 +189,19 @@ impl DiscountCurve {
         next_bucket: Option<f64>,
         bp: f64,
     ) -> crate::Result<Self> {
-        if self.knots.len() < 2 {
-            return self.with_parallel_bump(bp);
-        }
-
-        // Validate bucket grid ordering. Each finite bound must satisfy
-        // prev < target < next.
-        if !target_bucket.is_finite() {
-            return Err(crate::error::InputError::Invalid.into());
-        }
-        if let Some(p) = prev_bucket {
-            if !p.is_finite() || p >= target_bucket {
-                return Err(crate::error::InputError::Invalid.into());
-            }
-        }
-        if let Some(n) = next_bucket {
-            if !n.is_finite() || target_bucket >= n {
-                return Err(crate::error::InputError::Invalid.into());
-            }
-        }
-
-        let bump_rate = bp / 10_000.0;
-        let bumped_points: Vec<(f64, f64)> = self
-            .knots
-            .iter()
-            .zip(self.dfs.iter())
-            .map(|(&knot_t, &df)| {
-                // Triangular weight based on BUCKET grid (not curve knots!)
-                let weight = triangular_weight(knot_t, prev_bucket, target_bucket, next_bucket);
-                // r_bumped = r + w × δr
-                // DF_bumped = exp(-r_bumped × t) = DF × exp(-w × δr × t)
-                (knot_t, df * (-bump_rate * weight * knot_t).exp())
-            })
-            .collect();
-
-        let new_id = crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp);
-        // Rebuild preserving the full metadata (including fx_policy).
-        self.metadata_builder(new_id).knots(bumped_points).build()
+        self.bumped_with_id(
+            crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp),
+            &BumpSpec {
+                mode: BumpMode::Additive,
+                units: BumpUnits::RateBp,
+                value: bp,
+                bump_type: BumpType::TriangularKeyRate {
+                    prev_bucket,
+                    target_bucket,
+                    next_bucket,
+                },
+            },
+        )
     }
 
     /// Roll the curve forward by a specified number of days, realizing forwards.

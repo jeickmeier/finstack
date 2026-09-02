@@ -1160,7 +1160,6 @@ mod period_contract_tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount, DayCountContext, Period, PeriodId};
-    use finstack_quant_core::market_data::traits::TermStructure;
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::CurveId;
     use time::Month;
@@ -1183,14 +1182,12 @@ mod period_contract_tests {
         base: Date,
     }
 
-    impl TermStructure for UnitDiscount {
+    impl Discounting for UnitDiscount {
         fn id(&self) -> &CurveId {
             static ID: std::sync::LazyLock<CurveId> = std::sync::LazyLock::new(|| "unit".into());
             &ID
         }
-    }
 
-    impl Discounting for UnitDiscount {
         fn base_date(&self) -> Date {
             self.base
         }
@@ -1204,14 +1201,12 @@ mod period_contract_tests {
         base: Date,
     }
 
-    impl TermStructure for NanDiscount {
+    impl Discounting for NanDiscount {
         fn id(&self) -> &CurveId {
             static ID: std::sync::LazyLock<CurveId> = std::sync::LazyLock::new(|| "nan".into());
             &ID
         }
-    }
 
-    impl Discounting for NanDiscount {
         fn base_date(&self) -> Date {
             self.base
         }
@@ -1386,7 +1381,6 @@ mod credit_pv_tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount, DayCountContext, Period, PeriodId};
-    use finstack_quant_core::market_data::traits::TermStructure;
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::CurveId;
     use time::Month;
@@ -1400,14 +1394,12 @@ mod credit_pv_tests {
         base: Date,
     }
 
-    impl TermStructure for FlatDiscount {
+    impl Discounting for FlatDiscount {
         fn id(&self) -> &CurveId {
             static ID: std::sync::LazyLock<CurveId> = std::sync::LazyLock::new(|| "test".into());
             &ID
         }
-    }
 
-    impl Discounting for FlatDiscount {
         fn base_date(&self) -> Date {
             self.base
         }
@@ -1418,14 +1410,12 @@ mod credit_pv_tests {
 
     struct FlatSurvival;
 
-    impl TermStructure for FlatSurvival {
+    impl Survival for FlatSurvival {
         fn id(&self) -> &CurveId {
             static ID: std::sync::LazyLock<CurveId> = std::sync::LazyLock::new(|| "hzd".into());
             &ID
         }
-    }
 
-    impl Survival for FlatSurvival {
         fn sp(&self, _t: f64) -> f64 {
             0.95
         }
@@ -1454,15 +1444,13 @@ mod credit_pv_tests {
     /// Linearly decaying survival without a base date: `sp(t) = 1 − 0.1·t`.
     struct LinearSurvival;
 
-    impl TermStructure for LinearSurvival {
+    impl Survival for LinearSurvival {
         fn id(&self) -> &CurveId {
             static ID: std::sync::LazyLock<CurveId> =
                 std::sync::LazyLock::new(|| "hzd-linear".into());
             &ID
         }
-    }
 
-    impl Survival for LinearSurvival {
         fn sp(&self, t: f64) -> f64 {
             1.0 - 0.1 * t
         }
@@ -1799,14 +1787,13 @@ mod credit_pv_tests {
     fn recovery_timing_integrated_adds_default_mass_for_declining_survival() {
         // Hand-computed sanity check with a curve where sp steps down.
         struct StepSurvival;
-        impl TermStructure for StepSurvival {
+        impl Survival for StepSurvival {
             fn id(&self) -> &CurveId {
                 static ID: std::sync::LazyLock<CurveId> =
                     std::sync::LazyLock::new(|| "step".into());
                 &ID
             }
-        }
-        impl Survival for StepSurvival {
+
             fn sp(&self, t: f64) -> f64 {
                 // sp(0) = 1.0, decays linearly to 0.8 at t=1.
                 (1.0 - 0.2 * t).clamp(0.0, 1.0)
@@ -1876,13 +1863,12 @@ mod credit_pv_tests {
         // vanished. Under flat df = 1, AtDefaultIntegrated must agree with
         // AtPaymentDate exactly.
         struct LinearSurvival;
-        impl TermStructure for LinearSurvival {
+        impl Survival for LinearSurvival {
             fn id(&self) -> &CurveId {
                 static ID: std::sync::LazyLock<CurveId> = std::sync::LazyLock::new(|| "lin".into());
                 &ID
             }
-        }
-        impl Survival for LinearSurvival {
+
             fn sp(&self, t: f64) -> f64 {
                 (1.0 - 0.2 * t).clamp(0.0, 1.0)
             }

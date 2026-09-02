@@ -76,7 +76,7 @@ fn hazard_shift_rejects_negative_rates() {
         .build()
         .unwrap();
 
-    let err = curve.with_parallel_bump(-0.02).unwrap_err();
+    let err = curve.with_parallel_hazard_rate_bump_bp(-200.0).unwrap_err();
     assert!(err.to_string().contains("negative hazard rate after bump"));
 }
 

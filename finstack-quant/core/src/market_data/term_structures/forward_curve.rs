@@ -68,13 +68,11 @@
 
 use super::common::{
     build_interp_allow_any_values, infer_forward_curve_defaults, roll_knots, split_points,
-    triangular_weight,
 };
 use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::{
     dates::{Date, DayCount, DayCountContext},
     error::InputError,
-    market_data::traits::{Forward, TermStructure},
     math::integration::simpson_rule,
     math::interp::types::Interp,
     types::CurveId,
@@ -657,25 +655,35 @@ impl ForwardCurve {
         next_bucket: Option<f64>,
         bp: f64,
     ) -> crate::Result<Self> {
-        if self.knots.len() < 2 {
-            return self.with_parallel_bump(bp);
-        }
-        super::common::validate_triangular_bucket_grid(prev_bucket, target_bucket, next_bucket)?;
+        use crate::market_data::bumps::{BumpMode, BumpSpec, BumpType, BumpUnits};
 
-        let bump_rate = bp / 10_000.0;
-        let bumped_rates: Vec<(f64, f64)> = self
-            .knots
-            .iter()
-            .zip(self.forwards.iter())
-            .map(|(&knot_t, &rate)| {
-                let weight = triangular_weight(knot_t, prev_bucket, target_bucket, next_bucket);
-                (knot_t, rate + bump_rate * weight)
-            })
-            .collect();
+        self.bumped_with_id(
+            crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp),
+            &BumpSpec {
+                mode: BumpMode::Additive,
+                units: BumpUnits::RateBp,
+                value: bp,
+                bump_type: BumpType::TriangularKeyRate {
+                    prev_bucket,
+                    target_bucket,
+                    next_bucket,
+                },
+            },
+        )
+    }
 
-        let new_id = crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp);
-        // Thread the full metadata (rate_calibration, fx_policy, …).
-        self.metadata_builder(new_id).knots(bumped_rates).build()
+    /// Clone the curve under `id` and apply `spec` through [`Self::bump_in_place`],
+    /// the single bump implementation; the `with_*` helpers and `Bumpable`
+    /// are thin wrappers over this.
+    pub(crate) fn bumped_with_id(
+        &self,
+        id: CurveId,
+        spec: &crate::market_data::bumps::BumpSpec,
+    ) -> crate::Result<Self> {
+        let mut bumped = self.clone();
+        bumped.id = id;
+        bumped.bump_in_place(spec)?;
+        Ok(bumped)
     }
 
     /// Apply a bump specification in-place, mutating values and rebuilding the interpolator.
@@ -768,20 +776,10 @@ impl ForwardCurve {
     /// finite bump and should not assume this method enforces a floor on
     /// negative forward rates; negative rates are permitted by the curve type.
     pub fn with_parallel_bump(&self, bp: f64) -> crate::Result<Self> {
-        let bump_rate = bp / 10_000.0;
-        let bumped_points: Vec<(f64, f64)> = self
-            .knots
-            .iter()
-            .zip(self.forwards.iter())
-            .map(|(&t, &rate)| (t, rate + bump_rate))
-            .collect();
-
-        // Derive new ID with suffix
-        let new_id = crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp);
-
-        // Rebuild preserving the full metadata (interpolation, extrapolation,
-        // rate_calibration, fx_policy, …).
-        self.metadata_builder(new_id).knots(bumped_points).build()
+        self.bumped_with_id(
+            crate::market_data::bumps::id_bump_bp(self.id.as_str(), bp),
+            &crate::market_data::bumps::BumpSpec::parallel_bp(bp),
+        )
     }
 
     /// Roll the curve forward by a specified number of days.
@@ -1090,21 +1088,6 @@ impl ForwardCurveBuilder {
 }
 
 // Minimal trait implementations for polymorphism where needed
-
-impl Forward for ForwardCurve {
-    #[inline]
-    fn rate(&self, t: f64) -> f64 {
-        self.rate(t)
-    }
-}
-
-impl TermStructure for ForwardCurve {
-    #[inline]
-    fn id(&self) -> &CurveId {
-        &self.id
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

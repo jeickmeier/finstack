@@ -85,7 +85,6 @@ use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::{
     dates::{Date, DayCount},
     error::InputError,
-    market_data::traits::TermStructure,
     math::interp::types::Interp,
     types::CurveId,
 };
@@ -211,25 +210,6 @@ impl VolatilityIndexCurve {
         }
         self.interp.interp(t)
     }
-
-    /// Forward volatility index level on a specific calendar date.
-    ///
-    /// # Errors
-    /// Returns an error if the date is before the base date.
-    pub fn forward_level_on_date(&self, date: Date) -> crate::Result<f64> {
-        if date < self.base {
-            return Err(crate::Error::Validation(format!(
-                "Date {} is before curve base date {}",
-                date, self.base
-            )));
-        }
-        if date == self.base {
-            return Ok(self.spot_level);
-        }
-        let t = year_fraction_to(self.base, date, self.day_count)?;
-        Ok(self.forward_level(t))
-    }
-
     /// Current spot level of the volatility index.
     #[must_use]
     #[inline]
@@ -600,13 +580,6 @@ impl VolatilityIndexCurveBuilder {
 }
 
 // Trait implementations
-
-impl TermStructure for VolatilityIndexCurve {
-    #[inline]
-    fn id(&self) -> &CurveId {
-        &self.id
-    }
-}
 
 #[cfg(test)]
 mod tests {

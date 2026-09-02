@@ -6,7 +6,7 @@ use finstack_quant_cashflows::builder::{
 use finstack_quant_core::cashflow::Discountable;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
-use finstack_quant_core::market_data::traits::{Discounting, TermStructure};
+use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use rust_decimal_macros::dec;
@@ -19,13 +19,11 @@ struct FlatCurve {
     rate: f64,
 }
 
-impl TermStructure for FlatCurve {
+impl Discounting for FlatCurve {
     fn id(&self) -> &CurveId {
         &self.id
     }
-}
 
-impl Discounting for FlatCurve {
     fn base_date(&self) -> Date {
         dates::TODAY
     }

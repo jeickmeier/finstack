@@ -850,7 +850,7 @@ mod tests {
     use finstack_quant_core::dates::{Date, Tenor};
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    use finstack_quant_core::market_data::traits::{Discounting, TermStructure};
+    use finstack_quant_core::market_data::traits::Discounting;
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::CurveId;
     use time::macros::date;
@@ -864,13 +864,11 @@ mod tests {
         slope: f64,
     }
 
-    impl TermStructure for SteepCurve {
+    impl Discounting for SteepCurve {
         fn id(&self) -> &CurveId {
             &self.id
         }
-    }
 
-    impl Discounting for SteepCurve {
         fn base_date(&self) -> Date {
             date!(2025 - 01 - 01)
         }

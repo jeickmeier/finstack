@@ -127,141 +127,12 @@ impl DiscountCurve {
 
     /// Annually-compounded zero rate (bond equivalent yield convention).
     ///
-    /// This is the rate quoted for most bonds and is commonly used by
-    /// Bloomberg for displaying zero rates.
-    ///
-    /// Formula: `r_annual = DF^(-1/t) - 1`
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    /// use finstack_quant_core::dates::Date;
-    /// use time::Month;
-    ///
-    /// let curve = DiscountCurve::builder("USD-OIS")
-    ///     .base_date(Date::from_calendar_date(2025, Month::January, 1).expect("Valid date"))
-    ///     .knots([(0.0, 1.0), (1.0, 0.95), (5.0, 0.80)])
-    ///     .build()
-    ///     .expect("DiscountCurve should build");
-    ///
-    /// // At 1Y, DF = 0.95, so annual rate = 0.95^(-1) - 1 ≈ 5.26%
-    /// let annual_rate = curve.zero_annual(1.0);
-    /// assert!((annual_rate - 0.0526).abs() < 0.001);
-    /// ```
+    /// Shorthand for [`zero_rate`](Self::zero_rate) with
+    /// [`Compounding::Annual`]: `r_annual = DF^(-1/t) - 1`.
     #[inline]
+    #[must_use]
     pub fn zero_annual(&self, t: f64) -> f64 {
-        if t == 0.0 {
-            return 0.0;
-        }
-        self.df(t).powf(-1.0 / t) - 1.0
-    }
-
-    /// Periodically-compounded zero rate with `n` compounding periods per year.
-    ///
-    /// Common values for `n`:
-    /// - 1: Annual (same as `zero_annual`)
-    /// - 2: Semi-annual (US Treasury convention)
-    /// - 4: Quarterly
-    /// - 12: Monthly
-    ///
-    /// Formula: `r_periodic = n * (DF^(-1/(n*t)) - 1)`
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    /// use finstack_quant_core::dates::Date;
-    /// use time::Month;
-    ///
-    /// let curve = DiscountCurve::builder("USD-OIS")
-    ///     .base_date(Date::from_calendar_date(2025, Month::January, 1).expect("Valid date"))
-    ///     .knots([(0.0, 1.0), (1.0, 0.95), (5.0, 0.80)])
-    ///     .build()
-    ///     .expect("DiscountCurve should build");
-    ///
-    /// // Semi-annual compounded rate at 1Y
-    /// let semi_annual_rate = curve.zero_periodic(1.0, 2);
-    /// // Annual rate should equal periodic with n=1
-    /// let annual_via_periodic = curve.zero_periodic(1.0, 1);
-    /// assert!((curve.zero_annual(1.0) - annual_via_periodic).abs() < 1e-12);
-    /// ```
-    #[inline]
-    pub fn zero_periodic(&self, t: f64, n: u32) -> f64 {
-        if t == 0.0 || n == 0 {
-            return 0.0;
-        }
-        let n_f = n as f64;
-        n_f * (self.df(t).powf(-1.0 / (n_f * t)) - 1.0)
-    }
-
-    /// Simple interest (money market) zero rate.
-    ///
-    /// Returns the simple interest rate (no compounding) implied by the discount factor.
-    /// This is the standard convention for money market instruments with tenors under 1 year,
-    /// including deposits, CDs, T-bills, and short-term rate fixings.
-    ///
-    /// # Compounding Convention
-    ///
-    /// **Simple interest means NO compounding.** Interest accrues linearly:
-    /// - Future Value = Principal × (1 + rate × time)
-    /// - This differs from annually compounded rates which compound once per year
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// r_simple = (1/DF - 1) / t
-    /// ```
-    ///
-    /// Derived from the simple interest present value formula: `DF(t) = 1 / (1 + r × t)`
-    ///
-    /// # Market Standards
-    ///
-    /// Simple interest is the market convention for:
-    /// - **USD**: SOFR, Fed Funds, T-bills, CDs, deposits (< 1Y tenor)
-    /// - **EUR**: €STR, Euribor fixings
-    /// - **GBP**: SONIA
-    /// - **Most markets**: Interbank deposits, repo rates
-    ///
-    /// **Day count**: Typically paired with ACT/360 (USD, EUR) or ACT/365F (GBP).
-    ///
-    /// # Bloomberg Equivalent
-    ///
-    /// This matches Bloomberg's simple interest zero rate output when compounding
-    /// is set to "Simple" in curve display screens (e.g., SWPM, SWCV).
-    ///
-    /// # Comparison with Other Rate Conventions
-    ///
-    /// For a given discount factor at time t:
-    /// - `zero()` returns continuously compounded rate: `r_cc = -ln(DF) / t`
-    /// - `zero_annual()` returns annually compounded: `r_annual = DF^(-1/t) - 1`
-    /// - `zero_simple()` returns simple interest: `r_simple = (1/DF - 1) / t`
-    ///
-    /// For positive rates and t > 0: `r_simple > r_annual > r_cc`
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    /// use finstack_quant_core::dates::Date;
-    /// use time::Month;
-    ///
-    /// let curve = DiscountCurve::builder("USD-OIS")
-    ///     .base_date(Date::from_calendar_date(2025, Month::January, 1).expect("Valid date"))
-    ///     .knots([(0.0, 1.0), (0.25, 0.99), (1.0, 0.95)])
-    ///     .build()
-    ///     .expect("DiscountCurve should build");
-    ///
-    /// // At 3M (0.25Y), DF = 0.99, so simple rate = (1/0.99 - 1) / 0.25 ≈ 4.04%
-    /// let simple_rate = curve.zero_simple(0.25);
-    /// assert!((simple_rate - 0.0404).abs() < 0.001);
-    /// ```
-    #[inline]
-    pub fn zero_simple(&self, t: f64) -> f64 {
-        if t == 0.0 {
-            return 0.0;
-        }
-        (1.0 / self.df(t) - 1.0) / t
+        self.zero_rate(t, Compounding::Annual)
     }
 
     /// Continuously-compounded forward rate between `t1` and `t2`.
@@ -360,11 +231,12 @@ impl DiscountCurve {
 
     /// Fallible: discount factor from `from` to `to` using the curve's day-count.
     ///
-    /// This is the canonical helper for the common "relative DF" pattern:
-    /// `DF(from→to) = DF(0→to) / DF(0→from)`.
-    ///
+    /// Inherent forwarder to [`Discounting::df_between_dates`] so concrete
+    /// callers need no trait import: `DF(from→to) = DF(0→to) / DF(0→from)`.
     /// Works for both forward and backward date order. Returns `1.0` when
     /// `from == to`.
+    ///
+    /// [`Discounting::df_between_dates`]: crate::market_data::traits::Discounting::df_between_dates
     ///
     /// # Errors
     ///
@@ -374,31 +246,12 @@ impl DiscountCurve {
     #[inline]
     #[must_use = "computed discount factor should not be discarded"]
     pub fn df_between_dates(&self, from: Date, to: Date) -> crate::Result<f64> {
-        if from == to {
-            return Ok(1.0);
-        }
-
-        let df_from = self.df_on_date_curve(from)?;
-        if !df_from.is_finite() || df_from <= 0.0 {
-            return Err(crate::Error::Validation(format!(
-                "Invalid discount factor on 'from' date ({from}): {df_from}"
-            )));
-        }
-
-        let df_to = self.df_on_date_curve(to)?;
-        if !df_to.is_finite() || df_to <= 0.0 {
-            return Err(crate::Error::Validation(format!(
-                "Invalid discount factor on 'to' date ({to}): {df_to}"
-            )));
-        }
-        Ok(df_to / df_from)
+        crate::market_data::traits::Discounting::df_between_dates(self, from, to)
     }
 
     /// Returns the zero rate for a given date with specified compounding convention.
     ///
     /// This is the unified method for obtaining zero rates under any compounding convention.
-    /// It replaces the individual `zero_on_date`, `zero_annual_on_date`, `zero_periodic_on_date`,
-    /// and `zero_simple_on_date` methods.
     ///
     /// # Arguments
     /// * `date` - Target date for the zero rate
@@ -460,7 +313,21 @@ impl DiscountCurve {
 
     /// Returns the zero rate for a given year fraction with specified compounding.
     ///
-    /// This is the unified method for obtaining zero rates under any compounding convention.
+    /// This is the unified method for obtaining zero rates under any compounding
+    /// convention. For a discount factor `DF` at time `t`:
+    ///
+    /// | Convention      | Formula                          | Typical use                              |
+    /// |-----------------|----------------------------------|------------------------------------------|
+    /// | `Continuous`    | `r = -ln(DF) / t`                | Curve internals, [`zero`](Self::zero)    |
+    /// | `Annual`        | `r = DF^(-1/t) - 1`              | Bond-equivalent yields (Bloomberg zeros) |
+    /// | `Periodic(n)`   | `r = n · (DF^(-1/(n·t)) - 1)`    | `n = 2` US Treasury, `n = 12` monthly    |
+    /// | `Simple`        | `r = (1/DF - 1) / t`             | Money markets < 1Y (SOFR, €STR, SONIA,   |
+    /// |                 |                                  | deposits, T-bills); no compounding       |
+    ///
+    /// For positive rates and `t > 0`: `r_simple > r_annual > r_cc`. The
+    /// `Simple` convention matches Bloomberg's zero output with compounding
+    /// set to "Simple" (SWPM/SWCV) and is typically paired with ACT/360
+    /// (USD, EUR) or ACT/365F (GBP).
     ///
     /// # Arguments
     /// * `t` - Year fraction from the anchor date
@@ -468,14 +335,44 @@ impl DiscountCurve {
     ///
     /// # Edge Cases
     /// - For t = 0, all compounding conventions return 0.0 (instantaneous rate is undefined)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    /// use finstack_quant_core::math::Compounding;
+    /// use finstack_quant_core::dates::Date;
+    /// use time::Month;
+    ///
+    /// let curve = DiscountCurve::builder("USD-OIS")
+    ///     .base_date(Date::from_calendar_date(2025, Month::January, 1).expect("Valid date"))
+    ///     .knots([(0.0, 1.0), (0.25, 0.99), (1.0, 0.95), (5.0, 0.80)])
+    ///     .build()
+    ///     .expect("DiscountCurve should build");
+    ///
+    /// // At 1Y, DF = 0.95, so the annual rate = 0.95^(-1) - 1 ≈ 5.26%
+    /// assert!((curve.zero_rate(1.0, Compounding::Annual) - 0.0526).abs() < 0.001);
+    /// // At 3M, DF = 0.99, so the simple rate = (1/0.99 - 1) / 0.25 ≈ 4.04%
+    /// assert!((curve.zero_rate(0.25, Compounding::Simple) - 0.0404).abs() < 0.001);
+    /// // Periodic(1) is the annual convention
+    /// let annual = curve.zero_rate(1.0, Compounding::Periodic(1.try_into().unwrap()));
+    /// assert!((curve.zero_annual(1.0) - annual).abs() < 1e-12);
+    /// ```
     #[inline]
     #[must_use]
-    pub fn zero_rate(&self, t: f64, compounding: crate::math::Compounding) -> f64 {
+    pub fn zero_rate(&self, t: f64, compounding: Compounding) -> f64 {
+        if t == 0.0 {
+            return 0.0;
+        }
+        let df = self.df(t);
         match compounding {
-            Compounding::Continuous => self.zero(t),
-            Compounding::Annual => self.zero_annual(t),
-            Compounding::Periodic(n) => self.zero_periodic(t, n.get()),
-            Compounding::Simple => self.zero_simple(t),
+            Compounding::Continuous => -df.ln() / t,
+            Compounding::Annual => df.powf(-1.0 / t) - 1.0,
+            Compounding::Periodic(n) => {
+                let n_f = f64::from(n.get());
+                n_f * (df.powf(-1.0 / (n_f * t)) - 1.0)
+            }
+            Compounding::Simple => (1.0 / df - 1.0) / t,
         }
     }
 

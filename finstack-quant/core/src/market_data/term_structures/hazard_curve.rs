@@ -76,7 +76,7 @@ use crate::{
     currency::Currency,
     dates::{Date, DayCount, DayCountContext},
     error::InputError,
-    market_data::traits::{Survival, TermStructure},
+    market_data::traits::Survival,
     math::interp::{
         strategies::{LinearStrategy, LogLinearStrategy},
         types::Interp,
@@ -459,13 +459,6 @@ impl HazardCurve {
             .zip(self.par_spreads_bp.iter())
             .map(|(&t, &spread)| (t, spread))
     }
-
-    /// Interpolation style used for survival probabilities between pillars.
-    #[must_use]
-    pub fn survival_interp_style(&self) -> InterpStyle {
-        self.survival_interp_style
-    }
-
     /// Get the default interpolation method for par spreads.
     pub fn par_interp(&self) -> ParInterp {
         self.par_interp
@@ -552,6 +545,20 @@ impl HazardCurve {
             .fx_policy_opt(self.fx_policy.clone())
     }
 
+    /// Clone the curve under `id` and apply `spec` through [`Self::bump_in_place`],
+    /// the single bump implementation; the `with_*` helpers and `Bumpable`
+    /// are thin wrappers over this.
+    pub(crate) fn bumped_with_id(
+        &self,
+        id: CurveId,
+        spec: &crate::market_data::bumps::BumpSpec,
+    ) -> crate::Result<Self> {
+        let mut bumped = self.clone();
+        bumped.id = id;
+        bumped.bump_in_place(spec)?;
+        Ok(bumped)
+    }
+
     /// Apply a bump specification in-place, mutating lambda values and rebuilding the interpolator.
     pub(crate) fn bump_in_place(
         &mut self,
@@ -628,28 +635,35 @@ impl HazardCurve {
         self.interp = interp;
         Ok(())
     }
-
-    /// Create a new curve with hazard rates shifted by a constant amount.
+    /// Create a curve with every model hazard rate shifted in basis-point units.
     ///
-    /// This is the hazard curve equivalent of the parallel bump applied to other
-    /// term structures (`DiscountCurve::with_parallel_bump`, etc.).
+    /// This is the hazard-curve equivalent of `DiscountCurve::with_parallel_bump`:
+    /// a direct intensity shock that keeps the curve ID and all credit
+    /// metadata; it does not replay CDS par quotes. Stored par-spread and
+    /// calibration recipes are intentionally removed because they describe
+    /// the pre-bump calibration, so [`Self::cds_quote_bp`] reports its
+    /// hazard-based approximation for the bumped curve.
     ///
     /// # Arguments
-    /// * `shift` - Additive shift to all hazard rates (e.g., 0.0001 for +1bp).
-    ///   Negative shifts that would make any hazard rate negative are rejected.
     ///
-    /// The returned curve preserves the base date and all credit metadata, but
-    /// drops stored par-spread quotes because they describe the pre-bump
-    /// calibration. Consequently, [`Self::cds_quote_bp`] reports its
-    /// hazard-based approximation for the bumped curve.
+    /// * `bump_bp` - Additive hazard-rate shift in basis points, where one
+    ///   basis point is `1e-4` in decimal intensity units. Negative shifts
+    ///   that would make any hazard rate negative are rejected.
     ///
     /// # Errors
     ///
-    /// Returns an error if the shift makes a hazard rate negative or non-finite,
-    /// or makes it exceed the builder's maximum hazard-rate limit (10.0 unless
-    /// the source curve was built with a different limit, which is not retained
-    /// by this convenience method).
-    pub fn with_parallel_bump(&self, shift: f64) -> crate::Result<HazardCurve> {
+    /// Returns an error when the shock is non-finite, makes a hazard rate
+    /// negative, or makes it exceed the builder's maximum hazard-rate limit
+    /// (10.0 unless the source curve was built with a different limit, which
+    /// is not retained by this method).
+    pub fn with_parallel_hazard_rate_bump_bp(&self, bump_bp: f64) -> crate::Result<Self> {
+        if !bump_bp.is_finite() {
+            return Err(crate::error::InputError::UnsupportedBump {
+                reason: "hazard-rate basis-point bump must be finite".to_string(),
+            }
+            .into());
+        }
+        let shift = bump_bp * 1e-4;
         let mut shifted_points = Vec::with_capacity(self.knots.len());
         for (t, lambda) in self.knot_points() {
             let shifted = lambda + shift;
@@ -661,44 +675,8 @@ impl HazardCurve {
             }
             shifted_points.push((t, shifted));
         }
-
-        // Create a temporary ID for the bumped curve
-        // In practice, the caller will manage IDs when building market contexts
-        let temp_id = format!("{}_bump_{:.4}bp", self.id(), shift * 10_000.0);
-
-        // Full metadata is preserved via `metadata_builder`; the stored
-        // par-spread quotes are NOT carried over because they were calibrated
-        // to the unbumped hazards — `cds_quote_bp` falls back to the
-        // hazard-based approximation, which reflects the bumped curve.
-        self.metadata_builder(temp_id).knots(shifted_points).build()
-    }
-
-    /// Create a curve with every model hazard rate shifted in basis-point units.
-    ///
-    /// This is a direct intensity shock; it does not replay CDS par quotes.
-    /// Stored par-spread and calibration recipes are intentionally removed.
-    ///
-    /// # Arguments
-    ///
-    /// * `bump_bp` - Additive hazard-rate shift in basis points, where one
-    ///   basis point is `1e-4` in decimal intensity units.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the shock is non-finite or produces an invalid
-    /// hazard rate.
-    pub fn with_parallel_hazard_rate_bump_bp(&self, bump_bp: f64) -> crate::Result<Self> {
-        if !bump_bp.is_finite() {
-            return Err(crate::error::InputError::UnsupportedBump {
-                reason: "hazard-rate basis-point bump must be finite".to_string(),
-            }
-            .into());
-        }
         self.metadata_builder(self.id.clone())
-            .knots(
-                self.knot_points()
-                    .map(|(tenor, hazard_rate)| (tenor, hazard_rate + bump_bp * 1e-4)),
-            )
+            .knots(shifted_points)
             .build()
     }
 
@@ -910,6 +888,11 @@ impl HazardCurve {
 
 impl Survival for HazardCurve {
     #[inline]
+    fn id(&self) -> &CurveId {
+        &self.id
+    }
+
+    #[inline]
     fn sp(&self, t: f64) -> f64 {
         self.sp(t)
     }
@@ -922,13 +905,6 @@ impl Survival for HazardCurve {
     #[inline]
     fn day_count(&self) -> DayCount {
         self.day_count()
-    }
-}
-
-impl TermStructure for HazardCurve {
-    #[inline]
-    fn id(&self) -> &CurveId {
-        &self.id
     }
 }
 
@@ -1302,7 +1278,9 @@ mod tests {
         let recovery = source.with_recovery_rate(0.35).expect("recovery override");
         assert!(recovery.hazard_calibration().is_none());
 
-        let parallel = source.with_parallel_bump(1e-4).expect("parallel bump");
+        let parallel = source
+            .with_parallel_hazard_rate_bump_bp(1.0)
+            .expect("parallel bump");
         assert!(parallel.hazard_calibration().is_none());
 
         let rolled = source.roll_forward(30).expect("curve roll");
@@ -1725,7 +1703,7 @@ mod tests {
             .expect("valid hazard curve");
 
         let err = curve
-            .with_parallel_bump(-0.0015)
+            .with_parallel_hazard_rate_bump_bp(-15.0)
             .expect_err("negative shifted hazard rate must be rejected");
 
         assert!(

@@ -75,10 +75,7 @@
 use super::common::{build_interp, roll_knots, split_points};
 use crate::dates::{Date, DayCount, DayCountContext};
 use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
-use crate::{
-    error::InputError, market_data::traits::TermStructure, math::interp::types::Interp,
-    types::CurveId,
-};
+use crate::{error::InputError, math::interp::types::Interp, types::CurveId};
 
 /// Default indexation lag in months for inflation-linked securities.
 ///
@@ -438,36 +435,6 @@ impl InflationCurve {
         let t = self.year_fraction_to(date)?;
         Ok(self.cpi(t))
     }
-
-    /// CPI level on a specific calendar date, adjusted for the indexation lag.
-    ///
-    /// This is the date-based equivalent of [`cpi_with_lag`](Self::cpi_with_lag).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the year fraction calculation fails.
-    #[inline]
-    #[must_use = "computed CPI level should not be discarded"]
-    pub fn cpi_with_lag_on_date(&self, date: Date) -> crate::Result<f64> {
-        let t = self.year_fraction_to(date)?;
-        Ok(self.cpi_with_lag(t))
-    }
-
-    /// Annualised inflation rate between two calendar dates using CAGR formula.
-    ///
-    /// This is the date-based equivalent of [`inflation_rate`](Self::inflation_rate).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the year fraction calculation fails.
-    #[inline]
-    #[must_use = "computed inflation rate should not be discarded"]
-    pub fn inflation_rate_on_dates(&self, d1: Date, d2: Date) -> crate::Result<f64> {
-        let t1 = self.year_fraction_to(d1)?;
-        let t2 = self.year_fraction_to(d2)?;
-        Ok(self.inflation_rate(t1, t2))
-    }
-
     /// Helper: compute year fraction from base date to target date using curve's day-count.
     #[inline]
     fn year_fraction_to(&self, date: Date) -> crate::Result<f64> {
@@ -601,15 +568,6 @@ impl InflationCurve {
             .interp(self.interp.style())
             .extrapolation(self.interp.extrapolation())
             .build()
-    }
-}
-
-// Minimal trait implementation for polymorphism where needed
-
-impl TermStructure for InflationCurve {
-    #[inline]
-    fn id(&self) -> &CurveId {
-        &self.id
     }
 }
 

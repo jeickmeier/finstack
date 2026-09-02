@@ -5,39 +5,13 @@ use std::sync::Arc;
 use crate::market_data::dividends::DividendSchedule;
 use crate::market_data::scalars::{InflationIndex, MarketScalar, ScalarTimeSeries};
 use crate::market_data::surfaces::{FxDeltaVolSurface, VolCube, VolSurface};
-use crate::market_data::term_structures::{BaseCorrelationCurve, CreditIndexData};
+use crate::market_data::term_structures::CreditIndexData;
 use crate::money::fx::FxMatrix;
 use crate::types::CurveId;
 
 use super::{CurveStorage, MarketContext};
 
 impl MarketContext {
-    /// Update only the base correlation curve for a credit index.
-    ///
-    /// Handy for calibration loops that tweak base correlation while leaving
-    /// other index data intact. Returns `false` if the index identifier cannot
-    /// be found.
-    pub fn update_base_correlation_curve(
-        &mut self,
-        id: impl AsRef<str>,
-        new_curve: Arc<BaseCorrelationCurve>,
-    ) -> bool {
-        let cid = CurveId::from(id.as_ref());
-        let Some(existing_index) = self.credit_indices.get(&cid) else {
-            return false;
-        };
-        let curve_id = new_curve.id().to_owned();
-        Arc::make_mut(&mut self.curves).insert(
-            curve_id,
-            CurveStorage::BaseCorrelation(Arc::clone(&new_curve)),
-        );
-        let mut updated_index = (**existing_index).clone();
-        updated_index.base_correlation_curve = new_curve;
-        Arc::make_mut(&mut self.credit_indices).insert(cid, Arc::new(updated_index));
-        let _invalidated = self.rebind_all_credit_indices();
-        true
-    }
-
     /// Insert a generic curve storage entry.
     ///
     /// This is primarily intended for downstream crates that operate on heterogeneous
@@ -346,36 +320,6 @@ impl MarketContext {
         self.insert_fx_mut(fx);
         self
     }
-
-    /// Clear the FX matrix from this context.
-    ///
-    /// After calling this method, `ctx.fx()` will return `None`.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use finstack_quant_core::market_data::context::MarketContext;
-    /// use finstack_quant_core::money::fx::{FxMatrix, FxProvider, FxConversionPolicy};
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::dates::Date;
-    /// use std::sync::Arc;
-    ///
-    /// struct StaticFx;
-    /// impl FxProvider for StaticFx {
-    ///     fn rate(&self, _: Currency, _: Currency, _: Date, _: FxConversionPolicy) -> finstack_quant_core::Result<f64> { Ok(1.0) }
-    /// }
-    ///
-    /// let fx = FxMatrix::new(Arc::new(StaticFx));
-    /// let ctx = MarketContext::new().insert_fx(fx);
-    /// assert!(ctx.fx().is_some());
-    ///
-    /// let ctx = ctx.clear_fx();
-    /// assert!(ctx.fx().is_none());
-    /// ```
-    pub fn clear_fx(mut self) -> Self {
-        self.clear_fx_mut();
-        self
-    }
-
     /// Map collateral CSA code to a discount curve identifier.
     ///
     /// # Parameters

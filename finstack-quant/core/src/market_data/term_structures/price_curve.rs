@@ -75,7 +75,6 @@ use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::{
     dates::{Date, DayCount},
     error::InputError,
-    market_data::traits::TermStructure,
     math::interp::types::Interp,
     types::CurveId,
 };
@@ -589,13 +588,6 @@ impl PriceCurveBuilder {
 }
 
 // Trait implementations
-
-impl TermStructure for PriceCurve {
-    #[inline]
-    fn id(&self) -> &CurveId {
-        &self.id
-    }
-}
 
 #[cfg(test)]
 mod tests {

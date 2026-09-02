@@ -65,56 +65,6 @@ impl MarketContext {
         Arc::make_mut(&mut self.surfaces).insert(key.clone(), Arc::new(bumped));
         Ok(ContextScratchBump::Surface { id: key, previous })
     }
-
-    /// Apply a relative bump to one volatility-surface grid point in place.
-    ///
-    /// The context and selected surface use copy-on-write, so the first point
-    /// bump on a scratch market copies the surface once. Subsequent point
-    /// bumps mutate and restore that same private surface allocation.
-    ///
-    /// # Arguments
-    ///
-    /// * `vol_surface_id` - Identifier of the volatility surface to mutate.
-    /// * `expiry` - Expiry in years; values inside or outside the grid are
-    ///   mapped to the nearest clamped expiry node.
-    /// * `strike` - Strike coordinate; values inside or outside the grid are
-    ///   mapped to the nearest clamped strike node.
-    /// * `bump_pct` - Relative volatility bump as a decimal fraction; `0.01`
-    ///   increases the selected volatility by one percent.
-    ///
-    /// # Errors
-    ///
-    /// Returns a validation error for non-finite coordinates or bumps,
-    /// `InputError::NotFound` when `vol_surface_id` is absent, and
-    /// `InputError::TooFewPoints` when either surface axis is empty.
-    pub fn apply_surface_point_bump_in_place(
-        &mut self,
-        vol_surface_id: &str,
-        expiry: f64,
-        strike: f64,
-        bump_pct: f64,
-    ) -> Result<ContextScratchBump> {
-        if !(expiry.is_finite() && strike.is_finite() && bump_pct.is_finite()) {
-            return Err(crate::Error::Validation(format!(
-                "surface point bump inputs must be finite, got expiry={expiry}, \
-                 strike={strike}, bump_pct={bump_pct}"
-            )));
-        }
-        let key = CurveId::from(vol_surface_id);
-        let surface = Arc::make_mut(&mut self.surfaces)
-            .get_mut(vol_surface_id)
-            .ok_or_else(|| crate::error::InputError::NotFound {
-                id: vol_surface_id.to_string(),
-            })?;
-        let original_vol = Arc::make_mut(surface).bump_point_in_place(expiry, strike, bump_pct)?;
-        Ok(ContextScratchBump::SurfacePoint {
-            id: key,
-            expiry,
-            strike,
-            original_vol,
-        })
-    }
-
     /// Apply an absolute volatility bump to one surface point in place.
     ///
     /// # Arguments
@@ -645,25 +595,6 @@ mod tests {
         let restored = ctx.get_surface("VOL").expect("restored surface");
         assert!((restored.vols()[0] - 0.2).abs() < 1e-12);
     }
-
-    #[test]
-    fn scratch_surface_point_bump_restores_selected_node() {
-        let surface =
-            VolSurface::from_grid("VOL", &[0.5, 1.0], &[90.0, 100.0], &[0.2; 4]).expect("surface");
-        let mut ctx = MarketContext::new().insert_surface(surface);
-
-        let token = ctx
-            .apply_surface_point_bump_in_place("VOL", 0.5, 90.0, 0.10)
-            .expect("point bump");
-        let bumped = ctx.get_surface("VOL").expect("bumped surface");
-        assert!((bumped.vols()[0] - 0.22).abs() < 1e-12);
-        assert!((bumped.vols()[3] - 0.2).abs() < 1e-12);
-
-        ctx.revert_scratch_bump(token).expect("revert");
-        let restored = ctx.get_surface("VOL").expect("restored surface");
-        assert!((restored.vols()[0] - 0.2).abs() < 1e-12);
-    }
-
     #[test]
     fn scratch_curve_bump_restores_original_curve() {
         let curve = DiscountCurve::builder("USD-OIS")

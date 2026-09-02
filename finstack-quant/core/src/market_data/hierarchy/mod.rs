@@ -6,7 +6,6 @@
 //!
 //! - **Scenario targeting**: Define shocks at any tree level; resolve to per-curve operations.
 //! - **Factor model mapping**: Factor models reference hierarchy nodes for scope.
-//! - **Completeness tracking**: Compare declared vs. present curves.
 //!
 //! # Example
 //!
@@ -24,11 +23,9 @@
 //! ```
 
 mod builder;
-mod completeness;
 mod resolution;
 
 pub use builder::HierarchyBuilder;
-pub use completeness::{CompletenessReport, SubtreeCoverage};
 pub use resolution::{HierarchyTarget, ResolutionMode, TagFilter, TagPredicate};
 
 use crate::collections::HashMap;

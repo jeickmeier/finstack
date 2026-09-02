@@ -41,10 +41,7 @@
 
 use crate::{
     error::InputError,
-    market_data::{
-        bumps::{BumpSpec, Bumpable},
-        traits::TermStructure,
-    },
+    market_data::bumps::{BumpSpec, Bumpable},
     types::CurveId,
     Error,
 };
@@ -431,46 +428,6 @@ impl VolSurface {
             },
         )
     }
-
-    /// Bump a single grid point in place, returning the original vol for reversal.
-    ///
-    /// Avoids cloning the entire vols vector. Use with
-    /// [`unbump_point_in_place`](Self::unbump_point_in_place) to restore.
-    ///
-    /// Coordinates are clamped to the nearest grid point, and `bump_pct` is a
-    /// relative bump (`0.01` raises the selected volatility by 1%). The updated
-    /// volatility is floored at zero.
-    ///
-    /// # Errors
-    ///
-    /// Returns `InputError::TooFewPoints` when either surface axis is empty.
-    pub fn bump_point_in_place(
-        &mut self,
-        expiry: f64,
-        strike: f64,
-        bump_pct: f64,
-    ) -> crate::Result<f64> {
-        let (Some(&exp_min), Some(&exp_max)) = (self.expiries.first(), self.expiries.last()) else {
-            return Err(crate::error::InputError::TooFewPoints.into());
-        };
-        let (Some(&str_min), Some(&str_max)) = (self.strikes.first(), self.strikes.last()) else {
-            return Err(crate::error::InputError::TooFewPoints.into());
-        };
-
-        let clamped_expiry = expiry.clamp(exp_min, exp_max);
-        let clamped_strike = strike.clamp(str_min, str_max);
-
-        let expiry_idx = find_closest_grid_index(self.expiries.as_ref(), clamped_expiry);
-        let strike_idx = find_closest_grid_index(self.strikes.as_ref(), clamped_strike);
-
-        let n_strikes = self.strikes.len();
-        let idx = expiry_idx * n_strikes + strike_idx;
-
-        let original = self.vols[idx];
-        self.vols[idx] = original * (1.0 + bump_pct).max(0.0);
-        Ok(original)
-    }
-
     /// Add an absolute bump to one grid point in place.
     ///
     /// Coordinates map to the nearest clamped grid node. The updated
@@ -675,15 +632,6 @@ impl VolSurface {
         }
 
         builder.build().ok()
-    }
-}
-
-// Minimal trait implementation for polymorphism where needed
-
-impl TermStructure for VolSurface {
-    #[inline]
-    fn id(&self) -> &CurveId {
-        &self.id
     }
 }
 
@@ -934,8 +882,6 @@ impl VolSurface {
         Self::from_grid(id, expiries, strikes, &flat)
     }
 }
-
-impl VolSurface {}
 
 fn validate_axis(axis: &[f64]) -> crate::Result<()> {
     if axis.is_empty() {

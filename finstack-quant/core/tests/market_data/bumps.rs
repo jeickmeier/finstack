@@ -20,11 +20,6 @@ fn bump_spec_constructors_normalize_values() {
     assert_eq!(inflation.units, BumpUnits::Percent);
     assert_eq!(inflation.value, 2.5);
 
-    let correlation = BumpSpec::correlation_shift_pct(15.0);
-    assert_eq!(correlation.mode, BumpMode::Additive);
-    assert_eq!(correlation.units, BumpUnits::Percent);
-    assert_eq!(correlation.value, 15.0);
-
     let multiplier = BumpSpec::multiplier(1.1);
     assert_eq!(multiplier.mode, BumpMode::Multiplicative);
     assert_eq!(multiplier.units, BumpUnits::Factor);
@@ -185,7 +180,7 @@ fn inflation_curve_parallel_shift_is_tenor_consistent_in_zero_rate_space() {
 fn base_correlation_curve_uses_percent_bumps() {
     let curve = sample_base_correlation_curve("CDX");
     let bumped = curve
-        .apply_bump(BumpSpec::correlation_shift_pct(5.0))
+        .apply_bump(BumpSpec::inflation_shift_pct(5.0))
         .expect("base correlation supports percent bump");
     assert_eq!(bumped.id().as_str(), "CDX_bump_5pct");
 }

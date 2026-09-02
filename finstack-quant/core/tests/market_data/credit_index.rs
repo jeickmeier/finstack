@@ -191,52 +191,6 @@ fn test_credit_index_missing_num_constituents_fails() {
 
     assert!(matches!(err, finstack_quant_core::Error::Input(_)));
 }
-
-#[test]
-fn test_credit_index_add_issuer_curve_to_empty() {
-    // Test adding a single issuer curve when none exist
-    let hazard = Arc::new(sample_hazard_curve("CDX"));
-    let base_corr = Arc::new(sample_base_correlation_curve("CDX-BC"));
-    let issuer_curve = Arc::new(sample_hazard_curve("IssuerB"));
-
-    let data = CreditIndexData::builder()
-        .num_constituents(2)
-        .recovery_rate(0.4)
-        .index_credit_curve(hazard)
-        .base_correlation_curve(base_corr)
-        .add_issuer_curve("IssuerB".to_string(), issuer_curve)
-        .build()
-        .expect("add_issuer_curve should work");
-
-    assert!(data.has_issuer_curves());
-    assert_eq!(data.issuer_ids(), vec!["IssuerB".to_string()]);
-}
-
-#[test]
-fn test_credit_index_add_multiple_issuer_curves() {
-    // Test adding multiple issuer curves one at a time
-    let hazard = Arc::new(sample_hazard_curve("CDX"));
-    let base_corr = Arc::new(sample_base_correlation_curve("CDX-BC"));
-    let issuer1 = Arc::new(sample_hazard_curve("Issuer1"));
-    let issuer2 = Arc::new(sample_hazard_curve("Issuer2"));
-
-    let data = CreditIndexData::builder()
-        .num_constituents(2)
-        .recovery_rate(0.4)
-        .index_credit_curve(hazard)
-        .base_correlation_curve(base_corr)
-        .add_issuer_curve("Issuer1".to_string(), issuer1)
-        .add_issuer_curve("Issuer2".to_string(), issuer2)
-        .build()
-        .expect("multiple add_issuer_curve should work");
-
-    assert!(data.has_issuer_curves());
-    let ids = data.issuer_ids();
-    assert_eq!(ids.len(), 2);
-    assert!(ids.contains(&"Issuer1".to_string()));
-    assert!(ids.contains(&"Issuer2".to_string()));
-}
-
 #[test]
 fn test_credit_index_issuer_recovery_rates() {
     // Test issuer-specific recovery rates

@@ -168,11 +168,12 @@ fn market_context_roundtrip_preserves_hierarchy() {
     let json = serde_json::to_string_pretty(&ctx).unwrap();
     let deserialized: MarketContext = serde_json::from_str(&json).unwrap();
 
-    let report = deserialized
-        .completeness_report()
+    let hierarchy = deserialized
+        .hierarchy()
         .expect("hierarchy should survive MarketContext serde round-trip");
-    assert_eq!(report.missing.len(), 1);
-    assert_eq!(report.missing[0].1, CurveId::from("EUR-ESTR"));
+    assert!(hierarchy
+        .all_curve_ids()
+        .contains(&CurveId::from("EUR-ESTR")));
 }
 
 #[test]
@@ -197,7 +198,7 @@ fn market_context_requires_hierarchy_key_and_accepts_explicit_null() {
     json["hierarchy"] = serde_json::Value::Null;
     let restored: MarketContext = serde_json::from_value(json).unwrap();
     assert!(restored.get_discount("USD-OIS").is_ok());
-    assert!(restored.completeness_report().is_none());
+    assert!(restored.hierarchy().is_none());
 }
 
 #[test]

@@ -49,10 +49,10 @@
 //! | Struct                        | Domain  | Specialised trait |
 //! |-------------------------------|---------|-------------------|
 //! | `DiscountCurve`               | Rates   | `Discounting`     |
-//! | `ForwardCurve`                | Rates   | `Forward`         |
+//! | `ForwardCurve`                | Rates   | (none)            |
 //! | `HazardCurve`                 | Credit  | `Survival`        |
 //! | `BaseCorrelationCurve`        | Credit  | (none)            |
-//! | `InflationCurve`              | CPI     | `TermStructure`   |
+//! | `InflationCurve`              | CPI     | (none)            |
 //!
 //! ## Choosing an interpolation style
 //! All curves are bootstrapped from knot points and allow selecting an

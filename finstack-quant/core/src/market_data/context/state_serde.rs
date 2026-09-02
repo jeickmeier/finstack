@@ -36,7 +36,6 @@ use crate::money::fx::{
 macro_rules! define_curve_state {
     ($( $variant:ident => {
         accessor: $accessor:ident,
-        is_accessor: $is_accessor:ident,
         ty: $ty:ident,
         type_name: $type_name:literal
     } ),* $(,)?) => {

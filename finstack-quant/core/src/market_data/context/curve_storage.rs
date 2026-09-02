@@ -15,20 +15,19 @@ use super::BumpSpec;
 macro_rules! for_each_context_curve {
     ($macro:ident) => {
         $macro! {
-            Discount => { accessor: discount, is_accessor: is_discount, ty: DiscountCurve, type_name: "Discount" },
-            Forward => { accessor: forward, is_accessor: is_forward, ty: ForwardCurve, type_name: "Forward" },
-            Hazard => { accessor: hazard, is_accessor: is_hazard, ty: HazardCurve, type_name: "Hazard" },
-            Inflation => { accessor: inflation, is_accessor: is_inflation, ty: InflationCurve, type_name: "Inflation" },
+            Discount => { accessor: discount, ty: DiscountCurve, type_name: "Discount" },
+            Forward => { accessor: forward, ty: ForwardCurve, type_name: "Forward" },
+            Hazard => { accessor: hazard, ty: HazardCurve, type_name: "Hazard" },
+            Inflation => { accessor: inflation, ty: InflationCurve, type_name: "Inflation" },
             BaseCorrelation => {
                 accessor: base_correlation,
-                is_accessor: is_base_correlation,
                 ty: BaseCorrelationCurve,
                 type_name: "BaseCorrelation"
             },
-            Price => { accessor: price, is_accessor: is_price, ty: PriceCurve, type_name: "Price" },
-            VolIndex => { accessor: vol_index, is_accessor: is_vol_index, ty: VolatilityIndexCurve, type_name: "VolIndex" },
-            BasisSpread => { accessor: basis_spread, is_accessor: is_basis_spread, ty: BasisSpreadCurve, type_name: "BasisSpread" },
-            Parametric => { accessor: parametric, is_accessor: is_parametric, ty: ParametricCurve, type_name: "Parametric" }
+            Price => { accessor: price, ty: PriceCurve, type_name: "Price" },
+            VolIndex => { accessor: vol_index, ty: VolatilityIndexCurve, type_name: "VolIndex" },
+            BasisSpread => { accessor: basis_spread, ty: BasisSpreadCurve, type_name: "BasisSpread" },
+            Parametric => { accessor: parametric, ty: ParametricCurve, type_name: "Parametric" }
         }
     };
 }
@@ -82,7 +81,6 @@ impl RebuildableWithId for BaseCorrelationCurve {
 macro_rules! define_curve_storage {
     ($( $variant:ident => {
         accessor: $accessor:ident,
-        is_accessor: $is_accessor:ident,
         ty: $ty:ident,
         type_name: $type_name:literal
     } ),* $(,)?) => {
@@ -114,11 +112,6 @@ macro_rules! define_curve_storage {
                         Self::$variant(curve) => Some(curve),
                         _ => None,
                     }
-                }
-
-                #[doc = concat!("Return `true` when this storage contains a ", $type_name, " curve.")]
-                pub fn $is_accessor(&self) -> bool {
-                    matches!(self, Self::$variant(_))
                 }
             )*
 

@@ -156,20 +156,17 @@ pub(crate) fn with_bond_risk_view<R>(
     }
 }
 
-/// Build a market with the bond's hazard curve shifted by `s`, **preserving the
-/// curve id** so the inserted curve replaces the original for downstream pricing.
-/// (`HazardCurve::with_parallel_bump` renames the curve, which would otherwise
-/// leave the unshifted curve in place under its original id.)
+/// Build a market with the bond's hazard curve shifted by `s` (a decimal
+/// hazard-rate shift). `with_parallel_hazard_rate_bump_bp` preserves the curve
+/// id, so the inserted curve replaces the original for downstream pricing.
 fn market_with_hazard_shift(
     base_market: &MarketContext,
     hazard: &HazardCurve,
     hazard_id: &CurveId,
     s: f64,
 ) -> finstack_quant_core::Result<MarketContext> {
-    let shifted = hazard
-        .with_parallel_bump(s)?
-        .to_builder_with_id(hazard_id.clone())
-        .build()?;
+    let shifted = hazard.with_parallel_hazard_rate_bump_bp(s * 10_000.0)?;
+    debug_assert_eq!(shifted.id(), hazard_id);
     Ok(base_market.clone().insert(shifted))
 }
 

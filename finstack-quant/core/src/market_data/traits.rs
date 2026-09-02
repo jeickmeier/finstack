@@ -47,7 +47,7 @@ use crate::dates::{Date, DayCount, DayCountContext};
 /// ## Using a Discount Curve
 ///
 /// ```rust
-/// use finstack_quant_core::market_data::traits::{Discounting, TermStructure};
+/// use finstack_quant_core::market_data::traits::Discounting;
 /// use finstack_quant_core::types::CurveId;
 /// use finstack_quant_core::dates::Date;
 /// use time::macros::date;
@@ -63,11 +63,8 @@ use crate::dates::{Date, DayCount, DayCountContext};
 ///     }
 /// }
 ///
-/// impl TermStructure for FlatCurve {
-///     fn id(&self) -> &CurveId { &self.id }
-/// }
-///
 /// impl Discounting for FlatCurve {
+///     fn id(&self) -> &CurveId { &self.id }
 ///     fn base_date(&self) -> Date {
 ///         date!(2025 - 01 - 01)
 ///     }
@@ -82,7 +79,10 @@ use crate::dates::{Date, DayCount, DayCountContext};
 ///
 /// - [`Forward`] - Trait for forward rate curves
 /// - [`Survival`] - Trait for hazard/survival curves
-pub trait Discounting: TermStructure + Send + Sync {
+pub trait Discounting: Send + Sync {
+    /// Unique identifier of the curve.
+    fn id(&self) -> &crate::types::CurveId;
+
     /// Base (valuation) date of the curve.
     fn base_date(&self) -> Date;
     /// Discount factor at time `t` (year fraction from the base date).
@@ -176,156 +176,19 @@ pub trait Discounting: TermStructure + Send + Sync {
         Ok(df_to / df_from)
     }
 
-    /// Forward rate between times `from_t` and `to_t` (year fractions from base date).
-    ///
-    /// Uses the standard log-discount ratio:
-    /// `f = -ln(DF(from→to)) / (to_t - from_t)`.
-    fn forward_rate_between_times(&self, from_t: f64, to_t: f64) -> crate::Result<f64> {
-        if to_t <= from_t {
-            return Err(crate::Error::Validation(format!(
-                "forward_rate_between_times requires to_t > from_t (from_t={from_t}, to_t={to_t})"
-            )));
-        }
-
-        let df_ratio = self.df_between_times(from_t, to_t)?;
-        Ok(-df_ratio.ln() / (to_t - from_t))
-    }
-
-    /// Forward rate between dates using the curve's day-count convention.
-    fn forward_rate_between_dates(&self, from: Date, to: Date) -> crate::Result<f64> {
-        if to <= from {
-            return Err(crate::Error::Validation(format!(
-                "forward_rate_between_dates requires to > from (from={from}, to={to})"
-            )));
-        }
-
-        let day_count = self.day_count();
-        let base = self.base_date();
-        let from_t = day_count.year_fraction(base, from, DayCountContext::default())?;
-        let to_t = day_count.year_fraction(base, to, DayCountContext::default())?;
-        self.forward_rate_between_times(from_t, to_t)
-    }
-
     /// Instantaneous forward rate at time `t` (year fraction from base date).
     ///
     /// Approximates the derivative of `-ln P(0,t)` using a centered finite
-    /// difference around `t`, capped to a small local neighborhood.
+    /// difference around `t`, capped to a small local neighborhood:
+    /// `f ≈ -ln(DF(start→end)) / (end - start)`.
     fn instantaneous_forward(&self, t: f64) -> crate::Result<f64> {
         let eps = (t.abs() * 1e-4).clamp(1e-6, 1e-4);
         let start = (t - eps).max(0.0);
         let end = t + eps;
-        self.forward_rate_between_times(start, end)
+        let df_ratio = self.df_between_times(start, end)?;
+        Ok(-df_ratio.ln() / (end - start))
     }
 }
-
-/// Minimal trait for forward curve polymorphism where needed.
-///
-/// Most code should call methods directly on `ForwardCurve`. This trait enables
-/// polymorphic code that needs to accept different forward curve implementations.
-///
-/// # Required Methods
-///
-/// - [`rate`](Self::rate) - Returns the fixed-tenor index rate resetting at time `t`
-///
-/// # Provided Methods
-///
-/// - [`rate_period`](Self::rate_period) - Simpson-rule integral average over `[t1, t2]`
-///
-/// # Examples
-///
-/// ```rust
-/// use finstack_quant_core::market_data::traits::{Forward, TermStructure};
-/// use finstack_quant_core::types::CurveId;
-///
-/// struct FlatForward {
-///     id: CurveId,
-///     rate: f64,
-/// }
-///
-/// impl TermStructure for FlatForward {
-///     fn id(&self) -> &CurveId { &self.id }
-/// }
-///
-/// impl Forward for FlatForward {
-///     fn rate(&self, _t: f64) -> f64 { self.rate }
-/// }
-///
-/// let curve = FlatForward { id: CurveId::from("USD-3M"), rate: 0.05 };
-/// assert_eq!(curve.rate(1.0), 0.05);
-/// assert!((curve.rate_period(0.5, 1.0) - 0.05).abs() < 1e-14); // Flat curve: period average ≈ rate
-/// ```
-pub trait Forward: TermStructure + Send + Sync {
-    /// Fixed-tenor index rate resetting at time `t`.
-    ///
-    /// # Arguments
-    ///
-    /// * `t` - Time in years from the curve's base date
-    ///
-    /// # Returns
-    ///
-    /// The index rate fixed at time `t`.
-    fn rate(&self, t: f64) -> f64;
-
-    // Concrete curve types can override this with analytical integration for
-    // piecewise-flat/linear curves to avoid numerical quadrature.
-    /// Simpson-rule integral average rate over `[t1, t2]`.
-    ///
-    /// This is appropriate for averaging overnight observation sub-windows.
-    /// Implementors that expose projection discount factors should provide a
-    /// separate discount-factor-implied period-forward API for arbitrary term
-    /// projection intervals.
-    ///
-    /// Uses 8-interval composite Simpson's rule for accurate integration
-    /// of the forward rate curve over the period, matching the concrete
-    /// `ForwardCurve::rate_period()` implementation.
-    ///
-    /// # Arguments
-    ///
-    /// * `t1` - Start time in years
-    /// * `t2` - End time in years
-    ///
-    /// # Returns
-    ///
-    /// The integral average forward rate over `[t1, t2]`.
-    ///
-    /// Returns [`f64::NAN`] if `t2 < t1` or inputs are non-finite. For
-    /// `t2` equal to `t1` within ~1e-12 years, returns [`Self::rate`] at `t1`
-    /// (degenerate interval / instantaneous forward).
-    #[inline]
-    fn rate_period(&self, t1: f64, t2: f64) -> f64 {
-        if !(t1.is_finite() && t2.is_finite()) {
-            return f64::NAN;
-        }
-        let period = t2 - t1;
-        if period < 0.0 {
-            return f64::NAN;
-        }
-        if period <= 1e-12 {
-            return self.rate(t1);
-        }
-        // Adaptive-interval composite Simpson's rule:
-        //   ∫f(x)dx ≈ (h/3)[f(x0) + 4f(x1) + 2f(x2) + ... + f(xn)]
-        //
-        // Use more intervals for longer periods to maintain accuracy for
-        // long-dated forward averages while keeping performance for short periods.
-        let n = if period > 20.0 {
-            32_usize
-        } else if period > 5.0 {
-            16_usize
-        } else {
-            8_usize
-        };
-        let h = (t2 - t1) / n as f64;
-        let mut sum = self.rate(t1) + self.rate(t2);
-        for i in 1..n {
-            let t = t1 + i as f64 * h;
-            let coeff = if i % 2 == 0 { 2.0 } else { 4.0 };
-            sum += coeff * self.rate(t);
-        }
-        sum * h / (3.0 * (t2 - t1))
-    }
-}
-
 /// Minimal trait for survival/hazard curve polymorphism where needed.
 ///
 /// Most code should call methods directly on `HazardCurve`. This trait enables
@@ -347,7 +210,7 @@ pub trait Forward: TermStructure + Send + Sync {
 /// # Examples
 ///
 /// ```rust
-/// use finstack_quant_core::market_data::traits::{Survival, TermStructure};
+/// use finstack_quant_core::market_data::traits::Survival;
 /// use finstack_quant_core::types::CurveId;
 ///
 /// struct FlatHazard {
@@ -355,11 +218,8 @@ pub trait Forward: TermStructure + Send + Sync {
 ///     hazard_rate: f64, // Constant hazard rate
 /// }
 ///
-/// impl TermStructure for FlatHazard {
-///     fn id(&self) -> &CurveId { &self.id }
-/// }
-///
 /// impl Survival for FlatHazard {
+///     fn id(&self) -> &CurveId { &self.id }
 ///     fn sp(&self, t: f64) -> f64 {
 ///         (-self.hazard_rate * t).exp()
 ///     }
@@ -369,7 +229,10 @@ pub trait Forward: TermStructure + Send + Sync {
 /// let sp_1y = curve.sp(1.0);
 /// assert!(sp_1y < 1.0 && sp_1y > 0.0); // Survival prob decreases over time
 /// ```
-pub trait Survival: TermStructure + Send + Sync {
+pub trait Survival: Send + Sync {
+    /// Unique identifier of the curve.
+    fn id(&self) -> &crate::types::CurveId;
+
     /// Survival probability up to time `t`.
     ///
     /// # Arguments
@@ -392,28 +255,6 @@ pub trait Survival: TermStructure + Send + Sync {
         DayCount::Act365F
     }
 }
-
-/// Minimal trait for term structure polymorphism where needed.
-///
-/// # Examples
-/// ```rust
-/// use finstack_quant_core::market_data::traits::TermStructure;
-/// use finstack_quant_core::types::CurveId;
-///
-/// struct DummyCurve { id: CurveId }
-///
-/// impl TermStructure for DummyCurve {
-///     fn id(&self) -> &CurveId { &self.id }
-/// }
-///
-/// let curve = DummyCurve { id: CurveId::from("DUMMY") };
-/// assert_eq!(curve.id().as_str(), "DUMMY");
-/// ```
-pub trait TermStructure: Send + Sync {
-    /// Unique identifier of the term structure.
-    fn id(&self) -> &crate::types::CurveId;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,13 +274,11 @@ mod tests {
         }
     }
 
-    impl TermStructure for FlatCurve {
+    impl Discounting for FlatCurve {
         fn id(&self) -> &crate::types::CurveId {
             &self.id
         }
-    }
 
-    impl Discounting for FlatCurve {
         fn base_date(&self) -> Date {
             Date::from_calendar_date(2025, time::Month::January, 1).expect("Valid test date")
         }
@@ -478,13 +317,11 @@ mod tests {
         b: f64,
     }
 
-    impl TermStructure for QuadraticLogDfCurve {
+    impl Discounting for QuadraticLogDfCurve {
         fn id(&self) -> &crate::types::CurveId {
             &self.id
         }
-    }
 
-    impl Discounting for QuadraticLogDfCurve {
         fn base_date(&self) -> Date {
             Date::from_calendar_date(2025, time::Month::January, 1).expect("Valid test date")
         }
@@ -493,42 +330,6 @@ mod tests {
             (-(self.a * t + 0.5 * self.b * t * t)).exp()
         }
     }
-
-    struct FlatForwardCurve {
-        id: CurveId,
-        rate: f64,
-    }
-
-    impl TermStructure for FlatForwardCurve {
-        fn id(&self) -> &CurveId {
-            &self.id
-        }
-    }
-
-    impl Forward for FlatForwardCurve {
-        fn rate(&self, _t: f64) -> f64 {
-            self.rate
-        }
-    }
-
-    #[test]
-    fn forward_trait_rate_period_rejects_reversed_times() {
-        let c = FlatForwardCurve {
-            id: CurveId::new("FLAT-FWD"),
-            rate: 0.05,
-        };
-        assert!(Forward::rate_period(&c, 1.0, 0.5).is_nan());
-    }
-
-    #[test]
-    fn forward_trait_rate_period_degenerate_matches_instantaneous_rate() {
-        let c = FlatForwardCurve {
-            id: CurveId::new("FLAT-FWD"),
-            rate: 0.05,
-        };
-        assert!((Forward::rate_period(&c, 1.0, 1.0) - 0.05).abs() < 1e-15);
-    }
-
     #[test]
     fn instantaneous_forward_uses_centered_difference() {
         let curve = QuadraticLogDfCurve {

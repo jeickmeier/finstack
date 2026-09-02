@@ -43,7 +43,6 @@ use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::{
     dates::{Date, DayCount},
     error::InputError,
-    market_data::traits::TermStructure,
     math::interp::types::Interp,
     types::CurveId,
 };
@@ -266,12 +265,6 @@ impl BasisSpreadCurve {
             style: self.interp.style(),
             extrapolation: self.interp.extrapolation(),
         }
-    }
-}
-
-impl TermStructure for BasisSpreadCurve {
-    fn id(&self) -> &CurveId {
-        &self.id
     }
 }
 

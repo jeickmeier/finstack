@@ -283,14 +283,6 @@ pub struct InflationIndex {
 }
 
 impl InflationIndex {
-    /// Create an [`InflationIndexBuilder`] for constructing a new index.
-    ///
-    /// This is the preferred entry point, consistent with other curve builders.
-    #[must_use]
-    pub fn builder(id: impl Into<String>, currency: Currency) -> InflationIndexBuilder {
-        InflationIndexBuilder::new(id, currency)
-    }
-
     /// Create a new inflation index from observations.
     ///
     /// # Parameters
@@ -607,87 +599,6 @@ impl TryFrom<InflationIndexWire> for InflationIndex {
         Ok(index)
     }
 }
-
-/// Builder for creating inflation indices from various sources
-pub struct InflationIndexBuilder {
-    id: String,
-    currency: Currency,
-    observations: Vec<(Date, f64)>,
-    interpolation: InflationInterpolation,
-    lag: InflationLag,
-    seasonality: Option<[f64; 12]>,
-}
-
-impl InflationIndexBuilder {
-    /// Create a new inflation index builder.
-    pub fn new(id: impl Into<String>, currency: Currency) -> Self {
-        Self {
-            id: id.into(),
-            currency,
-            observations: Vec::new(),
-            interpolation: InflationInterpolation::default(),
-            lag: InflationLag::default(),
-            seasonality: None,
-        }
-    }
-
-    /// Add a single observation to the index.
-    pub fn add_observation(mut self, date: Date, value: f64) -> Self {
-        self.observations.push((date, value));
-        self
-    }
-
-    /// Set all observations at once.
-    pub fn with_observations(mut self, observations: Vec<(Date, f64)>) -> Self {
-        self.observations = observations;
-        self
-    }
-
-    /// Set the interpolation method.
-    pub fn with_interpolation(mut self, interpolation: InflationInterpolation) -> Self {
-        self.interpolation = interpolation;
-        self
-    }
-
-    /// Set the lag policy.
-    pub fn with_lag(mut self, lag: InflationLag) -> Self {
-        self.lag = lag;
-        self
-    }
-
-    /// Set seasonal adjustment factors (one per month).
-    pub fn with_seasonality(mut self, factors: [f64; 12]) -> Self {
-        self.seasonality = Some(factors);
-        self
-    }
-
-    /// Build the inflation index with the configured conventions.
-    ///
-    /// This is equivalent to constructing with [`InflationIndex::new`] and then
-    /// applying the configured interpolation, lag, and optional seasonality.
-    /// Observation order may be arbitrary because the underlying time-series
-    /// constructor normalizes it; the returned index retains the chosen
-    /// currency tag for market-context and instrument compatibility.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same time-series construction errors as
-    /// [`InflationIndex::new`]. Seasonal factors are accepted as supplied, so
-    /// validation of their finiteness and economic appropriateness remains the
-    /// caller's responsibility.
-    pub fn build(self) -> Result<InflationIndex> {
-        let mut index = InflationIndex::new(self.id, self.observations, self.currency)?
-            .with_interpolation(self.interpolation)
-            .with_lag(self.lag);
-
-        if let Some(factors) = self.seasonality {
-            index = index.with_seasonality(factors)?;
-        }
-
-        Ok(index)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -824,19 +735,22 @@ mod tests {
     }
 
     #[test]
-    fn seasonality_adjusts_values_and_survives_builder_path() {
+    fn seasonality_adjusts_values_and_survives_serde() {
         let mut seasonality = [1.0; 12];
         seasonality[2] = 1.10;
 
-        let index = InflationIndex::builder("US-CPI", Currency::USD)
-            .with_observations(vec![
+        let index = InflationIndex::new(
+            "US-CPI",
+            vec![
                 (make_date(2025, 2, 1), 200.0),
                 (make_date(2025, 3, 1), 210.0),
-            ])
-            .with_interpolation(InflationInterpolation::Linear)
-            .with_seasonality(seasonality)
-            .build()
-            .expect("builder should apply seasonality");
+            ],
+            Currency::USD,
+        )
+        .expect("valid observations")
+        .with_interpolation(InflationInterpolation::Linear)
+        .with_seasonality(seasonality)
+        .expect("seasonality should apply");
 
         let feb = index.value_on(make_date(2025, 2, 1)).unwrap();
         let mar = index.value_on(make_date(2025, 3, 1)).unwrap();
@@ -846,20 +760,5 @@ mod tests {
         let json = serde_json::to_string(&index).unwrap();
         let roundtrip: InflationIndex = serde_json::from_str(&json).unwrap();
         assert!((roundtrip.value_on(make_date(2025, 3, 1)).unwrap() - 231.0).abs() < 1e-12);
-    }
-
-    #[test]
-    fn test_builder_pattern() {
-        let index = InflationIndexBuilder::new("UK-RPI", Currency::GBP)
-            .add_observation(make_date(2023, 1, 31), 300.0)
-            .add_observation(make_date(2023, 2, 28), 303.0)
-            .with_interpolation(InflationInterpolation::Linear)
-            .with_lag(InflationLag::Days(90))
-            .build()
-            .expect("Ratio calculation should succeed in test");
-
-        assert_eq!(index.id, "UK-RPI");
-        assert_eq!(index.currency, Currency::GBP);
-        assert_eq!(index.interpolation, InflationInterpolation::Linear);
     }
 }

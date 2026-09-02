@@ -606,7 +606,6 @@ impl CdsHazardRepriceCache {
 #[cfg(test)]
 mod cds_hazard_reprice_cache_tests {
     use super::{CDSPricer, CDSPricerConfig, CdsHazardRepriceCache};
-    use crate::constants::ONE_BASIS_POINT;
     use crate::instruments::common_impl::traits::Instrument;
     use crate::instruments::credit_derivatives::cds::{
         CdsConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive,
@@ -674,10 +673,7 @@ mod cds_hazard_reprice_cache_tests {
         let base_full = cds.value(market, as_of)?.amount();
         assert_npv_matches(base_cached, base_full, "base hazard");
 
-        let bumped_hazard = hazard
-            .with_parallel_bump(ONE_BASIS_POINT)?
-            .to_builder_with_id(hazard.id().clone())
-            .build()?;
+        let bumped_hazard = hazard.with_parallel_hazard_rate_bump_bp(1.0)?;
         let mut bumped_market = market.clone();
         bumped_market.insert_mut(bumped_hazard.clone());
         let bumped_cached = cache.npv(&bumped_hazard)?;

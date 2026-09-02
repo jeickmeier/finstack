@@ -556,7 +556,6 @@ mod tests {
     use super::*;
     use crate::currency::Currency;
     use crate::dates::create_date;
-    use crate::market_data::traits::TermStructure;
     use crate::types::CurveId;
     use time::Month;
 
@@ -619,13 +618,11 @@ mod tests {
         id: CurveId,
     }
 
-    impl TermStructure for ZeroRateCurve {
+    impl Discounting for ZeroRateCurve {
         fn id(&self) -> &CurveId {
             &self.id
         }
-    }
 
-    impl Discounting for ZeroRateCurve {
         fn base_date(&self) -> Date {
             Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date")
         }
@@ -638,23 +635,15 @@ mod tests {
         id: CurveId,
     }
 
-    impl TermStructure for InvalidBaseDfCurve {
-        fn id(&self) -> &CurveId {
-            &self.id
-        }
-    }
-
     struct InvalidFlowDfCurve {
         id: CurveId,
     }
 
-    impl TermStructure for InvalidFlowDfCurve {
+    impl Discounting for InvalidFlowDfCurve {
         fn id(&self) -> &CurveId {
             &self.id
         }
-    }
 
-    impl Discounting for InvalidFlowDfCurve {
         fn base_date(&self) -> Date {
             Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date")
         }
@@ -668,6 +657,10 @@ mod tests {
     }
 
     impl Discounting for InvalidBaseDfCurve {
+        fn id(&self) -> &CurveId {
+            &self.id
+        }
+
         fn base_date(&self) -> Date {
             Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date")
         }

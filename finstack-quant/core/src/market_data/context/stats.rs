@@ -65,25 +65,8 @@ impl MarketContext {
             .iter()
             .filter(move |(_, storage)| storage.curve_type() == curve_type)
     }
-
-    /// Count curves grouped by type string.
-    ///
-    /// # Examples
-    /// ```rust
-    /// # use finstack_quant_core::market_data::context::MarketContext;
-    /// # use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    /// # use finstack_quant_core::dates::Date;
-    /// # use time::Month;
-    /// # let curve = DiscountCurve::builder("USD-OIS")
-    /// #     .base_date(Date::from_calendar_date(2024, Month::January, 1).expect("Valid date"))
-    /// #     .knots([(0.0, 1.0), (1.0, 0.99)])
-    /// #     .build()
-    /// #     .expect("... builder should succeed");
-    /// # let ctx = MarketContext::new().insert(curve);
-    /// let counts = ctx.count_by_type();
-    /// assert_eq!(counts.get("Discount"), Some(&1));
-    /// ```
-    pub fn count_by_type(&self) -> BTreeMap<&'static str, usize> {
+    /// Curve counts keyed by curve type, feeding [`ContextStats::curve_counts`].
+    fn count_by_type(&self) -> BTreeMap<&'static str, usize> {
         let mut counts = BTreeMap::new();
         for storage in self.curves.values() {
             *counts.entry(storage.curve_type()).or_insert(0) += 1;
@@ -144,20 +127,6 @@ impl MarketContext {
             && self.fx_delta_vol_surfaces.is_empty()
             && self.collateral.is_empty()
     }
-
-    /// Get total number of objects
-    pub fn total_objects(&self) -> usize {
-        self.curves.len()
-            + self.surfaces.len()
-            + self.vol_cubes.len()
-            + self.prices.len()
-            + self.series.len()
-            + self.inflation_indices.len()
-            + self.credit_indices.len()
-            + self.fx_delta_vol_surfaces.len()
-            + if self.fx.is_some() { 1 } else { 0 }
-    }
-
     // Iterators for Market Scalars (P&L Attribution Support)
 
     /// Iterate over all market prices/scalars.

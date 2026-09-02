@@ -333,9 +333,7 @@ impl ScalarTimeSeries {
 
     /// Resolve a single query day under this series' interpolation mode.
     ///
-    /// This is the allocation-free single-point path. It shares its per-point
-    /// arms with [`Self::values_on_days`], so batch and scalar lookups cannot
-    /// drift apart.
+    /// This is the allocation-free single-point path.
     fn value_at_day(&self, query_day: i32) -> Result<f64> {
         let date_vec = self.data.dates();
         let value_vec = self.data.values();
@@ -426,70 +424,6 @@ impl ScalarTimeSeries {
             })),
         }
     }
-
-    /// Retrieve values for multiple dates at once.
-    ///
-    /// The returned vector is aligned with the input order. Step interpolation
-    /// carries the last observation forward while Linear blends between
-    /// neighboring observations.
-    pub fn values_on(&self, dates: &[Date]) -> Result<Vec<f64>> {
-        let query_days: Vec<i32> = dates.iter().map(|&d| to_days(d)).collect();
-        self.values_on_days(&query_days)
-    }
-
-    /// Internal vectorized lookup using days since epoch.
-    fn values_on_days(&self, query_days: &[i32]) -> Result<Vec<f64>> {
-        if query_days.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Access storage arrays directly
-        let date_vec = self.data.dates();
-        let value_vec = self.data.values();
-
-        // Vectorized interpolation with optimized branch prediction
-        match self.interpolation {
-            SeriesInterpolation::Step => {
-                self.vectorized_step_interpolation(date_vec, value_vec, query_days)
-            }
-            SeriesInterpolation::Linear => {
-                self.vectorized_linear_interpolation(date_vec, value_vec, query_days)
-            }
-        }
-    }
-
-    /// Optimized step interpolation for multiple query points.
-    fn vectorized_step_interpolation(
-        &self,
-        date_vec: &[i32],
-        value_vec: &[f64],
-        query_days: &[i32],
-    ) -> Result<Vec<f64>> {
-        let mut result = Vec::with_capacity(query_days.len());
-
-        for &query_day in query_days {
-            result.push(self.step_value_at_day(date_vec, value_vec, query_day)?);
-        }
-
-        Ok(result)
-    }
-
-    /// Optimized linear interpolation for multiple query points.
-    fn vectorized_linear_interpolation(
-        &self,
-        date_vec: &[i32],
-        value_vec: &[f64],
-        query_days: &[i32],
-    ) -> Result<Vec<f64>> {
-        let mut result = Vec::with_capacity(query_days.len());
-
-        for &query_day in query_days {
-            result.push(self.linear_value_at_day(date_vec, value_vec, query_day)?);
-        }
-
-        Ok(result)
-    }
-
     /// Get observations as (Date, value) pairs.
     ///
     /// Returns all stored observations in chronological order.

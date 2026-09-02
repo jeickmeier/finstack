@@ -62,21 +62,19 @@ fn sample_fx_matrix() -> FxMatrix {
 #[test]
 fn curve_storage_helpers() {
     let discount = CurveStorage::Discount(Arc::new(sample_discount_curve("USD-OIS")));
-    assert!(discount.is_discount());
     assert_eq!(discount.curve_type(), "Discount");
 
     let forward = CurveStorage::Forward(Arc::new(sample_forward_curve("USD-LIBOR")));
-    assert!(forward.is_forward());
     assert_eq!(forward.curve_type(), "Forward");
 
     let hazard = CurveStorage::Hazard(Arc::new(sample_hazard_curve("CDX")));
-    assert!(hazard.is_hazard());
+    assert_eq!(hazard.curve_type(), "Hazard");
 
     let inflation = CurveStorage::Inflation(Arc::new(sample_inflation_curve("USD-CPI")));
-    assert!(inflation.is_inflation());
+    assert_eq!(inflation.curve_type(), "Inflation");
 
     let base_corr = CurveStorage::BaseCorrelation(Arc::new(sample_base_correlation_curve("CDX")));
-    assert!(base_corr.is_base_correlation());
+    assert_eq!(base_corr.curve_type(), "BaseCorrelation");
 }
 
 #[test]
@@ -229,9 +227,6 @@ fn market_context_manages_fx_and_scalars() {
 
     let ids: Vec<_> = ctx.curve_ids().map(|c| c.as_str().to_string()).collect();
     assert!(ids.contains(&"USD-OIS".to_string()));
-
-    let counts = ctx.count_by_type();
-    assert_eq!(counts.get(&"Discount"), Some(&1));
 }
 
 #[test]
@@ -375,36 +370,6 @@ fn market_context_roll_forward_keeps_credit_index_curves_consistent() {
         "credit index bundle should stay aligned with rolled hazard curve"
     );
 }
-
-#[test]
-fn update_base_correlation_curve_keeps_direct_lookup_in_sync() {
-    let original_curve = sample_base_correlation_curve("CDX-BC");
-    let hazard = sample_hazard_curve("CDX");
-    let credit_index = CreditIndexData::builder()
-        .num_constituents(125)
-        .recovery_rate(0.4)
-        .index_credit_curve(Arc::new(hazard.clone()))
-        .base_correlation_curve(Arc::new(original_curve.clone()))
-        .build()
-        .unwrap();
-
-    let mut ctx = MarketContext::new()
-        .insert(hazard)
-        .insert(original_curve)
-        .insert_credit_index("CDX-IG", credit_index);
-
-    let updated_curve = Arc::new(
-        finstack_quant_core::market_data::term_structures::BaseCorrelationCurve::builder("CDX-BC")
-            .knots([(3.0, 0.30), (7.0, 0.45), (10.0, 0.60)])
-            .build()
-            .unwrap(),
-    );
-
-    assert!(ctx.update_base_correlation_curve("CDX-IG", Arc::clone(&updated_curve)));
-    let direct_curve = ctx.get_base_correlation("CDX-BC").unwrap();
-    assert!((direct_curve.correlation(7.0) - 0.45).abs() < 1e-12);
-}
-
 #[test]
 fn generic_curve_replace_rebinds_credit_index_dependencies() {
     let original_hazard = sample_hazard_curve("CDX");
@@ -536,9 +501,6 @@ fn market_context_handles_additional_introspection() {
     assert!(!ctx.is_empty());
     assert!(ctx.curve("USD-OIS").is_some());
 
-    let counts = ctx.count_by_type();
-    assert_eq!(counts.get("Discount"), Some(&1));
-
     let collected: Vec<_> = ctx.curves_of_type("Discount").collect();
     assert_eq!(collected.len(), 1);
 
@@ -559,21 +521,10 @@ fn market_context_update_and_bump_failures() {
         .build()
         .unwrap();
 
-    let mut ctx = MarketContext::new()
+    let ctx = MarketContext::new()
         .insert(hazard.as_ref().clone())
         .insert(base_corr.as_ref().clone())
         .insert_credit_index("CDX", credit_index);
-    let new_curve = Arc::new(sample_base_correlation_curve("CDX-NEW"));
-    assert!(ctx.update_base_correlation_curve("CDX", Arc::clone(&new_curve)));
-    assert_eq!(
-        ctx.get_credit_index("CDX")
-            .unwrap()
-            .base_correlation_curve
-            .id(),
-        new_curve.id()
-    );
-    assert!(!ctx.update_base_correlation_curve("UNKNOWN", new_curve));
-
     assert!(ctx
         .bump([MarketBump::Curve {
             id: CurveId::new("MISSING"),
@@ -608,7 +559,7 @@ fn market_context_observed_mutations_report_credit_index_rebind_status() {
         .expect("base-correlation bump should succeed");
 
     assert!(
-        !info.has_invalidations(),
+        info.invalidated_credit_indices.is_empty(),
         "same-type base-correlation bump should rebind without invalidating indices"
     );
     assert!(bumped.get_credit_index("CDX-IG").is_ok());
@@ -627,7 +578,7 @@ fn market_context_roll_forward_observed_propagates_errors_and_metadata() {
         .roll_forward_observed(30)
         .expect("short roll should succeed");
 
-    assert!(!info.has_invalidations());
+    assert!(info.invalidated_credit_indices.is_empty());
     assert!(rolled.get_discount("USD-OIS").is_ok());
 
     let sparse =
@@ -767,7 +718,6 @@ fn market_context_collateral_and_stats() {
         .map_collateral("USD-CSA", CurveId::from("USD-OIS"));
 
     assert!(!ctx.is_empty());
-    assert_eq!(ctx.total_objects(), 1);
 
     let stats = ctx.stats();
     assert_eq!(stats.total_curves, 1);
@@ -883,8 +833,8 @@ fn market_context_roll_forward_preserves_ids_and_clones_non_curves() {
     assert!(rolled.get_price("EQ-SPOT").is_ok());
     assert!(rolled.get_collateral("USD-CSA").is_ok());
 
-    // Total object count should be unchanged across roll
-    assert_eq!(rolled.total_objects(), ctx.total_objects());
+    // Curve count should be unchanged across roll
+    assert_eq!(rolled.stats().total_curves, ctx.stats().total_curves);
 }
 
 #[test]
@@ -1168,7 +1118,7 @@ fn market_context_bump_more_curve_types_and_error_paths() {
             },
             MarketBump::Curve {
                 id: CurveId::from("CDX-BC"),
-                spec: BumpSpec::correlation_shift_pct(10.0),
+                spec: BumpSpec::inflation_shift_pct(10.0),
             },
         ])
         .unwrap();

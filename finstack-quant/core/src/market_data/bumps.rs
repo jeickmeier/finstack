@@ -110,35 +110,6 @@ pub enum BumpUnits {
     /// Direct factor (1.10 = +10%). Only valid for Multiplicative mode.
     Factor,
 }
-
-impl core::fmt::Display for BumpUnits {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::RateBp => write!(f, "rate_bp"),
-            Self::Percent => write!(f, "percent"),
-            Self::Fraction => write!(f, "fraction"),
-            Self::Factor => write!(f, "factor"),
-        }
-    }
-}
-
-impl core::str::FromStr for BumpUnits {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "rate_bp" => Ok(Self::RateBp),
-            "percent" => Ok(Self::Percent),
-            "fraction" => Ok(Self::Fraction),
-            "factor" => Ok(Self::Factor),
-            other => Err(format!(
-                "Unknown bump units: '{}'. Valid: rate_bp, percent, fraction, factor",
-                other
-            )),
-        }
-    }
-}
-
 /// Unified bump specification capturing mode, units, and value.
 ///
 /// # Examples
@@ -348,17 +319,6 @@ impl BumpSpec {
             bump_type: BumpType::Parallel,
         }
     }
-
-    /// Create an additive correlation shift specified in percent (e.g., 10.0 = +10%).
-    pub fn correlation_shift_pct(bump_pct: f64) -> Self {
-        Self {
-            mode: BumpMode::Additive,
-            units: BumpUnits::Percent,
-            value: bump_pct,
-            bump_type: BumpType::Parallel,
-        }
-    }
-
     /// If additive, return the bump as a normalized fraction (e.g., 100bp -> 0.01, 2% -> 0.02).
     ///
     /// Ensures the bump type is parallel before a product applies it. This
@@ -582,26 +542,11 @@ impl Bumpable for ForwardCurve {
 
         match spec.bump_type {
             BumpType::Parallel => {
-                let (bump_amount, is_multiplicative) = spec.resolve_standard_values_or_error(
+                spec.resolve_standard_values_or_error(
                     "ForwardCurve parallel bump requires",
                     "Additive/{RateBp,Percent,Fraction} or Multiplicative/Factor",
                 )?;
-
-                let bumped_id = spec.standard_bump_id(self.id());
-
-                let mut bumped_rates = Vec::with_capacity(self.knots().len());
-                for (&t, &r) in self.knots().iter().zip(self.forwards().iter()) {
-                    let new_rate = if is_multiplicative {
-                        r * bump_amount
-                    } else {
-                        r + bump_amount
-                    };
-                    bumped_rates.push((t, new_rate));
-                }
-
-                // Thread the full metadata (rate_calibration, fx_policy, …)
-                // via the shared metadata builder.
-                self.metadata_builder(bumped_id).knots(bumped_rates).build()
+                self.bumped_with_id(spec.standard_bump_id(self.id()), &spec)
             }
             BumpType::TriangularKeyRate {
                 prev_bucket,
@@ -632,72 +577,17 @@ impl Bumpable for ForwardCurve {
 
 impl Bumpable for HazardCurve {
     fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self> {
-        use crate::error::InputError;
-
         spec.validate_parallel("HazardCurve")?;
-
-        // Recovery must be within [0, 1) for par spread ⇢ hazard conversions
-        let recovery = self.recovery_rate();
-        if !recovery.is_finite() || !(0.0..1.0).contains(&recovery) {
-            return Err(InputError::UnsupportedBump {
-                reason: format!(
-                    "HazardCurve bump requires recovery rate in [0, 1), got {}",
-                    recovery
-                ),
-            }
-            .into());
-        }
-
-        // Interpret RateBp/Percent as **par spread** shocks; convert to hazard using 1/(1 - recovery).
-        let (spread, is_multiplicative) = spec.resolve_standard_values_or_error(
+        spec.resolve_standard_values_or_error(
             "HazardCurve",
             "only supports Additive/{RateBp,Percent,Fraction} bumps",
         )?;
 
-        if is_multiplicative {
-            return Err(InputError::UnsupportedBump {
-                reason: "HazardCurve does not support Multiplicative bumps".to_string(),
-            }
-            .into());
-        }
-
-        let shift = spread / (1.0 - recovery);
-
-        let bumped_id = spec.hazard_shift_id(self.id());
-
-        // Reject bumps that would drive any hazard rate negative. This matches
-        // `HazardCurve::bump_in_place` so two-sided risk runs (e.g. CS01) fail
-        // loudly instead of producing a silently asymmetric down-bump from a
-        // clamped curve.
-        let knot_points = self.knot_points();
-        let mut shifted_points = Vec::with_capacity(knot_points.size_hint().0);
-        for (t, lambda) in knot_points {
-            let shifted = lambda + shift;
-            if shifted < 0.0 {
-                return Err(InputError::UnsupportedBump {
-                    reason: format!(
-                        "negative hazard rate after bump on curve '{}' at t={} (lambda={}, shift={})",
-                        self.id(),
-                        t,
-                        lambda,
-                        shift
-                    ),
-                }
-                .into());
-            }
-            shifted_points.push((t, shifted));
-        }
-
-        // Rebuild with the bumped ID, preserving the FULL metadata (issuer,
-        // seniority, currency, day-count, par/survival interp styles,
-        // fx_policy) via the shared metadata builder. The stored par-spread
-        // quotes are intentionally NOT carried over: they were calibrated to
-        // the unbumped hazards and would make `cds_quote_bp` report stale
-        // quotes. With no stored quotes, `cds_quote_bp` falls back to the
-        // hazard-based approximation λ·(1−R)·1e4, which reflects the bump.
-        self.metadata_builder(bumped_id)
-            .knots(shifted_points)
-            .build()
+        // `bump_in_place` interprets RateBp/Percent as **par spread** shocks
+        // (converted to hazard via 1/(1 - recovery)), rejects bumps that would
+        // drive a hazard rate negative, and drops the stored par-spread quotes
+        // that were calibrated to the unbumped hazards.
+        self.bumped_with_id(spec.hazard_shift_id(self.id()), &spec)
     }
 }
 
