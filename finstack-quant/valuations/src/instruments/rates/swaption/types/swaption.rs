@@ -486,15 +486,6 @@ impl Swaption {
         self.underlying_irs_with_float(fixed_rate, side, self.underlying_float_leg.clone())
     }
 
-    fn underlying_irs_for_market(
-        &self,
-        fixed_rate: f64,
-        side: PayReceive,
-        _curves: &MarketContext,
-    ) -> Result<InterestRateSwap> {
-        self.underlying_irs_with_float(fixed_rate, side, self.underlying_float_leg.clone())
-    }
-
     fn underlying_irs_with_float(
         &self,
         fixed_rate: f64,
@@ -817,20 +808,34 @@ impl Swaption {
     ///   own base_date and day_count (not the instrument's day_count).
     /// - Accrual fractions use the instrument's day_count (correct for coupon calculation).
     pub fn swap_annuity(&self, disc: &dyn Discounting, as_of: Date) -> Result<f64> {
-        use crate::instruments::common_impl::pricing::time::relative_df_discounting;
-        use finstack_quant_core::math::NeumaierAccumulator;
+        let periods = self.fixed_schedule_periods()?;
+        crate::instruments::rates::irs::cashflow::fixed_leg_annuity(&periods, disc, as_of, as_of)
+    }
 
-        let underlier = self.underlying_irs(1.0, PayReceive::Receive)?;
-        let sched = crate::instruments::rates::irs::cashflow::fixed_leg_schedule(&underlier)?;
-        let mut annuity = NeumaierAccumulator::new();
-        for flow in sched.get_flows() {
-            if flow.date <= as_of {
-                continue;
-            }
-            let df = relative_df_discounting(disc, as_of, flow.date)?;
-            annuity.add(flow.amount.amount() / self.notional.amount() * df);
-        }
-        Ok(annuity.total())
+    /// Accrual periods of the underlying fixed leg.
+    fn fixed_schedule_periods(
+        &self,
+    ) -> Result<Vec<crate::cashflow::builder::periods::SchedulePeriod>> {
+        let fixed = &self.underlying_fixed_leg;
+        crate::cashflow::builder::periods::build_periods(
+            crate::cashflow::builder::periods::BuildPeriodsParams {
+                start: fixed.start,
+                end: fixed.end,
+                frequency: fixed.frequency,
+                stub: fixed.stub,
+                business_day_convention: fixed.business_day_convention,
+                calendar_id: fixed
+                    .calendar_id
+                    .as_deref()
+                    .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
+                end_of_month: fixed.end_of_month,
+                day_count: fixed.day_count,
+                payment_lag_days: fixed.payment_lag_days,
+                reset_lag_days: None,
+                adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
+            },
+        )
     }
 
     /// Cash settlement annuity using par yield approximation.
@@ -954,7 +959,7 @@ impl Swaption {
             return self.single_curve_forward_from_float_schedule(disc.as_ref(), as_of, annuity);
         }
 
-        let underlier = self.underlying_irs_for_market(0.0, PayReceive::Receive, curves)?;
+        let underlier = self.underlying_irs(0.0, PayReceive::Receive)?;
         let pv_float = underlier.pv_float_leg(curves, as_of)?;
         Ok(pv_float / (self.notional.amount() * annuity))
     }
@@ -964,53 +969,12 @@ impl Swaption {
         disc: &dyn Discounting,
         as_of: Date,
     ) -> Result<f64> {
-        use crate::cashflow::builder::periods::{build_periods, BuildPeriodsParams};
-        use crate::instruments::common_impl::pricing::time::relative_df_discounting;
-        use finstack_quant_core::math::NeumaierAccumulator;
-
-        let fixed = self.underlying_fixed_leg_with_rate(Decimal::ONE);
-        let periods = build_periods(BuildPeriodsParams {
-            start: fixed.start,
-            end: fixed.end,
-            frequency: fixed.frequency,
-            stub: fixed.stub,
-            business_day_convention: fixed.business_day_convention,
-            calendar_id: fixed
-                .calendar_id
-                .as_deref()
-                .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
-            end_of_month: fixed.end_of_month,
-            day_count: fixed.day_count,
-            payment_lag_days: fixed.payment_lag_days,
-            reset_lag_days: None,
-            adjust_accrual_dates: false,
-            roll_rule: crate::cashflow::builder::specs::RollRule::None,
-        })?;
-
-        let mut forward_leg = NeumaierAccumulator::new();
-        let mut annuity = NeumaierAccumulator::new();
-        for period in periods {
-            if period.payment_date <= as_of {
-                continue;
-            }
-            let tau = period.accrual_year_fraction;
-            if tau.abs() <= f64::EPSILON {
-                continue;
-            }
-
-            let df_start = relative_df_discounting(disc, as_of, period.accrual_start)?;
-            let df_end = relative_df_discounting(disc, as_of, period.accrual_end)?;
-            let df_pay = relative_df_discounting(disc, as_of, period.payment_date)?;
-            let forward = (df_start / df_end - 1.0) / tau;
-            forward_leg.add(tau * forward * df_pay);
-            annuity.add(tau * df_pay);
-        }
-
-        let annuity = annuity.total();
+        let periods = self.fixed_schedule_periods()?;
+        let (float_pv, annuity) = single_curve_float_leg_pv(disc, as_of, &periods, 0.0)?;
         if annuity.abs() < 1e-10 {
             return Ok(0.0);
         }
-        Ok(forward_leg.total() / annuity)
+        Ok(float_pv / annuity)
     }
 
     fn single_curve_forward_from_float_schedule(
@@ -1021,8 +985,6 @@ impl Swaption {
     ) -> Result<f64> {
         use crate::cashflow::builder::periods::{build_periods, BuildPeriodsParams};
         use crate::instruments::common_impl::numeric::decimal_to_f64;
-        use crate::instruments::common_impl::pricing::time::relative_df_discounting;
-        use finstack_quant_core::math::NeumaierAccumulator;
 
         let float = &self.underlying_float_leg;
         let periods = build_periods(BuildPeriodsParams {
@@ -1043,21 +1005,8 @@ impl Swaption {
             roll_rule: crate::cashflow::builder::specs::RollRule::None,
         })?;
         let spread = decimal_to_f64(float.spread_bp, "swaption underlier spread_bp")? / 10_000.0;
-        let mut float_leg_pv = NeumaierAccumulator::new();
-        for period in periods {
-            if period.payment_date <= as_of {
-                continue;
-            }
-            let tau = period.accrual_year_fraction;
-            if tau.abs() <= f64::EPSILON {
-                continue;
-            }
-            let df_start = relative_df_discounting(disc, as_of, period.accrual_start)?;
-            let df_end = relative_df_discounting(disc, as_of, period.accrual_end)?;
-            let df_pay = relative_df_discounting(disc, as_of, period.payment_date)?;
-            float_leg_pv.add((df_start / df_end - 1.0 + spread * tau) * df_pay);
-        }
-        Ok(float_leg_pv.total() / fixed_annuity)
+        let (float_pv, _) = single_curve_float_leg_pv(disc, as_of, &periods, spread)?;
+        Ok(float_pv / fixed_annuity)
     }
 
     /// Resolve volatility from SABR parameters, pricing override, or volatility surface.
@@ -1150,6 +1099,45 @@ impl Swaption {
             time_to_expiry: t,
         }))
     }
+}
+
+/// Single-curve floating-leg PV per unit notional and the fixed-style annuity
+/// over the same periods, from discount-factor telescoping:
+/// `Σ (DF(start)/DF(end) − 1 + spread·τ) · DF(pay)` and `Σ τ · DF(pay)`.
+///
+/// # Arguments
+///
+/// * `disc` - Discount curve used for both projection and discounting.
+/// * `as_of` - Valuation date.
+/// * `periods` - Accrual periods; those paid on or before `as_of` or with a
+///   zero accrual fraction are skipped.
+/// * `spread` - Floating spread as a decimal added to each period's forward.
+fn single_curve_float_leg_pv(
+    disc: &dyn Discounting,
+    as_of: Date,
+    periods: &[crate::cashflow::builder::periods::SchedulePeriod],
+    spread: f64,
+) -> Result<(f64, f64)> {
+    use crate::instruments::common_impl::pricing::time::relative_df_discounting;
+    use finstack_quant_core::math::NeumaierAccumulator;
+
+    let mut float_leg = NeumaierAccumulator::new();
+    let mut annuity = NeumaierAccumulator::new();
+    for period in periods {
+        if period.payment_date <= as_of {
+            continue;
+        }
+        let tau = period.accrual_year_fraction;
+        if tau.abs() <= f64::EPSILON {
+            continue;
+        }
+        let df_start = relative_df_discounting(disc, as_of, period.accrual_start)?;
+        let df_end = relative_df_discounting(disc, as_of, period.accrual_end)?;
+        let df_pay = relative_df_discounting(disc, as_of, period.payment_date)?;
+        float_leg.add((df_start / df_end - 1.0 + spread * tau) * df_pay);
+        annuity.add(tau * df_pay);
+    }
+    Ok((float_leg.total(), annuity.total()))
 }
 
 /// Pre-computed inputs for Greek calculations.

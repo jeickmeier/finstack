@@ -478,6 +478,35 @@ pub(crate) fn full_signed_schedule_with_curves_as_of(
     ))
 }
 
+/// Fixed-leg annuity `Σ τᵢ · DF(as_of, payᵢ)` over the periods paid strictly
+/// after `paid_after`, using curve-consistent relative discount factors and
+/// Neumaier-compensated summation.
+///
+/// # Arguments
+///
+/// * `periods` - Fixed-leg accrual periods.
+/// * `disc` - Discount curve providing `DF(as_of, payment_date)`.
+/// * `as_of` - Valuation date the discount factors are relative to.
+/// * `paid_after` - Only periods with `payment_date > paid_after` contribute
+///   (the valuation date for a spot annuity, the exercise date for a forward one).
+pub(crate) fn fixed_leg_annuity(
+    periods: &[crate::cashflow::builder::periods::SchedulePeriod],
+    disc: &dyn finstack_quant_core::market_data::traits::Discounting,
+    as_of: finstack_quant_core::dates::Date,
+    paid_after: finstack_quant_core::dates::Date,
+) -> Result<f64> {
+    use crate::instruments::common_impl::pricing::time::relative_df_discounting;
+    let mut annuity = finstack_quant_core::math::NeumaierAccumulator::new();
+    for period in periods {
+        if period.payment_date <= paid_after {
+            continue;
+        }
+        let df = relative_df_discounting(disc, as_of, period.payment_date)?;
+        annuity.add(period.accrual_year_fraction * df);
+    }
+    Ok(annuity.total())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

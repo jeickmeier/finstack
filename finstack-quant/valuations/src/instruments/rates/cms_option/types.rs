@@ -7,7 +7,7 @@ use crate::instruments::rates::cms_common::CmsReferenceSwap;
 use crate::instruments::OptionType;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId, Rate};
+use finstack_quant_core::types::{CurveId, InstrumentId};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 
@@ -153,114 +153,6 @@ impl CmsOption {
             .ok_or(finstack_quant_core::InputError::ConversionOverflow.into())
     }
 
-    /// Override the fixed leg frequency of the underlying swap.
-    pub fn with_swap_fixed_frequency(mut self, frequency: Tenor) -> Self {
-        self.swap_fixed_frequency = Some(frequency);
-        self
-    }
-
-    /// Override the floating leg frequency of the underlying swap.
-    pub fn with_swap_float_frequency(mut self, frequency: Tenor) -> Self {
-        self.swap_float_frequency = Some(frequency);
-        self
-    }
-
-    /// Override the fixed leg day count of the underlying swap.
-    pub fn with_swap_day_count(mut self, day_count: DayCount) -> Self {
-        self.swap_day_count = Some(day_count);
-        self
-    }
-
-    /// Override the floating leg day count of the underlying swap.
-    pub fn with_swap_float_day_count(mut self, day_count: DayCount) -> Self {
-        self.swap_float_day_count = Some(day_count);
-        self
-    }
-
-    /// Create a CMS option from a schedule specification.
-    ///
-    /// Generates fixing and payment dates from `start_date`, `maturity`, and `frequency`
-    /// using the calendar and reset lag from `swap_convention`.
-    /// This is the preferred way to construct standard CMS cap/floor instruments.
-    ///
-    /// Swap convention fields (`swap_fixed_frequency`, `swap_float_frequency`, `swap_day_count`)
-    /// are provided via `swap_convention`. Set individual fields to override the convention.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the generated schedule is empty (e.g. `maturity <= start_date`).
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_schedule(
-        id: impl Into<InstrumentId>,
-        start_date: Date,
-        maturity: Date,
-        frequency: Tenor,
-        cms_tenor: f64,
-        strike: Decimal,
-        option_type: OptionType,
-        notional: finstack_quant_core::money::Money,
-        day_count: finstack_quant_core::dates::DayCount,
-        swap_convention: IRSConvention,
-        discount_curve_id: impl Into<CurveId>,
-        forward_curve_id: impl Into<CurveId>,
-        vol_surface_id: impl Into<CurveId>,
-    ) -> finstack_quant_core::Result<Self> {
-        use crate::cashflow::builder::periods::{build_periods, BuildPeriodsParams};
-        use finstack_quant_core::dates::{BusinessDayConvention, StubKind};
-
-        let calendar_id = swap_convention.calendar_id().ok_or_else(|| {
-            finstack_quant_core::Error::Validation(
-                "CMS option convention has no reference calendar".to_string(),
-            )
-        })?;
-        let reset_lag_days = swap_convention.reset_lag_days();
-
-        let periods = build_periods(BuildPeriodsParams {
-            start: start_date,
-            end: maturity,
-            frequency,
-            stub: StubKind::ShortFront,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: &calendar_id,
-            end_of_month: false,
-            day_count,
-            payment_lag_days: 0,
-            reset_lag_days: Some(reset_lag_days),
-            adjust_accrual_dates: false,
-            roll_rule: crate::cashflow::builder::specs::RollRule::None,
-        })?;
-
-        if periods.is_empty() {
-            return Err(finstack_quant_core::Error::Input(
-                finstack_quant_core::InputError::Invalid,
-            ));
-        }
-
-        let fixing_dates: Vec<Date> = periods
-            .iter()
-            .map(|p| p.reset_date.unwrap_or(p.accrual_start))
-            .collect();
-        let payment_dates: Vec<Date> = periods.iter().map(|p| p.payment_date).collect();
-        let accrual_fractions: Vec<f64> = periods.iter().map(|p| p.accrual_year_fraction).collect();
-
-        CmsOption::builder()
-            .id(id.into())
-            .strike(strike)
-            .cms_tenor(cms_tenor)
-            .fixing_dates(fixing_dates)
-            .payment_dates(payment_dates)
-            .accrual_fractions(accrual_fractions)
-            .option_type(option_type)
-            .notional(notional)
-            .day_count(day_count)
-            .swap_convention_opt(Some(swap_convention))
-            .discount_curve_id(discount_curve_id.into())
-            .forward_curve_id(forward_curve_id.into())
-            .vol_surface_id(vol_surface_id.into())
-            .build()
-            .map_err(|e| finstack_quant_core::Error::Validation(e.to_string()))
-    }
-
     /// Create a canonical example CMS option (10Y CMS caplet style).
     #[allow(clippy::expect_used)] // Example uses hardcoded valid values
     pub fn example() -> Self {
@@ -299,14 +191,6 @@ impl CmsOption {
             .attributes(Attributes::new())
             .build()
             .expect("Example CmsOption construction should not fail")
-    }
-}
-
-impl CmsOptionBuilder {
-    /// Set the strike using a typed rate.
-    pub fn strike_rate(mut self, rate: Rate) -> Self {
-        self.strike = Decimal::try_from(rate.as_decimal()).ok();
-        self
     }
 }
 

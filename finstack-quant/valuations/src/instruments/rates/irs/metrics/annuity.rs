@@ -48,7 +48,6 @@
 
 use crate::instruments::InterestRateSwap;
 use crate::metrics::{MetricCalculator, MetricContext};
-use finstack_quant_core::math::kahan_sum;
 
 /// Fixed-leg annuity calculator for interest rate swaps.
 ///
@@ -94,36 +93,15 @@ impl MetricCalculator for AnnuityCalculator {
             return Ok(0.0);
         }
 
-        // Collect terms for Kahan summation to ensure numerical stability
-        // for long-dated swaps with many periods (30Y+ = 120+ quarterly payments)
-        let mut terms = Vec::with_capacity(periods.len());
-        for period in periods {
-            // Only include cashflows where the payment has not yet settled
-            if period.payment_date <= as_of {
-                continue;
-            }
-
-            // Use shared helper - handles epsilon validation and relative DF calculation
-            let df = crate::instruments::common_impl::pricing::time::relative_df_discount_curve(
-                &disc,
-                as_of,
-                period.payment_date,
-            )?;
-
-            // For IRS fixed legs we always treat coupons as simple interest; the
-            // compounding configuration affects coupon accrual, not the annuity
-            // weight, so the annuity is just sum(alpha * DF).
-            terms.push(period.accrual_year_fraction * df);
-        }
-
-        // Use Kahan compensated summation for numerical stability
-        // This is critical for 30Y swaps where naive summation can accumulate
-        // significant floating-point errors across 120+ periods
-        let annuity = kahan_sum(terms);
-
-        // Return annuity in dollar terms
-        // Note: Just return sum(yf * df) without scaling - the raw sum is what's needed
-        // for par rate calculations and other metrics
-        Ok(annuity)
+        // For IRS fixed legs we always treat coupons as simple interest; the
+        // compounding configuration affects coupon accrual, not the annuity
+        // weight, so the annuity is just Σ α·DF over unsettled payments
+        // (compensated summation for long-dated swaps).
+        crate::instruments::rates::irs::cashflow::fixed_leg_annuity(
+            &periods,
+            disc.as_ref(),
+            as_of,
+            as_of,
+        )
     }
 }

@@ -168,6 +168,17 @@ impl CmsSwapPricer {
     }
 }
 
+impl crate::instruments::rates::cms_common::CmsConvexityPricing for CmsSwap {
+    fn pv_with_convexity_scale(
+        &self,
+        market: &MarketContext,
+        as_of: Date,
+        convexity_scale: f64,
+    ) -> Result<Money> {
+        CmsSwapPricer::new().price_internal_with_convexity(self, market, as_of, convexity_scale)
+    }
+}
+
 impl Default for CmsSwapPricer {
     fn default() -> Self {
         Self::new()

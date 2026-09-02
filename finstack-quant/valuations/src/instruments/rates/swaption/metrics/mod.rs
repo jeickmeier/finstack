@@ -12,7 +12,7 @@ mod vega;
 
 pub(crate) use bermudan_greeks::{
     BermudanDeltaCalculator, BermudanGammaCalculator, BermudanVegaCalculator,
-    ExerciseProbabilityCalculator,
+    ExerciseProbabilityCalculator, HwGreekParams,
 };
 pub(crate) use delta::DeltaCalculator;
 pub(crate) use gamma::GammaCalculator;
@@ -75,21 +75,28 @@ pub(crate) fn register_bermudan_swaption_metrics(
     hw_params: finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams,
 ) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
+    let hw = HwGreekParams::from_calibration(hw_params);
     crate::register_metrics! {
         registry: registry,
         instrument: InstrumentType::BermudanSwaption,
         metrics: [
-            (Delta, BermudanDeltaCalculator::new()
-                .with_hw_params(hw_params.kappa, hw_params.sigma)),
-            (Gamma, BermudanGammaCalculator::new()
-                .with_hw_params(hw_params.kappa, hw_params.sigma)),
+            (Delta, BermudanDeltaCalculator {
+                bump_bp: bermudan_greeks::DEFAULT_RATE_BUMP_BP,
+                hw,
+            }),
+            (Gamma, BermudanGammaCalculator {
+                bump_bp: bermudan_greeks::DEFAULT_GAMMA_BUMP_BP,
+                hw,
+            }),
             // Registered under `HwSigmaVega`, NOT `Vega`: this is a Hull-White
             // short-rate σ bump (a model-parameter vega) and lives on a
             // different vol axis than the Black-vol `Vega` reported for
             // European swaptions. Sharing the `vega` key would silently mix
             // incomparable units in cross-instrument aggregation.
-            (HwSigmaVega, BermudanVegaCalculator::new()
-                .with_hw_params(hw_params.kappa, hw_params.sigma))
+            (HwSigmaVega, BermudanVegaCalculator {
+                bump_pct: bermudan_greeks::DEFAULT_VOL_BUMP_PCT,
+                hw,
+            })
             // Note: UnifiedDv01Calculator and BucketedDv01 are NOT
             // registered here because BermudanSwaption::value() returns Err.
             // Use BermudanDeltaCalculator for rate sensitivity instead.
@@ -100,10 +107,7 @@ pub(crate) fn register_bermudan_swaption_metrics(
     // Register custom ExerciseProbability metric separately
     registry.replace_metric(
         crate::metrics::MetricId::custom("exercise_probability"),
-        std::sync::Arc::new(ExerciseProbabilityCalculator::new_with_hw(
-            hw_params.kappa,
-            hw_params.sigma,
-        )),
+        std::sync::Arc::new(ExerciseProbabilityCalculator { hw }),
         &[InstrumentType::BermudanSwaption],
     )?;
     Ok(())

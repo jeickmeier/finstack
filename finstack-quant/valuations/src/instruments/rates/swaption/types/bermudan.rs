@@ -347,12 +347,6 @@ impl BermudanSwaption {
         self
     }
 
-    /// Set Bermudan type (co-terminal or non-co-terminal).
-    pub fn with_bermudan_type(mut self, bermudan_type: BermudanType) -> Self {
-        self.bermudan_type = bermudan_type;
-        self
-    }
-
     /// Set the holiday calendar for schedule generation.
     pub fn with_calendar(mut self, calendar_id: impl Into<CalendarId>) -> Self {
         let calendar_id = calendar_id.into().to_string();
@@ -403,19 +397,14 @@ impl BermudanSwaption {
 
     /// Get exercise dates as year fractions from valuation date.
     pub fn exercise_times(&self, as_of: Date) -> Result<Vec<f64>> {
-        let times = self
-            .bermudan_schedule
-            .exercise_times(as_of, self.get_day_count())?;
-        if times.is_empty() {
-            return Ok(times);
-        }
-        Ok(times)
+        self.bermudan_schedule
+            .exercise_times(as_of, self.get_day_count())
     }
 
     /// Build the underlying swap payment schedule.
     ///
     /// Returns (payment_dates, accrual_fractions) for the fixed leg.
-    pub fn build_swap_schedule(&self, _as_of: Date) -> Result<(Vec<Date>, Vec<f64>)> {
+    pub fn build_swap_schedule(&self) -> Result<(Vec<Date>, Vec<f64>)> {
         let periods = self.fixed_schedule_periods()?;
 
         if periods.is_empty() {
@@ -483,7 +472,7 @@ impl BermudanSwaption {
 
     /// Convert payment dates to year fractions.
     pub fn payment_times(&self, as_of: Date) -> Result<Vec<f64>> {
-        let (dates, _) = self.build_swap_schedule(as_of)?;
+        let (dates, _) = self.build_swap_schedule()?;
         let ctx = finstack_quant_core::dates::DayCountContext::default();
         dates
             .iter()
@@ -540,22 +529,16 @@ impl BermudanSwaption {
         as_of: Date,
         exercise_date: Date,
     ) -> Result<f64> {
-        use crate::instruments::common_impl::pricing::time::relative_df_discounting;
-
         if exercise_date >= self.get_swap_end() {
             return Ok(0.0);
         }
         let periods = self.fixed_schedule_periods_at(exercise_date)?;
-
-        let mut annuity = 0.0;
-        for period in periods {
-            if period.payment_date > exercise_date {
-                let df = relative_df_discounting(disc, as_of, period.payment_date)?;
-                annuity += period.accrual_year_fraction * df;
-            }
-        }
-
-        Ok(annuity)
+        crate::instruments::rates::irs::cashflow::fixed_leg_annuity(
+            &periods,
+            disc,
+            as_of,
+            exercise_date,
+        )
     }
 
     /// Convert to European swaption for the first exercise date.

@@ -140,12 +140,12 @@ pub fn calculate_forward_swap_rate(inputs: ForwardSwapRateInputs<'_>) -> Result<
         },
     )?;
 
-    let mut annuity = 0.0;
-    for period in &sched_fixed {
-        let accrual = period.accrual_year_fraction;
-        let df = relative_df_discount_curve(disc.as_ref(), inputs.as_of, period.payment_date)?;
-        annuity += accrual * df;
-    }
+    let annuity = crate::instruments::rates::irs::cashflow::fixed_leg_annuity(
+        &sched_fixed,
+        disc.as_ref(),
+        inputs.as_of,
+        inputs.as_of,
+    )?;
 
     if annuity.abs() < 1e-10 {
         return Err(finstack_quant_core::Error::Validation(format!(

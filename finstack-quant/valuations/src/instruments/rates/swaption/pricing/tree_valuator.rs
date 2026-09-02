@@ -124,7 +124,7 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
             .map(|&t| tree.time_to_step(t))
             .collect();
 
-        let (_payment_dates, accrual_fractions) = swaption.build_swap_schedule(as_of)?;
+        let (_payment_dates, accrual_fractions) = swaption.build_swap_schedule()?;
         let payment_times = swaption.payment_times(as_of)?;
 
         let ctx = finstack_quant_core::dates::DayCountContext::default();
@@ -238,35 +238,6 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
         };
 
         intrinsic * annuity * notional
-    }
-
-    /// Get exercise boundary information.
-    ///
-    /// Returns a vector of (time, critical_rate) pairs where the holder
-    /// would be indifferent between exercising and continuing.
-    pub fn exercise_boundary(&self) -> Vec<(f64, Option<f64>)> {
-        let _n = self.tree().num_steps();
-        let mut boundary = Vec::new();
-
-        // Work backward through exercise dates
-        let mut sorted_steps: Vec<usize> = self.exercise_steps.iter().copied().collect();
-        sorted_steps.sort();
-
-        for &step in &sorted_steps {
-            let t = self.tree().time_at_step(step);
-
-            // Find the critical rate at this step
-            // This is the rate at which exercise value equals continuation value
-            // For simplicity, we return the rate at the central node
-            let central_node = self.tree().num_nodes(step) / 2;
-            let rate = self.tree().rate_at_node(step, central_node);
-
-            // Note: A full implementation would solve for the exact critical rate
-            // by finding where exercise_value = continuation_value
-            boundary.push((t, Some(rate)));
-        }
-
-        boundary
     }
 
     /// Compute exercise probabilities at each exercise date.

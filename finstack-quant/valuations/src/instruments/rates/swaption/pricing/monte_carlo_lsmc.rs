@@ -40,69 +40,6 @@ use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
 use finstack_quant_models::monte_carlo::OnlineStats;
 use finstack_quant_models::monte_carlo::TimeGrid;
 
-// Swaption-Specific Basis Functions
-
-/// Extended basis functions including annuity.
-///
-/// Basis: {1, S, S², ..., A, S×A}
-///
-/// Including the annuity as a state variable can improve regression quality
-/// for swaptions where both rate level and annuity affect option value.
-#[cfg(test)]
-#[derive(Debug, Clone)]
-pub struct ExtendedSwaptionBasis {
-    /// Polynomial degree for swap rate
-    degree: usize,
-    /// Include annuity as additional basis
-    include_annuity: bool,
-}
-
-#[cfg(test)]
-impl ExtendedSwaptionBasis {
-    /// Create extended basis with annuity terms.
-    pub fn new(degree: usize, include_annuity: bool) -> Self {
-        Self {
-            degree,
-            include_annuity,
-        }
-    }
-
-    fn evaluate_with_annuity(&self, swap_rate: f64, annuity: f64, out: &mut [f64]) {
-        debug_assert_eq!(out.len(), self.num_basis());
-
-        let mut power = 1.0;
-        for basis in out.iter_mut().take(self.degree + 1) {
-            *basis = power;
-            power *= swap_rate;
-        }
-
-        if self.include_annuity {
-            out[self.degree + 1] = annuity;
-            out[self.degree + 2] = swap_rate * annuity;
-        }
-    }
-}
-
-#[cfg(test)]
-impl BasisFunctions for ExtendedSwaptionBasis {
-    fn num_basis(&self) -> usize {
-        let base = self.degree + 1;
-        if self.include_annuity {
-            base + 2 // Add A and S×A terms
-        } else {
-            base
-        }
-    }
-
-    fn evaluate(&self, swap_rate: f64, out: &mut [f64]) {
-        self.evaluate_with_annuity(swap_rate, 1.0, out);
-    }
-
-    fn evaluate_with_aux(&self, state: f64, aux: Option<f64>, out: &mut [f64]) {
-        self.evaluate_with_annuity(state, aux.unwrap_or(1.0), out);
-    }
-}
-
 fn regression_with_aux_basis<B: BasisFunctions>(
     swap_rates: &[f64],
     aux_values: &[f64],
@@ -578,28 +515,5 @@ impl SwaptionLsmcPricer {
         }
 
         Ok(present_values)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    // Tests for swap rate utilities are now in swap_rate_utils.rs
-    // This module focuses on testing the LSMC swaption pricer itself
-
-    use super::ExtendedSwaptionBasis;
-    use finstack_quant_models::monte_carlo::pricer::basis::BasisFunctions;
-
-    #[test]
-    fn extended_basis_uses_real_annuity_terms() {
-        let basis = ExtendedSwaptionBasis::new(2, true);
-        let mut values = vec![0.0; basis.num_basis()];
-
-        basis.evaluate_with_annuity(0.05, 3.5, &mut values);
-
-        assert_eq!(values[0], 1.0);
-        assert_eq!(values[1], 0.05);
-        assert_eq!(values[2], 0.05 * 0.05);
-        assert_eq!(values[3], 3.5);
-        assert_eq!(values[4], 0.05 * 3.5);
     }
 }

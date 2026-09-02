@@ -641,17 +641,6 @@ impl CapFloor {
         self
     }
 
-    /// Set displacement shift used for shifted-lognormal pricing.
-    ///
-    /// # Arguments
-    ///
-    /// * `vol_shift` — Displacement added to forward and strike: `F' = F + shift`, `K' = K + shift`.
-    ///   Must be ≥ 0.0 to keep shifted rates positive. Typical range: 0.01–0.03 (1%–3%).
-    pub fn with_vol_shift(mut self, vol_shift: f64) -> Self {
-        self.vol_shift = vol_shift;
-        self
-    }
-
     pub(crate) fn resolved_payment_lag_days(&self) -> i32 {
         if let Some(terms) = &self.overnight_coupon {
             return terms.payment_delay_days;

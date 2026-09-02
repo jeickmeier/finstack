@@ -184,6 +184,33 @@ impl CmsReferenceSwap<'_> {
     }
 }
 
+/// CMS instruments whose PV can be re-run with the convexity adjustment
+/// scaled (0 = linear, 1 = full).
+pub(crate) trait CmsConvexityPricing {
+    /// PV with the Hagan convexity adjustment multiplied by `convexity_scale`.
+    fn pv_with_convexity_scale(
+        &self,
+        market: &MarketContext,
+        as_of: Date,
+        convexity_scale: f64,
+    ) -> Result<finstack_quant_core::money::Money>;
+}
+
+/// Dollar value of the convexity adjustment: `PV(full) - PV(linear)`.
+pub(crate) struct ConvexityAdjustmentRiskCalculator<I>(pub(crate) std::marker::PhantomData<I>);
+
+impl<I: CmsConvexityPricing + Send + Sync + 'static> crate::metrics::MetricCalculator
+    for ConvexityAdjustmentRiskCalculator<I>
+{
+    fn calculate(&self, context: &mut crate::metrics::MetricContext) -> Result<f64> {
+        let inst: &I = context.instrument_as()?;
+        let linear_pv = inst
+            .pv_with_convexity_scale(&context.curves, context.as_of, 0.0)?
+            .amount();
+        Ok(context.base_value.amount() - linear_pv)
+    }
+}
+
 /// Closed-form par annuity of a bullet fixed-rate swap discounted at its own rate.
 ///
 /// ```text

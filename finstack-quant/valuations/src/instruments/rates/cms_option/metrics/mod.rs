@@ -6,9 +6,8 @@
 
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::cms_option::pricer::{
-    convexity_adjustment_with_frequency, CmsOptionPricer,
-};
+use crate::instruments::rates::cms_common::ConvexityAdjustmentRiskCalculator;
+use crate::instruments::rates::cms_option::pricer::convexity_adjustment_with_frequency;
 use crate::instruments::rates::cms_option::types::CmsOption;
 use crate::metrics::bump_discount_curve_parallel;
 use crate::metrics::bump_sizes;
@@ -48,7 +47,9 @@ pub(crate) fn register_cms_option_metrics(
     // Convexity adjustment risk (custom metric)
     registry.replace_metric(
         MetricId::ConvexityAdjustmentRisk,
-        Arc::new(ConvexityAdjustmentRiskCalculator),
+        Arc::new(ConvexityAdjustmentRiskCalculator::<CmsOption>(
+            std::marker::PhantomData,
+        )),
         &[InstrumentType::CmsOption],
     )?;
     Ok(())
@@ -305,32 +306,5 @@ impl MetricCalculator for VolgaCalculator {
         let width = vol_bump * VOL_POINTS_PER_ABSOLUTE_VOL;
         let volga = (pv_vol_up - 2.0 * base_pv + pv_vol_down) / (width * width);
         Ok(volga)
-    }
-}
-
-// Convexity Adjustment Risk Calculator
-
-/// Convexity adjustment risk calculator for CMS options.
-pub(crate) struct ConvexityAdjustmentRiskCalculator;
-
-impl MetricCalculator for ConvexityAdjustmentRiskCalculator {
-    fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
-        let option: &CmsOption = context.instrument_as()?;
-        let as_of = context.as_of;
-        let base_pv = context.base_value.amount();
-
-        // Reprice with zero convexity
-        let pricer = CmsOptionPricer::new();
-        let linear_pv = pricer
-            .price_internal_with_convexity(
-                option,
-                &context.curves,
-                as_of,
-                0.0, // No convexity
-            )?
-            .amount();
-
-        // Risk is the difference
-        Ok(base_pv - linear_pv)
     }
 }

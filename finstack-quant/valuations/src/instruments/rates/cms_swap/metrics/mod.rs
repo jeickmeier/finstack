@@ -5,8 +5,6 @@
 //! - **BucketedDv01**: Key-rate sensitivities
 //! - **ConvexityAdjustmentRisk**: Dollar value of the convexity adjustment
 
-mod convexity_adjustment_risk;
-
 use crate::metrics::MetricRegistry;
 use std::sync::Arc;
 
@@ -32,7 +30,11 @@ pub(crate) fn register_cms_swap_metrics(
 
     registry.replace_metric(
         MetricId::ConvexityAdjustmentRisk,
-        Arc::new(convexity_adjustment_risk::ConvexityAdjustmentRiskCalculator),
+        Arc::new(
+            crate::instruments::rates::cms_common::ConvexityAdjustmentRiskCalculator::<
+                crate::instruments::rates::cms_swap::CmsSwap,
+            >(std::marker::PhantomData),
+        ),
         &[InstrumentType::CmsSwap],
     )?;
     Ok(())

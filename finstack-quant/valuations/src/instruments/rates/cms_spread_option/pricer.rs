@@ -59,11 +59,6 @@ impl CmsSpreadOptionPricer {
         }
     }
 
-    /// Create a pricer with an explicit Gauss-Hermite quadrature order.
-    pub fn with_quadrature_order(quadrature_order: usize) -> Self {
-        Self { quadrature_order }
-    }
-
     fn price_data(
         &self,
         inst: &CmsSpreadOption,

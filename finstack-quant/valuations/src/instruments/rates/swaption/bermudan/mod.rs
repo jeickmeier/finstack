@@ -254,11 +254,6 @@ impl BermudanSwaptionPricer {
         }
     }
 
-    /// Get the prepared model, if set.
-    pub fn prepared_model(&self) -> Option<&PreparedHullWhiteModel> {
-        self.config.prepared_model.as_ref()
-    }
-
     fn effective_tree_steps(&self, swaption: &BermudanSwaption) -> usize {
         swaption
             .instrument_pricing_overrides
@@ -494,13 +489,9 @@ impl BermudanSwaptionPricer {
         }
 
         // Build swap schedule (payment times and accrual fractions)
-        let (payment_dates, accrual_fractions) =
-            swaption.build_swap_schedule(as_of).map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::default(),
-                )
-            })?;
+        let (payment_dates, accrual_fractions) = swaption.build_swap_schedule().map_err(|e| {
+            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
+        })?;
 
         // Convert payment dates to year fractions
         let ctx = finstack_quant_core::dates::DayCountContext::default();

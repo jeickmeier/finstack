@@ -235,7 +235,7 @@ fn test_bermudan_swaption_schedule_and_conversion() {
     )
     .expect("valid literal strike");
 
-    let (payment_dates, accruals) = swaption.build_swap_schedule(as_of).unwrap();
+    let (payment_dates, accruals) = swaption.build_swap_schedule().unwrap();
     assert_eq!(payment_dates.len(), accruals.len());
     assert!(!payment_dates.is_empty());
 
