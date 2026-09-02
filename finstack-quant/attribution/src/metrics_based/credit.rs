@@ -2,7 +2,7 @@ use super::super::helpers::*;
 use super::super::types::*;
 use super::context::AttributionInputs;
 use super::shifts::{
-    credit_curve_abs_shift_bp, extract_keyrate_cs01_per_curve, twist_diagnostic_note,
+    average_over, credit_curve_abs_shift_bp, extract_keyrate_per_curve, twist_diagnostic_note,
 };
 use finstack_quant_core::market_data::diff::measure_per_tenor_credit_curve_shift;
 use finstack_quant_core::math::NeumaierAccumulator;
@@ -43,7 +43,8 @@ pub(super) fn apply(
     //       correct for non-parallel (steepener / twist) credit-curve moves.
     //   (b) aggregate: Cs01 × avg(credit-curve move). Coarser; assumes parallel.
     let credit_curve_ids = &inputs.market_deps.curves.credit_curves;
-    let keyrate_cs01 = extract_keyrate_cs01_per_curve(&inputs.val_t0.measures, credit_curve_ids);
+    let keyrate_cs01 =
+        extract_keyrate_per_curve(&inputs.val_t0.measures, credit_curve_ids, "bucketed_cs01");
     let mut credit_has_data = false;
     // Mean par-spread shift fed to the credit-convexity (second-order) block.
     let mut credit_convexity_avg_shift_bp: Option<f64> = None;
@@ -167,23 +168,13 @@ pub(super) fn apply(
     // when the credit curve is twisted (signed mean ≈ 0). Emit a note so the
     // consumer knows the gamma number is not a real upper bound. Average over
     // the same credit curves the metrics-based attribution consumed.
-    let avg_credit_abs_shift_bp: Option<f64> = {
-        let mut total = 0.0;
-        let mut count = 0usize;
-        for curve_id in &inputs.market_deps.curves.credit_curves {
+    let avg_credit_abs_shift_bp: Option<f64> =
+        average_over(&inputs.market_deps.curves.credit_curves, |curve_id| {
             let v =
                 credit_curve_abs_shift_bp(curve_id.as_str(), inputs.market_t0, inputs.market_t1);
-            if v > 0.0 {
-                total += v;
-                count += 1;
-            }
-        }
-        if count > 0 {
-            Some(total / count as f64)
-        } else {
-            None
-        }
-    };
+            (v > 0.0).then_some(v)
+        })
+        .0;
     if credit_has_data {
         if let Some(avg_shift) = credit_convexity_avg_shift_bp {
             if let Some(cs_gamma) = inputs.val_t0.measures.get(MetricId::CsGamma.as_str()) {

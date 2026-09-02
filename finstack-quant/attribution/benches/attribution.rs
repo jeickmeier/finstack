@@ -12,11 +12,10 @@ mod fixtures;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use finstack_quant_attribution::{
-    attribute_pnl_metrics_based, attribute_pnl_parallel, attribute_pnl_taylor,
-    attribute_pnl_waterfall, attribute_return_contribution, attribute_return_contribution_json,
-    default_waterfall_order, pnl_attribution_long_rows, simple_pnl_bridge,
-    translate_to_target_currency, ExecutionPolicy, MarketRestoreFlags, MarketSnapshot,
-    TaylorAttributionConfig,
+    attribute_pnl, attribute_pnl_metrics_based, attribute_return_contribution,
+    attribute_return_contribution_json, default_waterfall_order, pnl_attribution_long_rows,
+    simple_pnl_bridge, translate_to_target_currency, AttributionMethod, AttributionRequest,
+    ExecutionPolicy, MarketRestoreFlags, MarketSnapshot, TaylorAttributionConfig,
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_valuations::instruments::Instrument;
@@ -35,14 +34,19 @@ fn bench_attribution_parallel_1_bond(c: &mut Criterion) {
 
     c.bench_function("parallel_1_bond", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_parallel(
-                &bond,
-                black_box(&fx.market_t0),
-                black_box(&fx.market_t1),
-                black_box(fx.as_of_t0),
-                black_box(fx.as_of_t1),
-                &fx.config,
-                ExecutionPolicy::Parallel,
+            let attr = attribute_pnl(
+                &AttributionMethod::Parallel,
+                &AttributionRequest {
+                    execution_policy: ExecutionPolicy::Parallel,
+                    ..AttributionRequest::new(
+                        &bond,
+                        black_box(&fx.market_t0),
+                        black_box(&fx.market_t1),
+                        black_box(fx.as_of_t0),
+                        black_box(fx.as_of_t1),
+                        &fx.config,
+                    )
+                },
             )
             .unwrap();
             black_box(attr);
@@ -57,16 +61,20 @@ fn bench_attribution_waterfall_1_bond(c: &mut Criterion) {
 
     c.bench_function("waterfall_1_bond", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_waterfall(
-                &bond,
-                black_box(&fx.market_t0),
-                black_box(&fx.market_t1),
-                black_box(fx.as_of_t0),
-                black_box(fx.as_of_t1),
-                &fx.config,
-                factor_order.clone(),
-                false,
-                None,
+            let attr = attribute_pnl(
+                &AttributionMethod::Waterfall(factor_order.clone()),
+                &AttributionRequest {
+                    strict_validation: false,
+                    model_params_t0: None,
+                    ..AttributionRequest::new(
+                        &bond,
+                        black_box(&fx.market_t0),
+                        black_box(&fx.market_t1),
+                        black_box(fx.as_of_t0),
+                        black_box(fx.as_of_t1),
+                        &fx.config,
+                    )
+                },
             )
             .unwrap();
             black_box(attr);
@@ -86,14 +94,19 @@ fn bench_attribution_parallel_5_bonds(c: &mut Criterion) {
     c.bench_function("parallel_5_bonds", |b| {
         b.iter(|| {
             for bond in &bonds {
-                let attr = attribute_pnl_parallel(
-                    bond,
-                    black_box(&fx.market_t0),
-                    black_box(&fx.market_t1),
-                    black_box(fx.as_of_t0),
-                    black_box(fx.as_of_t1),
-                    &fx.config,
-                    ExecutionPolicy::Parallel,
+                let attr = attribute_pnl(
+                    &AttributionMethod::Parallel,
+                    &AttributionRequest {
+                        execution_policy: ExecutionPolicy::Parallel,
+                        ..AttributionRequest::new(
+                            bond,
+                            black_box(&fx.market_t0),
+                            black_box(&fx.market_t1),
+                            black_box(fx.as_of_t0),
+                            black_box(fx.as_of_t1),
+                            &fx.config,
+                        )
+                    },
                 )
                 .unwrap();
                 black_box(attr);
@@ -132,27 +145,37 @@ fn bench_hot_paths(c: &mut Criterion) {
     let rc_json = serde_json::to_string(&rc_1k).unwrap();
     let spec_envelope = parallel_spec_envelope(5.0);
 
-    let template = attribute_pnl_parallel(
-        &eur_bond,
-        &fx_mkts.market_t0,
-        &fx_mkts.market_t1,
-        fx_mkts.as_of_t0,
-        fx_mkts.as_of_t1,
-        &fx_mkts.config,
-        ExecutionPolicy::Serial,
+    let template = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &eur_bond,
+                &fx_mkts.market_t0,
+                &fx_mkts.market_t1,
+                fx_mkts.as_of_t0,
+                fx_mkts.as_of_t1,
+                &fx_mkts.config,
+            )
+        },
     )
     .unwrap();
     let val_t0_eur = eur_bond
         .value(&fx_mkts.market_t0, fx_mkts.as_of_t0)
         .unwrap();
-    let long_src = attribute_pnl_parallel(
-        &bond,
-        &lean.market_t0,
-        &lean.market_t1,
-        lean.as_of_t0,
-        lean.as_of_t1,
-        &lean.config,
-        ExecutionPolicy::Serial,
+    let long_src = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &bond,
+                &lean.market_t0,
+                &lean.market_t1,
+                lean.as_of_t0,
+                lean.as_of_t1,
+                &lean.config,
+            )
+        },
     )
     .unwrap();
 
@@ -189,14 +212,19 @@ fn bench_hot_paths(c: &mut Criterion) {
 
     group.bench_function("taylor_1_bond", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_taylor(
-                &bond,
-                black_box(&lean.market_t0),
-                black_box(&lean.market_t1),
-                black_box(lean.as_of_t0),
-                black_box(lean.as_of_t1),
-                &taylor_cfg,
-                ExecutionPolicy::Serial,
+            let attr = attribute_pnl(
+                &AttributionMethod::Taylor(taylor_cfg.clone()),
+                &AttributionRequest {
+                    execution_policy: ExecutionPolicy::Serial,
+                    ..AttributionRequest::new(
+                        &bond,
+                        black_box(&lean.market_t0),
+                        black_box(&lean.market_t1),
+                        black_box(lean.as_of_t0),
+                        black_box(lean.as_of_t1),
+                        &finstack_quant_core::config::FinstackConfig::default(),
+                    )
+                },
             )
             .unwrap();
             black_box(attr);
@@ -205,14 +233,19 @@ fn bench_hot_paths(c: &mut Criterion) {
 
     group.bench_function("taylor_gamma_1_bond", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_taylor(
-                &bond,
-                black_box(&lean.market_t0),
-                black_box(&lean.market_t1),
-                black_box(lean.as_of_t0),
-                black_box(lean.as_of_t1),
-                &taylor_gamma,
-                ExecutionPolicy::Serial,
+            let attr = attribute_pnl(
+                &AttributionMethod::Taylor(taylor_gamma.clone()),
+                &AttributionRequest {
+                    execution_policy: ExecutionPolicy::Serial,
+                    ..AttributionRequest::new(
+                        &bond,
+                        black_box(&lean.market_t0),
+                        black_box(&lean.market_t1),
+                        black_box(lean.as_of_t0),
+                        black_box(lean.as_of_t1),
+                        &finstack_quant_core::config::FinstackConfig::default(),
+                    )
+                },
             )
             .unwrap();
             black_box(attr);
@@ -221,14 +254,19 @@ fn bench_hot_paths(c: &mut Criterion) {
 
     group.bench_function("parallel_serial_1_bond", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_parallel(
-                &bond,
-                black_box(&lean.market_t0),
-                black_box(&lean.market_t1),
-                black_box(lean.as_of_t0),
-                black_box(lean.as_of_t1),
-                &lean.config,
-                ExecutionPolicy::Serial,
+            let attr = attribute_pnl(
+                &AttributionMethod::Parallel,
+                &AttributionRequest {
+                    execution_policy: ExecutionPolicy::Serial,
+                    ..AttributionRequest::new(
+                        &bond,
+                        black_box(&lean.market_t0),
+                        black_box(&lean.market_t1),
+                        black_box(lean.as_of_t0),
+                        black_box(lean.as_of_t1),
+                        &lean.config,
+                    )
+                },
             )
             .unwrap();
             black_box(attr);
@@ -237,14 +275,19 @@ fn bench_hot_paths(c: &mut Criterion) {
 
     group.bench_function("parallel_fat_market_1_bond", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_parallel(
-                &bond,
-                black_box(&fat.market_t0),
-                black_box(&fat.market_t1),
-                black_box(fat.as_of_t0),
-                black_box(fat.as_of_t1),
-                &fat.config,
-                ExecutionPolicy::Serial,
+            let attr = attribute_pnl(
+                &AttributionMethod::Parallel,
+                &AttributionRequest {
+                    execution_policy: ExecutionPolicy::Serial,
+                    ..AttributionRequest::new(
+                        &bond,
+                        black_box(&fat.market_t0),
+                        black_box(&fat.market_t1),
+                        black_box(fat.as_of_t0),
+                        black_box(fat.as_of_t1),
+                        &fat.config,
+                    )
+                },
             )
             .unwrap();
             black_box(attr);
@@ -253,16 +296,20 @@ fn bench_hot_paths(c: &mut Criterion) {
 
     group.bench_function("waterfall_fat_market_1_bond", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_waterfall(
-                &bond,
-                black_box(&fat.market_t0),
-                black_box(&fat.market_t1),
-                black_box(fat.as_of_t0),
-                black_box(fat.as_of_t1),
-                &fat.config,
-                waterfall_order.clone(),
-                false,
-                None,
+            let attr = attribute_pnl(
+                &AttributionMethod::Waterfall(waterfall_order.clone()),
+                &AttributionRequest {
+                    strict_validation: false,
+                    model_params_t0: None,
+                    ..AttributionRequest::new(
+                        &bond,
+                        black_box(&fat.market_t0),
+                        black_box(&fat.market_t1),
+                        black_box(fat.as_of_t0),
+                        black_box(fat.as_of_t1),
+                        &fat.config,
+                    )
+                },
             )
             .unwrap();
             black_box(attr);
@@ -271,14 +318,19 @@ fn bench_hot_paths(c: &mut Criterion) {
 
     group.bench_function("equity_parallel_1", |b| {
         b.iter(|| {
-            let attr = attribute_pnl_parallel(
-                &equity,
-                black_box(&eq_mkts.market_t0),
-                black_box(&eq_mkts.market_t1),
-                black_box(eq_mkts.as_of_t0),
-                black_box(eq_mkts.as_of_t1),
-                &eq_mkts.config,
-                ExecutionPolicy::Serial,
+            let attr = attribute_pnl(
+                &AttributionMethod::Parallel,
+                &AttributionRequest {
+                    execution_policy: ExecutionPolicy::Serial,
+                    ..AttributionRequest::new(
+                        &equity,
+                        black_box(&eq_mkts.market_t0),
+                        black_box(&eq_mkts.market_t1),
+                        black_box(eq_mkts.as_of_t0),
+                        black_box(eq_mkts.as_of_t1),
+                        &eq_mkts.config,
+                    )
+                },
             )
             .unwrap();
             black_box(attr);

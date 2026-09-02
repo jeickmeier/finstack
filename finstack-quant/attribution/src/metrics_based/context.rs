@@ -11,7 +11,7 @@ use finstack_quant_valuations::instruments::{Instrument, MarketDependencies};
 use finstack_quant_valuations::results::ValuationResult;
 use std::sync::Arc;
 
-use super::shifts::measure_rate_curve_shift_bp;
+use super::shifts::{average_over, measure_rate_curve_shift_bp};
 
 pub(super) struct MarketShifts {
     pub(super) avg_rate_shift_bp: Option<f64>,
@@ -147,22 +147,9 @@ fn average_rates(
     t0: &MarketContext,
     t1: &MarketContext,
 ) -> (Option<f64>, usize) {
-    let mut total = 0.0;
-    let mut count = 0;
-    for id in curves {
-        if let Some(shift) = measure_rate_curve_shift_bp(id.as_str(), t0, t1) {
-            total += shift;
-            count += 1;
-        }
-    }
-    (
-        if count > 0 {
-            Some(total / count as f64)
-        } else {
-            None
-        },
-        count,
-    )
+    average_over(curves, |id| {
+        measure_rate_curve_shift_bp(id.as_str(), t0, t1)
+    })
 }
 
 fn average_credit(
@@ -170,38 +157,14 @@ fn average_credit(
     t0: &MarketContext,
     t1: &MarketContext,
 ) -> (Option<f64>, usize) {
-    let mut total = 0.0;
-    let mut count = 0;
-    for id in &deps.curves.credit_curves {
-        if let Ok(shift) =
-            measure_credit_curve_shift(id.as_str(), t0, t1, TenorSamplingMethod::Standard)
-        {
-            total += shift;
-            count += 1;
-        }
-    }
-    (
-        if count > 0 {
-            Some(total / count as f64)
-        } else {
-            None
-        },
-        count,
-    )
+    average_over(&deps.curves.credit_curves, |id| {
+        measure_credit_curve_shift(id.as_str(), t0, t1, TenorSamplingMethod::Standard).ok()
+    })
 }
 
 fn average_spot(deps: &MarketDependencies, t0: &MarketContext, t1: &MarketContext) -> Option<f64> {
-    let mut total = 0.0;
-    let mut count = 0;
-    for id in &deps.market_scalar_ids {
-        if let Ok(shift) = measure_scalar_shift(id, t0, t1) {
-            total += shift;
-            count += 1;
-        }
-    }
-    if count > 0 {
-        Some(total / count as f64)
-    } else {
-        None
-    }
+    average_over(&deps.market_scalar_ids, |id| {
+        measure_scalar_shift(id, t0, t1).ok()
+    })
+    .0
 }

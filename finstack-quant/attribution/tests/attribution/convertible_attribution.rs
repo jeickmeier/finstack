@@ -17,8 +17,8 @@ use std::sync::Arc;
 use time::Month;
 
 use finstack_quant_attribution::{
-    attribute_pnl_metrics_based, attribute_pnl_taylor, AttributionMethod, ExecutionPolicy,
-    TaylorAttributionConfig,
+    attribute_pnl, attribute_pnl_metrics_based, AttributionMethod, AttributionRequest,
+    ExecutionPolicy, TaylorAttributionConfig,
 };
 use finstack_quant_cashflows::builder::specs::{CouponType, FixedCouponSpec};
 use finstack_quant_valuations::instruments::fixed_income::convertible::{
@@ -141,14 +141,19 @@ fn taylor_explains_convertible_credit_spread_move() {
     let market_t1 = market(300.0); // +150bp credit widening
     let config = TaylorAttributionConfig::default();
 
-    let attribution = attribute_pnl_taylor(
-        &conv,
-        &market_t0,
-        &market_t1,
-        t0(),
-        t1(),
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Taylor(config),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &conv,
+                &market_t0,
+                &market_t1,
+                t0(),
+                t1(),
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("Taylor attribution should succeed");
 
@@ -174,24 +179,34 @@ fn taylor_serial_execution_policy_matches_parallel_for_convertible_credit() {
     let market_t1 = market(300.0);
     let config = TaylorAttributionConfig::default();
 
-    let parallel = attribute_pnl_taylor(
-        &conv,
-        &market_t0,
-        &market_t1,
-        t0(),
-        t1(),
-        &config,
-        ExecutionPolicy::Parallel,
+    let parallel = attribute_pnl(
+        &AttributionMethod::Taylor(config.clone()),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &conv,
+                &market_t0,
+                &market_t1,
+                t0(),
+                t1(),
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("parallel Taylor attribution should succeed");
-    let serial = attribute_pnl_taylor(
-        &conv,
-        &market_t0,
-        &market_t1,
-        t0(),
-        t1(),
-        &config,
-        ExecutionPolicy::Serial,
+    let serial = attribute_pnl(
+        &AttributionMethod::Taylor(config),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &conv,
+                &market_t0,
+                &market_t1,
+                t0(),
+                t1(),
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("serial Taylor attribution should succeed");
 

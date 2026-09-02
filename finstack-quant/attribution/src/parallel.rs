@@ -40,26 +40,24 @@
 //! 9. Credit×Correlations
 //!
 //! For exhaustive pairwise coverage (all active factor pairs, including
-//! ModelParameters), use `full_cross_attribution = true` on
-//! [`attribute_pnl_parallel_with_credit_model`].
+//! ModelParameters), set `full_cross_attribution = true` on the
+//! [`crate::AttributionRequest`].
 
 use super::credit_cascade::{
     build_credit_factor_attribution, plan_credit_cascade, shift_credit_curves_par_spread,
     snap_hazard_to_t1, CreditCascadeStep,
 };
-use super::credit_factor::CreditFactorDetailOptions;
 use super::factors::*;
 use super::helpers::*;
 use super::model_params;
 use super::types::*;
 use crate::policy_map::{try_map_policy, try_map_policy_zip};
+use crate::AttributionRequest;
 use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
-use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
-use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
 use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
 use indexmap::IndexMap;
@@ -408,7 +406,9 @@ fn reprice_cross_factor(
 /// # Examples
 ///
 /// ```no_run
-/// use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
+/// use finstack_quant_attribution::{
+///     attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy,
+/// };
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 /// use finstack_quant_core::config::FinstackConfig;
@@ -437,15 +437,18 @@ fn reprice_cross_factor(
 ///         .expect("deposit builder should succeed"),
 /// ) as Arc<dyn Instrument>;
 ///
-/// let attribution = attribute_pnl_parallel(
-///     &instrument,
-///     &market_t0,
-///     &market_t1,
-///     as_of_t0,
-///     as_of_t1,
-///     &config,
-///     ExecutionPolicy::Parallel,
-/// )?;
+/// let request = AttributionRequest {
+///     execution_policy: ExecutionPolicy::Parallel,
+///     ..AttributionRequest::new(
+///         &instrument,
+///         &market_t0,
+///         &market_t1,
+///         as_of_t0,
+///         as_of_t1,
+///         &config,
+///     )
+/// };
+/// let attribution = attribute_pnl(&AttributionMethod::Parallel, &request)?;
 ///
 /// println!("Total P&L: {}", attribution.total_pnl);
 /// println!("Carry: {}", attribution.carry);
@@ -457,32 +460,8 @@ fn reprice_cross_factor(
 /// # Ok(())
 /// # }
 /// ```
-#[tracing::instrument(skip_all, fields(instrument_id = %instrument.id(), method = "parallel"))]
-pub fn attribute_pnl_parallel(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
-    execution_policy: ExecutionPolicy,
-) -> Result<PnlAttribution> {
-    attribute_pnl_parallel_with_credit_model(
-        instrument,
-        market_t0,
-        market_t1,
-        as_of_t0,
-        as_of_t1,
-        config,
-        None,
-        None,
-        &CreditFactorDetailOptions::default(),
-        false,
-        execution_policy,
-    )
-}
-
-/// Parallel attribution with optional `CreditFactorModel`.
+///
+/// # Credit-factor cascade
 ///
 /// When `credit_factor_model` is `Some(_)` and the instrument has a
 /// resolvable issuer + hazard exposure, the credit P&L is decomposed by a
@@ -512,88 +491,23 @@ pub fn attribute_pnl_parallel(
 /// For typical L = 1–3 and portfolios of thousands of instruments this is
 /// acceptable; consider `MetricsBased` or `Taylor` for cost-sensitive use
 /// cases (they remain linear, no reprice).
-#[allow(clippy::too_many_arguments)]
-#[tracing::instrument(
-    skip_all,
-    fields(instrument_id = %instrument.id(), method = "parallel")
-)]
-pub(crate) fn attribute_pnl_parallel_with_credit_model(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
-    model_params_t0: Option<&ModelParamsSnapshot>,
-    credit_factor_model: Option<&CreditFactorModel>,
-    credit_factor_detail_options: &CreditFactorDetailOptions,
-    full_cross_attribution: bool,
-    execution_policy: ExecutionPolicy,
-) -> Result<PnlAttribution> {
-    attribute_pnl_parallel_impl(
+#[tracing::instrument(skip_all, fields(instrument_id = %request.instrument.id(), method = "parallel"))]
+pub(crate) fn attribute_pnl_parallel(request: &AttributionRequest<'_>) -> Result<PnlAttribution> {
+    let AttributionRequest {
         instrument,
         market_t0,
         market_t1,
         as_of_t0,
         as_of_t1,
         config,
+        execution_policy,
+        full_cross_attribution,
         model_params_t0,
         credit_factor_model,
         credit_factor_detail_options,
-        full_cross_attribution,
-        execution_policy,
-        None,
-    )
-}
-
-/// Run parallel attribution using ordinary endpoint values prepared by the
-/// portfolio evaluation engine.
-///
-/// This is an internal cross-crate integration path. The endpoint values must
-/// be the unscaled values of `instrument` at the supplied markets and dates.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn attribute_pnl_parallel_prepared(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
-    execution_policy: ExecutionPolicy,
-    val_t0: Money,
-    val_t1: Money,
-) -> Result<PnlAttribution> {
-    attribute_pnl_parallel_impl(
-        instrument,
-        market_t0,
-        market_t1,
-        as_of_t0,
-        as_of_t1,
-        config,
-        None,
-        None,
-        &CreditFactorDetailOptions::default(),
-        false,
-        execution_policy,
-        Some((val_t0, val_t1)),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn attribute_pnl_parallel_impl(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
-    model_params_t0: Option<&ModelParamsSnapshot>,
-    credit_factor_model: Option<&CreditFactorModel>,
-    credit_factor_detail_options: &CreditFactorDetailOptions,
-    full_cross_attribution: bool,
-    execution_policy: ExecutionPolicy,
-    prepared_endpoints: Option<(Money, Money)>,
-) -> Result<PnlAttribution> {
+        prepared_endpoints,
+        ..
+    } = *request;
     validate_attribution_period(as_of_t0, as_of_t1)?;
     let recalibration_provider = CachedRecalibrationProvider::new();
 
@@ -1125,30 +1039,18 @@ fn attribute_pnl_parallel_impl(
         }
 
         // Step 8: Volatility attribution.
-        let post_fx_specs = [(ParallelRestoredFactor::Volatility, MarketRestoreFlags::VOL)];
-        for (factor, flags) in post_fx_specs
-            .into_iter()
-            .filter(|(factor, _)| restored_factor_is_used(*factor, factor_use))
-        {
+        if restored_factor_is_used(ParallelRestoredFactor::Volatility, factor_use) {
+            let flags = MarketRestoreFlags::VOL;
             let snapshot = MarketSnapshot::extract(market_t0, flags);
             // Audit M4: use the shared has-data helper so cube-only /
             // FX-delta-only / vol-index-only markets are not silently skipped.
-            let has_vol = restored_factor_has_data(factor, &snapshot);
+            let has_vol = restored_factor_has_data(ParallelRestoredFactor::Volatility, &snapshot);
             if let Some((pnl, reprice)) = reprice_factor_restored_once(
                 instrument, market_t1, &snapshot, flags, has_vol, as_of_t1, val_t1,
             )? {
                 num_repricings += 1;
-                match factor {
-                    ParallelRestoredFactor::Volatility => {
-                        attribution.vol_pnl = pnl;
-                        val_with_t0_vol = Some(reprice);
-                    }
-                    _ => {
-                        tracing::warn!(
-                            "unexpected non-volatility spec in the post-FX vol loop; ignored"
-                        );
-                    }
-                }
+                attribution.vol_pnl = pnl;
+                val_with_t0_vol = Some(reprice);
             }
         }
 
@@ -1191,16 +1093,11 @@ fn attribute_pnl_parallel_impl(
         }
 
         // Step 10: Market scalars attribution.
-        let post_model_specs = [(
-            ParallelRestoredFactor::MarketScalars,
-            MarketRestoreFlags::SCALARS,
-        )];
-        for (factor, flags) in post_model_specs
-            .into_iter()
-            .filter(|(factor, _)| restored_factor_is_used(*factor, factor_use))
-        {
+        if restored_factor_is_used(ParallelRestoredFactor::MarketScalars, factor_use) {
+            let flags = MarketRestoreFlags::SCALARS;
             let snapshot = MarketSnapshot::extract(market_t0, flags);
-            let has_scalars = restored_factor_has_data(factor, &snapshot);
+            let has_scalars =
+                restored_factor_has_data(ParallelRestoredFactor::MarketScalars, &snapshot);
             if let Some((pnl, reprice)) = reprice_factor_restored_once(
                 instrument,
                 market_t1,
@@ -1211,17 +1108,8 @@ fn attribute_pnl_parallel_impl(
                 val_t1,
             )? {
                 num_repricings += 1;
-                match factor {
-                    ParallelRestoredFactor::MarketScalars => {
-                        attribution.market_scalars_pnl = pnl;
-                        val_with_t0_scalars = Some(reprice);
-                    }
-                    _ => {
-                        tracing::warn!(
-                            "unexpected non-scalar spec in the post-FX scalars loop; ignored"
-                        );
-                    }
-                }
+                attribution.market_scalars_pnl = pnl;
+                val_with_t0_scalars = Some(reprice);
             }
         }
 
@@ -1370,7 +1258,7 @@ fn attribute_pnl_parallel_impl(
     // cumulative form gives a single consistent decomposition across both
     // parallel and waterfall methods.
     if let Some(model) = credit_factor_model {
-        match plan_credit_cascade(model, instrument, market_t0, market_t1, as_of_t0, as_of_t1)? {
+        match plan_credit_cascade(model, instrument, market_t0, market_t1)? {
             Some(cascade) => {
                 // Build a T1-base market with T0 hazard for the issuer's curves.
                 // Re-use the credit snapshot extracted in Step 4.
@@ -1504,6 +1392,7 @@ mod tests {
     }
 
     use super::*;
+    use finstack_quant_core::config::FinstackConfig;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
@@ -1709,14 +1598,19 @@ mod tests {
                     .expect("hazard curve should build"),
             );
 
-        let attribution = attribute_pnl_parallel(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &config,
-            ExecutionPolicy::Parallel,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Parallel,
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Parallel,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &config,
+                )
+            },
         )
         .expect("parallel attribution should succeed");
 

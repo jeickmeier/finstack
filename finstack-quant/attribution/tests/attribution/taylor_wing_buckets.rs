@@ -11,7 +11,9 @@
 //! These tests pin the fixed behavior with curves carrying real wing knots:
 //! a 1M pillar on the short end and a 40Y pillar on the long end.
 
-use finstack_quant_attribution::{attribute_pnl_taylor, ExecutionPolicy, TaylorAttributionConfig};
+use finstack_quant_attribution::{
+    attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy, TaylorAttributionConfig,
+};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::create_date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -60,14 +62,19 @@ fn attribute_bond_on_wing_curve(maturity_year: i32) -> finstack_quant_attributio
     // Parallel +10bp move across the whole curve, including the wing pillars.
     let market_t1 = MarketContext::new().insert(build_wing_curve("USD-OIS", as_of_t1, 0.041));
 
-    attribute_pnl_taylor(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &TaylorAttributionConfig::default(),
-        ExecutionPolicy::Serial,
+    attribute_pnl(
+        &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("Taylor attribution should succeed on a curve with wing knots")
 }
@@ -120,14 +127,19 @@ fn taylor_short_end_wing_explains_sub_3m_rates_move() {
     let market_t0 = MarketContext::new().insert(build_wing_curve("USD-OIS", as_of_t0, 0.04));
     let market_t1 = MarketContext::new().insert(build_wing_curve("USD-OIS", as_of_t1, 0.041));
 
-    let attribution = attribute_pnl_taylor(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &TaylorAttributionConfig::default(),
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("Taylor attribution should succeed on a short-dated bond");
 

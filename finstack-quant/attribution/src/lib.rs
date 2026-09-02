@@ -28,9 +28,14 @@
 //! |---|---|
 //! | [`simple_pnl_bridge`] | Only raw endpoint P&L in an explicit currency is required |
 //! | [`attribute_pnl_metrics_based`] | Precomputed first- and optional second-order sensitivities provide a fast approximation |
-//! | [`attribute_pnl_parallel`] | Independent factor effects and an interaction residual are required |
-//! | [`attribute_pnl_waterfall`] | An ordered full-revaluation decomposition is required |
-//! | [`attribute_pnl_taylor`] | A bump-and-reprice first- or second-order decomposition is required |
+//! | [`attribute_pnl`] with [`AttributionMethod::Parallel`] | Independent factor effects and an interaction residual are required |
+//! | [`attribute_pnl`] with [`AttributionMethod::Waterfall`] | An ordered full-revaluation decomposition is required |
+//! | [`attribute_pnl`] with [`AttributionMethod::Taylor`] | A bump-and-reprice first- or second-order decomposition is required |
+//!
+//! Repricing methods take one [`AttributionRequest`] carrying the instrument,
+//! both market states and dates, the Finstack configuration, and the optional
+//! credit-factor model, model-parameter snapshot, execution policy and
+//! prepared endpoint values.
 //!
 //! # Conventions
 //!
@@ -68,7 +73,7 @@
 //! # Example
 //!
 //! ```rust
-//! use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
+//! use finstack_quant_attribution::{attribute_pnl, AttributionMethod, AttributionRequest};
 //! use finstack_quant_core::{
 //!     config::FinstackConfig,
 //!     currency::Currency,
@@ -94,15 +99,16 @@
 //!     MarketScalar::Price(Money::new(185.0, Currency::USD)),
 //! );
 //!
-//! let attribution = attribute_pnl_parallel(
+//! let config = FinstackConfig::default();
+//! let request = AttributionRequest::new(
 //!     &instrument,
 //!     &market_t0,
 //!     &market_t1,
 //!     date!(2025 - 01 - 15),
 //!     date!(2025 - 01 - 16),
-//!     &FinstackConfig::default(),
-//!     ExecutionPolicy::Serial,
-//! )?;
+//!     &config,
+//! );
+//! let attribution = attribute_pnl(&AttributionMethod::Parallel, &request)?;
 //!
 //! assert_eq!(attribution.total_pnl, Money::new(500.0, Currency::USD));
 //! assert_eq!(
@@ -158,7 +164,6 @@ pub use long_rows::{
     pnl_attribution_wide_row, LongDetailRow, PnlAttributionWideRow,
 };
 pub use metrics_based::attribute_pnl_metrics_based;
-pub use parallel::attribute_pnl_parallel;
 pub use return_contribution::{
     attribute_return_contribution, attribute_return_contribution_json,
     validate_return_contribution_json, BenchmarkRelativeContribution, FactorContribution,
@@ -172,99 +177,145 @@ pub use spec::{
     AttributionSpec, ATTRIBUTION_SCHEMA,
 };
 pub use target_currency::translate_to_target_currency;
-pub use taylor::{attribute_pnl_taylor, TaylorAttributionConfig};
-pub use waterfall::{attribute_pnl_waterfall, default_waterfall_order};
+pub use taylor::TaylorAttributionConfig;
+pub use waterfall::default_waterfall_order;
 
+use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
+use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
 use std::sync::Arc;
 
-/// Hidden support paths for sibling Finstack crates.
-#[doc(hidden)]
-pub mod __private {
-    use super::*;
+/// Inputs shared by the repricing-based attribution methods.
+///
+/// Construct with [`AttributionRequest::new`] and override the optional
+/// fields with struct-update syntax:
+///
+/// ```rust,ignore
+/// let request = AttributionRequest {
+///     execution_policy: ExecutionPolicy::Parallel,
+///     ..AttributionRequest::new(&instrument, &market_t0, &market_t1, t0, t1, &config)
+/// };
+/// ```
+#[derive(Clone, Copy)]
+pub struct AttributionRequest<'a> {
+    /// Instrument to attribute (the T₁ instrument when model parameters moved).
+    pub instrument: &'a Arc<dyn Instrument>,
+    /// Opening market state.
+    pub market_t0: &'a MarketContext,
+    /// Closing market state.
+    pub market_t1: &'a MarketContext,
+    /// Opening valuation date.
+    pub as_of_t0: Date,
+    /// Closing valuation date.
+    pub as_of_t1: Date,
+    /// Finstack configuration (rounding context, sensitivity bump sizes).
+    /// The Taylor method reads its own [`TaylorAttributionConfig`] instead.
+    pub config: &'a FinstackConfig,
+    /// Scheduling policy for independent factor repricings. Waterfall is
+    /// always serial and stamps `Serial` regardless of this value.
+    pub execution_policy: ExecutionPolicy,
+    /// Waterfall only: fail when a factor cannot be isolated instead of
+    /// recording a warning. Defaults to `true`.
+    pub strict_validation: bool,
+    /// Parallel only: also compute the full cross-factor decomposition.
+    pub full_cross_attribution: bool,
+    /// Opening model-parameter snapshot; `None` takes parameters from
+    /// `instrument`, so model-parameter P&L is zero.
+    pub model_params_t0: Option<&'a ModelParamsSnapshot>,
+    /// Credit-factor model driving the per-issuer hierarchy cascade for the
+    /// waterfall and parallel methods.
+    pub credit_factor_model: Option<&'a CreditFactorModel>,
+    /// Detail options for the credit-factor cascade output.
+    pub credit_factor_detail_options: &'a CreditFactorDetailOptions,
+    /// Unscaled instrument values at `(T₀, T₁)` already priced by a portfolio
+    /// engine; when `Some`, the two ordinary endpoint repricings are skipped.
+    pub prepared_endpoints: Option<(Money, Money)>,
+}
 
-    /// Attribute one instrument using endpoint values prepared by a portfolio
-    /// evaluation engine.
+impl<'a> AttributionRequest<'a> {
+    /// Build a request with default optional fields: serial execution,
+    /// strict waterfall validation, no cross-factor detail, no model-parameter
+    /// snapshot, no credit-factor model, default detail options, and no
+    /// prepared endpoints.
     ///
     /// # Arguments
     ///
-    /// * `instrument` - Instrument whose unscaled endpoint values were prepared.
-    /// * `market_t0` - Opening market state used by factor repricings.
-    /// * `market_t1` - Closing market state used by factor repricings.
-    /// * `as_of_t0` - Opening valuation date corresponding to `val_t0`.
-    /// * `as_of_t1` - Closing valuation date corresponding to `val_t1`.
-    /// * `config` - Finstack configuration used by the selected method.
-    /// * `method` - Repricing-based attribution method to execute.
-    /// * `execution_policy` - Inner factor scheduling policy.
-    /// * `val_t0` - Canonical unscaled instrument value at T0.
-    /// * `val_t1` - Canonical unscaled instrument value at T1.
-    ///
-    /// # Returns
-    ///
-    /// The same financial decomposition as the standalone method, without
-    /// repeating its two ordinary endpoint repricings.
-    ///
-    /// # Errors
-    ///
-    /// Returns method-specific validation, market-data, repricing, and
-    /// currency errors. Metrics-based attribution is rejected because it
-    /// requires complete prepared valuation results.
-    #[allow(clippy::too_many_arguments)]
-    pub fn attribute_pnl_prepared(
-        instrument: &Arc<dyn Instrument>,
-        market_t0: &MarketContext,
-        market_t1: &MarketContext,
+    /// * `instrument` - Instrument to reprice at both dates and under every
+    ///   factor restoration.
+    /// * `market_t0` - Opening market state used for the T₀ value and factor
+    ///   restorations.
+    /// * `market_t1` - Closing market state used for the T₁ value.
+    /// * `as_of_t0` - Opening valuation date.
+    /// * `as_of_t1` - Closing valuation date; must not precede `as_of_t0`.
+    /// * `config` - Finstack configuration whose rounding context is stamped
+    ///   into the result and whose sensitivity extension sets bump sizes.
+    #[must_use]
+    pub fn new(
+        instrument: &'a Arc<dyn Instrument>,
+        market_t0: &'a MarketContext,
+        market_t1: &'a MarketContext,
         as_of_t0: Date,
         as_of_t1: Date,
-        config: &finstack_quant_core::config::FinstackConfig,
-        method: &AttributionMethod,
-        execution_policy: ExecutionPolicy,
-        val_t0: Money,
-        val_t1: Money,
-    ) -> finstack_quant_core::Result<PnlAttribution> {
-        match method {
-            AttributionMethod::Parallel => parallel::attribute_pnl_parallel_prepared(
-                instrument,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                config,
-                execution_policy,
-                val_t0,
-                val_t1,
-            ),
-            AttributionMethod::Waterfall(order) => waterfall::attribute_pnl_waterfall_prepared(
-                instrument,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                config,
-                order.clone(),
-                val_t0,
-                val_t1,
-            ),
-            AttributionMethod::Taylor(taylor_config) => taylor::attribute_pnl_taylor_prepared(
-                instrument,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                taylor_config,
-                execution_policy,
-                val_t0,
-                val_t1,
-            ),
-            AttributionMethod::MetricsBased => Err(finstack_quant_core::Error::Validation(
-                "metrics-based attribution requires prepared valuation results, not scalar endpoints"
-                    .to_string(),
-            )),
+        config: &'a FinstackConfig,
+    ) -> Self {
+        static DEFAULT_DETAIL_OPTIONS: CreditFactorDetailOptions = CreditFactorDetailOptions {
+            include_per_issuer_adder: false,
+            include_per_bucket_breakdown: true,
+        };
+        Self {
+            instrument,
+            market_t0,
+            market_t1,
+            as_of_t0,
+            as_of_t1,
+            config,
+            execution_policy: ExecutionPolicy::Serial,
+            strict_validation: spec::DEFAULT_STRICT_VALIDATION,
+            full_cross_attribution: false,
+            model_params_t0: None,
+            credit_factor_model: None,
+            credit_factor_detail_options: &DEFAULT_DETAIL_OPTIONS,
+            prepared_endpoints: None,
         }
+    }
+}
+
+/// Run one repricing-based attribution method on a request.
+///
+/// # Arguments
+///
+/// * `method` - Attribution methodology. `Parallel`, `Waterfall(order)` and
+///   `Taylor(config)` are executed here; `MetricsBased` needs priced
+///   [`finstack_quant_valuations::instruments::ValuationResult`]s and must go
+///   through [`attribute_pnl_metrics_based`].
+/// * `request` - Instrument, market states, dates, configuration and the
+///   optional overrides described on [`AttributionRequest`].
+///
+/// # Errors
+///
+/// Returns method-specific validation, market-data, repricing, and currency
+/// errors, and a validation error for [`AttributionMethod::MetricsBased`].
+pub fn attribute_pnl(
+    method: &AttributionMethod,
+    request: &AttributionRequest<'_>,
+) -> finstack_quant_core::Result<PnlAttribution> {
+    match method {
+        AttributionMethod::Parallel => parallel::attribute_pnl_parallel(request),
+        AttributionMethod::Waterfall(order) => {
+            waterfall::attribute_pnl_waterfall(request, order.clone())
+        }
+        AttributionMethod::Taylor(taylor_config) => {
+            taylor::attribute_pnl_taylor(request, taylor_config)
+        }
+        AttributionMethod::MetricsBased => Err(finstack_quant_core::Error::Validation(
+            "metrics-based attribution requires priced valuation results; call attribute_pnl_metrics_based"
+                .to_string(),
+        )),
     }
 }
 
@@ -276,7 +327,7 @@ pub mod __private {
 /// the T₀ value and `market_t1` for the T₁ value. Use it when you just
 /// need the headline number and don't care which
 /// factors contributed. For a factor-level decomposition, reach for
-/// one of the `attribute_pnl_*` functions listed in the module docs.
+/// [`attribute_pnl`] or [`attribute_pnl_metrics_based`].
 ///
 /// This is intentionally a thin wrapper over direct repricing plus
 /// date-matched FX conversion: the function is cheap, it allocates no scratch

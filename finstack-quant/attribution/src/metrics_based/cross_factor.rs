@@ -34,7 +34,7 @@ pub(super) fn apply(
     // Cross-factor terms.
     //
     // Same seven pairs as the parallel attribution (see
-    // [`crate::parallel::attribute_pnl_parallel_with_credit_model`]
+    // [`crate::parallel::attribute_pnl_parallel`]
     // for the economic justification of the selection): Rates×Credit,
     // Rates×Vol, Spot×Vol, Spot×Credit, FX×Vol, FX×Rates and Credit×Vol
     // (the convertible pair). Each multiplies a

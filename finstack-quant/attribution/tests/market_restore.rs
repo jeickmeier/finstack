@@ -10,7 +10,7 @@
 //! commodity P&L landed 100% in the residual.
 
 use finstack_quant_attribution::{
-    attribute_pnl_parallel, attribute_pnl_waterfall, default_waterfall_order, ExecutionPolicy,
+    attribute_pnl, default_waterfall_order, AttributionMethod, AttributionRequest, ExecutionPolicy,
     MarketRestoreFlags, MarketSnapshot,
 };
 use finstack_quant_core::config::FinstackConfig;
@@ -258,16 +258,20 @@ fn waterfall_price_curve_pnl_lands_in_market_scalars_not_residual() {
     let market_t1 = MarketContext::new().insert(price_curve(3.30));
     let config = FinstackConfig::default();
 
-    let attribution = attribute_pnl_waterfall(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        AS_OF_T0,
-        AS_OF_T1,
-        &config,
-        default_waterfall_order(),
-        true,
-        None,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Waterfall(default_waterfall_order()),
+        &AttributionRequest {
+            strict_validation: true,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                AS_OF_T0,
+                AS_OF_T1,
+                &config,
+            )
+        },
     )
     .expect("waterfall attribution should succeed");
 
@@ -297,14 +301,19 @@ fn parallel_price_curve_pnl_lands_in_market_scalars_not_residual() {
     let market_t1 = MarketContext::new().insert(price_curve(3.30));
     let config = FinstackConfig::default();
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        AS_OF_T0,
-        AS_OF_T1,
-        &config,
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                AS_OF_T0,
+                AS_OF_T1,
+                &config,
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 
@@ -396,14 +405,19 @@ fn parallel_vol_cube_only_market_receives_vol_pnl() {
     let market_t1 = MarketContext::new().insert_vol_cube(vol_cube(0.30));
     let config = FinstackConfig::default();
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        AS_OF_T0,
-        AS_OF_T1,
-        &config,
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                AS_OF_T0,
+                AS_OF_T1,
+                &config,
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 
@@ -436,16 +450,20 @@ fn waterfall_stamps_executed_factor_order_into_notes() {
     let market_t1 = MarketContext::new().insert(price_curve(3.30));
     let config = FinstackConfig::default();
 
-    let attribution = attribute_pnl_waterfall(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        AS_OF_T0,
-        AS_OF_T1,
-        &config,
-        default_waterfall_order(),
-        true,
-        None,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Waterfall(default_waterfall_order()),
+        &AttributionRequest {
+            strict_validation: true,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                AS_OF_T0,
+                AS_OF_T1,
+                &config,
+            )
+        },
     )
     .expect("waterfall attribution should succeed");
 
@@ -480,14 +498,19 @@ fn parallel_default_cross_pairs_include_rates_inflation() {
         .insert(inflation_curve(106.0));
     let config = FinstackConfig::default();
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        AS_OF_T0,
-        AS_OF_T1,
-        &config,
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                AS_OF_T0,
+                AS_OF_T1,
+                &config,
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 
@@ -520,14 +543,19 @@ fn parallel_default_cross_pairs_include_credit_correlations() {
         .insert(base_correlation_curve(0.50));
     let config = FinstackConfig::default();
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        AS_OF_T0,
-        AS_OF_T1,
-        &config,
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                AS_OF_T0,
+                AS_OF_T1,
+                &config,
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 

@@ -10,7 +10,9 @@
 //!
 //! Uses proptest for property-based testing to discover edge cases.
 
-use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
+use finstack_quant_attribution::{
+    attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy,
+};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{create_date, Date};
@@ -219,14 +221,19 @@ fn test_zero_market_change_identity() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market,
-        &market,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market,
+                &market,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -289,14 +296,19 @@ fn test_rates_pnl_sign_convention() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -338,14 +350,19 @@ fn test_rates_pnl_positive_when_rates_decrease() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -389,25 +406,21 @@ fn test_long_short_net_zero_invariant() {
     let short: Arc<dyn Instrument> =
         Arc::new(ScaledInstrument::new("SHORT-BOND", Arc::clone(&long), -1.0));
 
-    let long_attr = attribute_pnl_parallel(
-        &long,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let long_attr = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(&long, &market_t0, &market_t1, as_of_t0, as_of_t1, &config)
+        },
     )
     .unwrap();
 
-    let short_attr = attribute_pnl_parallel(
-        &short,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let short_attr = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(&short, &market_t0, &market_t1, as_of_t0, as_of_t1, &config)
+        },
     )
     .unwrap();
 
@@ -477,36 +490,32 @@ fn test_portfolio_additivity_invariant() {
         Arc::clone(&inst_b),
     ));
 
-    let attr_a = attribute_pnl_parallel(
-        &inst_a,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attr_a = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(&inst_a, &market_t0, &market_t1, as_of_t0, as_of_t1, &config)
+        },
     )
     .unwrap();
 
-    let attr_b = attribute_pnl_parallel(
-        &inst_b,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attr_b = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(&inst_b, &market_t0, &market_t1, as_of_t0, as_of_t1, &config)
+        },
     )
     .unwrap();
 
-    let attr_portfolio = attribute_pnl_parallel(
-        &portfolio,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attr_portfolio = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &portfolio, &market_t0, &market_t1, as_of_t0, as_of_t1, &config,
+            )
+        },
     )
     .unwrap();
 
@@ -571,15 +580,7 @@ proptest! {
         let config = FinstackConfig::default();
         let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-        let attribution = attribute_pnl_parallel(
-            &bond_instrument,
-            &market,
-            &market,
-            as_of_t0,
-            as_of_t1,
-            &config,
-            ExecutionPolicy::Parallel,
-        )
+        let attribution = attribute_pnl(&AttributionMethod::Parallel, &AttributionRequest { execution_policy: ExecutionPolicy::Parallel, ..AttributionRequest::new(&bond_instrument, &market, &market, as_of_t0, as_of_t1, &config) })
         .unwrap();
 
         // With an unchanged flat continuous curve, one day of carry for the
@@ -646,15 +647,7 @@ proptest! {
 
             let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-            let attribution = attribute_pnl_parallel(
-                &bond_instrument,
-                &market_t0,
-                &market_t1,
-                as_of_t0,
-                as_of_t1,
-                &config,
-                ExecutionPolicy::Parallel,
-            )
+            let attribution = attribute_pnl(&AttributionMethod::Parallel, &AttributionRequest { execution_policy: ExecutionPolicy::Parallel, ..AttributionRequest::new(&bond_instrument, &market_t0, &market_t1, as_of_t0, as_of_t1, &config) })
             .unwrap();
 
             pnl_magnitudes.push(attribution.rates_curves_pnl.amount().abs());
@@ -706,26 +699,10 @@ proptest! {
         let config = FinstackConfig::default();
         let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-        let attr_small = attribute_pnl_parallel(
-            &bond_instrument,
-            &market_t0,
-            &market_small,
-            as_of_t0,
-            as_of_t1,
-            &config,
-            ExecutionPolicy::Parallel,
-        )
+        let attr_small = attribute_pnl(&AttributionMethod::Parallel, &AttributionRequest { execution_policy: ExecutionPolicy::Parallel, ..AttributionRequest::new(&bond_instrument, &market_t0, &market_small, as_of_t0, as_of_t1, &config) })
         .unwrap();
 
-        let attr_large = attribute_pnl_parallel(
-            &bond_instrument,
-            &market_t0,
-            &market_large,
-            as_of_t0,
-            as_of_t1,
-            &config,
-            ExecutionPolicy::Parallel,
-        )
+        let attr_large = attribute_pnl(&AttributionMethod::Parallel, &AttributionRequest { execution_policy: ExecutionPolicy::Parallel, ..AttributionRequest::new(&bond_instrument, &market_t0, &market_large, as_of_t0, as_of_t1, &config) })
         .unwrap();
 
         let pnl_small = attr_small.rates_curves_pnl.amount().abs();
@@ -774,14 +751,19 @@ fn test_small_notional_edge_case() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -826,14 +808,19 @@ fn test_large_notional_edge_case() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -889,14 +876,19 @@ fn test_extreme_rate_levels() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution_low = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_low,
-        &market_lower,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution_low = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_low,
+                &market_lower,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -912,14 +904,19 @@ fn test_extreme_rate_levels() {
     let market_high = MarketContext::new().insert(curve_high);
     let market_higher = MarketContext::new().insert(curve_higher);
 
-    let attribution_high = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_high,
-        &market_higher,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution_high = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_high,
+                &market_higher,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -964,14 +961,19 @@ fn test_near_maturity_edge_case() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 

@@ -16,9 +16,9 @@ repricing cost and operational moving parts.
 |--------------|------------------------------------------------------------|------------------------------------------------------------------------------------------------|
 | Minimal      | [`simple_pnl_bridge`](src/lib.rs)                          | Scalar `value(T₁) − value(T₀)` in target currency. No decomposition.                          |
 | Linear       | [`attribute_pnl_metrics_based`](src/metrics_based/)      | Linear (and optional second-order) approximation from precomputed metrics. No extra repricing. |
-| Parallel     | [`attribute_pnl_parallel`](src/parallel.rs)                | Isolate one factor at a time (T₀ for that factor, T₁ elsewhere). Residual carries cross-effects. |
-| Waterfall    | [`attribute_pnl_waterfall`](src/waterfall.rs)              | Apply factors in order; per-factor P&Ls sum to total P&L up to tolerance. Order matters.       |
-| Taylor       | [`attribute_pnl_taylor`](src/taylor.rs)                    | First- and optional second-order sensitivity expansion from bump-and-reprice Greeks; FX, inflation, correlations, scalars, and model parameters are isolated by restore-and-reprice. |
+| Parallel     | [`attribute_pnl`](src/lib.rs) + `AttributionMethod::Parallel` | Isolate one factor at a time (T₀ for that factor, T₁ elsewhere). Residual carries cross-effects. |
+| Waterfall    | [`attribute_pnl`](src/lib.rs) + `AttributionMethod::Waterfall` | Apply factors in order; per-factor P&Ls sum to total P&L up to tolerance. Order matters.       |
+| Taylor       | [`attribute_pnl`](src/lib.rs) + `AttributionMethod::Taylor` | First- and optional second-order sensitivity expansion from bump-and-reprice Greeks; FX, inflation, correlations, scalars, and model parameters are isolated by restore-and-reprice. |
 
 `AttributionMethod` selects among the four decomposition methods when
 dispatching through a spec: `Parallel` (the `Default`),
@@ -64,17 +64,17 @@ finer breakdowns:
 
 ```text
 attribution/src/
-├── lib.rs                  # Module docs, simple_pnl_bridge, public re-exports
+├── lib.rs                  # Module docs, AttributionRequest, attribute_pnl, simple_pnl_bridge
 ├── types.rs                # types module declaration
 ├── types/result.rs         # AttributionFactor, AttributionMethod, ExecutionPolicy,
 │                           #   PnlAttribution, AttributionMeta
 ├── types/detail.rs         # Per-factor *Detail / *Attribution structs
 ├── factors.rs              # MarketSnapshot, restore flags, per-factor market mutation
 ├── helpers.rs              # reprice_instrument, compute_pnl, compute_pnl_with_fx
-├── parallel.rs             # attribute_pnl_parallel
-├── waterfall.rs            # attribute_pnl_waterfall, default_waterfall_order
+├── parallel.rs             # parallel method
+├── waterfall.rs            # waterfall method, default_waterfall_order
 ├── metrics_based/          # attribute_pnl_metrics_based (linear from metrics)
-├── taylor.rs               # attribute_pnl_taylor, TaylorAttributionConfig
+├── taylor.rs               # Taylor method, TaylorAttributionConfig
 ├── model_params.rs         # extract/replace model params, measure_*_shift
 ├── credit_factor.rs        # Credit-factor detail options and model identifiers
 ├── credit_cascade.rs       # Waterfall credit-factor cascade
@@ -100,8 +100,8 @@ Import path uses underscores:
 
 ```rust
 use finstack_quant_attribution::{
-    attribute_pnl_parallel, attribute_pnl_waterfall, default_waterfall_order,
-    AttributionFactor, ExecutionPolicy, PnlAttribution,
+    attribute_pnl, default_waterfall_order, AttributionFactor, AttributionMethod,
+    AttributionRequest, ExecutionPolicy, PnlAttribution,
 };
 ```
 
@@ -155,10 +155,10 @@ Two schema artifacts are checked in under
 | Item                                                                              | Module           | Notes                                       |
 |-----------------------------------------------------------------------------------|------------------|---------------------------------------------|
 | `simple_pnl_bridge`                                                               | `lib`            | Total P&L, no decomposition                 |
-| `attribute_pnl_parallel`                                                          | `parallel`       | Factor isolation, residual reports cross-effects |
-| `attribute_pnl_waterfall`, `default_waterfall_order`                              | `waterfall`      | Sum-preserving ordered decomposition        |
+| `attribute_pnl` + `AttributionMethod::Parallel`                                   | `parallel`       | Factor isolation, residual reports cross-effects |
+| `attribute_pnl` + `AttributionMethod::Waterfall`, `default_waterfall_order`       | `waterfall`      | Sum-preserving ordered decomposition        |
 | `attribute_pnl_metrics_based`                                                     | `metrics_based`  | Linear approximation from precomputed metrics |
-| `attribute_pnl_taylor`, `TaylorAttributionConfig`                                | `taylor`         | Sensitivity-based expansion mapped to `PnlAttribution` |
+| `attribute_pnl` + `AttributionMethod::Taylor`, `TaylorAttributionConfig`          | `taylor`         | Sensitivity-based expansion mapped to `PnlAttribution` |
 | `PnlAttribution`, `AttributionFactor`, `AttributionMethod`, `AttributionMeta`     | `types`          | Result envelope and factor enums            |
 | `CarryDetail`, `RatesCurvesAttribution`, `CreditCurvesAttribution`, `CreditFactorAttribution`, `InflationCurvesAttribution`, `CorrelationsAttribution`, `FxAttribution`, `VolAttribution`, `ModelParamsAttribution`, `ScalarsAttribution`, `CrossFactorDetail`, `CreditCarryDecomposition`, `CreditCarryByLevel`, `LevelCarry`, `LevelPnl`, `SourceLine` | `types` | Per-factor detail structs                   |
 | `translate_to_target_currency`                                                         | `target_currency`     | Post-hoc translation of a native-currency `PnlAttribution` into a reporting currency, adding `fx_translation_pnl` |

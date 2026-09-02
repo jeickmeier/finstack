@@ -89,31 +89,40 @@ pub(super) fn extract_bucketed_dv01_per_curve(
     result
 }
 
-/// Extract per-curve **key-rate** (per-tenor) DV01 sensitivities.
+/// Extract per-curve **key-rate** (per-tenor) sensitivities flattened under
+/// composite keys `{metric_prefix}::{curve}::{tenor_label}` (for example
+/// `bucketed_dv01::USD-OIS::5y` or `bucketed_cs01::ACME-HAZ::5y`).
 ///
-/// The `BucketedDv01` calculator flattens its per-tenor series into the
-/// `measures` map under composite keys `bucketed_dv01::{curve}::{tenor_label}`
-/// (e.g. `bucketed_dv01::USD-OIS::5y`). This walks the standard bucket grid and
-/// collects, per curve, the `(tenor_years, dv01)` pairs that are present.
+/// Walks the standard bucket grid and collects, per curve, the
+/// `(tenor_years, sensitivity)` pairs that are present.
 ///
-/// Returns a map `curve → Vec<(tenor_years, dv01)>`; a curve is absent from the
-/// map when none of its per-tenor keys were found (caller then falls back to
-/// the coarser per-curve-total or aggregate path).
-pub(super) fn extract_keyrate_dv01_per_curve(
+/// # Arguments
+///
+/// * `measures` - Metric map from a priced valuation result.
+/// * `curve_ids` - Curves to look up.
+/// * `metric_prefix` - Key prefix of the bucketed metric family
+///   (`"bucketed_dv01"` or `"bucketed_cs01"`).
+///
+/// Returns a map `curve → Vec<(tenor_years, sensitivity)>`; a curve is absent
+/// when none of its per-tenor keys were found (caller then falls back to the
+/// coarser per-curve-total or aggregate path).
+pub(crate) fn extract_keyrate_per_curve(
     measures: &indexmap::IndexMap<MetricId, f64>,
     curve_ids: &[CurveId],
+    metric_prefix: &str,
 ) -> HashMap<CurveId, Vec<(f64, f64)>> {
     use finstack_quant_valuations::metrics::{STANDARD_BUCKETS_YEARS, STANDARD_BUCKET_LABELS};
 
     let mut result: HashMap<CurveId, Vec<(f64, f64)>> = HashMap::default();
     // Reuse one key buffer across all curves/tenors: build the
-    // `bucketed_dv01::{curve}::` prefix once per curve, then swap only the
+    // `{prefix}::{curve}::` prefix once per curve, then swap only the
     // trailing tenor label — no per-tenor `format!` allocation.
     let mut key = String::new();
     for curve_id in curve_ids {
         let mut buckets: Vec<(f64, f64)> = Vec::new();
         key.clear();
-        key.push_str("bucketed_dv01::");
+        key.push_str(metric_prefix);
+        key.push_str("::");
         key.push_str(curve_id.as_str());
         key.push_str("::");
         let prefix_len = key.len();
@@ -123,53 +132,8 @@ pub(super) fn extract_keyrate_dv01_per_curve(
         {
             key.truncate(prefix_len);
             key.push_str(label);
-            if let Some(&dv01) = measures.get(key.as_str()) {
-                buckets.push((tenor_years, dv01));
-            }
-        }
-        if !buckets.is_empty() {
-            result.insert(curve_id.clone(), buckets);
-        }
-    }
-    result
-}
-
-/// Extract per-curve **key-rate** (per-tenor) par-spread CS01 sensitivities.
-///
-/// The `BucketedCs01` calculator (par-spread re-bootstrap) flattens its
-/// per-tenor series into the `measures` map under composite keys
-/// `bucketed_cs01::{curve}::{tenor_label}` (e.g. `bucketed_cs01::ACME-HAZ::5y`),
-/// mirroring `bucketed_dv01`. This walks the standard bucket grid and collects,
-/// per curve, the `(tenor_years, cs01)` pairs that are present.
-///
-/// Returns a map `curve → Vec<(tenor_years, cs01)>`; a curve is absent when none
-/// of its per-tenor keys were found (caller then falls back to aggregate CS01).
-pub(crate) fn extract_keyrate_cs01_per_curve(
-    measures: &indexmap::IndexMap<MetricId, f64>,
-    curve_ids: &[CurveId],
-) -> HashMap<CurveId, Vec<(f64, f64)>> {
-    use finstack_quant_valuations::metrics::{STANDARD_BUCKETS_YEARS, STANDARD_BUCKET_LABELS};
-
-    let mut result: HashMap<CurveId, Vec<(f64, f64)>> = HashMap::default();
-    // Reuse one key buffer across all curves/tenors (see
-    // `extract_keyrate_dv01_per_curve`): build the prefix once per curve, then
-    // swap only the trailing tenor label.
-    let mut key = String::new();
-    for curve_id in curve_ids {
-        let mut buckets: Vec<(f64, f64)> = Vec::new();
-        key.clear();
-        key.push_str("bucketed_cs01::");
-        key.push_str(curve_id.as_str());
-        key.push_str("::");
-        let prefix_len = key.len();
-        for (&tenor_years, label) in STANDARD_BUCKETS_YEARS
-            .iter()
-            .zip(STANDARD_BUCKET_LABELS.iter())
-        {
-            key.truncate(prefix_len);
-            key.push_str(label);
-            if let Some(&cs01) = measures.get(key.as_str()) {
-                buckets.push((tenor_years, cs01));
+            if let Some(&value) = measures.get(key.as_str()) {
+                buckets.push((tenor_years, value));
             }
         }
         if !buckets.is_empty() {
@@ -228,26 +192,31 @@ pub(super) fn measure_per_tenor_rate_shift(
     )
 }
 
-/// Signed mean forward-rate shift (bp) over the standard tenor grid —
-/// forward-curve counterpart of `measure_discount_curve_shift`.
-fn measure_forward_curve_shift_bp(
-    curve_id: &str,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-) -> Option<f64> {
+/// Mean over the standard tenor grid (`t > 0`) of the per-tenor move
+/// `r1 − r0` in basis points, taking `|Δ|` when `absolute`. Tenors where
+/// either side is non-finite are skipped; `None` when no tenor contributed.
+///
+/// # Arguments
+///
+/// * `sample` - Returns `(r0, r1)` — the T₀ and T₁ rate at a tenor in years.
+/// * `absolute` - `true` for the L1 mean used by the twist guards, `false`
+///   for the signed mean.
+fn mean_tenor_shift_bp(sample: impl Fn(f64) -> (f64, f64), absolute: bool) -> Option<f64> {
     use finstack_quant_core::market_data::diff::STANDARD_TENORS;
-    let curve_t0 = market_t0.get_forward(curve_id).ok()?;
-    let curve_t1 = market_t1.get_forward(curve_id).ok()?;
     let mut total = 0.0;
     let mut count = 0usize;
     for &t in STANDARD_TENORS {
         if t <= 0.0 {
             continue;
         }
-        let r0 = curve_t0.rate(t);
-        let r1 = curve_t1.rate(t);
+        let (r0, r1) = sample(t);
         if r0.is_finite() && r1.is_finite() {
-            total += (r1 - r0) * 10_000.0;
+            let delta = r1 - r0;
+            total += if absolute {
+                delta.abs() * 10_000.0
+            } else {
+                delta * 10_000.0
+            };
             count += 1;
         }
     }
@@ -256,6 +225,48 @@ fn measure_forward_curve_shift_bp(
     } else {
         Some(total / count as f64)
     }
+}
+
+/// Arithmetic mean of `shift(item)` over the items where it is `Some`.
+///
+/// # Arguments
+///
+/// * `items` - Curves, ids or other keys to sample.
+/// * `shift` - Per-item shift; `None` excludes the item from the mean.
+///
+/// Returns `(mean, count)`; the mean is `None` when nothing contributed.
+pub(super) fn average_over<T>(
+    items: impl IntoIterator<Item = T>,
+    shift: impl Fn(T) -> Option<f64>,
+) -> (Option<f64>, usize) {
+    let mut total = 0.0;
+    let mut count = 0usize;
+    for item in items {
+        if let Some(value) = shift(item) {
+            total += value;
+            count += 1;
+        }
+    }
+    (
+        if count > 0 {
+            Some(total / count as f64)
+        } else {
+            None
+        },
+        count,
+    )
+}
+
+/// Signed mean forward-rate shift (bp) over the standard tenor grid —
+/// forward-curve counterpart of `measure_discount_curve_shift`.
+fn measure_forward_curve_shift_bp(
+    curve_id: &str,
+    market_t0: &MarketContext,
+    market_t1: &MarketContext,
+) -> Option<f64> {
+    let curve_t0 = market_t0.get_forward(curve_id).ok()?;
+    let curve_t1 = market_t1.get_forward(curve_id).ok()?;
+    mean_tenor_shift_bp(|t| (curve_t0.rate(t), curve_t1.rate(t)), false)
 }
 
 /// Signed mean rate shift (bp) for a curve that may be a discount or a
@@ -290,31 +301,13 @@ fn discount_curve_abs_shift_bp(
     market_t0: &MarketContext,
     market_t1: &MarketContext,
 ) -> f64 {
-    use finstack_quant_core::market_data::diff::STANDARD_TENORS;
     let (Ok(c0), Ok(c1)) = (
         market_t0.get_discount(curve_id),
         market_t1.get_discount(curve_id),
     ) else {
         return 0.0;
     };
-    let mut total_abs = 0.0;
-    let mut count = 0usize;
-    for &t in STANDARD_TENORS {
-        if t <= 0.0 {
-            continue;
-        }
-        let z0 = c0.zero(t);
-        let z1 = c1.zero(t);
-        if z0.is_finite() && z1.is_finite() {
-            total_abs += (z1 - z0).abs() * 10_000.0;
-            count += 1;
-        }
-    }
-    if count == 0 {
-        0.0
-    } else {
-        total_abs / count as f64
-    }
+    mean_tenor_shift_bp(|t| (c0.zero(t), c1.zero(t)), true).unwrap_or(0.0)
 }
 
 /// L1-mean rate shift (bp) for a curve that may be a discount or a
@@ -325,7 +318,6 @@ pub(super) fn rate_curve_abs_shift_bp(
     market_t0: &MarketContext,
     market_t1: &MarketContext,
 ) -> f64 {
-    use finstack_quant_core::market_data::diff::STANDARD_TENORS;
     let v = discount_curve_abs_shift_bp(curve_id, market_t0, market_t1);
     if v > 0.0 {
         return v;
@@ -336,24 +328,7 @@ pub(super) fn rate_curve_abs_shift_bp(
     ) else {
         return 0.0;
     };
-    let mut total_abs = 0.0;
-    let mut count = 0usize;
-    for &t in STANDARD_TENORS {
-        if t <= 0.0 {
-            continue;
-        }
-        let r0 = c0.rate(t);
-        let r1 = c1.rate(t);
-        if r0.is_finite() && r1.is_finite() {
-            total_abs += (r1 - r0).abs() * 10_000.0;
-            count += 1;
-        }
-    }
-    if count == 0 {
-        0.0
-    } else {
-        total_abs / count as f64
-    }
+    mean_tenor_shift_bp(|t| (c0.rate(t), c1.rate(t)), true).unwrap_or(0.0)
 }
 
 /// Threshold below which a signed mean shift is considered twist-dominated
@@ -407,7 +382,6 @@ pub(super) fn inflation_source_abs_shift_bp(
     market_t0: &MarketContext,
     market_t1: &MarketContext,
 ) -> f64 {
-    use finstack_quant_core::market_data::diff::STANDARD_TENORS;
     let index_abs = measure_inflation_index_shift(curve_id, market_t0, market_t1)
         .map(f64::abs)
         .unwrap_or(0.0);
@@ -417,30 +391,14 @@ pub(super) fn inflation_source_abs_shift_bp(
     ) else {
         return index_abs;
     };
-    let mut total_abs = 0.0;
-    let mut count = 0usize;
-    for &t in STANDARD_TENORS {
-        if t <= 0.0 {
-            continue;
-        }
-        // Inflation rate at tenor t from the cpi ratio (mirrors the
-        // measure_inflation_curve_shift formula in core::market_data::diff).
-        let rate = |c: &finstack_quant_core::market_data::term_structures::InflationCurve| -> f64 {
+    // Inflation rate at tenor t from the cpi ratio (mirrors the
+    // measure_inflation_curve_shift formula in core::market_data::diff).
+    let rate =
+        |c: &finstack_quant_core::market_data::term_structures::InflationCurve, t: f64| -> f64 {
             let ratio = c.cpi(t) / c.base_cpi();
             ratio.powf(1.0 / t) - 1.0
         };
-        let r0 = rate(&c0);
-        let r1 = rate(&c1);
-        if r0.is_finite() && r1.is_finite() {
-            total_abs += (r1 - r0).abs() * 10_000.0;
-            count += 1;
-        }
-    }
-    if count == 0 {
-        0.0
-    } else {
-        total_abs / count as f64
-    }
+    mean_tenor_shift_bp(|t| (rate(&c0, t), rate(&c1, t)), true).unwrap_or(0.0)
 }
 
 /// Format a diagnostic note when a signed average shift is twist-dominated

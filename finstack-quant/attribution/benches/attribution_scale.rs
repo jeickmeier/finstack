@@ -24,10 +24,9 @@ mod fixtures;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use finstack_quant_attribution::{
-    attribute_pnl_metrics_based, attribute_pnl_parallel, attribute_pnl_taylor,
-    attribute_pnl_waterfall, attribute_return_contribution, default_waterfall_order,
-    simple_pnl_bridge, AttributionMethod, ExecutionPolicy, MarketRestoreFlags, MarketSnapshot,
-    TaylorAttributionConfig,
+    attribute_pnl, attribute_pnl_metrics_based, attribute_return_contribution,
+    default_waterfall_order, simple_pnl_bridge, AttributionMethod, AttributionRequest,
+    ExecutionPolicy, MarketRestoreFlags, MarketSnapshot, TaylorAttributionConfig,
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
@@ -158,14 +157,19 @@ fn run_metrics_based_precomputed(
 
 fn run_parallel(fx: &Fixture, policy: ExecutionPolicy) {
     for bond in &fx.bonds {
-        let attr = attribute_pnl_parallel(
-            bond,
-            black_box(&fx.markets.market_t0),
-            black_box(&fx.markets.market_t1),
-            black_box(fx.markets.as_of_t0),
-            black_box(fx.markets.as_of_t1),
-            &fx.markets.config,
-            policy,
+        let attr = attribute_pnl(
+            &AttributionMethod::Parallel,
+            &AttributionRequest {
+                execution_policy: policy,
+                ..AttributionRequest::new(
+                    bond,
+                    black_box(&fx.markets.market_t0),
+                    black_box(&fx.markets.market_t1),
+                    black_box(fx.markets.as_of_t0),
+                    black_box(fx.markets.as_of_t1),
+                    &fx.markets.config,
+                )
+            },
         )
         .unwrap();
         black_box(attr);
@@ -174,16 +178,20 @@ fn run_parallel(fx: &Fixture, policy: ExecutionPolicy) {
 
 fn run_waterfall(fx: &Fixture, factor_order: &[finstack_quant_attribution::AttributionFactor]) {
     for bond in &fx.bonds {
-        let attr = attribute_pnl_waterfall(
-            bond,
-            black_box(&fx.markets.market_t0),
-            black_box(&fx.markets.market_t1),
-            black_box(fx.markets.as_of_t0),
-            black_box(fx.markets.as_of_t1),
-            &fx.markets.config,
-            factor_order.to_vec(),
-            false,
-            None,
+        let attr = attribute_pnl(
+            &AttributionMethod::Waterfall(factor_order.to_vec()),
+            &AttributionRequest {
+                strict_validation: false,
+                model_params_t0: None,
+                ..AttributionRequest::new(
+                    bond,
+                    black_box(&fx.markets.market_t0),
+                    black_box(&fx.markets.market_t1),
+                    black_box(fx.markets.as_of_t0),
+                    black_box(fx.markets.as_of_t1),
+                    &fx.markets.config,
+                )
+            },
         )
         .unwrap();
         black_box(attr);
@@ -192,14 +200,19 @@ fn run_waterfall(fx: &Fixture, factor_order: &[finstack_quant_attribution::Attri
 
 fn run_taylor(fx: &Fixture, taylor_cfg: &TaylorAttributionConfig) {
     for bond in &fx.bonds {
-        let attr = attribute_pnl_taylor(
-            bond,
-            black_box(&fx.markets.market_t0),
-            black_box(&fx.markets.market_t1),
-            black_box(fx.markets.as_of_t0),
-            black_box(fx.markets.as_of_t1),
-            taylor_cfg,
-            ExecutionPolicy::Parallel,
+        let attr = attribute_pnl(
+            &AttributionMethod::Taylor(taylor_cfg.clone()),
+            &AttributionRequest {
+                execution_policy: ExecutionPolicy::Parallel,
+                ..AttributionRequest::new(
+                    bond,
+                    black_box(&fx.markets.market_t0),
+                    black_box(&fx.markets.market_t1),
+                    black_box(fx.markets.as_of_t0),
+                    black_box(fx.markets.as_of_t1),
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .unwrap();
         black_box(attr);

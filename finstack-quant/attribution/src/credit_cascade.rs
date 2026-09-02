@@ -24,7 +24,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::diff::{measure_par_spread_shift, TenorSamplingMethod};
 use finstack_quant_core::market_data::scalars::MarketScalar;
@@ -218,8 +217,6 @@ pub(crate) fn plan_credit_cascade(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
-    _as_of_t0: Date,
-    _as_of_t1: Date,
 ) -> Result<Option<CreditCascade>> {
     let issuer_id_str = match instrument.attributes().get_meta(ISSUER_ID_META_KEY) {
         Some(s) => s.to_string(),
@@ -849,16 +846,9 @@ mod tests {
                 MarketScalar::Unitless(-2.0),
             );
 
-        let cascade = plan_credit_cascade(
-            &model,
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-        )
-        .unwrap()
-        .expect("cascade");
+        let cascade = plan_credit_cascade(&model, &instrument, &market_t0, &market_t1)
+            .unwrap()
+            .expect("cascade");
 
         // Cascade: generic, rating, region, adder, curve_shape
         // (for a flat hazard move, curve_shape is a 0bp snap).
@@ -922,16 +912,9 @@ mod tests {
             .insert(hazard(curve_id.as_str(), as_of_t1, 0.0125))
             .insert_price("cdx.hy.5y", MarketScalar::Unitless(3.50));
 
-        let cascade = plan_credit_cascade(
-            &model,
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-        )
-        .unwrap()
-        .expect("cascade");
+        let cascade = plan_credit_cascade(&model, &instrument, &market_t0, &market_t1)
+            .unwrap()
+            .expect("cascade");
 
         assert!(
             cascade
@@ -960,16 +943,9 @@ mod tests {
             .insert(hazard(curve_id.as_str(), as_of_t1, 0.0125))
             .insert_price("cdx.hy.5y", MarketScalar::Unitless(125.0));
 
-        let cascade = plan_credit_cascade(
-            &model,
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-        )
-        .unwrap()
-        .expect("cascade");
+        let cascade = plan_credit_cascade(&model, &instrument, &market_t0, &market_t1)
+            .unwrap()
+            .expect("cascade");
 
         assert!(
             cascade.warnings.is_empty(),
@@ -1010,16 +986,9 @@ mod tests {
                 MarketScalar::Unitless(-2.0),
             );
 
-        let cascade = plan_credit_cascade(
-            &model,
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-        )
-        .unwrap()
-        .expect("cascade");
+        let cascade = plan_credit_cascade(&model, &instrument, &market_t0, &market_t1)
+            .unwrap()
+            .expect("cascade");
 
         let labels: Vec<&str> = cascade.steps.iter().map(|s| s.label.as_str()).collect();
         let deltas: Vec<f64> = cascade.steps.iter().map(|s| s.delta_bp).collect();

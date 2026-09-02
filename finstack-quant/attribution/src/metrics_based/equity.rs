@@ -1,7 +1,7 @@
 use super::super::helpers::*;
 use super::super::types::*;
 use super::context::AttributionInputs;
-use super::shifts::{inflation_source_abs_shift_bp, twist_diagnostic_note};
+use super::shifts::{average_over, inflation_source_abs_shift_bp, twist_diagnostic_note};
 use finstack_quant_core::market_data::diff::{
     measure_inflation_source_shift, measure_scalar_absolute_shift,
 };
@@ -231,21 +231,16 @@ pub(super) fn apply_inflation(
             // TWIST GUARD: emit a diagnostic note when the inflation curve is
             // twisted (signed mean shift collapses toward 0 but L1 mean is
             // non-trivial). Same shape as the rates / credit twist guards.
-            let mut total_abs = 0.0;
-            let mut abs_count = 0usize;
-            for curve_id in curve_ids {
+            let abs_avg = average_over(curve_ids, |curve_id| {
                 let v = inflation_source_abs_shift_bp(
                     curve_id.as_str(),
                     inputs.market_t0,
                     inputs.market_t1,
                 );
-                if v > 0.0 {
-                    total_abs += v;
-                    abs_count += 1;
-                }
-            }
-            if abs_count > 0 {
-                let abs_avg = total_abs / abs_count as f64;
+                (v > 0.0).then_some(v)
+            })
+            .0;
+            if let Some(abs_avg) = abs_avg {
                 if let Some(note) = twist_diagnostic_note("Inflation convexity", avg_shift, abs_avg)
                 {
                     attribution.meta.notes.push(note);

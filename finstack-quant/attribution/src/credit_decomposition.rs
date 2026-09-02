@@ -80,15 +80,7 @@ impl AttributionSpec {
         //    curves and the per-factor par-spread moves (`β·ΔF` / `Δadder`).
         //    Returns None when no cascade can be planned (unmapped issuer, no
         //    hazard exposure, …).
-        let Some(cascade) = plan_credit_cascade(
-            model,
-            instrument,
-            market_t0,
-            market_t1,
-            self.as_of_t0,
-            self.as_of_t1,
-        )?
-        else {
+        let Some(cascade) = plan_credit_cascade(model, instrument, market_t0, market_t1)? else {
             return Ok(None);
         };
         // Surface planner diagnostics (e.g. the factor-series unit

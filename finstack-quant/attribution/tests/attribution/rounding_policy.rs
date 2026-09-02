@@ -2,7 +2,7 @@
 
 use crate::attribution_support::TestInstrument;
 use finstack_quant_attribution::{
-    attribute_pnl_parallel, AttributionMethod, ExecutionPolicy, PnlAttribution,
+    attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy, PnlAttribution,
 };
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
@@ -36,14 +36,19 @@ fn parallel_stamps_configured_rounding_context() {
         .overrides
         .insert(Currency::USD, 4);
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .expect("Attribution should succeed");
 
@@ -96,8 +101,7 @@ fn explain_uses_stamped_rounding_context() {
 #[test]
 fn all_methods_stamp_configured_rounding_context() {
     use finstack_quant_attribution::{
-        attribute_pnl_metrics_based, attribute_pnl_taylor, attribute_pnl_waterfall,
-        default_waterfall_order, TaylorAttributionConfig,
+        attribute_pnl_metrics_based, default_waterfall_order, TaylorAttributionConfig,
     };
     use finstack_quant_valuations::instruments::PricingOptions;
 
@@ -140,16 +144,13 @@ fn all_methods_stamp_configured_rounding_context() {
         );
     };
 
-    let waterfall = attribute_pnl_waterfall(
-        &instrument,
-        &market,
-        &market,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        default_waterfall_order(),
-        false,
-        None,
+    let waterfall = attribute_pnl(
+        &AttributionMethod::Waterfall(default_waterfall_order()),
+        &AttributionRequest {
+            strict_validation: false,
+            model_params_t0: None,
+            ..AttributionRequest::new(&instrument, &market, &market, as_of_t0, as_of_t1, &config)
+        },
     )
     .expect("waterfall attribution should succeed");
     assert_stamp(&waterfall, "waterfall");
@@ -157,14 +158,19 @@ fn all_methods_stamp_configured_rounding_context() {
     // Taylor and metrics-based take no FinstackConfig: they stamp the
     // DEFAULT rounding context. Pin that a context is stamped (the default
     // has no per-ccy overrides) so a dropped stamp regresses loudly.
-    let taylor = attribute_pnl_taylor(
-        &instrument,
-        &market,
-        &market,
-        as_of_t0,
-        as_of_t1,
-        &TaylorAttributionConfig::default(),
-        ExecutionPolicy::Serial,
+    let taylor = attribute_pnl(
+        &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market,
+                &market,
+                as_of_t0,
+                as_of_t1,
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("taylor attribution should succeed");
     let default_rounding =

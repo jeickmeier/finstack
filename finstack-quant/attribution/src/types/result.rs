@@ -8,7 +8,6 @@ use finstack_quant_core::config::RoundingContext;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::{fx::FxPolicyMeta, Money};
 use finstack_quant_core::{Error, Result};
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use super::detail::*;
@@ -139,7 +138,9 @@ impl AttributionFactor {
 /// # Examples
 ///
 /// ```no_run
-/// use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
+/// use finstack_quant_attribution::{
+///     attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy,
+/// };
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 /// use finstack_quant_core::config::FinstackConfig;
@@ -168,15 +169,18 @@ impl AttributionFactor {
 ///         .expect("deposit builder should succeed"),
 /// ) as Arc<dyn Instrument>;
 ///
-/// let attribution = attribute_pnl_parallel(
-///     &instrument,
-///     &market_t0,
-///     &market_t1,
-///     as_of_t0,
-///     as_of_t1,
-///     &config,
-///     ExecutionPolicy::Parallel,
-/// )?;
+/// let request = AttributionRequest {
+///     execution_policy: ExecutionPolicy::Parallel,
+///     ..AttributionRequest::new(
+///         &instrument,
+///         &market_t0,
+///         &market_t1,
+///         as_of_t0,
+///         as_of_t1,
+///         &config,
+///     )
+/// };
+/// let attribution = attribute_pnl(&AttributionMethod::Parallel, &request)?;
 ///
 /// println!("Total P&L: {}", attribution.total_pnl);
 /// println!("Carry: {} ({:.1}%)",
@@ -491,6 +495,150 @@ impl PnlAttribution {
         attr
     }
 
+    /// Apply `f` to every signed `Money` leaf: the per-factor aggregates
+    /// (`carry` … `market_scalars_pnl`) and every leaf of every populated
+    /// detail struct.
+    ///
+    /// Deliberately excluded: `total_pnl`, `mark_to_market_pnl`,
+    /// `fx_translation_pnl` and `residual` (callers derive or recompute
+    /// them) and the diagnostic absolute value
+    /// `credit_factor_detail.adder_magnitude` (must stay non-negative).
+    /// [`Self::scale`] and target-currency translation both walk this one
+    /// visitor, so a new detail field is added in exactly one place.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Mutation applied to each leaf in place; the first error aborts
+    ///   the walk, leaving already-visited leaves mutated.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the first error returned by `f`.
+    pub fn for_each_money_mut(
+        &mut self,
+        mut f: impl FnMut(&mut Money) -> Result<()>,
+    ) -> Result<()> {
+        fn values<'m>(
+            values: impl Iterator<Item = &'m mut Money>,
+            f: &mut impl FnMut(&mut Money) -> Result<()>,
+        ) -> Result<()> {
+            for v in values {
+                f(v)?;
+            }
+            Ok(())
+        }
+        fn opt(
+            opt: &mut Option<Money>,
+            f: &mut impl FnMut(&mut Money) -> Result<()>,
+        ) -> Result<()> {
+            opt.as_mut().map_or(Ok(()), f)
+        }
+        fn source_line(
+            line: &mut Option<SourceLine>,
+            f: &mut impl FnMut(&mut Money) -> Result<()>,
+        ) -> Result<()> {
+            if let Some(line) = line {
+                f(&mut line.total)?;
+                opt(&mut line.rates_part, f)?;
+                opt(&mut line.credit_part, f)?;
+            }
+            Ok(())
+        }
+        for m in [
+            &mut self.carry,
+            &mut self.rates_curves_pnl,
+            &mut self.credit_curves_pnl,
+            &mut self.inflation_curves_pnl,
+            &mut self.correlations_pnl,
+            &mut self.fx_pnl,
+            &mut self.vol_pnl,
+            &mut self.cross_factor_pnl,
+            &mut self.model_params_pnl,
+            &mut self.market_scalars_pnl,
+        ] {
+            f(m)?;
+        }
+
+        if let Some(d) = &mut self.carry_detail {
+            f(&mut d.total)?;
+            source_line(&mut d.coupon_income, &mut f)?;
+            opt(&mut d.pull_to_par, &mut f)?;
+            source_line(&mut d.roll_down, &mut f)?;
+            opt(&mut d.funding_cost, &mut f)?;
+        }
+        if let Some(d) = &mut self.rates_detail {
+            values(d.by_curve.values_mut(), &mut f)?;
+            values(d.by_tenor.values_mut(), &mut f)?;
+            f(&mut d.discount_total)?;
+            f(&mut d.forward_total)?;
+        }
+        if let Some(d) = &mut self.credit_detail {
+            values(d.by_curve.values_mut(), &mut f)?;
+            values(d.by_tenor.values_mut(), &mut f)?;
+        }
+        if let Some(d) = &mut self.inflation_detail {
+            values(d.by_curve.values_mut(), &mut f)?;
+            if let Some(bt) = &mut d.by_tenor {
+                values(bt.values_mut(), &mut f)?;
+            }
+        }
+        if let Some(d) = &mut self.correlations_detail {
+            values(d.by_curve.values_mut(), &mut f)?;
+        }
+        if let Some(d) = &mut self.fx_detail {
+            values(d.by_pair.values_mut(), &mut f)?;
+        }
+        if let Some(d) = &mut self.vol_detail {
+            values(d.by_surface.values_mut(), &mut f)?;
+        }
+        if let Some(d) = &mut self.cross_factor_detail {
+            f(&mut d.total)?;
+            values(d.by_pair.values_mut(), &mut f)?;
+        }
+        if let Some(d) = &mut self.model_params_detail {
+            opt(&mut d.prepayment, &mut f)?;
+            opt(&mut d.default_rate, &mut f)?;
+            opt(&mut d.recovery_rate, &mut f)?;
+            opt(&mut d.conversion_ratio, &mut f)?;
+            values(d.other.values_mut(), &mut f)?;
+        }
+        if let Some(d) = &mut self.scalars_detail {
+            values(d.dividends.values_mut(), &mut f)?;
+            values(d.inflation.values_mut(), &mut f)?;
+            values(d.equity_prices.values_mut(), &mut f)?;
+            values(d.commodity_prices.values_mut(), &mut f)?;
+        }
+        if let Some(d) = &mut self.credit_factor_detail {
+            f(&mut d.generic_pnl)?;
+            f(&mut d.adder_pnl_total)?;
+            // `curve_shape_pnl` is a signed P&L component and load-bearing for
+            // the `generic + Σlevels + adder + curve_shape ≡ credit_curves_pnl`
+            // reconciliation invariant — it MUST move with the rest.
+            f(&mut d.curve_shape_pnl)?;
+            for level in &mut d.levels {
+                f(&mut level.total)?;
+                values(level.by_bucket.values_mut(), &mut f)?;
+            }
+            if let Some(by_issuer) = &mut d.adder_pnl_by_issuer {
+                values(by_issuer.values_mut(), &mut f)?;
+            }
+        }
+        if let Some(d) = &mut self.credit_carry_decomposition {
+            f(&mut d.rates_carry_total)?;
+            f(&mut d.credit_carry_total)?;
+            f(&mut d.credit_by_level.generic)?;
+            f(&mut d.credit_by_level.adder_total)?;
+            for level in &mut d.credit_by_level.levels {
+                f(&mut level.total)?;
+                values(level.by_bucket.values_mut(), &mut f)?;
+            }
+            if let Some(by_issuer) = &mut d.credit_by_level.adder_by_issuer {
+                values(by_issuer.values_mut(), &mut f)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Scale all attribution values by a factor.
     ///
     /// Useful for scaling per-unit attribution to position quantity.
@@ -511,106 +659,21 @@ impl PnlAttribution {
         if let Some(m) = self.mark_to_market_pnl.as_mut() {
             *m *= factor;
         }
-        self.carry *= factor;
-        self.rates_curves_pnl *= factor;
-        self.credit_curves_pnl *= factor;
-        self.inflation_curves_pnl *= factor;
-        self.correlations_pnl *= factor;
-        self.fx_pnl *= factor;
-        self.vol_pnl *= factor;
-        self.cross_factor_pnl *= factor;
-        self.model_params_pnl *= factor;
-        self.market_scalars_pnl *= factor;
         self.fx_translation_pnl *= factor;
         self.residual *= factor;
-
-        if let Some(d) = &mut self.carry_detail {
-            d.total *= factor;
-            scale_source_line_opt(&mut d.coupon_income, factor);
-            scale_money_opt(&mut d.pull_to_par, factor);
-            scale_source_line_opt(&mut d.roll_down, factor);
-            scale_money_opt(&mut d.funding_cost, factor);
-        }
-        if let Some(d) = &mut self.rates_detail {
-            scale_money_map(&mut d.by_curve, factor);
-            scale_money_map(&mut d.by_tenor, factor);
-            d.discount_total *= factor;
-            d.forward_total *= factor;
-        }
-        if let Some(d) = &mut self.credit_detail {
-            scale_money_map(&mut d.by_curve, factor);
-            scale_money_map(&mut d.by_tenor, factor);
-        }
-        if let Some(d) = &mut self.inflation_detail {
-            scale_money_map(&mut d.by_curve, factor);
-            if let Some(bt) = &mut d.by_tenor {
-                scale_money_map(bt, factor);
-            }
-        }
-        if let Some(d) = &mut self.correlations_detail {
-            scale_money_map(&mut d.by_curve, factor);
-        }
-        if let Some(d) = &mut self.fx_detail {
-            scale_money_map(&mut d.by_pair, factor);
-        }
-        if let Some(d) = &mut self.vol_detail {
-            scale_money_map(&mut d.by_surface, factor);
-        }
-        if let Some(d) = &mut self.cross_factor_detail {
-            d.total *= factor;
-            scale_money_map(&mut d.by_pair, factor);
-        }
-        if let Some(d) = &mut self.model_params_detail {
-            scale_money_opt(&mut d.prepayment, factor);
-            scale_money_opt(&mut d.default_rate, factor);
-            scale_money_opt(&mut d.recovery_rate, factor);
-            scale_money_opt(&mut d.conversion_ratio, factor);
-            scale_money_map(&mut d.other, factor);
-        }
-        if let Some(d) = &mut self.scalars_detail {
-            scale_money_map(&mut d.dividends, factor);
-            scale_money_map(&mut d.inflation, factor);
-            scale_money_map(&mut d.equity_prices, factor);
-            scale_money_map(&mut d.commodity_prices, factor);
-        }
-        if let Some(d) = &mut self.credit_factor_detail {
-            d.generic_pnl *= factor;
-            d.adder_pnl_total *= factor;
-            // `curve_shape_pnl` is a signed P&L component and load-bearing for
-            // the `generic + Σlevels + adder + curve_shape ≡ credit_curves_pnl`
-            // reconciliation invariant — it MUST scale with the rest.
-            d.curve_shape_pnl *= factor;
-            for level in &mut d.levels {
-                level.total *= factor;
-                for v in level.by_bucket.values_mut() {
-                    *v *= factor;
-                }
-            }
-            if let Some(by_issuer) = &mut d.adder_pnl_by_issuer {
-                for v in by_issuer.values_mut() {
-                    *v *= factor;
-                }
-            }
-            // `adder_magnitude` is a diagnostic absolute value (= |adder_pnl_total|);
-            // scale by |factor| so it stays non-negative for short positions.
-            scale_money_opt(&mut d.adder_magnitude, factor.abs());
-        }
-        if let Some(d) = &mut self.credit_carry_decomposition {
-            d.rates_carry_total *= factor;
-            d.credit_carry_total *= factor;
-            d.credit_by_level.generic *= factor;
-            d.credit_by_level.adder_total *= factor;
-            for level in &mut d.credit_by_level.levels {
-                level.total *= factor;
-                for v in level.by_bucket.values_mut() {
-                    *v *= factor;
-                }
-            }
-            if let Some(by_issuer) = &mut d.credit_by_level.adder_by_issuer {
-                for v in by_issuer.values_mut() {
-                    *v *= factor;
-                }
-            }
+        // `*=` on Money is infallible, so the visitor cannot fail here.
+        let _ = self.for_each_money_mut(|m| {
+            *m *= factor;
+            Ok(())
+        });
+        // `adder_magnitude` is a diagnostic absolute value (= |adder_pnl_total|);
+        // scale by |factor| so it stays non-negative for short positions.
+        if let Some(m) = self
+            .credit_factor_detail
+            .as_mut()
+            .and_then(|d| d.adder_magnitude.as_mut())
+        {
+            *m *= factor.abs();
         }
     }
 
@@ -1068,26 +1131,6 @@ impl std::fmt::Display for AttributionFactor {
     }
 }
 
-fn scale_money_map<K: std::hash::Hash + Eq>(map: &mut IndexMap<K, Money>, factor: f64) {
-    for v in map.values_mut() {
-        *v *= factor;
-    }
-}
-
-fn scale_money_opt(opt: &mut Option<Money>, factor: f64) {
-    if let Some(v) = opt {
-        *v *= factor;
-    }
-}
-
-fn scale_source_line_opt(opt: &mut Option<SourceLine>, factor: f64) {
-    if let Some(v) = opt {
-        v.total *= factor;
-        scale_money_opt(&mut v.rates_part, factor);
-        scale_money_opt(&mut v.credit_part, factor);
-    }
-}
-
 fn add_factor(sum: Money, value: Money, label: &str, notes: &mut Vec<String>) -> Result<Money> {
     sum.checked_add(value).map_err(|e| {
         let note = format!("Failed to add {}: {}", label, e);
@@ -1101,6 +1144,7 @@ mod tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::money::Money;
+    use indexmap::IndexMap;
     use std::collections::BTreeMap;
     use time::macros::date;
 

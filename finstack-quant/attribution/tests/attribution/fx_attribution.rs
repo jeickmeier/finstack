@@ -4,8 +4,8 @@
 //! and waterfall attribution methodologies.
 
 use finstack_quant_attribution::{
-    attribute_pnl_parallel, attribute_pnl_waterfall, default_waterfall_order, AttributionFactor,
-    ExecutionPolicy,
+    attribute_pnl, default_waterfall_order, AttributionFactor, AttributionMethod,
+    AttributionRequest, ExecutionPolicy,
 };
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
@@ -188,14 +188,19 @@ fn test_fx_attribution_parallel_internal_exposure() {
 
     // Run parallel attribution
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -255,16 +260,20 @@ fn test_waterfall_attribution_sum_equality() {
 
     // Run waterfall attribution
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
-    let attribution = attribute_pnl_waterfall(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        default_waterfall_order(),
-        false, // strict validation off
-        None,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Waterfall(default_waterfall_order()),
+        &AttributionRequest {
+            strict_validation: false,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -352,14 +361,19 @@ fn test_fx_attribution_cross_currency_exposure() {
 
     // Run parallel attribution
     let bond_instrument: Arc<dyn Instrument> = Arc::new(eur_bond);
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -400,14 +414,19 @@ fn test_fx_attribution_cross_currency_fx_pnl_sign_and_magnitude() {
     let market_t1 = MarketContext::new().insert_fx(fx_t1);
 
     let config = FinstackConfig::default();
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -450,14 +469,19 @@ fn test_fx_attribution_cross_currency_fx_pnl_weakening() {
     let market_t1 = MarketContext::new().insert_fx(fx_t1);
 
     let config = FinstackConfig::default();
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -515,14 +539,19 @@ fn test_fx_attribution_eur_weakening() {
     let config = FinstackConfig::default();
 
     let bond_instrument: Arc<dyn Instrument> = Arc::new(eur_bond);
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -578,16 +607,20 @@ fn test_waterfall_factor_ordering_sensitivity() {
     // Order 1: Carry then Rates
     let order1 = vec![AttributionFactor::Carry, AttributionFactor::RatesCurves];
 
-    let attr1 = attribute_pnl_waterfall(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        order1,
-        false, // strict validation off
-        None,
+    let attr1 = attribute_pnl(
+        &AttributionMethod::Waterfall(order1),
+        &AttributionRequest {
+            strict_validation: false,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -600,16 +633,20 @@ fn test_waterfall_factor_ordering_sensitivity() {
         AttributionFactor::RatesCurves,
     ];
 
-    let attr2 = attribute_pnl_waterfall(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        order2,
-        false, // strict validation off
-        None,
+    let attr2 = attribute_pnl(
+        &AttributionMethod::Waterfall(order2),
+        &AttributionRequest {
+            strict_validation: false,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -648,16 +685,20 @@ fn test_waterfall_rejects_non_carry_first_order() {
     let config = FinstackConfig::default();
 
     let bad_order = vec![AttributionFactor::RatesCurves, AttributionFactor::Carry];
-    let result = attribute_pnl_waterfall(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        bad_order,
-        false,
-        None,
+    let result = attribute_pnl(
+        &AttributionMethod::Waterfall(bad_order),
+        &AttributionRequest {
+            strict_validation: false,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     );
     let err = result.expect_err("non-Carry-first order must be rejected");
     let msg = format!("{err}");
@@ -696,16 +737,20 @@ fn test_waterfall_rejects_duplicate_factors() {
         AttributionFactor::RatesCurves,
         AttributionFactor::RatesCurves,
     ];
-    let result = attribute_pnl_waterfall(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        dup_order,
-        false,
-        None,
+    let result = attribute_pnl(
+        &AttributionMethod::Waterfall(dup_order),
+        &AttributionRequest {
+            strict_validation: false,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     );
     let err = result.expect_err("duplicate factors must be rejected");
     let msg = format!("{err}");
@@ -716,16 +761,20 @@ fn test_waterfall_rejects_duplicate_factors() {
 
     // A duplicated Carry is rejected by the same guard.
     let dup_carry = vec![AttributionFactor::Carry, AttributionFactor::Carry];
-    let err = attribute_pnl_waterfall(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        dup_carry,
-        false,
-        None,
+    let err = attribute_pnl(
+        &AttributionMethod::Waterfall(dup_carry),
+        &AttributionRequest {
+            strict_validation: false,
+            model_params_t0: None,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .expect_err("duplicate Carry must be rejected");
     assert!(format!("{err}").contains("duplicate"));

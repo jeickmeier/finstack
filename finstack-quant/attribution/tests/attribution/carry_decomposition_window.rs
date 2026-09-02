@@ -4,7 +4,9 @@
 //! and `roll_down` must be small (not the old millions); the components must
 //! partition `carry_total`.
 
-use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
+use finstack_quant_attribution::{
+    attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy,
+};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -69,14 +71,19 @@ fn inter_coupon_window_coupon_income_is_accrued_and_roll_down_small() {
         "sanity: Δaccrued should be ~a month of 4.25% on $10M, got {delta_accrued}"
     );
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market,
-        &market,
-        t0,
-        t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market,
+                &market,
+                t0,
+                t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 

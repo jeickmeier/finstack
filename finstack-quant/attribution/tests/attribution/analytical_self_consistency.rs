@@ -33,7 +33,9 @@
 //! from the reference (tolerance < convexity term's relative contribution);
 //! see the `AnalyticalParityTestCase` constructors for measured values.
 
-use finstack_quant_attribution::{attribute_pnl_parallel, AttributionMethod, ExecutionPolicy};
+use finstack_quant_attribution::{
+    attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy,
+};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::create_date;
@@ -185,14 +187,19 @@ fn run_analytical_parity_test(tc: &AnalyticalParityTestCase) {
 
     // Run attribution
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -316,14 +323,19 @@ fn test_attribution_method_metadata() {
     let config = FinstackConfig::default();
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market,
-        &market,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market,
+                &market,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -375,26 +387,36 @@ fn test_convexity_benefit_symmetric_moves() {
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
 
     // Attribution for rate increase
-    let attr_up = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_base,
-        &market_up,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attr_up = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_base,
+                &market_up,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
     // Attribution for rate decrease
-    let attr_down = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_base,
-        &market_down,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attr_down = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_base,
+                &market_down,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 

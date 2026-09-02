@@ -1,8 +1,6 @@
 //! Attribution spec execution dispatch.
 
-use super::parallel::attribute_pnl_parallel_with_credit_model;
 use super::spec::{default_attribution_metrics, AttributionResult, AttributionSpec};
-use super::waterfall::attribute_pnl_waterfall_with_credit_model;
 use super::{attribute_pnl_metrics_based, AttributionMethod};
 use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -140,47 +138,27 @@ impl AttributionSpec {
         // on every spec execution.
         let resolved_credit_model = self.credit_factor_model.as_deref();
 
+        let request = crate::AttributionRequest {
+            execution_policy,
+            strict_validation,
+            full_cross_attribution: self.full_cross_attribution,
+            model_params_t0: self.model_params_t0.as_ref(),
+            credit_factor_model: resolved_credit_model,
+            credit_factor_detail_options: &self.credit_factor_detail_options,
+            ..crate::AttributionRequest::new(
+                &instrument_arc,
+                &market_t0,
+                &market_t1,
+                self.as_of_t0,
+                self.as_of_t1,
+                &config,
+            )
+        };
+
         let mut attribution = match &self.method {
-            AttributionMethod::Parallel => attribute_pnl_parallel_with_credit_model(
-                &instrument_arc,
-                &market_t0,
-                &market_t1,
-                self.as_of_t0,
-                self.as_of_t1,
-                &config,
-                self.model_params_t0.as_ref(),
-                resolved_credit_model,
-                &self.credit_factor_detail_options,
-                self.full_cross_attribution,
-                execution_policy,
-            )?,
-
-            AttributionMethod::Waterfall(order) => attribute_pnl_waterfall_with_credit_model(
-                &instrument_arc,
-                &market_t0,
-                &market_t1,
-                self.as_of_t0,
-                self.as_of_t1,
-                &config,
-                order.clone(),
-                strict_validation,
-                self.model_params_t0.as_ref(),
-                resolved_credit_model,
-                &self.credit_factor_detail_options,
-            )?,
-
-            AttributionMethod::Taylor(ref taylor_config) => {
-                crate::taylor::attribute_pnl_taylor_with_model_params(
-                    &instrument_arc,
-                    &market_t0,
-                    &market_t1,
-                    self.as_of_t0,
-                    self.as_of_t1,
-                    taylor_config,
-                    execution_policy,
-                    self.model_params_t0.as_ref(),
-                )?
-            }
+            AttributionMethod::Parallel
+            | AttributionMethod::Waterfall(_)
+            | AttributionMethod::Taylor(_) => crate::attribute_pnl(&self.method, &request)?,
 
             AttributionMethod::MetricsBased => {
                 let metrics = if let Some(ref cfg) = self.config {

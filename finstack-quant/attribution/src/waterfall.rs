@@ -36,20 +36,17 @@ use super::credit_cascade::{
     build_credit_factor_attribution, plan_credit_cascade, shift_credit_curves_par_spread,
     snap_hazard_to_t1, CreditCascade, CreditStepKind,
 };
-use super::credit_factor::CreditFactorDetailOptions;
 use super::factors::*;
 use super::helpers::*;
 use super::model_params;
 use super::types::*;
+use crate::AttributionRequest;
 use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
-use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::{Error, Result};
-use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
-use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::recalibration::RecalibrationProvider;
 use std::sync::Arc;
@@ -60,7 +57,7 @@ use std::sync::Arc;
 ///
 /// The first factor is **always** [`AttributionFactor::Carry`]. The waterfall
 /// path enforces this at the entry point (see
-/// [`attribute_pnl_waterfall`]) so the date-roll P&L — "price today's
+/// [`crate::attribute_pnl`]) so the date-roll P&L — "price today's
 /// position with yesterday's market" — is the foundational first step of every
 /// attribution, before any factor-level market move is layered in. Any
 /// user-supplied factor order that does not start with `Carry` will be rejected
@@ -117,7 +114,7 @@ pub fn default_waterfall_order() -> Vec<AttributionFactor> {
 ///
 /// ```no_run
 /// use finstack_quant_attribution::{
-///     attribute_pnl_waterfall, default_waterfall_order
+///     attribute_pnl, default_waterfall_order, AttributionMethod, AttributionRequest,
 /// };
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_valuations::instruments::rates::deposit::Deposit;
@@ -147,16 +144,17 @@ pub fn default_waterfall_order() -> Vec<AttributionFactor> {
 ///         .expect("deposit builder should succeed"),
 /// ) as Arc<dyn Instrument>;
 ///
-/// let attribution = attribute_pnl_waterfall(
+/// let request = AttributionRequest::new(
 ///     &instrument,
 ///     &market_t0,
 ///     &market_t1,
 ///     as_of_t0,
 ///     as_of_t1,
 ///     &config,
-///     default_waterfall_order(),
-///     true, // Strict validation
-///     None,
+/// );
+/// let attribution = attribute_pnl(
+///     &AttributionMethod::Waterfall(default_waterfall_order()),
+///     &request,
 /// )?;
 ///
 /// // Residual should be minimal
@@ -164,35 +162,8 @@ pub fn default_waterfall_order() -> Vec<AttributionFactor> {
 /// # Ok(())
 /// # }
 /// ```
-#[allow(clippy::too_many_arguments)]
-#[tracing::instrument(skip_all, fields(instrument_id = %instrument.id(), method = "waterfall"))]
-pub fn attribute_pnl_waterfall(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
-    factor_order: Vec<AttributionFactor>,
-    strict_validation: bool,
-    model_params_t0: Option<&ModelParamsSnapshot>,
-) -> Result<PnlAttribution> {
-    attribute_pnl_waterfall_with_credit_model(
-        instrument,
-        market_t0,
-        market_t1,
-        as_of_t0,
-        as_of_t1,
-        config,
-        factor_order,
-        strict_validation,
-        model_params_t0,
-        None,
-        &CreditFactorDetailOptions::default(),
-    )
-}
-
-/// Waterfall attribution with optional `CreditFactorModel`.
+///
+/// # Credit-factor cascade
 ///
 /// When `credit_factor_model` is `Some(_)` and the order contains
 /// [`AttributionFactor::CreditCurves`], the single credit step is replaced by
@@ -217,88 +188,25 @@ pub fn attribute_pnl_waterfall(
 /// typical L = 1–3 and portfolios of thousands of instruments this is
 /// acceptable; consider `MetricsBased` or `Taylor` for cost-sensitive use cases
 /// (they remain linear, no reprice).
-#[allow(clippy::too_many_arguments)]
-#[tracing::instrument(
-    skip_all,
-    fields(instrument_id = %instrument.id(), method = "waterfall")
-)]
-pub(crate) fn attribute_pnl_waterfall_with_credit_model(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
+#[tracing::instrument(skip_all, fields(instrument_id = %request.instrument.id(), method = "waterfall"))]
+pub(crate) fn attribute_pnl_waterfall(
+    request: &AttributionRequest<'_>,
     factor_order: Vec<AttributionFactor>,
-    strict_validation: bool,
-    model_params_t0: Option<&ModelParamsSnapshot>,
-    credit_factor_model: Option<&CreditFactorModel>,
-    credit_factor_detail_options: &CreditFactorDetailOptions,
 ) -> Result<PnlAttribution> {
-    attribute_pnl_waterfall_impl(
+    let AttributionRequest {
         instrument,
         market_t0,
         market_t1,
         as_of_t0,
         as_of_t1,
         config,
-        factor_order,
         strict_validation,
         model_params_t0,
         credit_factor_model,
         credit_factor_detail_options,
-        None,
-    )
-}
-
-/// Run waterfall attribution using ordinary endpoint values prepared by the
-/// portfolio evaluation engine.
-///
-/// This is an internal cross-crate integration path. The endpoint values must
-/// be the unscaled values of `instrument` at the supplied markets and dates.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn attribute_pnl_waterfall_prepared(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
-    factor_order: Vec<AttributionFactor>,
-    val_t0: Money,
-    val_t1: Money,
-) -> Result<PnlAttribution> {
-    attribute_pnl_waterfall_impl(
-        instrument,
-        market_t0,
-        market_t1,
-        as_of_t0,
-        as_of_t1,
-        config,
-        factor_order,
-        false,
-        None,
-        None,
-        &CreditFactorDetailOptions::default(),
-        Some((val_t0, val_t1)),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn attribute_pnl_waterfall_impl(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &FinstackConfig,
-    factor_order: Vec<AttributionFactor>,
-    strict_validation: bool,
-    model_params_t0: Option<&ModelParamsSnapshot>,
-    credit_factor_model: Option<&CreditFactorModel>,
-    credit_factor_detail_options: &CreditFactorDetailOptions,
-    prepared_endpoints: Option<(Money, Money)>,
-) -> Result<PnlAttribution> {
+        prepared_endpoints,
+        ..
+    } = *request;
     if factor_order.is_empty() {
         return Err(Error::Validation(
             "Waterfall attribution requires non-empty factor_order".to_string(),
@@ -384,9 +292,7 @@ fn attribute_pnl_waterfall_impl(
     // CreditCurves step when planning yields None (no issuer tag, no hazard
     // dependencies, etc.).
     let cascade: Option<CreditCascade> = match credit_factor_model {
-        Some(model) => {
-            plan_credit_cascade(model, instrument, market_t0, market_t1, as_of_t0, as_of_t1)?
-        }
+        Some(model) => plan_credit_cascade(model, instrument, market_t0, market_t1)?,
         None => None,
     };
     if credit_factor_model.is_some() && cascade.is_none() {
@@ -696,71 +602,27 @@ impl<'a> WaterfallContext<'a> {
     }
 
     fn build_market_for_factor(&self, factor: &AttributionFactor) -> Result<MarketContext> {
-        match factor {
-            AttributionFactor::Carry => Ok(self.current_market.clone()),
-            AttributionFactor::RatesCurves => {
-                let rates_t1 = MarketSnapshot::extract(self.market_t1, MarketRestoreFlags::RATES);
-                Ok(MarketSnapshot::restore_market(
-                    &self.current_market,
-                    &rates_t1,
-                    MarketRestoreFlags::RATES,
+        let flags = match factor {
+            AttributionFactor::Carry => return Ok(self.current_market.clone()),
+            AttributionFactor::RatesCurves => MarketRestoreFlags::RATES,
+            AttributionFactor::CreditCurves => MarketRestoreFlags::CREDIT,
+            AttributionFactor::InflationCurves => MarketRestoreFlags::INFLATION,
+            AttributionFactor::Correlations => MarketRestoreFlags::CORRELATION,
+            AttributionFactor::Fx => MarketRestoreFlags::FX,
+            AttributionFactor::Volatility => MarketRestoreFlags::VOL,
+            AttributionFactor::MarketScalars => MarketRestoreFlags::SCALARS,
+            AttributionFactor::ModelParameters => {
+                return Err(Error::internal(
+                    "model parameter restoration is not implemented for attribution waterfall",
                 ))
             }
-            AttributionFactor::CreditCurves => {
-                let credit_t1 = MarketSnapshot::extract(self.market_t1, MarketRestoreFlags::CREDIT);
-                Ok(MarketSnapshot::restore_market(
-                    &self.current_market,
-                    &credit_t1,
-                    MarketRestoreFlags::CREDIT,
-                ))
-            }
-            AttributionFactor::InflationCurves => {
-                let inflation_t1 =
-                    MarketSnapshot::extract(self.market_t1, MarketRestoreFlags::INFLATION);
-                Ok(MarketSnapshot::restore_market(
-                    &self.current_market,
-                    &inflation_t1,
-                    MarketRestoreFlags::INFLATION,
-                ))
-            }
-            AttributionFactor::Correlations => {
-                let corr_t1 =
-                    MarketSnapshot::extract(self.market_t1, MarketRestoreFlags::CORRELATION);
-                Ok(MarketSnapshot::restore_market(
-                    &self.current_market,
-                    &corr_t1,
-                    MarketRestoreFlags::CORRELATION,
-                ))
-            }
-            AttributionFactor::Fx => {
-                let fx_t1 = MarketSnapshot::extract(self.market_t1, MarketRestoreFlags::FX);
-                Ok(MarketSnapshot::restore_market(
-                    &self.current_market,
-                    &fx_t1,
-                    MarketRestoreFlags::FX,
-                ))
-            }
-            AttributionFactor::Volatility => {
-                let vol_t1 = MarketSnapshot::extract(self.market_t1, MarketRestoreFlags::VOL);
-                Ok(MarketSnapshot::restore_market(
-                    &self.current_market,
-                    &vol_t1,
-                    MarketRestoreFlags::VOL,
-                ))
-            }
-            AttributionFactor::MarketScalars => {
-                let scalars_t1 =
-                    MarketSnapshot::extract(self.market_t1, MarketRestoreFlags::SCALARS);
-                Ok(MarketSnapshot::restore_market(
-                    &self.current_market,
-                    &scalars_t1,
-                    MarketRestoreFlags::SCALARS,
-                ))
-            }
-            AttributionFactor::ModelParameters => Err(Error::internal(
-                "model parameter restoration is not implemented for attribution waterfall",
-            )),
-        }
+        };
+        let family_t1 = MarketSnapshot::extract(self.market_t1, flags);
+        Ok(MarketSnapshot::restore_market(
+            &self.current_market,
+            &family_t1,
+            flags,
+        ))
     }
 
     /// Add a factor's P&L delta using `Money`'s decimal arithmetic.
@@ -786,6 +648,7 @@ mod tests {
     }
 
     use super::*;
+    use finstack_quant_core::config::FinstackConfig;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::money::Money;
     use test_utils::TestInstrument;
@@ -813,16 +676,20 @@ mod tests {
         let config = FinstackConfig::default();
 
         // Empty order should fail
-        let result = attribute_pnl_waterfall(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &config,
-            vec![],
-            false, // strict validation off
-            None,
+        let result = crate::attribute_pnl(
+            &AttributionMethod::Waterfall(vec![]),
+            &crate::AttributionRequest {
+                strict_validation: false,
+                model_params_t0: None,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &config,
+                )
+            },
         );
 
         assert!(result.is_err());

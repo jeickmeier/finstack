@@ -4,7 +4,8 @@
 //! simple fixed-rate bond.
 
 use finstack_quant_attribution::{
-    attribute_pnl_metrics_based, attribute_pnl_parallel, AttributionMethod, ExecutionPolicy,
+    attribute_pnl, attribute_pnl_metrics_based, AttributionMethod, AttributionRequest,
+    ExecutionPolicy,
 };
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
@@ -78,14 +79,19 @@ fn test_bond_attribution_parallel() {
 
     // Run parallel attribution
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -159,14 +165,19 @@ fn test_bond_attribution_structure() {
     let config = FinstackConfig::default();
 
     let bond_instrument: Arc<dyn Instrument> = Arc::new(bond);
-    let attribution = attribute_pnl_parallel(
-        &bond_instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &bond_instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &config,
+            )
+        },
     )
     .unwrap();
 
@@ -203,14 +214,19 @@ fn test_parallel_bond_attribution_isolates_funding_when_repo_curve_present() {
     let market_t1 = market_t0.clone();
 
     let instrument: Arc<dyn Instrument> = Arc::new(bond);
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Parallel,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .unwrap();
 

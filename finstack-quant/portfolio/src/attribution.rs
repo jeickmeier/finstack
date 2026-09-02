@@ -12,7 +12,9 @@ use crate::types::PositionId;
 use crate::valuation::{
     PortfolioValuation, PortfolioValuationOptions, PositionValue, RequestedMetrics,
 };
-use finstack_quant_attribution::{attribute_pnl_metrics_based, default_attribution_metrics};
+use finstack_quant_attribution::{
+    attribute_pnl_metrics_based, default_attribution_metrics, AttributionRequest,
+};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
@@ -405,17 +407,20 @@ fn attribute_composite_primitives(
             )
             .map_err(Error::Core)?
         } else {
-            finstack_quant_attribution::__private::attribute_pnl_prepared(
-                &instrument,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                config,
+            finstack_quant_attribution::attribute_pnl(
                 method,
-                ExecutionPolicy::Serial,
-                value_t0,
-                value_t1,
+                &AttributionRequest {
+                    strict_validation: false,
+                    prepared_endpoints: Some((value_t0, value_t1)),
+                    ..AttributionRequest::new(
+                        &instrument,
+                        market_t0,
+                        market_t1,
+                        as_of_t0,
+                        as_of_t1,
+                        config,
+                    )
+                },
             )
             .map_err(Error::Core)?
         };
@@ -608,17 +613,20 @@ fn attribute_single_position_method_owned(
             inst_currency: composite.spec.reporting_currency,
         });
     }
-    let mut pos_attr = finstack_quant_attribution::__private::attribute_pnl_prepared(
-        &position.instrument,
-        request.market_t0,
-        request.market_t1,
-        request.as_of_t0,
-        request.as_of_t1,
-        request.config,
+    let mut pos_attr = finstack_quant_attribution::attribute_pnl(
         request.method,
-        ExecutionPolicy::Serial,
-        val_t0,
-        val_t1,
+        &AttributionRequest {
+            strict_validation: false,
+            prepared_endpoints: Some((val_t0, val_t1)),
+            ..AttributionRequest::new(
+                &position.instrument,
+                request.market_t0,
+                request.market_t1,
+                request.as_of_t0,
+                request.as_of_t1,
+                request.config,
+            )
+        },
     )
     .map_err(|error| Error::ValuationError {
         position_id: position.position_id.clone(),
@@ -1718,37 +1726,49 @@ mod tests {
             );
 
             let expected = match &method {
-                AttributionMethod::Parallel => finstack_quant_attribution::attribute_pnl_parallel(
-                    &instrument,
-                    &market_t0,
-                    &market_t1,
-                    as_of_t0,
-                    as_of_t1,
-                    &config,
-                    ExecutionPolicy::Serial,
+                AttributionMethod::Parallel => finstack_quant_attribution::attribute_pnl(
+                    &AttributionMethod::Parallel,
+                    &finstack_quant_attribution::AttributionRequest {
+                        execution_policy: ExecutionPolicy::Serial,
+                        ..finstack_quant_attribution::AttributionRequest::new(
+                            &instrument,
+                            &market_t0,
+                            &market_t1,
+                            as_of_t0,
+                            as_of_t1,
+                            &config,
+                        )
+                    },
                 ),
-                AttributionMethod::Waterfall(order) => {
-                    finstack_quant_attribution::attribute_pnl_waterfall(
-                        &instrument,
-                        &market_t0,
-                        &market_t1,
-                        as_of_t0,
-                        as_of_t1,
-                        &config,
-                        order.clone(),
-                        false,
-                        None,
-                    )
-                }
+                AttributionMethod::Waterfall(order) => finstack_quant_attribution::attribute_pnl(
+                    &AttributionMethod::Waterfall(order.clone()),
+                    &finstack_quant_attribution::AttributionRequest {
+                        strict_validation: false,
+                        model_params_t0: None,
+                        ..finstack_quant_attribution::AttributionRequest::new(
+                            &instrument,
+                            &market_t0,
+                            &market_t1,
+                            as_of_t0,
+                            as_of_t1,
+                            &config,
+                        )
+                    },
+                ),
                 AttributionMethod::Taylor(taylor_config) => {
-                    finstack_quant_attribution::attribute_pnl_taylor(
-                        &instrument,
-                        &market_t0,
-                        &market_t1,
-                        as_of_t0,
-                        as_of_t1,
-                        taylor_config,
-                        ExecutionPolicy::Serial,
+                    finstack_quant_attribution::attribute_pnl(
+                        &AttributionMethod::Taylor(taylor_config.clone()),
+                        &finstack_quant_attribution::AttributionRequest {
+                            execution_policy: ExecutionPolicy::Serial,
+                            ..finstack_quant_attribution::AttributionRequest::new(
+                                &instrument,
+                                &market_t0,
+                                &market_t1,
+                                as_of_t0,
+                                as_of_t1,
+                                &finstack_quant_core::config::FinstackConfig::default(),
+                            )
+                        },
                     )
                 }
                 AttributionMethod::MetricsBased => {

@@ -136,7 +136,8 @@ fn test_equity_price_id_uses_restored_scalar_price() {
 #[test]
 fn test_taylor_equity_spot_move_lands_in_market_scalars_pnl() {
     use finstack_quant_attribution::{
-        attribute_pnl_taylor, ExecutionPolicy, TaylorAttributionConfig,
+        attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy,
+        TaylorAttributionConfig,
     };
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use std::sync::Arc;
@@ -165,14 +166,19 @@ fn test_taylor_equity_spot_move_lands_in_market_scalars_pnl() {
         MarketScalar::Price(Money::new(185.0, Currency::USD)),
     );
 
-    let attribution = attribute_pnl_taylor(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &TaylorAttributionConfig::default(),
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("taylor equity attribution should succeed");
 

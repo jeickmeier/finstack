@@ -2,8 +2,9 @@ use super::super::helpers::*;
 use super::super::types::*;
 use super::context::AttributionInputs;
 use super::shifts::{
-    extract_bucketed_dv01_per_curve, extract_keyrate_dv01_per_curve, measure_per_tenor_rate_shift,
-    measure_rate_curve_shift_bp, rate_curve_abs_shift_bp, twist_diagnostic_note,
+    average_over, extract_bucketed_dv01_per_curve, extract_keyrate_per_curve,
+    measure_per_tenor_rate_shift, measure_rate_curve_shift_bp, rate_curve_abs_shift_bp,
+    twist_diagnostic_note,
 };
 use finstack_quant_core::config::{RoundingContext, ZeroKind};
 use finstack_quant_core::math::NeumaierAccumulator;
@@ -47,7 +48,8 @@ pub(super) fn apply(
 
     let curve_ids = &inputs.rates_curve_ids;
     // (a) per-tenor (key-rate) DV01 — the most accurate input.
-    let keyrate_dv01 = extract_keyrate_dv01_per_curve(&inputs.val_t0.measures, curve_ids);
+    let keyrate_dv01 =
+        extract_keyrate_per_curve(&inputs.val_t0.measures, curve_ids, "bucketed_dv01");
     // (b) per-curve total DV01 — fallback when no per-tenor series exist.
     let bucketed_dv01 = extract_bucketed_dv01_per_curve(&inputs.val_t0.measures, curve_ids);
 
@@ -254,22 +256,11 @@ pub(super) fn apply(
     // `½·γ·avg²` collapses to ≈0 even though the true second-order
     // contribution `½·Δrᵀ·H·Δr` is non-trivial. Emit a note so the consumer
     // knows the convexity number is *not* a real upper bound.
-    let avg_rate_abs_shift_bp: Option<f64> = {
-        let mut total = 0.0;
-        let mut count = 0usize;
-        for curve_id in &inputs.rates_curve_ids {
-            let v = rate_curve_abs_shift_bp(curve_id.as_str(), inputs.market_t0, inputs.market_t1);
-            if v > 0.0 {
-                total += v;
-                count += 1;
-            }
-        }
-        if count > 0 {
-            Some(total / count as f64)
-        } else {
-            None
-        }
-    };
+    let avg_rate_abs_shift_bp: Option<f64> = average_over(&inputs.rates_curve_ids, |curve_id| {
+        let v = rate_curve_abs_shift_bp(curve_id.as_str(), inputs.market_t0, inputs.market_t1);
+        (v > 0.0).then_some(v)
+    })
+    .0;
     if let Some(avg_shift) = convexity_avg_shift_bp {
         let rc = RoundingContext::default();
         // The two convexity MetricIds have DIFFERENT producer units and must

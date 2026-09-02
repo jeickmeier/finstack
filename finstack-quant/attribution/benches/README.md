@@ -30,8 +30,8 @@ compare) plus the `attribution_hot_paths` group:
 
 | Id | Measures |
 |----|----------|
-| `parallel_1_bond` | `attribute_pnl_parallel` with `ExecutionPolicy::Parallel`, single 5y bond |
-| `waterfall_1_bond` | `attribute_pnl_waterfall` over `default_waterfall_order()`, single 5y bond |
+| `parallel_1_bond` | `attribute_pnl` (`Parallel`) with `ExecutionPolicy::Parallel`, single 5y bond |
+| `waterfall_1_bond` | `attribute_pnl` (`Waterfall`) over `default_waterfall_order()`, single 5y bond |
 | `parallel_5_bonds` | The parallel path looped over 5 bonds with maturities spread 3y–11y |
 | `simple_bridge_1_bond` | Two-reprice baseline |
 | `metrics_based_precomputed_1_bond` | Linear decomposition with `price_with_metrics` outside the timer |

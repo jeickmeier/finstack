@@ -3,7 +3,9 @@
 //! Verifies that Taylor maps volatility attribution into `PnlAttribution::vol_pnl`
 //! with consistent vol-point units and sensible first/second-order scaling.
 
-use finstack_quant_attribution::{attribute_pnl_taylor, ExecutionPolicy, TaylorAttributionConfig};
+use finstack_quant_attribution::{
+    attribute_pnl, AttributionMethod, AttributionRequest, ExecutionPolicy, TaylorAttributionConfig,
+};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -141,14 +143,19 @@ fn taylor_vol_factor_matches_full_revaluation() {
         vol_bump: 0.01, // 1% absolute bump
         ..TaylorAttributionConfig::default()
     };
-    let result = attribute_pnl_taylor(
-        &inst,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let result = attribute_pnl(
+        &AttributionMethod::Taylor(config),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &inst,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("Taylor attribution must succeed");
     let explained = result.vol_pnl.amount();
@@ -231,14 +238,19 @@ fn taylor_vol_factor_gamma_matches_full_revaluation() {
         vol_bump: 0.01,
         ..TaylorAttributionConfig::default()
     };
-    let result = attribute_pnl_taylor(
-        &inst,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &config,
-        ExecutionPolicy::Parallel,
+    let result = attribute_pnl(
+        &AttributionMethod::Taylor(config),
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &inst,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &finstack_quant_core::config::FinstackConfig::default(),
+            )
+        },
     )
     .expect("Taylor attribution with gamma must succeed");
     let combined = result.vol_pnl.amount();
@@ -296,14 +308,19 @@ fn vol_skew_change_attributes_less_than_parallel_shift() {
 
     let option: Arc<dyn Instrument> = Arc::new(build_option());
     let run = |market_t1: &MarketContext| {
-        attribute_pnl_taylor(
-            &option,
-            &base_market,
-            market_t1,
-            as_of_t0,
-            as_of_t1,
-            &TaylorAttributionConfig::default(),
-            ExecutionPolicy::Serial,
+        attribute_pnl(
+            &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+            &AttributionRequest {
+                execution_policy: ExecutionPolicy::Serial,
+                ..AttributionRequest::new(
+                    &option,
+                    &base_market,
+                    market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor attribution should succeed")
     };

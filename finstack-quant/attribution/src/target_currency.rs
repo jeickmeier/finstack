@@ -37,13 +37,7 @@ use finstack_quant_core::money::fx::{FxConversionPolicy, FxPolicyMeta};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 
-use crate::types::{
-    CarryDetail, CorrelationsAttribution, CreditCarryDecomposition, CreditCurvesAttribution,
-    CreditFactorAttribution, CrossFactorDetail, FxAttribution, InflationCurvesAttribution,
-    ModelParamsAttribution, PnlAttribution, RatesCurvesAttribution, ScalarsAttribution, SourceLine,
-    VolAttribution,
-};
-use indexmap::IndexMap;
+use crate::types::PnlAttribution;
 
 /// Translate a populated `PnlAttribution` from its native pricing currency
 /// into `target_currency`.
@@ -110,16 +104,6 @@ pub fn translate_to_target_currency(
     let translate =
         |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
 
-    attribution.carry = translate(attribution.carry)?;
-    attribution.rates_curves_pnl = translate(attribution.rates_curves_pnl)?;
-    attribution.credit_curves_pnl = translate(attribution.credit_curves_pnl)?;
-    attribution.inflation_curves_pnl = translate(attribution.inflation_curves_pnl)?;
-    attribution.correlations_pnl = translate(attribution.correlations_pnl)?;
-    attribution.fx_pnl = translate(attribution.fx_pnl)?;
-    attribution.vol_pnl = translate(attribution.vol_pnl)?;
-    attribution.cross_factor_pnl = translate(attribution.cross_factor_pnl)?;
-    attribution.model_params_pnl = translate(attribution.model_params_pnl)?;
-    attribution.market_scalars_pnl = translate(attribution.market_scalars_pnl)?;
     attribution.fx_translation_pnl = fx_translation;
 
     // Total in target_currency = MTM translation + the total-return add-back.
@@ -160,289 +144,25 @@ pub fn translate_to_target_currency(
         ),
     });
 
-    // Carry-detail and every remaining per-factor detail map are typed Money;
-    // translate them so callers reading by_curve / by_pair leaves see the
-    // same reporting currency as the aggregates.
-    if let Some(d) = attribution.carry_detail.as_mut() {
-        translate_carry_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.rates_detail.as_mut() {
-        translate_rates_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.credit_detail.as_mut() {
-        translate_credit_curves_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.inflation_detail.as_mut() {
-        translate_inflation_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.correlations_detail.as_mut() {
-        translate_correlations_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.fx_detail.as_mut() {
-        translate_fx_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.vol_detail.as_mut() {
-        translate_vol_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.cross_factor_detail.as_mut() {
-        translate_cross_factor_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.model_params_detail.as_mut() {
-        translate_model_params_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.scalars_detail.as_mut() {
-        translate_scalars_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-
-    // Audit M5: the credit-model structs are populated BEFORE this
-    // translation runs (execution.rs), so their Money leaves must move to
-    // target currency with the same T1 FX as the aggregate factor fields —
-    // otherwise `generic + Σ levels + adder + curve_shape ≡ credit_curves_pnl`
-    // and the carry partition break by the FX rate across currencies.
-    if let Some(d) = attribution.credit_factor_detail.as_mut() {
-        translate_credit_factor_detail(d, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(d) = attribution.credit_carry_decomposition.as_mut() {
-        translate_credit_carry_decomposition(d, target_currency, market_t1, as_of_t1)?;
+    // Every remaining aggregate and every Money leaf of every detail struct
+    // (including the credit-model structs, which are populated BEFORE this
+    // translation runs) moves to the target currency at the same T1 FX as the
+    // factor fields — otherwise `generic + Σ levels + adder + curve_shape ≡
+    // credit_curves_pnl` and the carry partition break by the FX rate.
+    attribution.for_each_money_mut(|m| {
+        *m = translate(*m)?;
+        Ok(())
+    })?;
+    if let Some(m) = attribution
+        .credit_factor_detail
+        .as_mut()
+        .and_then(|d| d.adder_magnitude.as_mut())
+    {
+        *m = translate(*m)?;
     }
 
     attribution.compute_residual()?;
     Ok(())
-}
-
-/// Translate every Money leaf of a [`CreditFactorAttribution`] (aggregates,
-/// per-level totals, bucket maps, per-issuer adder map, adder magnitude) to
-/// `target_currency` at T1 FX.
-fn translate_credit_factor_detail(
-    detail: &mut CreditFactorAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    let convert =
-        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
-    detail.generic_pnl = convert(detail.generic_pnl)?;
-    detail.adder_pnl_total = convert(detail.adder_pnl_total)?;
-    detail.curve_shape_pnl = convert(detail.curve_shape_pnl)?;
-    for level in &mut detail.levels {
-        level.total = convert(level.total)?;
-        for v in level.by_bucket.values_mut() {
-            *v = convert(*v)?;
-        }
-    }
-    if let Some(by_issuer) = detail.adder_pnl_by_issuer.as_mut() {
-        for v in by_issuer.values_mut() {
-            *v = convert(*v)?;
-        }
-    }
-    if let Some(m) = detail.adder_magnitude.as_mut() {
-        *m = convert(*m)?;
-    }
-    Ok(())
-}
-
-/// Translate every Money leaf of a [`CreditCarryDecomposition`] (both carry
-/// totals, generic / level / adder breakdown, bucket and per-issuer maps) to
-/// `target_currency` at T1 FX.
-fn translate_credit_carry_decomposition(
-    detail: &mut CreditCarryDecomposition,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    let convert =
-        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
-    detail.rates_carry_total = convert(detail.rates_carry_total)?;
-    detail.credit_carry_total = convert(detail.credit_carry_total)?;
-    detail.credit_by_level.generic = convert(detail.credit_by_level.generic)?;
-    detail.credit_by_level.adder_total = convert(detail.credit_by_level.adder_total)?;
-    for level in &mut detail.credit_by_level.levels {
-        level.total = convert(level.total)?;
-        for v in level.by_bucket.values_mut() {
-            *v = convert(*v)?;
-        }
-    }
-    if let Some(by_issuer) = detail.credit_by_level.adder_by_issuer.as_mut() {
-        for v in by_issuer.values_mut() {
-            *v = convert(*v)?;
-        }
-    }
-    Ok(())
-}
-
-fn translate_carry_detail(
-    detail: &mut CarryDetail,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    let convert =
-        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
-    detail.total = convert(detail.total)?;
-    if let Some(line) = detail.coupon_income.as_mut() {
-        translate_source_line(line, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(m) = detail.pull_to_par.as_mut() {
-        *m = convert(*m)?;
-    }
-    if let Some(line) = detail.roll_down.as_mut() {
-        translate_source_line(line, target_currency, market_t1, as_of_t1)?;
-    }
-    if let Some(m) = detail.funding_cost.as_mut() {
-        *m = convert(*m)?;
-    }
-    Ok(())
-}
-
-fn translate_source_line(
-    line: &mut SourceLine,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    let convert =
-        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
-    line.total = convert(line.total)?;
-    if let Some(m) = line.rates_part.as_mut() {
-        *m = convert(*m)?;
-    }
-    if let Some(m) = line.credit_part.as_mut() {
-        *m = convert(*m)?;
-    }
-    Ok(())
-}
-
-fn translate_money_map<K: Eq + std::hash::Hash>(
-    map: &mut IndexMap<K, Money>,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    for value in map.values_mut() {
-        *value = market_t1.convert_money(*value, target_currency, as_of_t1)?;
-    }
-    Ok(())
-}
-
-fn translate_rates_detail(
-    detail: &mut RatesCurvesAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    let convert =
-        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
-    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)?;
-    translate_money_map(&mut detail.by_tenor, target_currency, market_t1, as_of_t1)?;
-    detail.discount_total = convert(detail.discount_total)?;
-    detail.forward_total = convert(detail.forward_total)?;
-    Ok(())
-}
-
-fn translate_credit_curves_detail(
-    detail: &mut CreditCurvesAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)?;
-    translate_money_map(&mut detail.by_tenor, target_currency, market_t1, as_of_t1)?;
-    Ok(())
-}
-
-fn translate_inflation_detail(
-    detail: &mut InflationCurvesAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)?;
-    if let Some(by_tenor) = detail.by_tenor.as_mut() {
-        translate_money_map(by_tenor, target_currency, market_t1, as_of_t1)?;
-    }
-    Ok(())
-}
-
-fn translate_correlations_detail(
-    detail: &mut CorrelationsAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)
-}
-
-fn translate_fx_detail(
-    detail: &mut FxAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    translate_money_map(&mut detail.by_pair, target_currency, market_t1, as_of_t1)
-}
-
-fn translate_vol_detail(
-    detail: &mut VolAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    translate_money_map(&mut detail.by_surface, target_currency, market_t1, as_of_t1)
-}
-
-fn translate_cross_factor_detail(
-    detail: &mut CrossFactorDetail,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    detail.total = market_t1.convert_money(detail.total, target_currency, as_of_t1)?;
-    translate_money_map(&mut detail.by_pair, target_currency, market_t1, as_of_t1)
-}
-
-fn translate_model_params_detail(
-    detail: &mut ModelParamsAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    let convert =
-        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
-    if let Some(m) = detail.prepayment.as_mut() {
-        *m = convert(*m)?;
-    }
-    if let Some(m) = detail.default_rate.as_mut() {
-        *m = convert(*m)?;
-    }
-    if let Some(m) = detail.recovery_rate.as_mut() {
-        *m = convert(*m)?;
-    }
-    if let Some(m) = detail.conversion_ratio.as_mut() {
-        *m = convert(*m)?;
-    }
-    translate_money_map(&mut detail.other, target_currency, market_t1, as_of_t1)
-}
-
-fn translate_scalars_detail(
-    detail: &mut ScalarsAttribution,
-    target_currency: Currency,
-    market_t1: &MarketContext,
-    as_of_t1: Date,
-) -> Result<()> {
-    translate_money_map(&mut detail.dividends, target_currency, market_t1, as_of_t1)?;
-    translate_money_map(&mut detail.inflation, target_currency, market_t1, as_of_t1)?;
-    translate_money_map(
-        &mut detail.equity_prices,
-        target_currency,
-        market_t1,
-        as_of_t1,
-    )?;
-    translate_money_map(
-        &mut detail.commodity_prices,
-        target_currency,
-        market_t1,
-        as_of_t1,
-    )
 }
 
 #[cfg(test)]

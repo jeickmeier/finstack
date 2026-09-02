@@ -4,7 +4,8 @@
 
 use crate::attribution_support::TestInstrument;
 use finstack_quant_attribution::{
-    attribute_pnl_metrics_based, attribute_pnl_parallel, ExecutionPolicy,
+    attribute_pnl, attribute_pnl_metrics_based, AttributionMethod, AttributionRequest,
+    ExecutionPolicy,
 };
 use finstack_quant_core::config::{results_meta, FinstackConfig};
 use finstack_quant_core::currency::Currency;
@@ -68,14 +69,19 @@ fn coupon_payment_inside_window_keeps_total_return_identity() {
     // factor is zero and the entire P&L is the date roll + the coupon.
     let market = MarketContext::new().insert(flat_discount("USD-OIS", as_of_t0, 0.04));
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market,
-        &market,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market,
+                &market,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("attribution over a coupon date should succeed");
 
@@ -150,14 +156,19 @@ fn negative_rates_regime_attribution_succeeds() {
     let market_t0 = MarketContext::new().insert(flat_discount("EUR-OIS", as_of_t0, -0.0050));
     let market_t1 = MarketContext::new().insert(flat_discount("EUR-OIS", as_of_t1, -0.0040));
 
-    let attribution = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Serial,
+    let attribution = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("negative-rate attribution should succeed");
 

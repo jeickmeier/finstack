@@ -1,7 +1,8 @@
 //! End-to-end integration tests for cross-factor P&L attribution.
 
 use finstack_quant_attribution::{
-    attribute_pnl_metrics_based, attribute_pnl_parallel, ExecutionPolicy, PnlAttribution,
+    attribute_pnl, attribute_pnl_metrics_based, AttributionMethod, AttributionRequest,
+    ExecutionPolicy, PnlAttribution,
 };
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
@@ -204,14 +205,19 @@ fn synthetic_parallel_instrument_surfaces_credit_vol_cross_factor() {
     let instrument =
         Arc::new(CreditVolInteractionInstrument::new("CREDIT-VOL-XFACTOR")) as Arc<dyn Instrument>;
 
-    let parallel = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Parallel,
+    let parallel = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 
@@ -260,14 +266,19 @@ fn single_factor_instrument_has_zero_cross_factor() {
             .expect("deposit should build"),
     ) as Arc<dyn Instrument>;
 
-    let attr = attribute_pnl_parallel(
-        &deposit,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Parallel,
+    let attr = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &deposit,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 
@@ -293,14 +304,19 @@ fn synthetic_parallel_instrument_surfaces_rates_credit_cross_factor() {
     let instrument =
         Arc::new(RatesCreditInteractionInstrument::new("PARALLEL-XFACTOR")) as Arc<dyn Instrument>;
 
-    let parallel = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Parallel,
+    let parallel = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("parallel attribution should succeed");
 
@@ -369,25 +385,35 @@ fn serial_execution_policy_matches_parallel_cross_factor_attribution() {
     let instrument =
         Arc::new(RatesCreditInteractionInstrument::new("POLICY-XFACTOR")) as Arc<dyn Instrument>;
 
-    let parallel = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Parallel,
+    let parallel = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("parallel policy attribution should succeed");
 
-    let serial = attribute_pnl_parallel(
-        &instrument,
-        &market_t0,
-        &market_t1,
-        as_of_t0,
-        as_of_t1,
-        &FinstackConfig::default(),
-        ExecutionPolicy::Serial,
+    let serial = attribute_pnl(
+        &AttributionMethod::Parallel,
+        &AttributionRequest {
+            execution_policy: ExecutionPolicy::Serial,
+            ..AttributionRequest::new(
+                &instrument,
+                &market_t0,
+                &market_t1,
+                as_of_t0,
+                as_of_t1,
+                &FinstackConfig::default(),
+            )
+        },
     )
     .expect("serial policy attribution should succeed");
 

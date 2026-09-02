@@ -26,10 +26,11 @@
 
 use super::factors::{MarketRestoreFlags, MarketSnapshot};
 use super::helpers::*;
-use super::metrics_based::extract_keyrate_cs01_per_curve;
+use super::metrics_based::extract_keyrate_per_curve;
 use super::model_params;
 use super::types::*;
 use crate::policy_map::map_policy;
+use crate::AttributionRequest;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -279,22 +280,6 @@ struct TaylorExecution {
     prepared_endpoints: Option<(Money, Money)>,
 }
 
-impl TaylorExecution {
-    fn standalone(policy: ExecutionPolicy) -> Self {
-        Self {
-            policy,
-            prepared_endpoints: None,
-        }
-    }
-
-    fn prepared(policy: ExecutionPolicy, val_t0: Money, val_t1: Money) -> Self {
-        Self {
-            policy,
-            prepared_endpoints: Some((val_t0, val_t1)),
-        }
-    }
-}
-
 /// Compute the detailed Taylor factor decomposition.
 ///
 /// Uses bump-and-reprice at T0 to compute first-order sensitivities, then
@@ -361,8 +346,15 @@ fn compute_taylor_result(
     let compute_rate = |curve_id: &CurveId| {
         (
             curve_id.clone(),
-            compute_rate_factor(
-                instrument, market_t0, market_t1, as_of_t0, pv_t0, curve_id, config,
+            compute_curve_factor(
+                CurveKind::Discount,
+                instrument,
+                market_t0,
+                market_t1,
+                as_of_t0,
+                pv_t0,
+                curve_id,
+                config,
             ),
         )
     };
@@ -389,8 +381,15 @@ fn compute_taylor_result(
     let compute_forward = |curve_id: &CurveId| {
         (
             curve_id.clone(),
-            compute_forward_factor(
-                instrument, market_t0, market_t1, as_of_t0, pv_t0, curve_id, config,
+            compute_curve_factor(
+                CurveKind::Forward,
+                instrument,
+                market_t0,
+                market_t1,
+                as_of_t0,
+                pv_t0,
+                curve_id,
+                config,
             ),
         )
     };
@@ -432,7 +431,7 @@ fn compute_taylor_result(
                 finstack_quant_valuations::instruments::PricingOptions::default(),
             )
             .ok()
-            .map(|vr| extract_keyrate_cs01_per_curve(&vr.measures, credit_curves))
+            .map(|vr| extract_keyrate_per_curve(&vr.measures, credit_curves, "bucketed_cs01"))
     };
     let compute_credit = |curve_id: &CurveId| {
         let keyrate = credit_keyrate
@@ -711,18 +710,11 @@ fn compute_taylor_result(
 ///
 /// # Arguments
 ///
-/// * `instrument` - Instrument to reprice and whose risk factors are
-///   approximated by first- and optional second-order terms.
-/// * `market_t0` - Opening market state used for the base value and factor
-///   changes.
-/// * `market_t1` - Closing market state used for the repriced value and bump
-///   contexts.
-/// * `as_of_t0` - Opening valuation date used for the base repricing.
-/// * `as_of_t1` - Closing valuation date used for closing and bumped repricing.
+/// * `request` - Instrument, market states, dates, execution policy,
+///   optional opening model-parameter snapshot and prepared endpoints. The
+///   request's `FinstackConfig` is not read; rounding is not applied.
 /// * `config` - Taylor attribution policy, including factor selection, bump
 ///   sizes, and optional gamma treatment.
-/// * `execution_policy` - Sequential or parallel execution policy recorded in
-///   result metadata and used for independent factor work.
 ///
 /// # Errors
 ///
@@ -730,85 +722,25 @@ fn compute_taylor_result(
 /// FX conversion used to calculate total P&L, or result construction fails.
 /// It can also return an error when factor accumulation detects an invalid
 /// currency or non-finite monetary amount.
-pub fn attribute_pnl_taylor(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
+pub(crate) fn attribute_pnl_taylor(
+    request: &AttributionRequest<'_>,
     config: &TaylorAttributionConfig,
-    execution_policy: ExecutionPolicy,
 ) -> Result<PnlAttribution> {
-    attribute_pnl_taylor_impl(
+    let AttributionRequest {
         instrument,
         market_t0,
         market_t1,
         as_of_t0,
         as_of_t1,
-        config,
-        TaylorExecution::standalone(execution_policy),
-        None,
-    )
-}
-
-/// Taylor attribution with an explicit T₀ model-parameter snapshot.
-///
-/// When `model_params_t0` is `None`, parameters are extracted from
-/// `instrument` (typically the T₁ instrument), so model-parameter P&L is
-/// zero unless the caller supplies a distinct opening snapshot.
-///
-/// # Arguments
-///
-/// * `instrument` - Instrument to reprice and whose risk factors are
-///   approximated by first- and optional second-order terms.
-/// * `market_t0` - Opening market state used for the base value and factor
-///   changes.
-/// * `market_t1` - Closing market state used for the repriced value and bump
-///   contexts.
-/// * `as_of_t0` - Opening valuation date used for the base repricing.
-/// * `as_of_t1` - Closing valuation date used for closing and bumped repricing.
-/// * `config` - Taylor attribution policy, including bump sizes and optional
-///   gamma treatment for the sensitivity × move families.
-/// * `execution_policy` - Sequential or parallel execution policy recorded in
-///   result metadata and used for independent factor work.
-/// * `model_params_t0` - Optional opening model-parameter snapshot. When
-///   `Some`, the T₁ instrument is repriced with these parameters restored so
-///   the isolated P&L lands in `model_params_pnl`. When `None`, parameters
-///   are taken from `instrument`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn attribute_pnl_taylor_with_model_params(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &TaylorAttributionConfig,
-    execution_policy: ExecutionPolicy,
-    model_params_t0: Option<&ModelParamsSnapshot>,
-) -> Result<PnlAttribution> {
-    attribute_pnl_taylor_impl(
-        instrument,
-        market_t0,
-        market_t1,
-        as_of_t0,
-        as_of_t1,
-        config,
-        TaylorExecution::standalone(execution_policy),
+        execution_policy,
         model_params_t0,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn attribute_pnl_taylor_impl(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &TaylorAttributionConfig,
-    execution: TaylorExecution,
-    model_params_t0: Option<&ModelParamsSnapshot>,
-) -> Result<PnlAttribution> {
+        prepared_endpoints,
+        ..
+    } = *request;
+    let execution = TaylorExecution {
+        policy: execution_policy,
+        prepared_endpoints,
+    };
     let taylor = compute_taylor_result(
         instrument,
         market_t0,
@@ -964,40 +896,11 @@ fn attribute_pnl_taylor_impl(
     Ok(attribution)
 }
 
-/// Run Taylor attribution using ordinary endpoint values prepared by the
-/// portfolio evaluation engine.
-///
-/// This is an internal cross-crate integration path. The endpoint values must
-/// be the unscaled values of `instrument` at the supplied markets and dates.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn attribute_pnl_taylor_prepared(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: &TaylorAttributionConfig,
-    execution_policy: ExecutionPolicy,
-    val_t0: Money,
-    val_t1: Money,
-) -> Result<PnlAttribution> {
-    attribute_pnl_taylor_impl(
-        instrument,
-        market_t0,
-        market_t1,
-        as_of_t0,
-        as_of_t1,
-        config,
-        TaylorExecution::prepared(execution_policy, val_t0, val_t1),
-        None,
-    )
-}
-
 // NOTE: the former `measure_forward_curve_shift` /
 // `measure_average_rate_shift` helpers — an unweighted mean of per-tenor shifts
 // — were removed. An unweighted average mis-attributes non-parallel curve
-// moves (a steepener averages toward zero), so `compute_rate_factor` and
-// `compute_forward_factor` now measure the per-tenor move and pair it with a
+// moves (a steepener averages toward zero), so `compute_curve_factor`
+// now measures the per-tenor move and pair it with a
 // per-bucket (key-rate) DV01 instead.
 
 /// Standard key-rate bucket grid (years) used for key-rate-aware rate / forward
@@ -1102,20 +1005,33 @@ fn key_rate_bump_spec(i: usize, bump_bp: f64) -> BumpSpec {
     BumpSpec::triangular_key_rate_bp(prev, target, KEY_RATE_BUCKETS_YEARS[i + 1], bump_bp)
 }
 
-/// Compute rate (DV01) attribution for a single discount curve — KEY-RATE
+/// Which rates curve family a key-rate factor is measured on.
+#[derive(Clone, Copy)]
+enum CurveKind {
+    /// Discount curve: realized move measured in zero rates, `Rates:` prefix.
+    Discount,
+    /// Forward/projection curve: realized move measured in forward rates,
+    /// `Forward:` prefix.
+    Forward,
+}
+
+/// Compute rates-curve sensitivity attribution for a single curve — KEY-RATE
 /// AWARE.
 ///
 /// Rather than a single parallel DV01 multiplied by an *average* curve shift
 /// (which mis-attributes non-parallel moves — a steepener averages toward zero
 /// and inflates the unexplained residual), this bumps each standard key-rate
 /// bucket with a triangular weight, measures the DV01 of that bucket, and pairs
-/// it with the realized zero-rate move at that bucket's tenor:
+/// it with the realized move at that bucket's tenor (zero rate for a discount
+/// curve, forward rate for a forward curve):
 ///
 ///   explained = Σ_bucket  DV01_bucket × Δr_bucket
 ///
 /// The reported `sensitivity` is the parallel-equivalent DV01 (Σ bucket DV01s)
 /// and `market_move` the average shift used by the internal factor result.
-fn compute_rate_factor(
+#[allow(clippy::too_many_arguments)]
+fn compute_curve_factor(
+    kind: CurveKind,
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
@@ -1124,15 +1040,29 @@ fn compute_rate_factor(
     curve_id: &CurveId,
     config: &TaylorAttributionConfig,
 ) -> Result<TaylorFactorResult> {
-    // Realized per-tenor zero-rate moves on the standard bucket grid (bp).
-    let (curve_t0, curve_t1) = (
-        market_t0.get_discount(curve_id.as_str())?,
-        market_t1.get_discount(curve_id.as_str())?,
-    );
-    let per_tenor_move_bp: Vec<f64> = KEY_RATE_BUCKETS_YEARS
-        .iter()
-        .map(|&t| (curve_t1.zero(t) - curve_t0.zero(t)) * 10_000.0)
-        .collect();
+    // Realized per-tenor moves on the standard bucket grid (bp).
+    let per_tenor_move_bp: Vec<f64> = match kind {
+        CurveKind::Discount => {
+            let (curve_t0, curve_t1) = (
+                market_t0.get_discount(curve_id.as_str())?,
+                market_t1.get_discount(curve_id.as_str())?,
+            );
+            KEY_RATE_BUCKETS_YEARS
+                .iter()
+                .map(|&t| (curve_t1.zero(t) - curve_t0.zero(t)) * 10_000.0)
+                .collect()
+        }
+        CurveKind::Forward => {
+            let (curve_t0, curve_t1) = (
+                market_t0.get_forward(curve_id.as_str())?,
+                market_t1.get_forward(curve_id.as_str())?,
+            );
+            KEY_RATE_BUCKETS_YEARS
+                .iter()
+                .map(|&t| (curve_t1.rate(t) - curve_t0.rate(t)) * 10_000.0)
+                .collect()
+        }
+    };
 
     let mut buckets: Vec<KeyRateBucket> = Vec::with_capacity(KEY_RATE_BUCKETS_YEARS.len());
     for (i, &move_bp) in per_tenor_move_bp.iter().enumerate() {
@@ -1186,89 +1116,12 @@ fn compute_rate_factor(
         None
     };
 
-    Ok(TaylorFactorResult {
-        factor_name: format!("Rates:{}", curve_id),
-        sensitivity: total_dv01,
-        market_move: avg_move_bp,
-        explained_pnl: explained,
-        gamma_pnl,
-    })
-}
-
-/// Compute forward-curve sensitivity attribution for a single forward curve —
-/// KEY-RATE AWARE.
-///
-/// Mirrors [`compute_rate_factor`] but applies triangular key-rate bumps to the
-/// forward curve and measures the realized move using forward rates (not
-/// discount zeros). A non-parallel forward-curve move is attributed per bucket
-/// rather than collapsing to an average shift × parallel DV01.
-fn compute_forward_factor(
-    instrument: &Arc<dyn Instrument>,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    pv_t0: Money,
-    curve_id: &CurveId,
-    config: &TaylorAttributionConfig,
-) -> Result<TaylorFactorResult> {
-    let (curve_t0, curve_t1) = (
-        market_t0.get_forward(curve_id.as_str())?,
-        market_t1.get_forward(curve_id.as_str())?,
-    );
-    let per_tenor_move_bp: Vec<f64> = KEY_RATE_BUCKETS_YEARS
-        .iter()
-        .map(|&t| (curve_t1.rate(t) - curve_t0.rate(t)) * 10_000.0)
-        .collect();
-
-    let mut buckets: Vec<KeyRateBucket> = Vec::with_capacity(KEY_RATE_BUCKETS_YEARS.len());
-    for (i, &move_bp) in per_tenor_move_bp.iter().enumerate() {
-        let up = market_t0.bump([MarketBump::Curve {
-            id: curve_id.clone(),
-            spec: key_rate_bump_spec(i, config.rate_bump_bp),
-        }])?;
-        let pv_up = reprice_instrument(instrument, &up, as_of_t0)?;
-
-        let down = market_t0.bump([MarketBump::Curve {
-            id: curve_id.clone(),
-            spec: key_rate_bump_spec(i, -config.rate_bump_bp),
-        }])?;
-        let pv_down = reprice_instrument(instrument, &down, as_of_t0)?;
-
-        let dv01 = (pv_up.amount() - pv_down.amount()) / (2.0 * config.rate_bump_bp);
-        buckets.push(KeyRateBucket { dv01, move_bp });
-    }
-
-    let explained =
-        finstack_quant_core::math::neumaier_sum(buckets.iter().map(|b| b.dv01 * b.move_bp));
-    let total_dv01 = finstack_quant_core::math::neumaier_sum(buckets.iter().map(|b| b.dv01));
-    let avg_move_bp = if buckets.is_empty() {
-        0.0
-    } else {
-        finstack_quant_core::math::neumaier_sum(buckets.iter().map(|b| b.move_bp))
-            / buckets.len() as f64
+    let prefix = match kind {
+        CurveKind::Discount => "Rates",
+        CurveKind::Forward => "Forward",
     };
-
-    // Second-order term from a single parallel reprice (see
-    // `parallel_gamma_pnl`); identical treatment to the discount-curve path.
-    let gamma_pnl = if config.include_gamma {
-        let dv01s: Vec<f64> = buckets.iter().map(|b| b.dv01).collect();
-        let moves: Vec<f64> = buckets.iter().map(|b| b.move_bp).collect();
-        Some(parallel_gamma_pnl(
-            instrument,
-            market_t0,
-            as_of_t0,
-            pv_t0,
-            curve_id,
-            config.rate_bump_bp,
-            &dv01s,
-            &moves,
-        )?)
-    } else {
-        None
-    };
-
     Ok(TaylorFactorResult {
-        factor_name: format!("Forward:{}", curve_id),
+        factor_name: format!("{prefix}:{curve_id}"),
         sensitivity: total_dv01,
         market_move: avg_move_bp,
         explained_pnl: explained,
@@ -1772,7 +1625,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Parallel),
+            TaylorExecution {
+                policy: ExecutionPolicy::Parallel,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed for simple instrument");
@@ -1795,14 +1651,19 @@ mod tests {
         let market_t1 = MarketContext::new();
         let config = TaylorAttributionConfig::default();
 
-        let attribution = attribute_pnl_taylor(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &config,
-            ExecutionPolicy::Parallel,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(config),
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Parallel,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor compat attribution should succeed");
 
@@ -1851,7 +1712,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Parallel),
+            TaylorExecution {
+                policy: ExecutionPolicy::Parallel,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -1990,14 +1854,19 @@ mod tests {
         let market_t1 = MarketContext::new().insert_fx(FxMatrix::new(Arc::new(FixedFx(1.20))));
 
         let config = TaylorAttributionConfig::default();
-        let attribution = attribute_pnl_taylor(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &config,
-            ExecutionPolicy::Parallel,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(config.clone()),
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Parallel,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor standard attribution should succeed");
 
@@ -2030,7 +1899,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Parallel),
+            TaylorExecution {
+                policy: ExecutionPolicy::Parallel,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -2088,14 +1960,19 @@ mod tests {
                 ..TaylorAttributionConfig::default()
             },
         ] {
-            let err = attribute_pnl_taylor(
-                &instrument,
-                &market_t0,
-                &market_t1,
-                as_of_t0,
-                as_of_t1,
-                &bad,
-                ExecutionPolicy::Parallel,
+            let err = crate::attribute_pnl(
+                &AttributionMethod::Taylor(bad.clone()),
+                &crate::AttributionRequest {
+                    execution_policy: ExecutionPolicy::Parallel,
+                    ..crate::AttributionRequest::new(
+                        &instrument,
+                        &market_t0,
+                        &market_t1,
+                        as_of_t0,
+                        as_of_t1,
+                        &finstack_quant_core::config::FinstackConfig::default(),
+                    )
+                },
             )
             .expect_err("malformed bump config must error at validation");
             let msg = format!("{err}");
@@ -2501,7 +2378,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Serial),
+            TaylorExecution {
+                policy: ExecutionPolicy::Serial,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -2557,7 +2437,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Serial),
+            TaylorExecution {
+                policy: ExecutionPolicy::Serial,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -2618,7 +2501,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Serial),
+            TaylorExecution {
+                policy: ExecutionPolicy::Serial,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -2681,7 +2567,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Serial),
+            TaylorExecution {
+                policy: ExecutionPolicy::Serial,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -2745,7 +2634,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &config,
-            TaylorExecution::standalone(ExecutionPolicy::Serial),
+            TaylorExecution {
+                policy: ExecutionPolicy::Serial,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -2784,14 +2676,19 @@ mod tests {
         mock.vol_deps = vec![VolatilityDependency::new("VOL-X", None, None)];
         let instrument: Arc<dyn Instrument> = Arc::new(mock);
 
-        let attribution = attribute_pnl_taylor(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &TaylorAttributionConfig::default(),
-            ExecutionPolicy::Serial,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Serial,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor attribution should succeed");
 
@@ -2831,14 +2728,19 @@ mod tests {
         // T1 lacks the curve entirely → the rates factor must fail.
         let market_t1 = MarketContext::new();
 
-        let attribution = attribute_pnl_taylor(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &TaylorAttributionConfig::default(),
-            ExecutionPolicy::Serial,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Serial,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("attribution must complete despite the failed factor");
 
@@ -2914,7 +2816,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &TaylorAttributionConfig::default(),
-            TaylorExecution::standalone(ExecutionPolicy::Serial),
+            TaylorExecution {
+                policy: ExecutionPolicy::Serial,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -2980,7 +2885,10 @@ mod tests {
             as_of_t0,
             as_of_t1,
             &TaylorAttributionConfig::default(),
-            TaylorExecution::standalone(ExecutionPolicy::Serial),
+            TaylorExecution {
+                policy: ExecutionPolicy::Serial,
+                prepared_endpoints: None,
+            },
             None,
         )
         .expect("taylor attribution should succeed");
@@ -3019,14 +2927,19 @@ mod tests {
             MarketScalar::Price(Money::new(185.0, Currency::USD)),
         );
 
-        let attribution = attribute_pnl_taylor(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &TaylorAttributionConfig::default(),
-            ExecutionPolicy::Serial,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Serial,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor attribution should succeed");
 
@@ -3068,14 +2981,19 @@ mod tests {
         let market_t0 = MarketContext::new().insert(infl(325.0));
         let market_t1 = MarketContext::new().insert(infl(350.0));
 
-        let attribution = attribute_pnl_taylor(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &TaylorAttributionConfig::default(),
-            ExecutionPolicy::Serial,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Serial,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor attribution should succeed");
 
@@ -3114,14 +3032,19 @@ mod tests {
         let market_t0 = MarketContext::new().insert(corr(0.40));
         let market_t1 = MarketContext::new().insert(corr(0.50));
 
-        let attribution = attribute_pnl_taylor(
-            &instrument,
-            &market_t0,
-            &market_t1,
-            as_of_t0,
-            as_of_t1,
-            &TaylorAttributionConfig::default(),
-            ExecutionPolicy::Serial,
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+            &crate::AttributionRequest {
+                execution_policy: ExecutionPolicy::Serial,
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &market_t0,
+                    &market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor attribution should succeed");
 
@@ -3155,15 +3078,19 @@ mod tests {
             recovery_spec: RecoveryModelSpec::with_lag(0.0, 0),
         };
 
-        let attribution = attribute_pnl_taylor_with_model_params(
-            &instrument,
-            &MarketContext::new(),
-            &MarketContext::new(),
-            as_of_t0,
-            as_of_t1,
-            &TaylorAttributionConfig::default(),
-            ExecutionPolicy::Serial,
-            Some(&params_t0),
+        let attribution = crate::attribute_pnl(
+            &AttributionMethod::Taylor(TaylorAttributionConfig::default()),
+            &crate::AttributionRequest {
+                model_params_t0: Some(&params_t0),
+                ..crate::AttributionRequest::new(
+                    &instrument,
+                    &MarketContext::new(),
+                    &MarketContext::new(),
+                    as_of_t0,
+                    as_of_t1,
+                    &finstack_quant_core::config::FinstackConfig::default(),
+                )
+            },
         )
         .expect("taylor attribution should succeed");
 
