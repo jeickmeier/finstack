@@ -21,6 +21,7 @@ pub(crate) mod positions;
 mod repricing_engine;
 mod traits;
 
+pub(crate) use delta_engine::mapping_to_market_bumps;
 pub use delta_engine::DeltaBasedEngine;
 pub use finstack_quant_models::factor::SensitivityMatrix;
 pub use json::{

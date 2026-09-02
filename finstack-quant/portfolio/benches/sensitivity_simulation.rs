@@ -466,21 +466,6 @@ fn diagonal_covariance(n_factors: usize) -> FactorCovarianceMatrix {
     FactorCovarianceMatrix::new(factor_ids, data).expect("bench: covariance should build")
 }
 
-fn decomposition_sensitivities(n_factors: usize) -> SensitivityMatrix {
-    // A few positions, each with a deterministic delta per factor.
-    let position_ids: Vec<String> = (0..8).map(|i| format!("P{i}")).collect();
-    let factor_ids: Vec<FactorId> = (0..n_factors)
-        .map(|i| FactorId::new(format!("F{i}")))
-        .collect();
-    let mut matrix = SensitivityMatrix::zeros(position_ids, factor_ids);
-    for p in 0..8 {
-        for f in 0..n_factors {
-            matrix.set_delta(p, f, 100.0 + (p as f64) - (f as f64) * 0.5);
-        }
-    }
-    matrix
-}
-
 fn bench_parametric_decomposition(c: &mut Criterion) {
     let measure = RiskMeasure::Variance;
     let mut group = c.benchmark_group("parametric_factor_decomposition");

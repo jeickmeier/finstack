@@ -1,8 +1,9 @@
 //! JSON-facing helpers for factor-model bindings.
 
+use super::positions::{parse_positions_json, pricing_positions};
 use super::{
-    pricing_positions, DeltaBasedEngine, FactorPnlProfile, FactorSensitivityEngine,
-    FullRepricingEngine, SensitivityMatrix,
+    DeltaBasedEngine, FactorPnlProfile, FactorSensitivityEngine, FullRepricingEngine,
+    SensitivityMatrix,
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
@@ -127,7 +128,7 @@ pub fn compute_factor_sensitivities_from_json(
     as_of: Date,
     bump_config_json: Option<&str>,
 ) -> Result<SensitivityMatrix> {
-    let parsed_positions = super::parse_positions_json(positions_json)?;
+    let parsed_positions = parse_positions_json(positions_json)?;
     let positions = pricing_positions(&parsed_positions);
     let factors = parse_factor_definitions_json(factors_json)?;
     let bump_config = parse_bump_config_json(bump_config_json)?;
@@ -168,7 +169,7 @@ pub fn compute_pnl_profiles_from_json(
     bump_config_json: Option<&str>,
     n_scenario_points: usize,
 ) -> Result<Vec<FactorPnlProfile>> {
-    let parsed_positions = super::parse_positions_json(positions_json)?;
+    let parsed_positions = parse_positions_json(positions_json)?;
     let positions = pricing_positions(&parsed_positions);
     let factors = parse_factor_definitions_json(factors_json)?;
     let bump_config = parse_bump_config_json(bump_config_json)?;

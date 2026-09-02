@@ -231,7 +231,7 @@ mod tests {
         // Invalid: negative
         let result = Constraint::exposure_limit("rating", "CCC", -0.1);
         assert!(result.is_err());
-        assert!(result.unwrap_err().message.contains("max_share"));
+        assert!(result.unwrap_err().to_string().contains("max_share"));
 
         // Invalid: > 1.0
         let result = Constraint::exposure_limit("rating", "CCC", 1.5);
@@ -262,7 +262,7 @@ mod tests {
         // Invalid: min > max
         let result = Constraint::weight_bounds(PositionFilter::All, 0.2, 0.1);
         assert!(result.is_err());
-        assert!(result.unwrap_err().message.contains("min"));
+        assert!(result.unwrap_err().to_string().contains("min"));
     }
 
     #[test]
