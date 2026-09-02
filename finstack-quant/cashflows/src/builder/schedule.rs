@@ -1037,11 +1037,11 @@ pub struct PvCreditAdjustment<'a> {
     pub recovery_rate: Option<f64>,
 }
 
-/// Discount-source variants for periodized PV aggregation.
+/// Discount source for periodized PV aggregation.
 ///
-/// Use [`Self::Discount`] when the caller has already resolved curve handles.
-/// Use [`Self::Market`] when the schedule should resolve discount and optional
-/// hazard curves from a [`MarketContext`] for each call.
+/// Callers holding resolved curve handles use [`Self::Discount`] directly;
+/// [`CashFlowSchedule::pv_by_period_with_market`] resolves the handles from a
+/// [`MarketContext`] first.
 #[derive(Clone, Copy)]
 pub enum PvDiscountSource<'a> {
     /// Use already-resolved discounting and optional credit-adjustment handles.
@@ -1051,19 +1051,10 @@ pub enum PvDiscountSource<'a> {
         /// Optional credit-adjustment inputs.
         credit: Option<PvCreditAdjustment<'a>>,
     },
-    /// Resolve discount and optional hazard curves from a market context.
-    Market {
-        /// Market context containing the required curves.
-        market: &'a MarketContext,
-        /// Discount curve identifier.
-        disc_curve_id: &'a CurveId,
-        /// Optional hazard curve identifier.
-        hazard_curve_id: Option<&'a CurveId>,
-    },
 }
 
 impl CashFlowSchedule {
-    /// Compute periodized PVs from either resolved discount handles or a market context.
+    /// Compute periodized PVs from resolved discount handles.
     ///
     /// Cashflows are grouped into the supplied reporting periods using
     /// half-open period boundaries. Plain discounting uses `amount * df(t)`.
@@ -1149,24 +1140,6 @@ impl CashFlowSchedule {
                     )
                 }
             }
-            PvDiscountSource::Market {
-                market,
-                disc_curve_id,
-                hazard_curve_id,
-            } => {
-                let curves = resolve_credit_curves(market, disc_curve_id, hazard_curve_id)?;
-                self.pv_by_period(
-                    periods,
-                    PvDiscountSource::Discount {
-                        disc: curves.discounting(),
-                        credit: Some(PvCreditAdjustment {
-                            hazard: curves.hazard_survival(),
-                            recovery_rate: curves.recovery_rate(),
-                        }),
-                    },
-                    date_ctx,
-                )
-            }
         }
     }
 
@@ -1196,12 +1169,15 @@ impl CashFlowSchedule {
         base: Date,
         day_count: Option<DayCount>,
     ) -> finstack_quant_core::Result<IndexMap<PeriodId, IndexMap<Currency, Money>>> {
+        let curves = resolve_credit_curves(market, disc_curve_id, hazard_curve_id)?;
         self.pv_by_period(
             periods,
-            PvDiscountSource::Market {
-                market,
-                disc_curve_id,
-                hazard_curve_id,
+            PvDiscountSource::Discount {
+                disc: curves.discounting(),
+                credit: Some(PvCreditAdjustment {
+                    hazard: curves.hazard_survival(),
+                    recovery_rate: curves.recovery_rate(),
+                }),
             },
             crate::aggregation::DateContext::new(
                 base,
