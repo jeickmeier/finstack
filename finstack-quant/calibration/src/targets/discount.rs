@@ -11,6 +11,7 @@ use crate::quotes::rates::RateQuote;
 use crate::solver::bootstrap::SequentialBootstrapper;
 use crate::solver::global::GlobalFitOptimizer;
 use crate::solver::traits::{BootstrapTarget, GlobalSolveTarget};
+use crate::targets::rate_recipe::recipe_ois_compounding;
 use crate::targets::util::{
     discount_and_forward_curve_ids, prepare_rate_calibration_quotes_with_ois_override,
     quote_annuity_proxy, ContextScratch,
@@ -21,9 +22,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, RateCalibrationCurveRole, RateCalibrationFutureContractId,
-    RateCalibrationMethod, RateCalibrationOisCompounding, RateCalibrationPillar,
-    RateCalibrationQuote, RateCalibrationRecipe,
+    DiscountCurve, RateCalibrationCurveRole, RateCalibrationRecipe,
 };
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use finstack_quant_core::types::CurveId;
@@ -532,112 +531,19 @@ Global solve requires strictly increasing times.",
     ) -> Result<RateCalibrationRecipe> {
         Ok(RateCalibrationRecipe {
             currency: params.currency,
-            method: match &params.method {
-                CalibrationMethod::Bootstrap => RateCalibrationMethod::Bootstrap,
-                CalibrationMethod::GlobalSolve {
-                    use_analytical_jacobian,
-                } => RateCalibrationMethod::GlobalSolve {
-                    use_analytical_jacobian: *use_analytical_jacobian,
-                },
-            },
+            method: (&params.method).into(),
             curve_day_count,
             ois_compounding: params
                 .conventions
                 .ois_compounding
                 .as_ref()
-                .map(Self::rate_calibration_ois_compounding)
+                .map(recipe_ois_compounding)
                 .transpose()?,
             role: RateCalibrationCurveRole::Discount {
                 projection_curve_id,
             },
-            quotes: quotes.iter().map(Self::rate_calibration_quote).collect(),
+            quotes: quotes.iter().map(Into::into).collect(),
         })
-    }
-
-    fn rate_calibration_ois_compounding(
-        compounding: &finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding,
-    ) -> Result<RateCalibrationOisCompounding> {
-        use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
-
-        match compounding {
-            FloatingLegCompounding::Simple => Ok(RateCalibrationOisCompounding::Simple),
-            FloatingLegCompounding::CompoundedInArrears { lookback_days } => {
-                Ok(RateCalibrationOisCompounding::CompoundedInArrears {
-                    lookback_days: *lookback_days,
-                })
-            }
-            FloatingLegCompounding::CompoundedWithObservationShift { shift_days } => Ok(
-                RateCalibrationOisCompounding::CompoundedWithObservationShift {
-                    shift_days: *shift_days,
-                },
-            ),
-            FloatingLegCompounding::CompoundedWithRateCutoff { cutoff_days } => {
-                Ok(RateCalibrationOisCompounding::CompoundedWithRateCutoff {
-                    cutoff_days: *cutoff_days,
-                })
-            }
-            _ => Err(finstack_quant_core::Error::Validation(
-                "unsupported floating-leg compounding for calibration replay".to_string(),
-            )),
-        }
-    }
-
-    fn rate_calibration_quote(quote: &RateQuote) -> RateCalibrationQuote {
-        match quote {
-            RateQuote::Deposit {
-                index,
-                pillar,
-                rate,
-                ..
-            } => RateCalibrationQuote::Deposit {
-                index_id: index.clone(),
-                pillar: Self::rate_calibration_pillar(pillar),
-                rate: *rate,
-            },
-            RateQuote::Fra {
-                index,
-                start,
-                end,
-                rate,
-                ..
-            } => RateCalibrationQuote::Fra {
-                index_id: index.clone(),
-                start: Self::rate_calibration_pillar(start),
-                end: Self::rate_calibration_pillar(end),
-                rate: *rate,
-            },
-            RateQuote::Futures {
-                contract,
-                expiry,
-                price,
-                convexity_adjustment,
-                ..
-            } => RateCalibrationQuote::Futures {
-                contract: RateCalibrationFutureContractId::new(contract.as_str()),
-                expiry: *expiry,
-                price: *price,
-                convexity_adjustment: Some(*convexity_adjustment),
-            },
-            RateQuote::Swap {
-                index,
-                pillar,
-                rate,
-                spread_decimal,
-                ..
-            } => RateCalibrationQuote::Swap {
-                index_id: index.clone(),
-                pillar: Self::rate_calibration_pillar(pillar),
-                rate: *rate,
-                spread_decimal: *spread_decimal,
-            },
-        }
-    }
-
-    fn rate_calibration_pillar(pillar: &crate::quotes::ids::Pillar) -> RateCalibrationPillar {
-        match pillar {
-            crate::quotes::ids::Pillar::Tenor(tenor) => RateCalibrationPillar::Tenor(*tenor),
-            crate::quotes::ids::Pillar::Date(date) => RateCalibrationPillar::Date(*date),
-        }
     }
 
     /// Extract the OIS rate cut-off (business days) from the step-level
@@ -1244,6 +1150,9 @@ mod tests {
     use crate::solver::global::GlobalFitOptimizer;
     use crate::solver::traits::BootstrapTarget;
     use finstack_quant_core::dates::{BusinessDayConvention, DayCountContext};
+    use finstack_quant_core::market_data::term_structures::{
+        RateCalibrationPillar, RateCalibrationQuote,
+    };
     use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -1651,10 +1560,7 @@ mod tests {
                 spread_decimal: Some(0.00025),
             },
         ];
-        let replay_quotes: Vec<_> = quotes
-            .iter()
-            .map(DiscountCurveTarget::rate_calibration_quote)
-            .collect();
+        let replay_quotes: Vec<_> = quotes.iter().map(RateCalibrationQuote::from).collect();
 
         assert!(matches!(
             &replay_quotes[0],

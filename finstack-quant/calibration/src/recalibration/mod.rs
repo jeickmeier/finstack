@@ -29,6 +29,7 @@
 //! divided by the bump size**. With the default `1e-8` fit tolerance and a 1bp
 //! bump this is on the order of `2e-8 / 1e-4 ≈ 2e-4` of the PV unit.
 
+mod cache;
 pub(crate) mod hazard;
 mod provider;
 pub(crate) mod rates;

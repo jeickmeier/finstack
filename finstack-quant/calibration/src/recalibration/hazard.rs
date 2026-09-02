@@ -1,5 +1,6 @@
 //! Shared hazard curve bumping logic.
 
+use super::cache::KeyedOnceCache;
 use crate::api::schema::{HazardCurveParams, StepParams};
 use crate::quotes::cds::CdsQuote;
 use crate::quotes::ids::Pillar;
@@ -15,8 +16,9 @@ use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CdsValuationConvention;
 use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
 use finstack_quant_valuations::recalibration::{DealCdsQuoteOverride, QuoteBump};
+#[cfg(test)]
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Clone, Copy)]
 struct HazardParRecalibration<'a> {
@@ -146,8 +148,6 @@ fn stable_hash_json(mut hash: u64, value: &serde_json::Value) -> u64 {
     }
 }
 
-type CachedHazardCurve = Arc<Mutex<Option<Arc<HazardCurve>>>>;
-
 /// Batch-local cache for hazard-curve recalibrations used by spread risk and
 /// scenario ParCDS delivery.
 ///
@@ -162,57 +162,34 @@ type CachedHazardCurve = Arc<Mutex<Option<Arc<HazardCurve>>>>;
 /// the first result.
 #[derive(Default)]
 pub(crate) struct HazardRecalibrationCache {
-    entries: Mutex<HashMap<HazardRecalibrationKey, CachedHazardCurve>>,
+    entries: KeyedOnceCache<HazardRecalibrationKey, HazardCurve>,
 }
 
 impl std::fmt::Debug for HazardRecalibrationCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let entries = match self.entries.lock() {
-            Ok(entries) => entries.len(),
-            Err(poisoned) => poisoned.into_inner().len(),
-        };
         f.debug_struct("HazardRecalibrationCache")
-            .field("entries", &entries)
+            .field("entries", &self.entries.len())
             .finish()
     }
 }
 
-impl HazardRecalibrationCache {
-    fn get_or_recalibrate(
-        &self,
-        request: HazardParRecalibration<'_>,
-    ) -> finstack_quant_core::Result<Arc<HazardCurve>> {
-        let key = HazardRecalibrationKey {
-            hazard_id: request.hazard.id().to_string(),
-            discount_id: request.discount_id.to_string(),
-            recovery_rate: request.recovery_rate.to_bits(),
-            doc_clause: request.doc_clause,
-            cds_valuation_convention: request.cds_valuation_convention,
-            bump: hazard_bump_key(&request),
-            source_fingerprint: hazard_source_fingerprint(request.hazard),
-        };
-        let entry = {
-            let mut entries = match self.entries.lock() {
-                Ok(entries) => entries,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-            Arc::clone(
-                entries
-                    .entry(key)
-                    .or_insert_with(|| Arc::new(Mutex::new(None))),
-            )
-        };
-        let mut cached = match entry.lock() {
-            Ok(cached) => cached,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        if let Some(curve) = cached.as_ref() {
-            return Ok(Arc::clone(curve));
-        }
-        let curve = Arc::new(recalibrate_from_par_spreads(request)?);
-        *cached = Some(Arc::clone(&curve));
-        Ok(curve)
-    }
+/// Recalibrate `request`, memoising through `cache` when one is supplied.
+fn recalibrate_from_par_spreads_cached(
+    cache: Option<&HazardRecalibrationCache>,
+    request: HazardParRecalibration<'_>,
+) -> finstack_quant_core::Result<Arc<HazardCurve>> {
+    let key = HazardRecalibrationKey {
+        hazard_id: request.hazard.id().to_string(),
+        discount_id: request.discount_id.to_string(),
+        recovery_rate: request.recovery_rate.to_bits(),
+        doc_clause: request.doc_clause,
+        cds_valuation_convention: request.cds_valuation_convention,
+        bump: hazard_bump_key(&request),
+        source_fingerprint: hazard_source_fingerprint(request.hazard),
+    };
+    KeyedOnceCache::get_or_compute(cache.map(|c| &c.entries), key, || {
+        recalibrate_from_par_spreads(request)
+    })
 }
 
 fn require_discount_id(discount_id: Option<&CurveId>) -> finstack_quant_core::Result<&CurveId> {
@@ -731,10 +708,7 @@ pub(crate) fn bump_hazard_spreads_cached(
         exact_spread_bump: None,
         replay_spread_risk_center: false,
     };
-    match cache {
-        Some(cache) => cache.get_or_recalibrate(request),
-        None => recalibrate_from_par_spreads(request).map(Arc::new),
-    }
+    recalibrate_from_par_spreads_cached(cache, request)
 }
 
 /// Bump exactly one spread-risk replay binding and recalibrate.
@@ -771,10 +745,7 @@ pub(crate) fn bump_hazard_spread_risk_input_cached(
         exact_spread_bump: Some(quote_bump),
         replay_spread_risk_center: false,
     };
-    match cache {
-        Some(cache) => cache.get_or_recalibrate(request),
-        None => recalibrate_from_par_spreads(request).map(Arc::new),
-    }
+    recalibrate_from_par_spreads_cached(cache, request)
 }
 
 /// Bump hazard curve by shocking par spreads and re-calibrating.

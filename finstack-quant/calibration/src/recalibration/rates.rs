@@ -1,12 +1,16 @@
 //! Shared rates curve bumping logic (plan-driven calibration).
 
+use super::cache::KeyedOnceCache;
 use crate::api::schema::{DiscountCurveParams, ForwardCurveParams, StepParams};
 use crate::config::CalibrationMethod;
 use crate::config::RatesStepConventions;
-use crate::quotes::ids::{Pillar, QuoteId};
+use crate::quotes::ids::Pillar;
+#[cfg(test)]
+use crate::quotes::ids::QuoteId;
 use crate::quotes::market_quote::MarketQuote;
 use crate::quotes::rates::RateQuote;
 use crate::step_runtime;
+use crate::targets::rate_recipe::{ois_compounding_from_recipe, rate_quotes_from_recipe};
 use crate::CalibrationConfig;
 #[cfg(test)]
 use finstack_quant_core::currency::Currency;
@@ -14,8 +18,7 @@ use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, ForwardCurve, RateCalibrationCurveRole, RateCalibrationMethod,
-    RateCalibrationOisCompounding, RateCalibrationPillar, RateCalibrationQuote,
+    DiscountCurve, ForwardCurve, RateCalibrationCurveRole, RateCalibrationQuote,
     RateCalibrationRecipe,
 };
 #[cfg(test)]
@@ -24,8 +27,8 @@ use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_valuations::recalibration::QuoteBump;
 #[cfg(test)]
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
+use std::sync::Arc;
 use time::Duration;
 
 #[cfg(test)]
@@ -76,9 +79,6 @@ impl From<&QuoteBump> for RateBumpKey {
     }
 }
 
-type CachedRateMarket = Arc<Mutex<Option<Arc<MarketContext>>>>;
-type CachedDiscountCurve = Arc<Mutex<Option<Arc<DiscountCurve>>>>;
-
 /// Batch-local cache for rate-curve recalibrations used by quote-shock risk.
 ///
 /// A cache instance is scoped to one immutable market snapshot. Per-key locks
@@ -87,66 +87,8 @@ type CachedDiscountCurve = Arc<Mutex<Option<Arc<DiscountCurve>>>>;
 /// calibrations are not cached.
 #[derive(Default)]
 pub(crate) struct RateRecalibrationCache {
-    market_entries: Mutex<HashMap<RateMarketRecalibrationKey, CachedRateMarket>>,
-    discount_entries: Mutex<HashMap<DiscountRateRecalibrationKey, CachedDiscountCurve>>,
-}
-
-impl RateRecalibrationCache {
-    fn get_or_recalibrate_market(
-        &self,
-        key: RateMarketRecalibrationKey,
-        calibrate: impl FnOnce() -> finstack_quant_core::Result<MarketContext>,
-    ) -> finstack_quant_core::Result<Arc<MarketContext>> {
-        let entry = {
-            let mut entries = match self.market_entries.lock() {
-                Ok(entries) => entries,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-            Arc::clone(
-                entries
-                    .entry(key)
-                    .or_insert_with(|| Arc::new(Mutex::new(None))),
-            )
-        };
-        let mut cached = match entry.lock() {
-            Ok(cached) => cached,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        if let Some(market) = cached.as_ref() {
-            return Ok(Arc::clone(market));
-        }
-        let market = Arc::new(calibrate()?);
-        *cached = Some(Arc::clone(&market));
-        Ok(market)
-    }
-
-    fn get_or_recalibrate_discount(
-        &self,
-        key: DiscountRateRecalibrationKey,
-        calibrate: impl FnOnce() -> finstack_quant_core::Result<DiscountCurve>,
-    ) -> finstack_quant_core::Result<Arc<DiscountCurve>> {
-        let entry = {
-            let mut entries = match self.discount_entries.lock() {
-                Ok(entries) => entries,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-            Arc::clone(
-                entries
-                    .entry(key)
-                    .or_insert_with(|| Arc::new(Mutex::new(None))),
-            )
-        };
-        let mut cached = match entry.lock() {
-            Ok(cached) => cached,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        if let Some(curve) = cached.as_ref() {
-            return Ok(Arc::clone(curve));
-        }
-        let curve = Arc::new(calibrate()?);
-        *cached = Some(Arc::clone(&curve));
-        Ok(curve)
-    }
+    market: KeyedOnceCache<RateMarketRecalibrationKey, MarketContext>,
+    discount: KeyedOnceCache<DiscountRateRecalibrationKey, DiscountCurve>,
 }
 
 /// Bump a discount curve by shocking rate quotes and re-calibrating.
@@ -231,13 +173,9 @@ pub(crate) fn bump_discount_curve_from_rate_calibration_cached(
         curve_id: curve.id().to_string(),
         bump: bump.into(),
     };
-    match cache {
-        Some(cache) => cache.get_or_recalibrate_discount(key, || {
-            bump_discount_curve_from_rate_calibration(curve, calibration, context, bump)
-        }),
-        None => bump_discount_curve_from_rate_calibration(curve, calibration, context, bump)
-            .map(Arc::new),
-    }
+    KeyedOnceCache::get_or_compute(cache.map(|c| &c.discount), key, || {
+        bump_discount_curve_from_rate_calibration(curve, calibration, context, bump)
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -257,17 +195,8 @@ fn bump_discount_curve_from_rate_calibration_with_projection(
     ensure_recipe_has_quotes(curve.id(), calibration)?;
     let quotes = rate_quotes_from_recipe(calibration, curve.id())?;
 
-    let first_rate = quotes.first().map(rate_quote_level).unwrap_or(0.0);
-    let fixings = ScalarTimeSeries::new(
-        format!("FIXING:{}", curve.id()),
-        vec![
-            (curve.base_date() - Duration::days(3), first_rate),
-            (curve.base_date() - Duration::days(2), first_rate),
-            (curve.base_date() - Duration::days(1), first_rate),
-            (curve.base_date(), first_rate),
-        ],
-        None,
-    )?;
+    let first_rate = quotes.first().map(RateQuote::implied_rate).unwrap_or(0.0);
+    let fixings = fixing_seed(curve.id().as_str(), curve.base_date(), first_rate)?;
     let base_context = context.clone().insert_series(fixings);
 
     let (method, curve_day_count, ois_compounding, recipe_pricing_forward_id) =
@@ -330,95 +259,6 @@ fn bump_discount_curve_from_rate_calibration_with_projection(
     curve.rebuild_with_knots(overlaid)
 }
 
-fn rate_quotes_from_recipe(
-    recipe: &RateCalibrationRecipe,
-    curve_id: &CurveId,
-) -> finstack_quant_core::Result<Vec<RateQuote>> {
-    recipe
-        .quotes
-        .iter()
-        .enumerate()
-        .map(|(index, quote)| {
-            let id = QuoteId::new(format!("{curve_id}-REPLAY-{index}"));
-            Ok(match quote {
-                RateCalibrationQuote::Deposit {
-                    index_id,
-                    pillar,
-                    rate,
-                } => RateQuote::Deposit {
-                    id,
-                    index: index_id.clone(),
-                    pillar: pillar_from_recipe(pillar),
-                    rate: *rate,
-                },
-                RateCalibrationQuote::Fra {
-                    index_id,
-                    start,
-                    end,
-                    rate,
-                } => RateQuote::Fra {
-                    id,
-                    index: index_id.clone(),
-                    start: pillar_from_recipe(start),
-                    end: pillar_from_recipe(end),
-                    rate: *rate,
-                },
-                RateCalibrationQuote::Futures {
-                    contract,
-                    expiry,
-                    price,
-                    convexity_adjustment,
-                } => RateQuote::Futures {
-                    id,
-                    contract: finstack_quant_valuations::market::conventions::ids::IrFutureContractId::new(
-                        contract.as_str(),
-                    ),
-                    expiry: *expiry,
-                    price: *price,
-                    convexity_adjustment: convexity_adjustment.unwrap_or(0.0),
-                },
-                RateCalibrationQuote::Swap {
-                    index_id,
-                    pillar,
-                    rate,
-                    spread_decimal,
-                } => RateQuote::Swap {
-                    id,
-                    index: index_id.clone(),
-                    pillar: pillar_from_recipe(pillar),
-                    rate: *rate,
-                    spread_decimal: *spread_decimal,
-                },
-                RateCalibrationQuote::Basis { .. } => {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "curve {curve_id} uses basis quotes, which require the dedicated basis replay path"
-                    )));
-                }
-            })
-        })
-        .collect()
-}
-
-fn pillar_from_recipe(pillar: &RateCalibrationPillar) -> Pillar {
-    match pillar {
-        RateCalibrationPillar::Tenor(tenor) => Pillar::Tenor(*tenor),
-        RateCalibrationPillar::Date(date) => Pillar::Date(*date),
-    }
-}
-
-fn rate_quote_level(quote: &RateQuote) -> f64 {
-    match quote {
-        RateQuote::Deposit { rate, .. }
-        | RateQuote::Fra { rate, .. }
-        | RateQuote::Swap { rate, .. } => *rate,
-        RateQuote::Futures {
-            price,
-            convexity_adjustment,
-            ..
-        } => (100.0 - price) / 100.0 - convexity_adjustment,
-    }
-}
-
 fn discount_replay_conventions(
     curve: &DiscountCurve,
     recipe: &RateCalibrationRecipe,
@@ -440,7 +280,7 @@ fn discount_replay_conventions(
         }
     };
     Ok((
-        calibration_method_from_recipe(&recipe.method),
+        CalibrationMethod::from(&recipe.method),
         recipe.curve_day_count,
         recipe
             .ois_compounding
@@ -540,7 +380,7 @@ fn forward_replay_conventions(
         }
     };
     Ok((
-        calibration_method_from_recipe(&recipe.method),
+        CalibrationMethod::from(&recipe.method),
         recipe.curve_day_count,
         recipe
             .ois_compounding
@@ -548,41 +388,6 @@ fn forward_replay_conventions(
             .map(ois_compounding_from_recipe),
         discount_curve_id,
     ))
-}
-
-fn calibration_method_from_recipe(method: &RateCalibrationMethod) -> CalibrationMethod {
-    match method {
-        RateCalibrationMethod::Bootstrap => CalibrationMethod::Bootstrap,
-        RateCalibrationMethod::GlobalSolve {
-            use_analytical_jacobian,
-        } => CalibrationMethod::GlobalSolve {
-            use_analytical_jacobian: *use_analytical_jacobian,
-        },
-    }
-}
-
-fn ois_compounding_from_recipe(
-    compounding: &RateCalibrationOisCompounding,
-) -> finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding {
-    use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
-    match compounding {
-        RateCalibrationOisCompounding::Simple => FloatingLegCompounding::Simple,
-        RateCalibrationOisCompounding::CompoundedInArrears { lookback_days } => {
-            FloatingLegCompounding::CompoundedInArrears {
-                lookback_days: *lookback_days,
-            }
-        }
-        RateCalibrationOisCompounding::CompoundedWithObservationShift { shift_days } => {
-            FloatingLegCompounding::CompoundedWithObservationShift {
-                shift_days: *shift_days,
-            }
-        }
-        RateCalibrationOisCompounding::CompoundedWithRateCutoff { cutoff_days } => {
-            FloatingLegCompounding::CompoundedWithRateCutoff {
-                cutoff_days: *cutoff_days,
-            }
-        }
-    }
 }
 
 /// Globally recalibrate a forward curve from (optionally bumped) rate quotes
@@ -939,13 +744,9 @@ pub(crate) fn bump_market_via_rate_quote_shock_cached(
         },
         bump: bump.into(),
     };
-    match cache {
-        Some(cache) => cache.get_or_recalibrate_market(key, || {
-            bump_market_via_rate_quote_shock(market, discount_curve_id, forward_curve_id, bump)
-        }),
-        None => bump_market_via_rate_quote_shock(market, discount_curve_id, forward_curve_id, bump)
-            .map(Arc::new),
-    }
+    KeyedOnceCache::get_or_compute(cache.map(|c| &c.market), key, || {
+        bump_market_via_rate_quote_shock(market, discount_curve_id, forward_curve_id, bump)
+    })
 }
 
 /// Re-bootstrap a single OIS discount curve under a market-quote shock.
@@ -1002,12 +803,9 @@ pub(crate) fn bump_single_ois_market_via_rate_quote_shock_cached(
         },
         bump: bump.into(),
     };
-    match cache {
-        Some(cache) => cache.get_or_recalibrate_market(key, || {
-            bump_single_ois_market_via_rate_quote_shock(market, curve_id, bump)
-        }),
-        None => bump_single_ois_market_via_rate_quote_shock(market, curve_id, bump).map(Arc::new),
-    }
+    KeyedOnceCache::get_or_compute(cache.map(|c| &c.market), key, || {
+        bump_single_ois_market_via_rate_quote_shock(market, curve_id, bump)
+    })
 }
 
 /// Seed bootstrap-time fixings for both curve and index identifiers so the
@@ -1242,6 +1040,9 @@ mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use super::*;
+    use finstack_quant_core::market_data::term_structures::{
+        RateCalibrationMethod, RateCalibrationOisCompounding, RateCalibrationPillar,
+    };
     use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_valuations::market::conventions::ids::IrFutureContractId;
 

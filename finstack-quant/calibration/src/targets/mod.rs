@@ -25,6 +25,8 @@ pub(crate) mod hazard;
 pub(crate) mod inflation;
 /// Nelson-Siegel / Nelson-Siegel-Svensson parametric curve calibration.
 pub(crate) mod parametric;
+/// Conversions between rate quotes and persisted rate-calibration recipes.
+pub(crate) mod rate_recipe;
 /// Student-t copula degrees of freedom calibration.
 pub(crate) mod student_t;
 /// SVI volatility surface calibration.

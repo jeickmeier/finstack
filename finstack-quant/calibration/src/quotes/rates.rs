@@ -213,6 +213,46 @@ impl RateQuote {
         }
     }
 
+    /// Get the simple rate (decimal) implied by the quote.
+    ///
+    /// # Returns
+    ///
+    /// For deposit, FRA, and swap quotes: the quoted par rate.
+    /// For futures quotes: `(100 - price) / 100 - convexity_adjustment`
+    /// (Hull's futures-to-forward conversion), so a positive convexity
+    /// adjustment lowers the implied forward.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_calibration::quotes::rates::RateQuote;
+    /// use finstack_quant_calibration::quotes::ids::QuoteId;
+    /// use finstack_quant_valuations::market::conventions::ids::IrFutureContractId;
+    /// use time::macros::date;
+    ///
+    /// let quote = RateQuote::Futures {
+    ///     id: QuoteId::new("SR3Z4"),
+    ///     contract: IrFutureContractId::new("SR3"),
+    ///     expiry: date!(2024 - 12 - 18),
+    ///     price: 95.0,
+    ///     convexity_adjustment: 0.001,
+    /// };
+    ///
+    /// assert!((quote.implied_rate() - 0.049).abs() < 1e-12);
+    /// ```
+    pub fn implied_rate(&self) -> f64 {
+        match self {
+            RateQuote::Deposit { rate, .. }
+            | RateQuote::Fra { rate, .. }
+            | RateQuote::Swap { rate, .. } => *rate,
+            RateQuote::Futures {
+                price,
+                convexity_adjustment,
+                ..
+            } => (100.0 - price) / 100.0 - convexity_adjustment,
+        }
+    }
+
     /// Validate that every quoted rate or futures price field is finite.
     pub fn validate(&self) -> Result<()> {
         match self {

@@ -291,19 +291,7 @@ pub(crate) fn discount_and_forward_curve_ids(
 pub(crate) fn quote_annuity_proxy(quote: &CalibrationQuote, t: f64) -> f64 {
     // Representative rate for the discount factor in the annuity integral.
     let r = match quote {
-        CalibrationQuote::Rates(pq) => match pq.quote.as_ref() {
-            // Deposit / FRA / Swap quote `value()` IS the rate (decimal).
-            RateQuote::Deposit { rate, .. }
-            | RateQuote::Fra { rate, .. }
-            | RateQuote::Swap { rate, .. } => *rate,
-            // A future quotes a *price* (e.g. 98.5); the implied rate is
-            // Hull `forward = (100 − price)/100 − convexity_adjustment`.
-            RateQuote::Futures {
-                price,
-                convexity_adjustment,
-                ..
-            } => (100.0 - price) / 100.0 - convexity_adjustment,
-        },
+        CalibrationQuote::Rates(pq) => pq.quote.implied_rate(),
         // Inflation / xccy-basis quotes do not carry a comparable fixed par rate;
         // a small rate makes the proxy degrade gracefully to `A ≈ t`.
         _ => 0.0,
