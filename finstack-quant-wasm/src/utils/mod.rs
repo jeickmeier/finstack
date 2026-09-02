@@ -9,71 +9,182 @@ pub use date::{date_to_iso, parse_iso_date, parse_iso_dates};
 
 use wasm_bindgen::JsValue;
 
-/// Convert any `Display`-able error into a structured `JsValue` error.
+/// Anything the bindings can turn into a structured JS error.
 ///
-/// Returns a plain JS `Error` object whose `message` is the error's
-/// `Display` text and whose `name` is `"FinstackError"`. Structured
-/// errors let JS clients pattern-match on `err.name` and reliably read
-/// `err.message` rather than parsing ad-hoc strings.
+/// The `kind` property is decided by the error's *type*, never by sniffing
+/// its message: typed core errors classify by variant through
+/// [`finstack_quant_core::Error::kind`], crate errors that wrap a core error
+/// defer to it, and plain strings / parse errors are input validation.
+pub trait IntoJsError {
+    /// Structured `kind` for the JS error (`"not_found"`, `"validation"`,
+    /// `"computation"`).
+    fn js_kind(&self) -> &'static str;
+    /// Full message, including the source chain where one exists.
+    fn js_message(&self) -> String;
+}
+
+/// JS `kind` label for a core [`ErrorKind`](finstack_quant_core::error::ErrorKind).
+fn kind_label(kind: finstack_quant_core::error::ErrorKind) -> &'static str {
+    use finstack_quant_core::error::ErrorKind;
+    match kind {
+        ErrorKind::NotFound => "not_found",
+        ErrorKind::Validation => "validation",
+        ErrorKind::Computation => "computation",
+    }
+}
+
+impl IntoJsError for finstack_quant_core::Error {
+    fn js_kind(&self) -> &'static str {
+        kind_label(self.kind())
+    }
+    fn js_message(&self) -> String {
+        format_error_chain(self)
+    }
+}
+
+impl IntoJsError for finstack_quant_valuations::Error {
+    fn js_kind(&self) -> &'static str {
+        match self {
+            finstack_quant_valuations::Error::Core(e) => e.js_kind(),
+            _ => "computation",
+        }
+    }
+    fn js_message(&self) -> String {
+        format_error_chain(self)
+    }
+}
+
+impl IntoJsError for finstack_quant_statements::error::Error {
+    fn js_kind(&self) -> &'static str {
+        use finstack_quant_statements::error::Error;
+        match self {
+            Error::Core(e) => e.js_kind(),
+            Error::NodeNotFound(_) | Error::RegistryNotFound(_) => "not_found",
+            Error::Eval(_) | Error::CircularDependency(_) => "computation",
+            _ => "validation",
+        }
+    }
+    fn js_message(&self) -> String {
+        format_error_chain(self)
+    }
+}
+
+impl IntoJsError for finstack_quant_portfolio::Error {
+    fn js_kind(&self) -> &'static str {
+        use finstack_quant_portfolio::Error;
+        match self {
+            Error::Core(e) => e.js_kind(),
+            Error::UnknownEntity { .. } | Error::MissingMarketData(_) => "not_found",
+            Error::ValuationError { .. } | Error::FxConversionFailed { .. } => "computation",
+            _ => "validation",
+        }
+    }
+    fn js_message(&self) -> String {
+        format_error_chain(self)
+    }
+}
+
+impl IntoJsError for finstack_quant_scenarios::Error {
+    fn js_kind(&self) -> &'static str {
+        use finstack_quant_scenarios::Error;
+        match self {
+            Error::Core(e) => e.js_kind(),
+            Error::Statements(e) => e.js_kind(),
+            Error::Valuations(e) => e.js_kind(),
+            Error::MarketDataNotFound { .. }
+            | Error::NodeNotFound { .. }
+            | Error::TenorNotFound { .. }
+            | Error::InstrumentNotFound(_) => "not_found",
+            Error::Internal(_) => "computation",
+            _ => "validation",
+        }
+    }
+    fn js_message(&self) -> String {
+        format_error_chain(self)
+    }
+}
+
+/// Plain messages and parse/decode failures are input validation.
+macro_rules! validation_js_error {
+    ($($ty:ty),* $(,)?) => {$(
+        impl IntoJsError for $ty {
+            fn js_kind(&self) -> &'static str {
+                "validation"
+            }
+            fn js_message(&self) -> String {
+                self.to_string()
+            }
+        }
+    )*};
+}
+
+validation_js_error!(
+    String,
+    &str,
+    serde_json::Error,
+    serde_wasm_bindgen::Error,
+    time::error::Parse,
+    time::error::ComponentRange,
+    std::num::ParseFloatError,
+    std::num::ParseIntError,
+    std::fmt::Error,
+    strum::ParseError,
+    finstack_quant_core::math::linalg::CorrelationError,
+    finstack_quant_core::math::linalg::CholeskyError,
+    finstack_quant_models::correlation::Error,
+    finstack_quant_models::factor::credit::decomposition::DecompositionError,
+);
+
+/// Numerical failures inside a model are computation errors.
+macro_rules! computation_js_error {
+    ($($ty:ty),* $(,)?) => {$(
+        impl IntoJsError for $ty {
+            fn js_kind(&self) -> &'static str {
+                "computation"
+            }
+            fn js_message(&self) -> String {
+                self.to_string()
+            }
+        }
+    )*};
+}
+
+computation_js_error!(finstack_quant_models::fourier::FourierError);
+
+impl<T: IntoJsError + ?Sized> IntoJsError for &T {
+    fn js_kind(&self) -> &'static str {
+        (**self).js_kind()
+    }
+    fn js_message(&self) -> String {
+        (**self).js_message()
+    }
+}
+
+impl<T: IntoJsError + ?Sized> IntoJsError for Box<T> {
+    fn js_kind(&self) -> &'static str {
+        (**self).js_kind()
+    }
+    fn js_message(&self) -> String {
+        (**self).js_message()
+    }
+}
+
+/// Convert a binding error into a structured `JsValue` error.
 ///
-/// The `kind` property for plain messages is derived heuristically from the
-/// message text. For typed core errors, prefer [`to_js_err_core`], which
-/// classifies by enum variant.
-pub fn to_js_err(e: impl std::fmt::Display) -> JsValue {
-    let message = e.to_string();
-    let kind = classify_error_message(&message);
-    structured_js_error("FinstackError", &message, Some(kind), None)
+/// Returns a plain JS `Error` object whose `message` is the error's text
+/// (with the source chain for typed errors) and whose `name` is
+/// `"FinstackError"`. The `kind` property comes from [`IntoJsError`], i.e.
+/// from the error's type — never from its message text, so an identifier
+/// that happens to contain "not found" cannot change the classification.
+pub fn to_js_err(e: impl IntoJsError) -> JsValue {
+    structured_js_error("FinstackError", &e.js_message(), Some(e.js_kind()), None)
 }
 
 /// Convert a typed `finstack_quant_core::Error` into a structured `JsValue`
-/// error, classifying the `kind` property by enum variant.
-///
-/// Kind mapping (mirrors the Python `core_to_py` classes):
-/// - Lookup misses (`NotFound`, `MissingCurve`, `CalendarNotFound`,
-///   `FxTriangulationFailed`) → `"not_found"`
-/// - Solver/calibration/internal/circular-dependency failures, plus
-///   `VolatilityConversionFailed` and `TooLarge` → `"computation"`
-/// - `MetricCalculationFailed` follows its cause: solver/calibration/
-///   internal causes → `"computation"`, otherwise `"validation"`
-/// - Everything else (validation, bad values, malformed input) →
-///   `"validation"`
+/// error. Identical to [`to_js_err`]; kept for call sites that hold a
+/// reference.
 pub fn to_js_err_core(e: &finstack_quant_core::Error) -> JsValue {
-    let message = format_error_chain(e);
-    structured_js_error("FinstackError", &message, Some(core_error_kind(e)), None)
-}
-
-/// Classify a core error into its JS-facing `kind` by enum variant.
-///
-/// Variant-based on purpose: message-sniffing misclassifies whenever a
-/// user-supplied identifier (curve name, id) happens to contain a keyword.
-fn core_error_kind(e: &finstack_quant_core::Error) -> &'static str {
-    use finstack_quant_core::error::InputError;
-    use finstack_quant_core::Error;
-
-    match e {
-        Error::Input(
-            InputError::MissingCurve { .. }
-            | InputError::NotFound { .. }
-            | InputError::CalendarNotFound { .. }
-            | InputError::FxTriangulationFailed { .. },
-        ) => "not_found",
-        Error::Calibration { .. }
-        | Error::Internal(_)
-        | Error::CircularDependency { .. }
-        | Error::Input(
-            InputError::SolverConvergenceFailed { .. }
-            | InputError::VolatilityConversionFailed { .. }
-            | InputError::TooLarge { .. },
-        ) => "computation",
-        Error::MetricCalculationFailed { cause, .. } => match cause.as_ref() {
-            Error::Calibration { .. }
-            | Error::Internal(_)
-            | Error::CircularDependency { .. }
-            | Error::Input(InputError::SolverConvergenceFailed { .. }) => "computation",
-            _ => "validation",
-        },
-        _ => "validation",
-    }
+    to_js_err(e)
 }
 
 /// Convert an error with a `source()` chain into a structured `JsValue` error.
@@ -242,26 +353,6 @@ fn js_value_from_message(msg: String) -> JsValue {
     {
         let _ = msg;
         JsValue::NULL
-    }
-}
-
-fn classify_error_message(message: &str) -> &'static str {
-    let lower = message.to_ascii_lowercase();
-    if lower.contains("not found")
-        || lower.contains("missing curve")
-        || lower.contains("missing fixing")
-        || lower.contains("required fixing")
-        || lower.contains("requires fixings")
-    {
-        "not_found"
-    } else if lower.contains("validation")
-        || lower.contains("invalid")
-        || lower.contains("malformed")
-        || lower.contains("must ")
-    {
-        "validation"
-    } else {
-        "computation"
     }
 }
 
@@ -460,7 +551,7 @@ mod tests {
         ];
 
         for (error, expected) in cases {
-            assert_eq!(core_error_kind(&error), expected);
+            assert_eq!(error.js_kind(), expected);
         }
     }
 

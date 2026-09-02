@@ -5,59 +5,6 @@ use crate::utils::to_js_err;
 use finstack_quant_core::math::{self, linalg, special_functions, stats, summation};
 use wasm_bindgen::prelude::*;
 
-/// Cholesky decomposition of a symmetric positive-definite matrix.
-///
-/// Accepts a square matrix as a nested JS array (`number[][]`, row-major)
-/// and returns the lower-triangular factor L such that A = L L^T.
-/// @param matrix - Nested square `number[][]` in row-major order; must be
-///   symmetric positive-definite.
-/// @returns Lower-triangular factor L as nested `number[][]`.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `matrix` cannot be decoded as a square
-/// numeric matrix, contains a non-finite value, is singular or not positive
-/// definite, or the result cannot be converted to a JavaScript array.
-#[wasm_bindgen(js_name = choleskyDecomposition)]
-pub fn cholesky_decomposition(matrix: JsValue) -> Result<JsValue, JsValue> {
-    let rows: Vec<Vec<f64>> = serde_wasm_bindgen::from_value(matrix).map_err(to_js_err)?;
-    let n = rows.len();
-    let flat = flatten_matrix(&rows, n)?;
-    let result = linalg::cholesky_decomposition(&flat, n).map_err(to_js_err)?;
-    let nested = linalg::unflatten_square(&result, n);
-    crate::utils::to_js_value(&nested)
-}
-
-/// Solve a symmetric positive-definite linear system A x = b given the
-/// Cholesky factor L (where A = L L^T).
-///
-/// Accepts L as `number[][]` and b as `number[]`. Returns x as `number[]`.
-/// @param chol - Lower-triangular Cholesky factor as nested `number[][]`.
-/// @param b - Right-hand-side vector of a linear system, aligned with the Cholesky factor dimension.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if either input cannot be decoded as a nested
-/// `number[][]` or `number[]`, `chol` is not square, `b` has the wrong length, a
-/// diagonal factor is singular, or the result cannot be converted to a
-/// JavaScript array.
-#[wasm_bindgen(js_name = choleskySolve)]
-pub fn cholesky_solve(chol: JsValue, b: JsValue) -> Result<JsValue, JsValue> {
-    let rows: Vec<Vec<f64>> = serde_wasm_bindgen::from_value(chol).map_err(to_js_err)?;
-    let n = rows.len();
-    let flat = flatten_matrix(&rows, n)?;
-    let b_vec: Vec<f64> = serde_wasm_bindgen::from_value(b).map_err(to_js_err)?;
-    if b_vec.len() != n {
-        return Err(to_js_err(format!(
-            "Right-hand side has length {} but Cholesky factor is {n}x{n}",
-            b_vec.len()
-        )));
-    }
-    let mut x = vec![0.0; n];
-    linalg::cholesky_solve(&flat, &b_vec, &mut x).map_err(to_js_err)?;
-    crate::utils::to_js_value(&x)
-}
-
 /// Cholesky decomposition for a flat row-major matrix.
 ///
 /// Accepts a `Float64Array`/`number[]` containing `n * n` row-major entries
@@ -73,8 +20,8 @@ pub fn cholesky_solve(chol: JsValue, b: JsValue) -> Result<JsValue, JsValue> {
 /// Throws a JavaScript exception if `n * n` overflows, `matrix` does not contain
 /// exactly `n * n` entries, or the matrix contains a non-finite value, is
 /// singular, or is not positive definite.
-#[wasm_bindgen(js_name = choleskyDecompositionFlat)]
-pub fn cholesky_decomposition_flat(matrix: &[f64], n: usize) -> Result<Box<[f64]>, JsValue> {
+#[wasm_bindgen(js_name = choleskyDecomposition)]
+pub fn cholesky_decomposition(matrix: &[f64], n: usize) -> Result<Box<[f64]>, JsValue> {
     validate_flat_matrix_len(matrix, n)?;
     linalg::cholesky_decomposition(matrix, n)
         .map(Vec::into_boxed_slice)
@@ -91,8 +38,8 @@ pub fn cholesky_decomposition_flat(matrix: &[f64], n: usize) -> Result<Box<[f64]
 /// Throws a JavaScript exception if `n * n` overflows, `chol` does not contain
 /// exactly `n * n` entries, `b` does not contain `n` entries, or a diagonal
 /// factor is singular.
-#[wasm_bindgen(js_name = choleskySolveFlat)]
-pub fn cholesky_solve_flat(chol: &[f64], b: &[f64], n: usize) -> Result<Box<[f64]>, JsValue> {
+#[wasm_bindgen(js_name = choleskySolve)]
+pub fn cholesky_solve(chol: &[f64], b: &[f64], n: usize) -> Result<Box<[f64]>, JsValue> {
     validate_flat_matrix_len(chol, n)?;
     if b.len() != n {
         return Err(to_js_err(format!(
@@ -127,131 +74,27 @@ pub fn apply_lower_triangular(l: &[f64], n: usize, z: &[f64]) -> Result<Box<[f64
         .map_err(to_js_err)
 }
 
-/// Validate a flat row-major correlation matrix.
-///
-/// This is the only correlation-matrix validator on the `core` namespace.
-/// Callers pass `n * n` row-major entries plus the matrix dimension `n`.
-/// @param matrix - Flat row-major `n * n` correlation coefficients in `[-1, 1]`
-///   with unit diagonal.
-/// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `n * n` overflows, the flat length differs
-/// from `n * n`, or the matrix is not a finite, symmetric, positive-semidefinite
-/// correlation matrix with unit diagonal and coefficients in `[-1, 1]`.
-#[wasm_bindgen(js_name = validateCorrelationMatrixFlat)]
-pub fn validate_correlation_matrix_flat(matrix: &[f64], n: usize) -> Result<(), JsValue> {
-    validate_flat_matrix_len(matrix, n)?;
-    linalg::validate_correlation_matrix(matrix, n).map_err(to_js_err)
-}
-
-/// Arithmetic mean.
-/// @param data - Numeric observations in input order; an empty series yields 0.0.
-/// @returns Arithmetic mean of `data`, or 0.0 when `data` is empty.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-#[wasm_bindgen(js_name = mean)]
-pub fn mean(data: JsValue) -> Result<f64, JsValue> {
-    let v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
-    Ok(stats::mean(&v))
-}
-
-/// Sample variance (unbiased, n-1 denominator).
-/// @param data - Sample observations in input order; fewer than two points yield 0.0.
-/// @returns Unbiased sample variance, or 0.0 when `data` has fewer than two points.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-#[wasm_bindgen(js_name = variance)]
-pub fn variance(data: JsValue) -> Result<f64, JsValue> {
-    let v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
-    Ok(stats::variance(&v))
-}
-
-/// Population variance (n denominator).
-/// @param data - Observations in input order; fewer than two points yield 0.0.
-/// @returns Population variance, or 0.0 when `data` has fewer than two points.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-#[wasm_bindgen(js_name = populationVariance)]
-pub fn population_variance(data: JsValue) -> Result<f64, JsValue> {
-    let v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
-    Ok(stats::population_variance(&v))
-}
-
-/// Pearson correlation coefficient.
-/// @param x - First numeric series; must have the same length as `y`.
-/// @param y - Second numeric series, aligned one-for-one with `x`.
-/// @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric
-/// array.
-#[wasm_bindgen(js_name = correlation)]
-pub fn correlation(x: JsValue, y: JsValue) -> Result<f64, JsValue> {
-    let xv: Vec<f64> = serde_wasm_bindgen::from_value(x).map_err(to_js_err)?;
-    let yv: Vec<f64> = serde_wasm_bindgen::from_value(y).map_err(to_js_err)?;
-    Ok(stats::correlation(&xv, &yv))
-}
-
-/// Sample covariance (unbiased, n-1 denominator).
-/// @param x - First numeric series; must have the same length as `y`.
-/// @param y - Second numeric series, aligned one-for-one with `x`.
-/// @returns Unbiased sample covariance, or 0.0 when a series has fewer than two points.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric
-/// array.
-#[wasm_bindgen(js_name = covariance)]
-pub fn covariance(x: JsValue, y: JsValue) -> Result<f64, JsValue> {
-    let xv: Vec<f64> = serde_wasm_bindgen::from_value(x).map_err(to_js_err)?;
-    let yv: Vec<f64> = serde_wasm_bindgen::from_value(y).map_err(to_js_err)?;
-    Ok(stats::covariance(&xv, &yv))
-}
-
-/// Empirical quantile (R-7 / NumPy default) with linear interpolation.
-/// @param data - Sample observations in input order; empty or non-finite data yields NaN.
-/// @param q - Quantile probability in `[0, 1]`; values outside that range yield NaN.
-/// @returns Interpolated quantile in the same units as `data`, or NaN when `data` is empty or non-finite.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-#[wasm_bindgen(js_name = quantile)]
-pub fn quantile(data: JsValue, q: f64) -> Result<f64, JsValue> {
-    let mut v: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
-    Ok(stats::quantile(&mut v, q))
-}
-
 /// Arithmetic mean over a typed numeric array.
 /// @param data - Numeric observations in input order; an empty series yields 0.0.
 /// @returns Arithmetic mean of `data`, or 0.0 when `data` is empty.
-#[wasm_bindgen(js_name = meanArray)]
-pub fn mean_array(data: &[f64]) -> f64 {
+#[wasm_bindgen(js_name = mean)]
+pub fn mean(data: &[f64]) -> f64 {
     stats::mean(data)
 }
 
 /// Sample variance over a typed numeric array.
 /// @param data - Sample observations in input order; fewer than two points yield 0.0.
 /// @returns Unbiased sample variance, or 0.0 when `data` has fewer than two points.
-#[wasm_bindgen(js_name = varianceArray)]
-pub fn variance_array(data: &[f64]) -> f64 {
+#[wasm_bindgen(js_name = variance)]
+pub fn variance(data: &[f64]) -> f64 {
     stats::variance(data)
 }
 
 /// Population variance over a typed numeric array.
 /// @param data - Observations in input order; fewer than two points yield 0.0.
 /// @returns Population variance, or 0.0 when `data` has fewer than two points.
-#[wasm_bindgen(js_name = populationVarianceArray)]
-pub fn population_variance_array(data: &[f64]) -> f64 {
+#[wasm_bindgen(js_name = populationVariance)]
+pub fn population_variance(data: &[f64]) -> f64 {
     stats::population_variance(data)
 }
 
@@ -259,8 +102,8 @@ pub fn population_variance_array(data: &[f64]) -> f64 {
 /// @param x - First numeric series; must have the same length as `y`.
 /// @param y - Second numeric series, aligned one-for-one with `x`.
 /// @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
-#[wasm_bindgen(js_name = correlationArray)]
-pub fn correlation_array(x: &[f64], y: &[f64]) -> f64 {
+#[wasm_bindgen(js_name = correlation)]
+pub fn correlation(x: &[f64], y: &[f64]) -> f64 {
     stats::correlation(x, y)
 }
 
@@ -268,8 +111,8 @@ pub fn correlation_array(x: &[f64], y: &[f64]) -> f64 {
 /// @param x - First numeric series; must have the same length as `y`.
 /// @param y - Second numeric series, aligned one-for-one with `x`.
 /// @returns Unbiased sample covariance, or 0.0 when a series has fewer than two points.
-#[wasm_bindgen(js_name = covarianceArray)]
-pub fn covariance_array(x: &[f64], y: &[f64]) -> f64 {
+#[wasm_bindgen(js_name = covariance)]
+pub fn covariance(x: &[f64], y: &[f64]) -> f64 {
     stats::covariance(x, y)
 }
 
@@ -277,8 +120,8 @@ pub fn covariance_array(x: &[f64], y: &[f64]) -> f64 {
 /// @param data - Sample observations in input order; empty or non-finite data yields NaN.
 /// @param q - Quantile probability in `[0, 1]`; values outside that range yield NaN.
 /// @returns R-7 interpolated quantile, or NaN when `data` is empty or non-finite.
-#[wasm_bindgen(js_name = quantileArray)]
-pub fn quantile_array(data: &[f64], q: f64) -> f64 {
+#[wasm_bindgen(js_name = quantile)]
+pub fn quantile(data: &[f64], q: f64) -> f64 {
     let mut v = data.to_vec();
     stats::quantile(&mut v, q)
 }
@@ -323,69 +166,27 @@ pub fn ln_gamma(x: f64) -> f64 {
     special_functions::ln_gamma(x)
 }
 
-/// Kahan compensated summation.
-/// @param values - Finite numeric terms in summation or scan order.
-/// @returns Compensated sum of `values` in input order.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `values` cannot be decoded as a numeric
-/// array.
-#[wasm_bindgen(js_name = kahanSum)]
-pub fn kahan_sum(values: JsValue) -> Result<f64, JsValue> {
-    let v: Vec<f64> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
-    Ok(summation::kahan_sum(v))
-}
-
-/// Neumaier compensated summation — handles mixed-sign values.
-/// @param values - Finite numeric terms in summation or scan order.
-/// @returns Compensated sum of `values`, robust to mixed-sign cancellation.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `values` cannot be decoded as a numeric
-/// array.
-#[wasm_bindgen(js_name = neumaierSum)]
-pub fn neumaier_sum(values: JsValue) -> Result<f64, JsValue> {
-    let v: Vec<f64> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
-    Ok(summation::neumaier_sum(v))
-}
-
-/// Count the longest consecutive run of strictly positive values.
-/// @param values - Finite numeric terms in summation or scan order.
-/// @returns Length of the longest run of strictly positive observations.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `values` cannot be decoded as a numeric
-/// array.
-#[wasm_bindgen(js_name = countConsecutive)]
-pub fn count_consecutive(values: JsValue) -> Result<usize, JsValue> {
-    let v: Vec<f64> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
-    Ok(math::longest_positive_run(&v))
-}
-
 /// Kahan compensated summation over a typed numeric array.
 /// @param values - Finite numeric terms in summation or scan order.
 /// @returns Compensated sum of `values` in input order.
-#[wasm_bindgen(js_name = kahanSumArray)]
-pub fn kahan_sum_array(values: &[f64]) -> f64 {
+#[wasm_bindgen(js_name = kahanSum)]
+pub fn kahan_sum(values: &[f64]) -> f64 {
     summation::kahan_sum(values.iter().copied())
 }
 
 /// Neumaier compensated summation over a typed numeric array.
 /// @param values - Finite numeric terms in summation or scan order.
 /// @returns Compensated sum of `values`, robust to mixed-sign cancellation.
-#[wasm_bindgen(js_name = neumaierSumArray)]
-pub fn neumaier_sum_array(values: &[f64]) -> f64 {
+#[wasm_bindgen(js_name = neumaierSum)]
+pub fn neumaier_sum(values: &[f64]) -> f64 {
     summation::neumaier_sum(values.iter().copied())
 }
 
 /// Count the longest consecutive run of strictly positive values in a typed array.
 /// @param values - Finite numeric terms in summation or scan order.
 /// @returns Length of the longest run of strictly positive observations.
-#[wasm_bindgen(js_name = countConsecutiveArray)]
-pub fn count_consecutive_array(values: &[f64]) -> usize {
+#[wasm_bindgen(js_name = longestPositiveRun)]
+pub fn longest_positive_run(values: &[f64]) -> usize {
     math::longest_positive_run(values)
 }
 
@@ -400,21 +201,6 @@ fn validate_flat_matrix_len(matrix: &[f64], n: usize) -> Result<(), JsValue> {
         )));
     }
     Ok(())
-}
-
-/// Flatten nested rows into a row-major `Vec<f64>`, validating squareness.
-fn flatten_matrix(rows: &[Vec<f64>], n: usize) -> Result<Vec<f64>, JsValue> {
-    let mut flat = Vec::with_capacity(n * n);
-    for (i, row) in rows.iter().enumerate() {
-        if row.len() != n {
-            return Err(to_js_err(format!(
-                "Row {i} has length {} but expected {n} for a square matrix",
-                row.len()
-            )));
-        }
-        flat.extend_from_slice(row);
-    }
-    Ok(flat)
 }
 
 #[cfg(test)]
@@ -450,40 +236,6 @@ mod tests {
     fn ln_gamma_reference_values() {
         assert!(ln_gamma(1.0).abs() < TOL);
         assert!((ln_gamma(5.0) - 24f64.ln()).abs() < TOL);
-    }
-
-    #[test]
-    fn flatten_unflatten_matrix_identity() {
-        let rows = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
-        let flat = flatten_matrix(&rows, 2).expect("square 2x2 matrix");
-        assert_eq!(flat, vec![1.0, 0.0, 0.0, 1.0]);
-        let back = linalg::unflatten_square(&flat, 2);
-        assert_eq!(back, rows);
-    }
-
-    // -- Boundary tests ------------------------------------------------
-    // flatten_matrix returns Result<_, JsValue> which panics on native.
-    // Test the validation logic directly.
-
-    #[test]
-    fn flatten_matrix_empty() {
-        // 0x0 case: no rows, n=0 — the loop body never runs
-        let rows: Vec<Vec<f64>> = vec![];
-        let n = rows.len();
-        let mut flat = Vec::with_capacity(n * n);
-        for row in &rows {
-            flat.extend_from_slice(row);
-        }
-        assert!(flat.is_empty());
-    }
-
-    #[test]
-    fn non_square_row_detected() {
-        // Verify the dimension check logic used by flatten_matrix
-        let rows = [vec![1.0, 0.0], vec![0.0]];
-        let n = rows.len(); // 2
-        let bad_row = rows.iter().enumerate().find(|(_, r)| r.len() != n);
-        assert!(bad_row.is_some(), "should detect row length mismatch");
     }
 
     #[test]

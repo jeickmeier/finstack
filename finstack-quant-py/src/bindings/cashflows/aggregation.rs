@@ -7,8 +7,8 @@ use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::bindings::core::currency::extract_currency;
 use crate::bindings::core::dates::periods::PyPeriod;
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::py_to_date;
 use crate::errors::core_to_py;
 
 /// Convert Python ``[(date, Money), ...]`` into Rust dated flows.

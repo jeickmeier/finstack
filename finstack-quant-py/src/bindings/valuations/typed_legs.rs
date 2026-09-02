@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 
 use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::tenor::PyTenor;
-use crate::bindings::core::dates::utils::py_to_date;
+use crate::bindings::date_utils::py_to_date;
 use crate::errors::core_to_py;
 
 use super::instruments::{decimal_from_f64, enum_from_str};

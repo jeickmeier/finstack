@@ -6,11 +6,10 @@
 //! Full typed access to every enum variant is intentionally omitted; where
 //! complex configuration is needed, JSON round-tripping is used.
 
-use super::sensitivity_frame::SensitivityRows;
-use crate::bindings::module_utils::{parse_currency, parse_date};
+use crate::bindings::module_utils::parse_currency;
 use crate::bindings::pandas_utils::{
     serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
-    ColumnSchema,
+    table_to_dataframe, ColumnSchema,
 };
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::currency::Currency;
@@ -25,15 +24,9 @@ use finstack_quant_margin::NettingSetId;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 
+/// Parse the serde name of a [`CorrelationScenario`] (`"low"`, `"medium"`, `"high"`).
 fn parse_correlation_scenario(s: &str) -> PyResult<CorrelationScenario> {
-    match s {
-        "low" => Ok(CorrelationScenario::Low),
-        "medium" => Ok(CorrelationScenario::Medium),
-        "high" => Ok(CorrelationScenario::High),
-        _ => Err(crate::errors::value_error(format!(
-            "unknown FRTB correlation scenario '{s}' (expected 'low', 'medium', or 'high')"
-        ))),
-    }
+    finstack_quant_core::wire::serde_parse(s).map_err(core_to_py)
 }
 
 /// Render a value as its own canonical serde wire label.
@@ -43,10 +36,7 @@ fn parse_correlation_scenario(s: &str) -> PyResult<CorrelationScenario> {
 /// shared `"unknown"` key — which, in a breakdown map, would drop a capital
 /// charge as soon as two new variants collided.
 fn serde_label<T: serde::Serialize + std::fmt::Debug>(value: T) -> String {
-    match serde_json::to_value(&value) {
-        Ok(serde_json::Value::String(label)) => label,
-        _ => format!("{value:?}"),
-    }
+    finstack_quant_core::wire::serde_label(&value).unwrap_or_else(|_| format!("{value:?}"))
 }
 
 fn risk_class_label(rc: FrtbRiskClass) -> String {
@@ -55,17 +45,6 @@ fn risk_class_label(rc: FrtbRiskClass) -> String {
 
 fn scenario_label(scenario: CorrelationScenario) -> String {
     serde_label(scenario)
-}
-
-/// Render an optional bucket index as the string form used by the long-format
-/// sensitivity frames.
-fn bucket_label(bucket: u8) -> Option<String> {
-    Some(bucket.to_string())
-}
-
-/// Render a currency pair as a single `issuer` value (e.g. `"EUR/USD"`).
-fn pair_label(ccy1: Currency, ccy2: Currency) -> Option<String> {
-    Some(format!("{ccy1}/{ccy2}"))
 }
 
 fn asset_class_label(ac: SaCcrAssetClass) -> String {
@@ -276,202 +255,7 @@ impl PyFrtbSensitivities {
     /// ``100 x DV01``), DRC rows are signed JTD notionals before LGD, and
     /// RRAO rows are gross notionals.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let mut rows = SensitivityRows::default();
-        let sens = &self.inner;
-
-        for ((currency, tenor), amount) in &sens.girr_delta {
-            rows.push(
-                "girr",
-                "delta",
-                Some(currency.to_string()),
-                None,
-                Some(tenor.clone()),
-                *amount,
-            );
-        }
-        for (currency, amount) in &sens.girr_inflation_delta {
-            rows.push(
-                "girr",
-                "inflation_delta",
-                Some(currency.to_string()),
-                None,
-                None,
-                *amount,
-            );
-        }
-        for (currency, amount) in &sens.girr_xccy_basis_delta {
-            rows.push(
-                "girr",
-                "xccy_basis_delta",
-                Some(currency.to_string()),
-                None,
-                None,
-                *amount,
-            );
-        }
-        for ((currency, option_maturity, underlying_tenor), amount) in &sens.girr_vega {
-            rows.push(
-                "girr",
-                "vega",
-                Some(currency.to_string()),
-                None,
-                Some(format!("{option_maturity}/{underlying_tenor}")),
-                *amount,
-            );
-        }
-        for (currency, pair) in &sens.girr_curvature {
-            rows.push_curvature("girr", Some(currency.to_string()), None, *pair);
-        }
-
-        // CSR (non-securitization and both securitization sub-types)
-        for (label, delta, vega, curvature) in [
-            (
-                "csr_non_sec",
-                &sens.csr_nonsec_delta,
-                &sens.csr_nonsec_vega,
-                &sens.csr_nonsec_curvature,
-            ),
-            (
-                "csr_sec_ctp",
-                &sens.csr_sec_ctp_delta,
-                &sens.csr_sec_ctp_vega,
-                &sens.csr_sec_ctp_curvature,
-            ),
-            (
-                "csr_sec_non_ctp",
-                &sens.csr_sec_nonctp_delta,
-                &sens.csr_sec_nonctp_vega,
-                &sens.csr_sec_nonctp_curvature,
-            ),
-        ] {
-            for ((issuer, bucket, tenor), amount) in delta {
-                rows.push(
-                    label,
-                    "delta",
-                    Some(issuer.clone()),
-                    bucket_label(*bucket),
-                    Some(tenor.clone()),
-                    *amount,
-                );
-            }
-            for ((issuer, bucket, maturity), amount) in vega {
-                rows.push(
-                    label,
-                    "vega",
-                    Some(issuer.clone()),
-                    bucket_label(*bucket),
-                    Some(maturity.clone()),
-                    *amount,
-                );
-            }
-            for ((issuer, bucket), pair) in curvature {
-                rows.push_curvature(label, Some(issuer.clone()), bucket_label(*bucket), *pair);
-            }
-        }
-
-        for ((underlier, bucket), amount) in &sens.equity_delta {
-            rows.push(
-                "equity",
-                "delta",
-                Some(underlier.clone()),
-                bucket_label(*bucket),
-                None,
-                *amount,
-            );
-        }
-        for ((underlier, bucket, maturity), amount) in &sens.equity_vega {
-            rows.push(
-                "equity",
-                "vega",
-                Some(underlier.clone()),
-                bucket_label(*bucket),
-                Some(maturity.clone()),
-                *amount,
-            );
-        }
-        for ((underlier, bucket), pair) in &sens.equity_curvature {
-            rows.push_curvature(
-                "equity",
-                Some(underlier.clone()),
-                bucket_label(*bucket),
-                *pair,
-            );
-        }
-
-        for ((name, bucket, tenor), amount) in &sens.commodity_delta {
-            rows.push(
-                "commodity",
-                "delta",
-                Some(name.clone()),
-                bucket_label(*bucket),
-                Some(tenor.clone()),
-                *amount,
-            );
-        }
-        for ((name, bucket, maturity), amount) in &sens.commodity_vega {
-            rows.push(
-                "commodity",
-                "vega",
-                Some(name.clone()),
-                bucket_label(*bucket),
-                Some(maturity.clone()),
-                *amount,
-            );
-        }
-        for ((name, bucket), pair) in &sens.commodity_curvature {
-            rows.push_curvature(
-                "commodity",
-                Some(name.clone()),
-                bucket_label(*bucket),
-                *pair,
-            );
-        }
-
-        for ((ccy1, ccy2), amount) in &sens.fx_delta {
-            rows.push("fx", "delta", pair_label(*ccy1, *ccy2), None, None, *amount);
-        }
-        for ((ccy1, ccy2, maturity), amount) in &sens.fx_vega {
-            rows.push(
-                "fx",
-                "vega",
-                pair_label(*ccy1, *ccy2),
-                None,
-                Some(maturity.clone()),
-                *amount,
-            );
-        }
-        for ((ccy1, ccy2), pair) in &sens.fx_curvature {
-            rows.push_curvature("fx", pair_label(*ccy1, *ccy2), None, *pair);
-        }
-
-        // DRC and RRAO position lists
-        for position in &sens.drc_positions {
-            rows.push(
-                "drc",
-                "jtd",
-                Some(position.issuer.clone()),
-                bucket_label(position.rating_bucket),
-                None,
-                position.jtd_amount,
-            );
-        }
-        for position in &sens.rrao_exotic_notionals {
-            let kind = if position.is_exotic {
-                "exotic_notional"
-            } else {
-                "other_notional"
-            };
-            rows.push(
-                "rrao",
-                kind,
-                Some(position.instrument_id.clone()),
-                None,
-                None,
-                position.notional,
-            );
-        }
-
-        rows.into_dataframe(py)
+        table_to_dataframe(py, &self.inner.to_table().map_err(core_to_py)?)
     }
 
     fn __repr__(&self) -> String {
@@ -655,7 +439,7 @@ impl PySaCcrNettingSetConfig {
         as_of_month: u8,
         as_of_day: u8,
     ) -> PyResult<Self> {
-        let as_of = parse_date(as_of_year, as_of_month, as_of_day)?;
+        let as_of = crate::bindings::date_utils::date_from_ymd(as_of_year, as_of_month, as_of_day)?;
         Ok(Self {
             inner: SaCcrNettingSetConfig::unmargined(
                 NettingSetId::bilateral(counterparty_id, csa_id),
@@ -692,7 +476,7 @@ impl PySaCcrNettingSetConfig {
         as_of_month: u8,
         as_of_day: u8,
     ) -> PyResult<Self> {
-        let as_of = parse_date(as_of_year, as_of_month, as_of_day)?;
+        let as_of = crate::bindings::date_utils::date_from_ymd(as_of_year, as_of_month, as_of_day)?;
         Ok(Self {
             inner: SaCcrNettingSetConfig::margined(
                 NettingSetId::bilateral(counterparty_id, csa_id),
@@ -1253,7 +1037,7 @@ pub fn saccr_ead(
     let engine = SaCcrEngine::default();
     let netting_id = NettingSetId::bilateral(counterparty_id, csa_id);
     let trade_vec: Vec<SaCcrTrade> = trades.iter().map(|t| t.inner.clone()).collect();
-    let as_of = parse_date(as_of_year, as_of_month, as_of_day)?;
+    let as_of = crate::bindings::date_utils::date_from_ymd(as_of_year, as_of_month, as_of_day)?;
     // Start from the Rust unmargined constructor so threshold/MTA/NICA/MPoR
     // defaults are owned by the margin crate, then apply margined overrides.
     let mut config = SaCcrNettingSetConfig::unmargined(netting_id, collateral, as_of);

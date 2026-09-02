@@ -1901,9 +1901,18 @@ export interface BacktestForecastMetricsJson {
    */
   mae: number;
   /**
-   * Mean absolute percentage error, as a decimal fraction.
+   * Mean absolute percentage error, in percent; `NaN` when no sample had a
+   * non-zero actual (see `mape_effective_n`).
    */
   mape: number;
+  /**
+   * Number of samples that contributed to `mape` (those with a non-zero actual).
+   */
+  mape_effective_n: number;
+  /**
+   * Symmetric mean absolute percentage error, in percent, bounded in `[0, 200]`.
+   */
+  smape: number;
   /**
    * Root-mean-square error of the forecast versus realized values.
    */
@@ -2186,27 +2195,6 @@ export interface CoreNamespace {
    */
   applyLowerTriangular(l: NumericArray, n: number, z: NumericArray): Float64Array;
   /**
-   * Cholesky decomposition of a symmetric positive-definite matrix.
-   *
-   * Accepts a square matrix as a nested JS array (`number[][]`, row-major)
-   * and returns the lower-triangular factor L such that A = L L^T.
-   * @param matrix - Nested square `number[][]` in row-major order; must be symmetric positive-definite.
-   * @returns Lower-triangular factor L as nested `number[][]`.
-   * @throws Error - Throws a JavaScript exception if `matrix` cannot be decoded as a square numeric matrix, contains a non-finite value, is singular or not positive definite, or the result cannot be converted to a JavaScript array.
-   */
-  choleskyDecomposition(matrix: number[][]): number[][];
-  /**
-   * Solve a symmetric positive-definite linear system A x = b given the
-   * Cholesky factor L (where A = L L^T).
-   *
-   * Accepts L as `number[][]` and b as `number[]`. Returns x as `number[]`.
-   * @returns Solution vector `x` of length `b.length`.
-   * @param chol - Lower-triangular Cholesky factor as nested `number[][]`.
-   * @param b - Right-hand-side vector of a linear system, aligned with the Cholesky factor dimension.
-   * @throws Error - Throws a JavaScript exception if either input cannot be decoded as a nested `number[][]` or `number[]`, `chol` is not square, `b` has the wrong length, a diagonal factor is singular, or the result cannot be converted to a JavaScript array.
-   */
-  choleskySolve(chol: number[][], b: number[]): number[];
-  /**
    * Cholesky decomposition for a flat row-major matrix.
    *
    * Accepts a `Float64Array`/`number[]` containing `n * n` row-major entries
@@ -2216,7 +2204,7 @@ export interface CoreNamespace {
    * @returns Lower-triangular factor L as a flat row-major `Float64Array`.
    * @throws Error - Throws a JavaScript exception if `n * n` overflows, `matrix` does not contain exactly `n * n` entries, or the matrix contains a non-finite value, is singular, or is not positive definite.
    */
-  choleskyDecompositionFlat(matrix: NumericArray, n: number): Float64Array;
+  choleskyDecomposition(matrix: NumericArray, n: number): Float64Array;
   /**
    * Solve a symmetric positive-definite linear system from a flat Cholesky factor.
    * @returns Solution vector `x` as a `Float64Array` of length `n`.
@@ -2225,101 +2213,46 @@ export interface CoreNamespace {
    * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
    * @throws Error - Throws a JavaScript exception if `n * n` overflows, `chol` does not contain exactly `n * n` entries, `b` does not contain `n` entries, or a diagonal factor is singular.
    */
-  choleskySolveFlat(chol: NumericArray, b: NumericArray, n: number): Float64Array;
-  /**
-   * Validate a flat row-major correlation matrix.
-   *
-   * This is the only correlation-matrix validator on the `core` namespace.
-   * Callers pass `n * n` row-major entries plus the matrix dimension `n`.
-   * @param matrix - Flat row-major `n * n` correlation coefficients in `[-1, 1]` with unit diagonal.
-   * @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
-   * @throws Error - Throws a JavaScript exception if `n * n` overflows, the flat length differs from `n * n`, or the matrix is not a finite, symmetric, positive-semidefinite correlation matrix with unit diagonal and coefficients in `[-1, 1]`.
-   */
-  validateCorrelationMatrixFlat(matrix: NumericArray, n: number): void;
-  /**
-   * Arithmetic mean.
-   * @param data - Numeric observations in input order; an empty series yields 0.0.
-   * @returns Arithmetic mean of `data`, or 0.0 when `data` is empty.
-   * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-   */
-  mean(data: number[]): number;
+  choleskySolve(chol: NumericArray, b: NumericArray, n: number): Float64Array;
   /**
    * Arithmetic mean over a typed numeric array.
    * @param data - Numeric observations in input order; an empty series yields 0.0.
    * @returns Arithmetic mean of `data`, or 0.0 when `data` is empty.
    */
-  meanArray(data: NumericArray): number;
-  /**
-   * Sample variance (unbiased, n-1 denominator).
-   * @param data - Sample observations in input order; fewer than two points yield 0.0.
-   * @returns Unbiased sample variance, or 0.0 when `data` has fewer than two points.
-   * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-   */
-  variance(data: number[]): number;
+  mean(data: NumericArray): number;
   /**
    * Sample variance over a typed numeric array.
    * @param data - Sample observations in input order; fewer than two points yield 0.0.
    * @returns Unbiased sample variance, or 0.0 when `data` has fewer than two points.
    */
-  varianceArray(data: NumericArray): number;
-  /**
-   * Population variance (n denominator).
-   * @param data - Observations in input order; fewer than two points yield 0.0.
-   * @returns Population variance, or 0.0 when `data` has fewer than two points.
-   * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-   */
-  populationVariance(data: number[]): number;
+  variance(data: NumericArray): number;
   /**
    * Population variance over a typed numeric array.
    * @param data - Observations in input order; fewer than two points yield 0.0.
    * @returns Population variance, or 0.0 when `data` has fewer than two points.
    */
-  populationVarianceArray(data: NumericArray): number;
-  /**
-   * Pearson correlation coefficient.
-   * @param x - First numeric series; must have the same length as `y`.
-   * @param y - Second numeric series, aligned one-for-one with `x`.
-   * @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
-   * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
-   */
-  correlation(x: number[], y: number[]): number;
+  populationVariance(data: NumericArray): number;
   /**
    * Pearson correlation over typed numeric arrays.
    * @param x - First numeric series; must have the same length as `y`.
    * @param y - Second numeric series, aligned one-for-one with `x`.
    * @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
    */
-  correlationArray(x: NumericArray, y: NumericArray): number;
-  /**
-   * Sample covariance (unbiased, n-1 denominator).
-   * @param x - First numeric series; must have the same length as `y`.
-   * @param y - Second numeric series, aligned one-for-one with `x`.
-   * @returns Unbiased sample covariance, or 0.0 when a series has fewer than two points.
-   * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
-   */
-  covariance(x: number[], y: number[]): number;
+  correlation(x: NumericArray, y: NumericArray): number;
   /**
    * Sample covariance over typed numeric arrays.
    * @param x - First numeric series; must have the same length as `y`.
    * @param y - Second numeric series, aligned one-for-one with `x`.
    * @returns Unbiased sample covariance, or 0.0 when a series has fewer than two points.
    */
-  covarianceArray(x: NumericArray, y: NumericArray): number;
-  /**
-   * Empirical quantile (R-7 / NumPy default) with linear interpolation.
-   * @param data - Sample observations in input order; empty or non-finite data yields NaN.
-   * @param q - Quantile probability in `[0, 1]`; values outside that range yield NaN.
-   * @returns Interpolated quantile in the same units as `data`, or NaN when `data` is empty or non-finite.
-   * @throws Error - Throws a JavaScript exception if `data` cannot be decoded as a numeric array.
-   */
-  quantile(data: number[], q: number): number;
+  covariance(x: NumericArray, y: NumericArray): number;
   /**
    * Empirical quantile over a typed numeric array.
    * @param data - Sample observations in input order; empty or non-finite data yields NaN.
    * @param q - Quantile probability in `[0, 1]`; values outside that range yield NaN.
    * @returns R-7 interpolated quantile, or NaN when `data` is empty or non-finite.
    */
-  quantileArray(data: NumericArray, q: number): number;
+  quantile(data: NumericArray, q: number): number;
   /**
    * Standard normal CDF Φ(x).
    * @param x - Real-valued point at which to evaluate Φ; any finite or infinite `x` is accepted.
@@ -2351,44 +2284,23 @@ export interface CoreNamespace {
    */
   lnGamma(x: number): number;
   /**
-   * Kahan compensated summation.
-   * @param values - Finite numeric terms in summation or scan order.
-   * @returns Compensated sum of `values` in input order.
-   * @throws Error - Throws a JavaScript exception if `values` cannot be decoded as a numeric array.
-   */
-  kahanSum(values: number[]): number;
-  /**
    * Kahan compensated summation over a typed numeric array.
    * @param values - Finite numeric terms in summation or scan order.
    * @returns Compensated sum of `values` in input order.
    */
-  kahanSumArray(values: NumericArray): number;
-  /**
-   * Neumaier compensated summation — handles mixed-sign values.
-   * @param values - Finite numeric terms in summation or scan order.
-   * @returns Compensated sum of `values`, robust to mixed-sign cancellation.
-   * @throws Error - Throws a JavaScript exception if `values` cannot be decoded as a numeric array.
-   */
-  neumaierSum(values: number[]): number;
+  kahanSum(values: NumericArray): number;
   /**
    * Neumaier compensated summation over a typed numeric array.
    * @param values - Finite numeric terms in summation or scan order.
    * @returns Compensated sum of `values`, robust to mixed-sign cancellation.
    */
-  neumaierSumArray(values: NumericArray): number;
-  /**
-   * Count the longest consecutive run of strictly positive values.
-   * @param values - Finite numeric terms in summation or scan order.
-   * @returns Length of the longest run of strictly positive observations.
-   * @throws Error - Throws a JavaScript exception if `values` cannot be decoded as a numeric array.
-   */
-  countConsecutive(values: number[]): number;
+  neumaierSum(values: NumericArray): number;
   /**
    * Count the longest consecutive run of strictly positive values in a typed array.
    * @param values - Finite numeric terms in summation or scan order.
    * @returns Length of the longest run of strictly positive observations.
    */
-  countConsecutiveArray(values: NumericArray): number;
+  longestPositiveRun(values: NumericArray): number;
 }
 
 /**
@@ -2699,34 +2611,6 @@ export interface DatedSeries {
    * Rolling compounded return when produced by `rollingReturns`.
    */
   return?: Float64Array;
-}
-
-/**
- * Per-asset skewness/kurtosis pair returned by `skewKurt`.
- */
-export interface SkewKurtResult {
-  /**
-   * Per-ticker return skewness in `tickerNames()` order.
-   */
-  skewness: Float64Array;
-  /**
-   * Per-ticker excess kurtosis in `tickerNames()` order.
-   */
-  kurtosis: Float64Array;
-}
-
-/**
- * Per-asset VaR/ES pair returned by `valueAtRiskAndEs`.
- */
-export interface VarEsResult {
-  /**
-   * Per-ticker historical VaR in `tickerNames()` order, as a decimal loss fraction.
-   */
-  value_at_risk: Float64Array;
-  /**
-   * Per-ticker expected shortfall in `tickerNames()` order, as a decimal loss fraction.
-   */
-  expected_shortfall: Float64Array;
 }
 
 /**
@@ -3045,19 +2929,6 @@ export declare class Performance {
    */
   geometricMean(): Float64Array;
   /**
-   * Skewness and kurtosis from one moments pass per asset.
-   * @returns Object `{ skewness: Float64Array, kurtosis: Float64Array }` in `tickerNames()` order.
-   * @throws Error - Rejects if the JavaScript result object's properties cannot be created.
-   */
-  skewKurt(): SkewKurtResult;
-  /**
-   * Historical VaR and expected shortfall from one tail pass per asset.
-   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
-   * @returns Object `{ value_at_risk: Float64Array, expected_shortfall: Float64Array }` in `tickerNames()` order.
-   * @throws Error - Rejects if the JavaScript result object's properties cannot be created.
-   */
-  valueAtRiskAndEs(confidence?: number): VarEsResult;
-  /**
    * Downside deviation; mar is a per-period threshold.
    * @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
@@ -3224,6 +3095,16 @@ export declare class Performance {
    * @returns One Float64Array per ticker in `tickerNames()` order.
    */
   cumulativeReturns(): Float64Array[];
+  /**
+   * The standard per-ticker summary as a table envelope: one row per ticker
+   * with 22 metric columns plus a leading `ticker` dimension column. Same
+   * rows as the Python `Performance.to_summary_dataframe`.
+   * @returns Column-oriented table envelope of the summary metrics.
+   * @param riskFreeRate - Annualized risk-free rate as a decimal (0.02 = 2%); affects only `sharpe`. Defaults to 0.0.
+   * @param confidence - Tail confidence as a decimal probability applied to VaR, ES and tail ratio; defaults to 0.95.
+   * @throws Error - Throws a JavaScript exception if the panel is too short to annualize (`cagr` / `calmar`) or the table cannot be converted.
+   */
+  summary(riskFreeRate?: number | null, confidence?: number | null): TableEnvelope;
   /**
    * Calendar-bucketed compounded returns for every ticker.
    *
@@ -7590,8 +7471,8 @@ export interface ModelsNamespace {
   credit: ModelCreditNamespace;
   /**
    * Copula, recovery, and credit-correlation model infrastructure.
-   * @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
    * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
+   * @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
    */
   correlation: CorrelationNamespace;
   /**
@@ -8618,13 +8499,10 @@ export interface DcfSensitivityEntry {
  */
 export interface DcfSensitivityResult {
   /**
-   * Unshocked enterprise value, in `currency`.
+   * Unshocked enterprise value as a `Money` wire object (exact decimal
+   * `amount` string plus ISO-4217 `currency`).
    */
-  baseline_enterprise_value: number;
-  /**
-   * ISO-4217 code of the model currency.
-   */
-  currency: string;
+  baseline_enterprise_value: MoneyValue;
   /**
    * Tornado entries sorted by descending absolute swing.
    */
@@ -8649,13 +8527,14 @@ export interface DcfSensitivityResult {
 
 /**
  * Leveraged-buyout transaction result, as returned by
- * `statements_analytics.evaluateLbo`. All amounts are in `currency`.
+ * `statements_analytics.evaluateLbo`. Monetary fields are `Money` wire
+ * objects (exact decimal `amount` string plus ISO-4217 `currency`).
  */
 export interface LboResult {
   /**
    * Entry enterprise value priced at the model's first period.
    */
-  entry_enterprise_value: number;
+  entry_enterprise_value: MoneyValue;
   /**
    * Entry metric value read from the entry metric node.
    */
@@ -8663,19 +8542,19 @@ export interface LboResult {
   /**
    * Total funded debt at close.
    */
-  debt_total: number;
+  debt_total: MoneyValue;
   /**
    * Sponsor equity check solved as the sources-and-uses residual.
    */
-  equity_check: number;
+  equity_check: MoneyValue;
   /**
    * Total sources at close.
    */
-  sources_total: number;
+  sources_total: MoneyValue;
   /**
    * Total uses at close.
    */
-  uses_total: number;
+  uses_total: MoneyValue;
   /**
    * Whether sources and uses balance within tolerance.
    */
@@ -8683,7 +8562,7 @@ export interface LboResult {
   /**
    * Exit enterprise value at the exit period.
    */
-  exit_enterprise_value: number;
+  exit_enterprise_value: MoneyValue;
   /**
    * Exit metric value read from the exit metric node.
    */
@@ -8691,19 +8570,15 @@ export interface LboResult {
   /**
    * Modelled net debt outstanding at the exit period.
    */
-  exit_net_debt: number;
+  exit_net_debt: MoneyValue;
   /**
    * Exit equity proceeds: exit enterprise value less exit net debt.
    */
-  exit_equity_proceeds: number;
+  exit_equity_proceeds: MoneyValue;
   /**
    * Multiple on invested capital.
    */
   moic: number;
-  /**
-   * ISO-4217 code of the model currency.
-   */
-  currency: string;
 }
 
 /**
@@ -8927,8 +8802,9 @@ export interface StatementsAnalyticsNamespace {
   /**
    * Compute forecast accuracy metrics (MAE, MAPE, RMSE).
    *
-   * Takes two float arrays (actual, forecast) and returns a JSON object
-   * with keys `mae`, `mape`, `rmse`, `n`.
+   * Takes two float arrays (actual, forecast) and returns the serde form of
+   * the Rust `ForecastMetrics` (`mae`, `mape`, `mape_effective_n`, `smape`,
+   * `rmse`, `n`).
    * @returns Backtest forecast accuracy metrics for the selected series.
    * @param actual - Actual realized values aligned one-for-one with the forecast series.
    * @param forecast - Forecast values aligned one-for-one with the actual realized series.

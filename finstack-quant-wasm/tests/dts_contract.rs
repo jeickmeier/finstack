@@ -259,33 +259,45 @@ fn periodic_returns_has_one_exact_frequency_param_description() {
 }
 
 #[test]
-fn core_dts_exposes_typed_array_math_fast_paths() {
+fn core_dts_exposes_typed_array_math() {
     let dts = index_dts();
 
+    // One entry point per Rust function: flat row-major matrices and
+    // typed-array-or-number[] inputs. The former `*Array` / `*Flat` twins and
+    // their `number[]`-only counterparts are gone.
     assert!(contains_ignoring_ws(
         &dts,
-        "choleskyDecompositionFlat(matrix: NumericArray, n: number): Float64Array;",
+        "choleskyDecomposition(matrix: NumericArray, n: number): Float64Array;",
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "choleskySolveFlat(chol: NumericArray, b: NumericArray, n: number): Float64Array;",
+        "choleskySolve(chol: NumericArray, b: NumericArray, n: number): Float64Array;",
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "validateCorrelationMatrixFlat(matrix: NumericArray, n: number): void;",
+        "mean(data: NumericArray): number;"
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "meanArray(data: NumericArray): number;"
+        "correlation(x: NumericArray, y: NumericArray): number;",
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "correlationArray(x: NumericArray, y: NumericArray): number;",
+        "kahanSum(values: NumericArray): number;"
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "kahanSumArray(values: NumericArray): number;",
+        "longestPositiveRun(values: NumericArray): number;",
     ));
+    for gone in [
+        "meanArray(",
+        "kahanSumArray(",
+        "countConsecutive(",
+        "choleskyDecompositionFlat(",
+        "validateCorrelationMatrixFlat(",
+    ] {
+        assert!(!dts.contains(gone), "{gone} should no longer be exported");
+    }
 }
 
 #[test]

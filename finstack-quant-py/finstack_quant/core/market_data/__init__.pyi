@@ -394,73 +394,6 @@ class ForwardCurve:
         """
         ...
 
-    @classmethod
-    def from_knots(
-        cls,
-        id: str,
-        *,
-        tenor: float,
-        base_date: datetime.date,
-        knots: list[tuple[float, float]],
-        day_count: str | None = None,
-        interp: str | None = None,
-        extrapolation: str | None = None,
-        projection_grid: list[float] | None = None,
-        reset_lag: int | None = None,
-    ) -> ForwardCurve:
-        """
-        Construct from an unambiguous keyword-only specification.
-
-        Parameters
-        ----------
-        id : str
-            Unique market-context identifier for the index forward curve.
-        tenor : float
-            Contractual floating-index tenor in years, such as ``0.25`` for 3M.
-        base_date : datetime.date
-            Curve valuation date corresponding to time zero.
-        knots : list[tuple[float, float]]
-            ``(time_years, forward_rate)`` pillars in ascending time order.
-        day_count : str or None, default None
-            Day-count convention; ``None`` applies the curve-ID market default.
-        interp : str or None, default None
-            Interpolation method used between supplied forward-rate pillars;
-            ``None`` applies the Rust builder default (``"linear"``).
-        extrapolation : str or None, default None
-            Policy applied before the first or after the last curve pillar;
-            ``None`` applies the Rust builder default (``"flat_forward"``).
-        projection_grid : list[float] or None, default None
-            Optional contractual reset/end-date boundaries in year fractions.
-        reset_lag : int or None, default None
-            Business days from fixing to spot; ``None`` uses curve-ID inference.
-
-        Returns
-        -------
-        ForwardCurve
-            Validated curve of simple annualized decimal forwards using the
-            resolved interpolation, extrapolation, day-count, reset-lag, and
-            projection conventions.
-
-        Raises
-        ------
-        ValueError
-            If a convention or interpolation name is unknown, *tenor* is not
-            finite and positive, the knot grid is empty or invalid, or a
-            supplied projection grid is non-finite or not strictly increasing.
-
-        Examples
-        --------
-        >>> import datetime
-        >>> from finstack_quant.core.market_data import ForwardCurve
-        >>> curve = ForwardCurve.from_knots(
-        ...     "SOFR", tenor=0.25, base_date=datetime.date(2025, 1, 1), knots=[(0.0, 0.03), (2.0, 0.04)]
-        ... )
-        >>> curve.rate(1.0)
-        0.035
-
-        """
-        ...
-
     def rate(self, t: float) -> float:
         """
         Forward rate at year fraction *t*.
@@ -1179,29 +1112,6 @@ class InflationCurve:
         -------
         float
             Decimal CAGR ``(CPI(t2) / CPI(t1)) ** (1 / (t2 - t1)) - 1``;
-            non-finite or non-increasing times yield ``NaN`` in release builds.
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-        """
-        ...
-
-    def inflation_rate_simple(self, t1: float, t2: float) -> float:
-        """
-        Return simple non-compounded inflation between two curve times.
-
-        Parameters
-        ----------
-        t1 : float
-            Start time in year fractions from the inflation-curve base date.
-        t2 : float
-            End time in year fractions from the inflation-curve base date.
-
-        Returns
-        -------
-        float
-            Simple annual decimal rate ``(CPI(t2) / CPI(t1) - 1) / (t2 - t1)``;
             non-finite or non-increasing times yield ``NaN`` in release builds.
 
         Notes

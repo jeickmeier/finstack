@@ -10,9 +10,9 @@
 use pyo3::prelude::*;
 
 use crate::bindings::core::dates::schedule::PyStubKind;
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::core::types::{PyBps, PyRate};
+use crate::bindings::date_utils::py_to_date;
 use crate::bindings::valuations::merton_mc::{PyMertonMcConfig, PyMertonMcResult};
 use crate::errors::{core_to_py, serde_json_to_py};
 use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};

@@ -667,6 +667,33 @@ pub fn unflatten_square(flat: &[f64], n: usize) -> Vec<Vec<f64>> {
     (0..n).map(|i| flat[i * n..(i + 1) * n].to_vec()).collect()
 }
 
+/// Transpose a flat row-major `rows × cols` matrix into `cols × rows`.
+///
+/// # Arguments
+///
+/// * `data` - Row-major buffer with exactly `rows * cols` entries.
+/// * `rows` - Number of rows in `data`.
+/// * `cols` - Number of columns in `data`.
+///
+/// # Panics
+///
+/// Panics if `data.len() != rows * cols`.
+#[must_use]
+pub fn transpose_row_major(data: &[f64], rows: usize, cols: usize) -> Vec<f64> {
+    assert_eq!(
+        data.len(),
+        rows * cols,
+        "transpose_row_major: shape mismatch"
+    );
+    let mut out = Vec::with_capacity(data.len());
+    for c in 0..cols {
+        for r in 0..rows {
+            out.push(data[r * cols + c]);
+        }
+    }
+    out
+}
+
 /// Cholesky decomposition of a correlation/covariance matrix.
 ///
 /// Computes L such that Σ = L L^T, where Σ is the correlation matrix.
@@ -992,13 +1019,13 @@ pub fn cholesky_solve(chol: &[f64], b: &[f64], x: &mut [f64]) -> Result<()> {
 /// # Example
 ///
 /// ```
-/// use finstack_quant_core::math::linalg::validate_correlation_matrix;
+/// use finstack_quant_core::math::linalg::check_correlation_matrix;
 ///
 /// let valid = vec![1.0, 0.5, 0.5, 1.0];
-/// assert!(validate_correlation_matrix(&valid, 2).is_ok());
+/// assert!(check_correlation_matrix(&valid, 2).is_ok());
 ///
 /// let invalid = vec![1.0, 1.5, 1.5, 1.0]; // Correlation > 1
-/// assert!(validate_correlation_matrix(&invalid, 2).is_err());
+/// assert!(check_correlation_matrix(&invalid, 2).is_err());
 /// ```
 ///
 /// # Arguments
@@ -1006,8 +1033,8 @@ pub fn cholesky_solve(chol: &[f64], b: &[f64], x: &mut [f64]) -> Result<()> {
 /// * `matrix` - Candidate correlation matrix in row-major order with exactly
 ///   `n * n` finite entries.
 /// * `n` - Matrix dimension used to interpret the flat row-major buffer.
-pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
-    validate_correlation_matrix_detailed(matrix, n).map_err(|error| match error {
+pub fn check_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
+    validate_correlation_matrix(matrix, n).map_err(|error| match error {
         CorrelationError::InvalidSize { .. } => error::InputError::DimensionMismatch.into(),
         _ => error::InputError::Invalid.into(),
     })
@@ -1029,7 +1056,7 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
 /// # Errors
 ///
 /// Returns the first [`CorrelationError`] detected.
-pub fn validate_correlation_matrix_detailed(
+pub fn validate_correlation_matrix(
     matrix: &[f64],
     n: usize,
 ) -> std::result::Result<(), CorrelationError> {

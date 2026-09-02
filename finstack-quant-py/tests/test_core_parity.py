@@ -550,8 +550,8 @@ class TestForwardCurveParity:
         with pytest.raises(AttributeError):
             curve.reset_lag = 2
 
-    def test_named_factory_avoids_positional_order_ambiguity(self) -> None:
-        curve = ForwardCurve.from_knots(
+    def test_keyword_constructor_avoids_positional_order_ambiguity(self) -> None:
+        curve = ForwardCurve(
             "USD-SOFR",
             tenor=0.25,
             base_date=date(2024, 1, 1),
@@ -957,14 +957,6 @@ class TestLinalgParity:
         assert linalg.apply_lower_triangular(from_list, z) == pytest.approx(
             linalg.apply_lower_triangular(from_array, z)
         )
-
-        corr = np.asarray(
-            [[1.0, 0.5, 0.25], [0.5, 1.0, 0.3], [0.25, 0.3, 1.0]],
-            dtype=np.float64,
-        )
-        linalg.validate_correlation_matrix(corr)  # must not raise
-        with pytest.raises(linalg.CholeskyError):
-            linalg.validate_correlation_matrix(np.asarray([[1.0, 2.0], [2.0, 1.0]]))
 
         # Non-float64 arrays fall back to element conversion like lists do.
         int_array = np.asarray([[4, 2], [2, 3]], dtype=np.int64)

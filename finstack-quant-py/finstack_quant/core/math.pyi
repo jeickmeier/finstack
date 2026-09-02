@@ -19,11 +19,11 @@ import numpy.typing as npt
 
 from finstack_quant.core import FinstackError
 
-__all__ = ["count_consecutive", "linalg", "stats", "special_functions", "summation"]
+__all__ = ["linalg", "longest_positive_run", "special_functions", "stats", "summation"]
 
-def count_consecutive(values: list[float]) -> int:
+def longest_positive_run(values: list[float]) -> int:
     """
-    Count longest consecutive run of strictly positive values.
+    Length of the longest run of strictly positive values.
 
     Parameters
     ----------
@@ -42,8 +42,8 @@ def count_consecutive(values: list[float]) -> int:
 
     Examples
     --------
-    >>> from finstack_quant.core.math import count_consecutive
-    >>> count_consecutive([1.0, 2.0, -1.0, 3.0])
+    >>> from finstack_quant.core.math import longest_positive_run
+    >>> longest_positive_run([1.0, 2.0, -1.0, 3.0])
     2
 
     """
@@ -51,7 +51,10 @@ def count_consecutive(values: list[float]) -> int:
 
 class linalg:
     """
-    Linear algebra utilities: Cholesky decomposition, correlation matrices.
+    Linear algebra utilities: Cholesky decomposition and triangular solves.
+
+    Correlation-matrix validation lives in
+    :func:`finstack_quant.models.correlation.validate_correlation_matrix`.
 
     Matrix inputs accept either nested ``list[list[float]]`` (row-major
     square matrices) or C-contiguous ``numpy.ndarray`` (``float64``) arrays;
@@ -196,37 +199,6 @@ class linalg:
         >>> from finstack_quant.core.math import linalg
         >>> [round(value, 6) for value in linalg.cholesky_solve([[2.0, 0.0], [1.0, 2**0.5]], [6.0, 5.0])]
         [1.0, 1.0]
-
-        """
-        ...
-
-    @staticmethod
-    def validate_correlation_matrix(
-        matrix: list[list[float]] | npt.NDArray[np.float64],
-    ) -> None:
-        """
-        Validate that a matrix is a valid correlation matrix.
-
-        Checks: diagonal elements are 1, off-diagonal entries are in
-        ``[-1, 1]``, symmetry, and positive semi-definiteness.
-
-        Parameters
-        ----------
-        matrix : list[list[float]] or numpy.ndarray
-            Square matrix to validate.
-
-        Raises
-        ------
-        CholeskyError
-            If any validation check fails.
-        ValueError
-            If the input is not a square matrix.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.math import linalg
-        >>> linalg.validate_correlation_matrix([[1.0, 0.2], [0.2, 1.0]]) is None
-        True
 
         """
         ...

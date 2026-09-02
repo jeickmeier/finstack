@@ -12,7 +12,7 @@
 mod nearest_correlation;
 
 pub use finstack_quant_core::math::linalg::{
-    validate_correlation_matrix_detailed as validate_correlation_matrix, CorrelationError as Error,
+    validate_correlation_matrix, CorrelationError as Error,
 };
 pub use nearest_correlation::{nearest_correlation_matrix, NearestCorrelationOpts};
 

@@ -2,7 +2,7 @@
 
 use crate::bindings::core::dates::calendar::PyBusinessDayConvention;
 use crate::bindings::core::dates::tenor::extract_tenor;
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 use finstack_quant_core::dates::{Schedule, ScheduleErrorPolicy, ScheduleSpec, StubKind};
 use pyo3::prelude::*;
@@ -14,9 +14,10 @@ use pyo3::types::{PyModule, PyType};
     module = "finstack_quant.core.dates",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyStubKind {
     /// Inner stub-kind variant.
     pub(crate) inner: StubKind,
@@ -66,19 +67,6 @@ impl PyStubKind {
             .map_err(crate::errors::value_error)
     }
 
-    /// Hash based on discriminant.
-    fn __hash__(&self) -> isize {
-        match self.inner {
-            StubKind::None => 0,
-            StubKind::ShortFront => 1,
-            StubKind::ShortBack => 2,
-            StubKind::LongFront => 3,
-            StubKind::LongBack => 4,
-            #[allow(unreachable_patterns)]
-            _ => 255,
-        }
-    }
-
     fn __repr__(&self) -> String {
         format!("StubKind('{}')", self.inner)
     }
@@ -94,9 +82,10 @@ impl PyStubKind {
     module = "finstack_quant.core.dates",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyScheduleErrorPolicy {
     /// Inner policy variant.
     pub(crate) inner: ScheduleErrorPolicy,
@@ -119,15 +108,6 @@ impl PyScheduleErrorPolicy {
     const GRACEFUL_EMPTY: PyScheduleErrorPolicy = PyScheduleErrorPolicy {
         inner: ScheduleErrorPolicy::GracefulEmpty,
     };
-
-    /// Hash based on discriminant.
-    fn __hash__(&self) -> isize {
-        match self.inner {
-            ScheduleErrorPolicy::Strict => 0,
-            ScheduleErrorPolicy::MissingCalendarWarning => 1,
-            ScheduleErrorPolicy::GracefulEmpty => 2,
-        }
-    }
 
     fn __repr__(&self) -> String {
         let label = match self.inner {
@@ -182,7 +162,7 @@ impl PySchedule {
     #[staticmethod]
     #[pyo3(text_signature = "(start, end)")]
     fn builder(start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<PyScheduleBuilder> {
-        PyScheduleBuilder::new(start, end)
+        PyScheduleBuilder::from_dates(start, end)
     }
 
     /// Unadjusted accrual dates as a list of ``datetime.date``.
@@ -279,12 +259,8 @@ pub struct PyScheduleBuilder {
     spec: ScheduleSpec,
 }
 
-#[pymethods]
 impl PyScheduleBuilder {
-    /// Start a new schedule builder with start and end dates.
-    #[new]
-    #[pyo3(text_signature = "(start, end)")]
-    fn new(start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub(crate) fn from_dates(start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<Self> {
         let s = py_to_date(start)?;
         let e = py_to_date(end)?;
         Ok(Self {
@@ -304,7 +280,11 @@ impl PyScheduleBuilder {
             },
         })
     }
+}
 
+#[pymethods]
+impl PyScheduleBuilder {
+    /// Start a new schedule builder with start and end dates.
     /// Set the coupon/roll frequency (accepts ``Tenor`` or a string like ``"3M"``).
     fn frequency<'py>(
         mut slf: PyRefMut<'py, Self>,

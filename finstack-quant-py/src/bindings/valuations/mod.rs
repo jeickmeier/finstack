@@ -66,7 +66,7 @@ impl PyValuationResult {
     /// Valuation date (T+0) for the calculation, as ``datetime.date``.
     #[getter]
     fn as_of<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        crate::bindings::core::dates::utils::date_to_py(py, self.inner.as_of)
+        crate::bindings::date_utils::date_to_py(py, self.inner.as_of)
     }
 
     /// Wire-format schema version of the result envelope (currently ``1``).

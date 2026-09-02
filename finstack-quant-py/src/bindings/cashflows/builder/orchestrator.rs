@@ -4,8 +4,8 @@ use finstack_quant_cashflows::builder::{CashFlowBuilder, PrincipalEvent};
 use pyo3::prelude::*;
 
 use crate::bindings::cashflows::primitives::{extract_cf_kind, PyCFKind};
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 use super::schedule::PyCashFlowSchedule;

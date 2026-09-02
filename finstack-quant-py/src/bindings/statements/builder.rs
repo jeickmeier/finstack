@@ -6,8 +6,8 @@
 use super::capital_structure::PyWaterfallSpec;
 use super::types::{PyFinancialModelSpec, PyForecastSpec};
 use crate::bindings::core::currency::PyCurrency;
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::py_to_date;
 use crate::errors::{core_to_py, serde_json_to_py, statements_to_py};
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::money::fx::FxConversionPolicy;

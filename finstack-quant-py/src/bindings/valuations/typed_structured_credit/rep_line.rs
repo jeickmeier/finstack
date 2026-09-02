@@ -1,8 +1,8 @@
 use pyo3::prelude::*;
 
 use crate::bindings::core::dates::daycount::PyDayCount;
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::py_to_date;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::RepLine;
 
 /// Typed wrapper for the Rust `RepLine` (aggregated representative pool line).

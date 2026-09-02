@@ -113,7 +113,7 @@ note = "Subset scope: the Rust money module's FormatOpts family (FormatOpts + Mo
 
 [crates.core.module_symbols.math]
 python_package = "finstack_quant.core.math"
-public = ["count_consecutive", "linalg", "stats", "special_functions", "summation"]
+public = ["linalg", "longest_positive_run", "special_functions", "stats", "summation"]
 note = "Subset scope: 12 Rust-only math submodules are deliberately unbound (compounding, distributions, fractional, integration, interp, piecewise, probability, random, solver, solver_multi, time_grid, volatility) — they are engine internals consumed by the domain crates, not host-facing numerics."
 
 [crates.core.module_symbols.dates]
@@ -2206,32 +2206,20 @@ root_exports = [
     "applyLowerTriangular",
     "choleskyDecomposition",
     "choleskySolve",
-    "choleskyDecompositionFlat",
-    "choleskySolveFlat",
-    "validateCorrelationMatrixFlat",
     "mean",
-    "meanArray",
     "variance",
-    "varianceArray",
     "populationVariance",
-    "populationVarianceArray",
     "correlation",
-    "correlationArray",
     "covariance",
-    "covarianceArray",
     "quantile",
-    "quantileArray",
     "normCdf",
     "normPdf",
     "standardNormalInvCdf",
     "erf",
     "lnGamma",
     "kahanSum",
-    "kahanSumArray",
     "neumaierSum",
-    "neumaierSumArray",
-    "countConsecutive",
-    "countConsecutiveArray",
+    "longestPositiveRun",
 ]
 
 # finstack_quant.core.market_data symbols intentionally absent from the WASM core
@@ -2324,33 +2312,18 @@ python_only_currency_members = [
 ]
 
 # Python-only math functions (dotted relative to finstack_quant.core.math).
-# The Student-t special functions and the nested-list correlation-matrix
-# validator have no WASM twins; WASM exposes only the flat/typed-array
-# variants listed under wasm_only.
+# The Student-t special functions have no WASM twins. The correlation-matrix
+# validator lives once per host, in `models.correlation` (detailed, flat
+# row-major signature).
 python_only_math = [
     "special_functions.student_t_cdf",
     "special_functions.student_t_inv_cdf",
-    "linalg.validate_correlation_matrix",
 ]
 
-# JS-only root exports with no Python twin: Float64Array-input variants of
-# the stats/summation helpers and flat row-major matrix variants of the
-# linalg helpers. Python callers pass lists to the single canonical
-# function; JS gets a typed-array/flat fast path per name.
-wasm_only = [
-    "meanArray",
-    "varianceArray",
-    "populationVarianceArray",
-    "correlationArray",
-    "covarianceArray",
-    "quantileArray",
-    "kahanSumArray",
-    "neumaierSumArray",
-    "countConsecutiveArray",
-    "choleskyDecompositionFlat",
-    "choleskySolveFlat",
-    "validateCorrelationMatrixFlat",
-]
+# JS-only root exports with no Python twin. Every stats/summation/linalg
+# helper is exported exactly once, taking `number[]` or `Float64Array`
+# (flat row-major for matrices).
+wasm_only = []
 
 # Python ↔ WASM name map for the core namespace. Keys are dotted paths
 # relative to `finstack_quant.core`; values are `core.<name>` JS root
@@ -2398,11 +2371,10 @@ wasm_only = [
 "math.special_functions.ln_gamma" = "lnGamma"
 "math.summation.kahan_sum" = "kahanSum"
 "math.summation.neumaier_sum" = "neumaierSum"
-"math.count_consecutive" = "countConsecutive"
+"math.longest_positive_run" = "longestPositiveRun"
 
 # Method-level gaps on types that *are* partially exposed in WASM.
 [wasm_core_subset.method_gaps]
-"ForwardCurve.from_knots" = "WASM twin is the options-object factory ForwardCurve.fromOptions; same builder surface, host-idiomatic spelling."
 "FxMatrix.rate" = "Python rate(base, quote, date, policy=None) defaults the policy; WASM splits this into rate(base, quote, date, policy) plus the wasm-only convenience rateDefault(base, quote, date)."
 "VolCube.expiries" = "Python-only getter; WASM exposes point queries plus id/interpolationMode only."
 "VolCube.tenors" = "Python-only getter; WASM exposes point queries plus id/interpolationMode only."

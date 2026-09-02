@@ -202,7 +202,7 @@ impl ZSpreadCalculator {
 }
 
 pub(crate) fn bond_z_spread_compounding_frequency(bond: &Bond) -> f64 {
-    let years = bond.cashflow_spec.frequency().to_years_simple();
+    let years = bond.cashflow_spec.frequency().to_years();
     if years > 0.0 && years.is_finite() {
         (1.0 / years).round().max(1.0)
     } else {

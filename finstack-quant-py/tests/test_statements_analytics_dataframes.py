@@ -172,7 +172,7 @@ def test_bridge_chart_to_dataframe_preserves_step_order() -> None:
 
 def _sensitivity_result(scenarios: list[dict[str, object]]) -> SensitivityResult:
     config = SensitivityConfig(
-        "Diagonal",
+        "diagonal",
         [("revenue", "2025Q1", 100.0, [-0.1, 0.1])],
         ["revenue"],
     )

@@ -115,11 +115,6 @@ fn option_greeks_object(
     )?;
     let mut out = Map::new();
     for (metric, value) in pairs {
-        if !value.is_finite() {
-            return Err(JsValue::from_str(&format!(
-                "greek '{metric}' evaluated to a non-finite value ({value})"
-            )));
-        }
         out.insert(metric.to_string(), Value::from(value));
     }
     to_js_value(&Value::Object(out))

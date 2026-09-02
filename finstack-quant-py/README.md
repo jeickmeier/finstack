@@ -235,10 +235,10 @@ named `with_*`.
 
 ```python
 from datetime import date
-from finstack_quant.core.dates import ScheduleBuilder, StubKind
+from finstack_quant.core.dates import Schedule, StubKind
 
 schedule = (
-    ScheduleBuilder(date(2025, 1, 15), date(2030, 1, 15))
+    Schedule.builder(date(2025, 1, 15), date(2030, 1, 15))
     .frequency("3M")
     .stub_rule(StubKind.SHORT_FRONT)
     .build()

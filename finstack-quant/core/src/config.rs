@@ -52,7 +52,7 @@ use std::collections::BTreeMap;
 /// cfg.rounding.mode = RoundingMode::TowardZero;
 /// assert!(matches!(cfg.rounding.mode, RoundingMode::TowardZero));
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]

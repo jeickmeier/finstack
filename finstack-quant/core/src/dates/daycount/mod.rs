@@ -177,7 +177,7 @@ use crate::dates::Tenor;
 ///
 /// assert!(yf_360 > yf_30360); // Act/360 has larger denominator
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 pub enum DayCount {

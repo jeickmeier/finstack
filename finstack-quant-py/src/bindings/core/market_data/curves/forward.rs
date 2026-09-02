@@ -5,10 +5,9 @@ use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use pyo3::types::PyType;
 
 use super::helpers::{parse_day_count, parse_extrapolation, parse_interp_style};
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 /// Forward rate curve for a floating-rate index with a fixed tenor.
@@ -112,38 +111,6 @@ impl PyForwardCurve {
     )]
     #[pyo3(signature = (id, tenor, base_date, knots, day_count=None, interp=None, extrapolation=None, projection_grid=None, reset_lag=None))]
     fn new(
-        id: &str,
-        tenor: f64,
-        base_date: &Bound<'_, PyAny>,
-        knots: Vec<(f64, f64)>,
-        day_count: Option<&str>,
-        interp: Option<&str>,
-        extrapolation: Option<&str>,
-        projection_grid: Option<Vec<f64>>,
-        reset_lag: Option<i32>,
-    ) -> PyResult<Self> {
-        Self::build(
-            id,
-            tenor,
-            base_date,
-            knots,
-            day_count,
-            interp,
-            extrapolation,
-            projection_grid,
-            reset_lag,
-        )
-    }
-
-    /// Construct from a keyword-only curve specification.
-    #[classmethod]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the named factory exposes the complete curve specification"
-    )]
-    #[pyo3(signature = (id, *, tenor, base_date, knots, day_count=None, interp=None, extrapolation=None, projection_grid=None, reset_lag=None))]
-    fn from_knots(
-        _cls: &Bound<'_, PyType>,
         id: &str,
         tenor: f64,
         base_date: &Bound<'_, PyAny>,

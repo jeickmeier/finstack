@@ -7,7 +7,7 @@ building, holiday calendars, and business-day adjustment functions.
 Example::
 
     >>> import datetime
-    >>> from finstack_quant.core.dates import DayCount, Tenor, ScheduleBuilder
+    >>> from finstack_quant.core.dates import DayCount, Schedule, Tenor
     >>> day_count = DayCount.ACT_365F
     >>> day_count.year_fraction(datetime.date(2024, 1, 1), datetime.date(2025, 1, 1))
     1.0027397260273974
@@ -1190,7 +1190,7 @@ class Tenor:
         """
         ...
 
-    def to_years_simple(self) -> float:
+    def to_years(self) -> float:
         """
         Approximate tenor length in years (simple estimate, no calendar).
 
@@ -1996,29 +1996,6 @@ class FiscalConfig:
         ...
 
     @classmethod
-    def canada(cls) -> FiscalConfig:
-        """
-        Canadian fiscal year (April 1).
-
-        Returns
-        -------
-        FiscalConfig
-            Canadian fiscal configuration beginning April 1.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.dates import FiscalConfig
-        >>> config = FiscalConfig.canada()
-        >>> (config.start_month, config.start_day)
-        (4, 1)
-        """
-        ...
-
-    @classmethod
     def australia(cls) -> FiscalConfig:
         """
         Australian fiscal year (July 1).
@@ -2038,52 +2015,6 @@ class FiscalConfig:
         >>> config = FiscalConfig.australia()
         >>> (config.start_month, config.start_day)
         (7, 1)
-        """
-        ...
-
-    @classmethod
-    def germany(cls) -> FiscalConfig:
-        """
-        German fiscal year (January 1).
-
-        Returns
-        -------
-        FiscalConfig
-            German fiscal configuration beginning January 1.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.dates import FiscalConfig
-        >>> config = FiscalConfig.germany()
-        >>> (config.start_month, config.start_day)
-        (1, 1)
-        """
-        ...
-
-    @classmethod
-    def france(cls) -> FiscalConfig:
-        """
-        French fiscal year (January 1).
-
-        Returns
-        -------
-        FiscalConfig
-            French fiscal configuration beginning January 1.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.dates import FiscalConfig
-        >>> config = FiscalConfig.france()
-        >>> (config.start_month, config.start_day)
-        (1, 1)
         """
         ...
 
@@ -2615,8 +2546,8 @@ class Schedule:
     Examples
     --------
     >>> import datetime
-    >>> from finstack_quant.core.dates import ScheduleBuilder
-    >>> schedule = ScheduleBuilder(datetime.date(2025, 1, 15), datetime.date(2025, 7, 15)).frequency("3M").build()
+    >>> from finstack_quant.core.dates import Schedule
+    >>> schedule = Schedule.builder(datetime.date(2025, 1, 15), datetime.date(2025, 7, 15)).frequency("3M").build()
     >>> schedule.dates
     [datetime.date(2025, 1, 15), datetime.date(2025, 4, 15), datetime.date(2025, 7, 15)]
 
@@ -2789,7 +2720,8 @@ class ScheduleBuilder:
     ...     ScheduleErrorPolicy,
     ... )
     >>> schedule = (
-    ...     ScheduleBuilder(date(2025, 1, 15), date(2030, 1, 15))
+    ...     Schedule
+    ...     .builder(date(2025, 1, 15), date(2030, 1, 15))
     ...     .frequency("3M")
     ...     .stub_rule(StubKind.SHORT_FRONT)
     ...     .adjust_with(BusinessDayConvention.MODIFIED_FOLLOWING, "usny")
@@ -2800,31 +2732,6 @@ class ScheduleBuilder:
     >>> len(schedule) >= 20
     True
     """
-
-    def __init__(self, start: datetime.date, end: datetime.date) -> None:
-        """
-        Start a new schedule builder with start and end dates.
-
-        Range validation follows the canonical Rust builder and happens at
-        ``build()`` time: ``start > end`` is rejected there, while
-        ``start == end`` is accepted.
-
-        Parameters
-        ----------
-        start : datetime.date
-            Schedule start date.
-        end : datetime.date
-            Schedule end date.
-
-        Raises
-        ------
-        TypeError
-            If *start* or *end* is not date-like (``datetime.date``,
-            ``datetime.datetime``, or ``pandas.Timestamp``).
-        ValueError
-            If the year/month/day attributes do not form a valid calendar date.
-        """
-        ...
 
     def frequency(self, frequency: Union[Tenor, str]) -> ScheduleBuilder:
         """

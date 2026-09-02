@@ -91,7 +91,7 @@ impl DiscountMarginCalculator {
 /// contractual coupon frequency (e.g. quarterly → 4). Mirrors the FRN
 /// `bond_z_spread_compounding_frequency` helper.
 fn loan_compounding_frequency(loan: &TermLoan) -> f64 {
-    let years = loan.frequency.to_years_simple();
+    let years = loan.frequency.to_years();
     if years > 0.0 && years.is_finite() {
         (1.0 / years).round().max(1.0)
     } else {

@@ -47,28 +47,21 @@ impl PyAccountType {
     /// Parse an exact snake_case identifier (``"asset"``, ``"liability"``, or ``"equity"``).
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
-        match value {
-            "asset" => Ok(PyAccountType::Asset),
-            "liability" => Ok(PyAccountType::Liability),
-            "equity" => Ok(PyAccountType::Equity),
-            _ => Err(crate::errors::value_error(format!(
-                "unknown account type '{}' (expected asset / liability / equity)",
-                value
-            ))),
-        }
+        finstack_quant_core::wire::serde_parse::<rust_corkscrew::AccountType>(value)
+            .map(Self::from_rust)
+            .map_err(crate::errors::core_to_py)
     }
 
     /// String identifier used in JSON (``"asset"``, ``"liability"``, ``"equity"``).
-    fn value(&self) -> &'static str {
-        match self {
-            PyAccountType::Asset => "asset",
-            PyAccountType::Liability => "liability",
-            PyAccountType::Equity => "equity",
-        }
+    fn value(&self) -> PyResult<String> {
+        finstack_quant_core::wire::serde_label(&self.to_rust()).map_err(crate::errors::core_to_py)
     }
 
     fn __repr__(&self) -> String {
-        format!("AccountType.{}", self.value())
+        format!(
+            "AccountType.{}",
+            self.value().unwrap_or_else(|_| "?".to_string())
+        )
     }
 }
 

@@ -50,7 +50,7 @@ class TestGoalSeek:
         assert solved > 100_000.0
         assert updated is None
 
-    def test_update_model_true_returns_json(self) -> None:
+    def test_update_model_true_returns_model(self) -> None:
         solved, updated = goal_seek(
             _model_json(),
             "gross_profit",
@@ -61,8 +61,8 @@ class TestGoalSeek:
             update_model=True,
         )
         assert solved > 100_000.0
-        assert updated is not None
-        json.loads(updated)
+        assert isinstance(updated, statements.FinancialModelSpec)
+        json.loads(updated.to_json())
 
 
 class TestRunChecks:
@@ -115,6 +115,9 @@ class TestCorporateAnalysis:
     def test_suppressed_enterprise_value_status_is_top_level(self) -> None:
         result = run_corporate_analysis(_model_json())
         assert result["ev_suppressed_non_positive"] is False
+        assert isinstance(result["statement"], statements.StatementResult)
+        assert result["equity"] is None
+        assert isinstance(result["credit"], dict)
 
 
 class TestEvaluateDcf:

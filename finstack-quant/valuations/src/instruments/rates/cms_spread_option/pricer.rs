@@ -68,8 +68,8 @@ impl CmsSpreadOptionPricer {
         inst.validate()?;
         if inst.payment_date <= as_of {
             return Ok(CmsSpreadPricingData {
-                long_leg: CmsSpreadLeg::zero(inst.long_cms_tenor.to_years_simple()),
-                short_leg: CmsSpreadLeg::zero(inst.short_cms_tenor.to_years_simple()),
+                long_leg: CmsSpreadLeg::zero(inst.long_cms_tenor.to_years()),
+                short_leg: CmsSpreadLeg::zero(inst.short_cms_tenor.to_years()),
                 discount_factor: 0.0,
                 expected_payoff: 0.0,
             });
@@ -137,7 +137,7 @@ impl CmsSpreadOptionPricer {
         time_to_expiry: f64,
         vol_provider: &VolSource,
     ) -> Result<CmsSpreadLeg> {
-        let tenor_years = tenor.to_years_simple();
+        let tenor_years = tenor.to_years();
 
         // Seasoned option: both CMS rates fixed at the (past) expiry. Resolve
         // the leg from the recorded fixing (mirroring the cap/floor pricer) —

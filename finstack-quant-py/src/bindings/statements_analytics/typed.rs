@@ -5,9 +5,8 @@ use crate::bindings::pandas_utils::{
     serde_rows_to_dataframe_with_schema, table_to_dataframe, ColumnSchema,
 };
 use crate::bindings::statements::evaluator::PyStatementResult;
-use crate::errors::display_to_py;
+use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::dates::PeriodId;
-use finstack_quant_statements::evaluator::StatementResult;
 use finstack_quant_statements::types::AmountOrScalar;
 use finstack_quant_statements_analytics::analysis::{
     BridgeChart as RustBridgeChart, BridgeStep as RustBridgeStep, ParameterSpec,
@@ -18,7 +17,7 @@ use finstack_quant_statements_analytics::analysis::{
     VarianceRow as RustVarianceRow,
 };
 use indexmap::IndexMap;
-use pyo3::exceptions::{PyIndexError, PyValueError};
+use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -42,23 +41,14 @@ fn parse_period(period: &str) -> PyResult<PeriodId> {
     period.parse().map_err(display_to_py)
 }
 
+/// Parse the serde name of a [`SensitivityMode`] (`"diagonal"`, `"full_grid"`, `"tornado"`).
 fn parse_sensitivity_mode(mode: &str) -> PyResult<SensitivityMode> {
-    match mode {
-        "Diagonal" | "diagonal" => Ok(SensitivityMode::Diagonal),
-        "FullGrid" | "full_grid" => Ok(SensitivityMode::FullGrid),
-        "Tornado" | "tornado" => Ok(SensitivityMode::Tornado),
-        _ => Err(PyValueError::new_err(format!(
-            "unknown sensitivity mode '{mode}'; expected Diagonal, FullGrid, or Tornado"
-        ))),
-    }
+    finstack_quant_core::wire::serde_parse(mode).map_err(core_to_py)
 }
 
-fn sensitivity_mode_name(mode: SensitivityMode) -> &'static str {
-    match mode {
-        SensitivityMode::Diagonal => "Diagonal",
-        SensitivityMode::FullGrid => "FullGrid",
-        SensitivityMode::Tornado => "Tornado",
-    }
+/// Serde name of a [`SensitivityMode`]; identical to the `to_json` form.
+fn sensitivity_mode_name(mode: SensitivityMode) -> PyResult<String> {
+    finstack_quant_core::wire::serde_label(&mode).map_err(core_to_py)
 }
 
 fn extract_overrides(value: &Bound<'_, PyAny>) -> PyResult<IndexMap<String, AmountOrScalar>> {
@@ -135,9 +125,10 @@ impl PySensitivityConfig {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
-    /// Analysis mode: ``"Diagonal"``, ``"FullGrid"``, or ``"Tornado"``.
+    /// Analysis mode: ``"diagonal"``, ``"full_grid"``, or ``"tornado"`` (the
+    /// serde name, identical to ``to_json``).
     #[getter]
-    fn mode(&self) -> &'static str {
+    fn mode(&self) -> PyResult<String> {
         sensitivity_mode_name(self.inner.mode)
     }
 
@@ -730,15 +721,12 @@ impl PyScenarioResults {
 
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let scenarios: IndexMap<String, StatementResult> =
-            serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self {
-            inner: ScenarioResults { scenarios },
-        })
+        let inner: ScenarioResults = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
     }
 
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner.scenarios).map_err(display_to_py)
+        serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
     /// Evaluated scenario names, in the order the scenario set defined them.
@@ -749,8 +737,7 @@ impl PyScenarioResults {
 
     /// Identify this result set in notebooks and logs.
     ///
-    /// The inner type is not `Serialize`, so the scenario count is rendered
-    /// directly; use :meth:`names` for the full list.
+    /// Rendered as the scenario count; use :meth:`names` for the full list.
     fn __repr__(&self) -> String {
         format!("ScenarioResults(scenarios={})", self.inner.scenarios.len())
     }
@@ -846,6 +833,28 @@ pub struct PyScenarioDiff {
 
 #[pymethods]
 impl PyScenarioDiff {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize a scenario diff from its canonical JSON form.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: RustScenarioDiff = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to canonical JSON (``baseline``, ``comparison``, ``variance``).
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
     /// Name of the scenario used as the baseline of the diff.
     #[getter]
     fn baseline(&self) -> &str {
@@ -854,13 +863,10 @@ impl PyScenarioDiff {
 
     /// Identify this diff in notebooks and logs.
     ///
-    /// The inner type is not `Serialize`, so the two scenario labels are
-    /// rendered directly.
+    /// Rendered from the wire representation, so the fields shown are the
+    /// fields `to_json()` names.
     fn __repr__(&self) -> String {
-        format!(
-            "ScenarioDiff(baseline={:?}, comparison={:?})",
-            self.inner.baseline, self.inner.comparison
-        )
+        crate::bindings::repr_support::repr_from_serde("ScenarioDiff", &self.inner)
     }
 
     /// Name of the scenario compared against the baseline.

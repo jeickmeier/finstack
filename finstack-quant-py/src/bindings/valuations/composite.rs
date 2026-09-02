@@ -10,7 +10,7 @@ use crate::bindings::core::money::PyMoney;
 use crate::bindings::extract::{extract_instrument_json, extract_market};
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
 use crate::bindings::pandas_utils::ColumnSchema;
-use crate::errors::core_to_py;
+use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::types::InstrumentId;
 use finstack_quant_valuations::instruments::composite::{
     CompositeExposureReport, CompositeHistoryEngine, CompositeHistoryRow, CompositeInstrument,
@@ -519,7 +519,7 @@ impl PyRebalanceRule {
     fn dates(dates: Vec<String>) -> PyResult<Self> {
         let dates = dates
             .iter()
-            .map(|date| crate::bindings::date_utils::parse_iso_date_py(date))
+            .map(|date| finstack_quant_core::dates::parse_iso_date(date).map_err(display_to_py))
             .collect::<PyResult<Vec<_>>>()?;
         let inner = RebalanceRule::Dates { dates };
         inner.validate().map_err(core_to_py)?;
@@ -560,9 +560,9 @@ impl PyRebalanceRule {
         end: Option<&str>,
     ) -> PyResult<Self> {
         let inner = RebalanceRule::Calendar {
-            start: crate::bindings::date_utils::parse_iso_date_py(start)?,
+            start: finstack_quant_core::dates::parse_iso_date(start).map_err(display_to_py)?,
             end: end
-                .map(crate::bindings::date_utils::parse_iso_date_py)
+                .map(|date| finstack_quant_core::dates::parse_iso_date(date).map_err(display_to_py))
                 .transpose()?,
             frequency: super::instruments::enum_from_str::<RebalanceFrequency>(
                 frequency,

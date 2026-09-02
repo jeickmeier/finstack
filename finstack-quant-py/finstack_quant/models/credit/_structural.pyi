@@ -311,6 +311,67 @@ class SimulatedPaths:
 
     """
 
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Support ``pickle`` via the canonical JSON round-trip.
+
+        Returns
+        -------
+        tuple[Any, tuple[str]]
+            ``(SimulatedPaths.from_json, (json,))`` so unpickling rebuilds the paths.
+
+        Notes
+        -----
+        This accessor does not raise; it serializes the stored value.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> SimulatedPaths:
+        """
+        Deserialize simulated paths from their canonical JSON form.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON with ``times``, ``asset_values`` (row-major),
+            ``num_paths`` and ``num_steps``.
+
+        Returns
+        -------
+        SimulatedPaths
+            Reconstructed path set.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or has an incompatible shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import SimulatedPaths
+        >>> p = SimulatedPaths.from_json('{"times":[0.0,1.0],"asset_values":[100.0,105.0],"num_paths":1,"num_steps":1}')
+        >>> p.get(0, 1)
+        105.0
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to canonical JSON (``times``, ``asset_values``, ``num_paths``, ``num_steps``).
+
+        Returns
+        -------
+        str
+            Canonical JSON representation of this `SimulatedPaths`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
     @property
     def times(self) -> list[float]:
         """

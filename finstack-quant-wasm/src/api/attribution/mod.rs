@@ -178,66 +178,32 @@ fn error_variant_name(err: &finstack_quant_core::Error) -> &'static str {
     }
 }
 
-/// Extract a human-readable message from a caught panic payload.
-fn panic_message(panic: &(dyn std::any::Any + Send)) -> String {
-    if let Some(s) = panic.downcast_ref::<&str>() {
-        (*s).to_string()
-    } else if let Some(s) = panic.downcast_ref::<String>() {
-        s.clone()
-    } else {
-        "unknown panic payload".to_string()
-    }
-}
-
-/// Run an attribution `execute()` call, converting a Rust panic into a
-/// catchable `AttributionError` `JsValue` instead of letting it unwind to the
-/// wasm boundary. An uncaught unwind there `abort`s the whole module instance,
-/// killing every subsequent call from the JS host.
-fn catch_attribution_panic<T>(
-    label: &str,
-    f: impl FnOnce() -> Result<T, finstack_quant_core::Error>,
-) -> Result<T, JsValue> {
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
-        Ok(Ok(value)) => Ok(value),
-        Ok(Err(err)) => Err(attribution_error_to_js(err)),
-        Err(panic) => Err(attribution_error_to_js(
-            finstack_quant_core::Error::internal(format!(
-                "attribution panicked in {label}: {}",
-                panic_message(panic.as_ref())
-            )),
-        )),
-    }
-}
-
-/// Parse, execute, and panic-contain one attribution request.
+/// Parse and execute one attribution request.
 ///
 /// Shared by [`attribute_pnl`] and [`attribute_pnl_json`], which differ only
-/// in how they hand the `PnlAttribution` back across the boundary.
+/// in how they hand the `PnlAttribution` back across the boundary. Execution
+/// goes through `execute_contained`, which turns a Rust panic into
+/// `Error::Internal`: an uncaught unwind at the wasm boundary would abort the
+/// module instance and kill every subsequent call from the JS host.
 fn run_attribute_pnl(
-    label: &str,
     params: &JsAttributionParams,
 ) -> Result<finstack_quant_attribution::AttributionResult, JsValue> {
-    // Wrap input-parsing as well. `from_json_inputs` funnels through serde
-    // plus constructors that should not panic, but a malformed payload could
-    // in principle. An uncaught unwind at the wasm boundary aborts the
-    // module instance and kills every subsequent call from the JS host.
-    let spec = catch_attribution_panic(&format!("{label}/from_json_inputs"), || {
-        finstack_quant_attribution::AttributionSpec::from_json_inputs(
-            finstack_quant_attribution::AttributionJsonInputs {
-                instrument_json: &params.instrument_json,
-                market_t0_json: &params.market_t0_json,
-                market_t1_json: &params.market_t1_json,
-                as_of_t0: &params.as_of_t0,
-                as_of_t1: &params.as_of_t1,
-                method_json: &params.method_json,
-                config_json: params.config_json.as_deref(),
-                model_params_t0_json: params.model_params_t0_json.as_deref(),
-                credit_factor_model_json: params.credit_factor_model_json.as_deref(),
-                full_cross_attribution: params.full_cross_attribution.unwrap_or(false),
-            },
-        )
-    })?;
-    catch_attribution_panic(label, || spec.execute())
+    let spec = finstack_quant_attribution::AttributionSpec::from_json_inputs(
+        finstack_quant_attribution::AttributionJsonInputs {
+            instrument_json: &params.instrument_json,
+            market_t0_json: &params.market_t0_json,
+            market_t1_json: &params.market_t1_json,
+            as_of_t0: &params.as_of_t0,
+            as_of_t1: &params.as_of_t1,
+            method_json: &params.method_json,
+            config_json: params.config_json.as_deref(),
+            model_params_t0_json: params.model_params_t0_json.as_deref(),
+            credit_factor_model_json: params.credit_factor_model_json.as_deref(),
+            full_cross_attribution: params.full_cross_attribution.unwrap_or(false),
+        },
+    )
+    .map_err(attribution_error_to_js)?;
+    spec.execute_contained().map_err(attribution_error_to_js)
 }
 
 /// Run P&L attribution for a single instrument.
@@ -261,7 +227,7 @@ fn run_attribute_pnl(
 /// @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
 #[wasm_bindgen(js_name = attributePnl)]
 pub fn attribute_pnl(params: &JsAttributionParams) -> Result<JsValue, JsValue> {
-    let result = run_attribute_pnl("attributePnl", params)?;
+    let result = run_attribute_pnl(params)?;
     crate::utils::to_js_value(&result.attribution)
 }
 
@@ -278,7 +244,7 @@ pub fn attribute_pnl(params: &JsAttributionParams) -> Result<JsValue, JsValue> {
 /// @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
 #[wasm_bindgen(js_name = attributePnlJson)]
 pub fn attribute_pnl_json(params: &JsAttributionParams) -> Result<String, JsValue> {
-    let result = run_attribute_pnl("attributePnlJson", params)?;
+    let result = run_attribute_pnl(params)?;
     serde_json::to_string(&result.attribution).map_err(to_js_err)
 }
 
@@ -295,24 +261,11 @@ pub fn attribute_pnl_json(params: &JsAttributionParams) -> Result<String, JsValu
 /// @param spec_json - JSON-serialized AttributionParams specification to validate and execute.
 #[wasm_bindgen(js_name = attributePnlEnvelopeJson)]
 pub fn attribute_pnl_envelope_json(spec_json: &str) -> Result<String, JsValue> {
-    // Wrap serde_json parse too. A JSON-parse panic would otherwise abort
-    // the wasm module instance.
-    let envelope = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        serde_json::from_str::<finstack_quant_attribution::AttributionEnvelope>(spec_json)
-    })) {
-        Ok(Ok(envelope)) => envelope,
-        Ok(Err(err)) => return Err(to_js_err(err)),
-        Err(panic) => {
-            return Err(attribution_error_to_js(
-                finstack_quant_core::Error::Validation(format!(
-                    "attributePnlEnvelopeJson panicked while parsing envelope JSON: {}",
-                    panic_message(panic.as_ref())
-                )),
-            ));
-        }
-    };
-    let result_envelope =
-        catch_attribution_panic("attributePnlEnvelopeJson", || envelope.execute())?;
+    let envelope: finstack_quant_attribution::AttributionEnvelope =
+        serde_json::from_str(spec_json).map_err(to_js_err)?;
+    let result_envelope = envelope
+        .execute_contained()
+        .map_err(attribution_error_to_js)?;
     serde_json::to_string(&result_envelope).map_err(to_js_err)
 }
 

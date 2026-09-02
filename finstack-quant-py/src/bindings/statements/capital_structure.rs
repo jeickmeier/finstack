@@ -10,31 +10,14 @@ use finstack_quant_statements::capital_structure::{
 };
 use pyo3::prelude::*;
 
+/// Parse the serde name of a [`PaymentPriority`] (e.g. `"fees"`, `"mandatory_prepayment"`).
 fn parse_priority(s: &str) -> PyResult<PaymentPriority> {
-    match s {
-        "fees" => Ok(PaymentPriority::Fees),
-        "interest" => Ok(PaymentPriority::Interest),
-        "amortization" => Ok(PaymentPriority::Amortization),
-        "mandatory_prepayment" => Ok(PaymentPriority::MandatoryPrepayment),
-        "voluntary_prepayment" => Ok(PaymentPriority::VoluntaryPrepayment),
-        "sweep" => Ok(PaymentPriority::Sweep),
-        "equity" => Ok(PaymentPriority::Equity),
-        other => Err(crate::errors::value_error(format!(
-            "unknown payment priority {other:?}; expected one of: fees, interest, amortization, mandatory_prepayment, voluntary_prepayment, sweep, equity"
-        ))),
-    }
+    finstack_quant_core::wire::serde_parse(s).map_err(crate::errors::core_to_py)
 }
 
-fn priority_to_str(p: PaymentPriority) -> &'static str {
-    match p {
-        PaymentPriority::Fees => "fees",
-        PaymentPriority::Interest => "interest",
-        PaymentPriority::Amortization => "amortization",
-        PaymentPriority::MandatoryPrepayment => "mandatory_prepayment",
-        PaymentPriority::VoluntaryPrepayment => "voluntary_prepayment",
-        PaymentPriority::Sweep => "sweep",
-        PaymentPriority::Equity => "equity",
-    }
+/// Serde name of a [`PaymentPriority`]; identical to the `to_json` form.
+fn priority_to_str(p: PaymentPriority) -> PyResult<String> {
+    finstack_quant_core::wire::serde_label(&p).map_err(crate::errors::core_to_py)
 }
 
 /// Excess Cash Flow (ECF) sweep specification.
@@ -555,7 +538,7 @@ impl PyWaterfallSpec {
     ///     category is pro-rata inside each payment class, walking class rank.
     ///     Empty ``payment_classes`` is one implicit class.
     #[getter]
-    fn priority_of_payments(&self) -> Vec<&'static str> {
+    fn priority_of_payments(&self) -> PyResult<Vec<String>> {
         self.inner
             .priority_of_payments
             .iter()

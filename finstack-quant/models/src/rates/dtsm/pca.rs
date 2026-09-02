@@ -28,6 +28,28 @@ use serde::{Deserialize, Serialize};
 
 use super::types::YieldPanel;
 
+/// Serializable view of the leading components of a [`YieldPca`] fit.
+///
+/// Produced by [`YieldPca::truncated`]; this is the wire form the language
+/// bindings hand out.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct YieldPcaView {
+    /// Row-major loadings `loadings[tenor][k]` for the leading components.
+    pub loadings: Vec<Vec<f64>>,
+    /// Row-major scores `scores[t][k]` (one row per yield-change observation).
+    pub scores: Vec<Vec<f64>>,
+    /// Leading eigenvalues in descending order.
+    pub eigenvalues: Vec<f64>,
+    /// Fraction of total variance explained by each leading component.
+    pub explained_variance_ratio: Vec<f64>,
+    /// Cumulative explained-variance fraction through each leading component.
+    pub cumulative_variance: Vec<f64>,
+    /// Column means subtracted from the yield changes before PCA (one per tenor).
+    pub mean_change: Vec<f64>,
+    /// Tenor grid in years, in loading-row order.
+    pub tenors: Vec<f64>,
+}
+
 /// PCA decomposition of yield curve changes.
 ///
 /// See module-level documentation for details.
@@ -196,6 +218,44 @@ impl YieldPca {
     pub fn fit_yield_changes(yield_changes: Vec<Vec<f64>>) -> finstack_quant_core::Result<Self> {
         let panel = YieldPanel::from_yield_changes(yield_changes)?;
         Self::fit(&panel)
+    }
+
+    /// The leading `n_components` components as plain nested vectors.
+    ///
+    /// Row-major `loadings[tenor][k]` and `scores[t][k]` are truncated to
+    /// `n_components`; `eigenvalues`, `explained_variance_ratio` and
+    /// `cumulative_variance` are the leading `n_components` entries.
+    ///
+    /// # Arguments
+    ///
+    /// * `n_components` - Number of leading components to keep, in
+    ///   `1..=num_components()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when `n_components`
+    /// is zero or exceeds [`Self::num_components`].
+    pub fn truncated(&self, n_components: usize) -> finstack_quant_core::Result<YieldPcaView> {
+        if n_components == 0 || n_components > self.num_components() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "n_components must be in [1, {}], got {n_components}",
+                self.num_components()
+            )));
+        }
+        let take_cols = |m: &DMatrix<f64>| -> Vec<Vec<f64>> {
+            (0..m.nrows())
+                .map(|row| (0..n_components).map(|k| m[(row, k)]).collect())
+                .collect()
+        };
+        Ok(YieldPcaView {
+            loadings: take_cols(self.loadings()),
+            scores: take_cols(self.scores()),
+            eigenvalues: self.eigenvalues()[..n_components].to_vec(),
+            explained_variance_ratio: self.variance_explained()[..n_components].to_vec(),
+            cumulative_variance: self.cumulative_variance()[..n_components].to_vec(),
+            mean_change: self.mean_change().iter().copied().collect(),
+            tenors: self.tenors().to_vec(),
+        })
     }
 
     /// Number of components extracted (min(T-1, N)).

@@ -6,7 +6,7 @@ use crate::dates::date_extensions::DateExt;
 
 // 30/360 generalized helper
 /// 30/360 day-count variants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Thirty360Convention {
     /// 30U/360 (US SIA / Bond Basis).

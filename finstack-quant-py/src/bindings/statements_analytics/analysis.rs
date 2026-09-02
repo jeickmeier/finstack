@@ -12,12 +12,13 @@
 use crate::bindings::extract::{extract_market_opt, extract_model_ref, extract_results_ref};
 use crate::bindings::pandas_utils::serde_to_py;
 use crate::bindings::statements::checks::PyCheckReport;
+use crate::bindings::statements::evaluator::PyStatementResult;
+use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::bindings::statements_analytics::typed::{
     PyBridgeChart, PyScenarioDiff, PyScenarioResults, PyScenarioSet, PySensitivityConfig,
     PySensitivityResult, PyTornadoEntry, PyVarianceConfig, PyVarianceReport,
 };
 use crate::errors::{display_to_py, statements_to_py};
-use finstack_quant_statements_analytics::analysis::CorporateValuationResult;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -55,24 +56,6 @@ fn extract_scenario_set(
         return Ok(scenario_set.inner.clone());
     }
     serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
-}
-
-fn dcf_equity_result_dict<'py>(
-    py: Python<'py>,
-    result: &CorporateValuationResult,
-) -> PyResult<Bound<'py, PyDict>> {
-    let dict = PyDict::new(py);
-    dict.set_item("equity_value", result.equity_value.amount())?;
-    dict.set_item(
-        "equity_currency",
-        result.equity_value.currency().to_string(),
-    )?;
-    dict.set_item("enterprise_value", result.enterprise_value.amount())?;
-    dict.set_item("net_debt", result.net_debt.amount())?;
-    dict.set_item("terminal_value_pv", result.terminal_value_pv.amount())?;
-    dict.set_item("equity_value_per_share", result.equity_value_per_share)?;
-    dict.set_item("diluted_shares", result.diluted_shares)?;
-    Ok(dict)
 }
 
 /// Run sensitivity analysis on a financial model.
@@ -327,22 +310,20 @@ fn variance_bridge(
     })
 }
 
-/// Compute forecast accuracy metrics (MAE, MAPE, RMSE).
+/// Compute forecast accuracy metrics (MAE, MAPE, sMAPE, RMSE).
+///
+/// Returns the serde form of the Rust ``ForecastMetrics`` (``mae``, ``mape``,
+/// ``mape_effective_n``, ``smape``, ``rmse``, ``n``).
 #[pyfunction]
 fn backtest_forecast<'py>(
     py: Python<'py>,
     actual: Vec<f64>,
     forecast: Vec<f64>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'py, PyAny>> {
     let metrics =
         finstack_quant_statements_analytics::analysis::backtest_forecast(&actual, &forecast)
             .map_err(display_to_py)?;
-    let dict = PyDict::new(py);
-    dict.set_item("mae", metrics.mae)?;
-    dict.set_item("mape", metrics.mape)?;
-    dict.set_item("rmse", metrics.rmse)?;
-    dict.set_item("n", metrics.n)?;
-    Ok(dict)
+    serde_to_py(py, &metrics)
 }
 
 /// Find the driver value that makes a target node reach a target value.
@@ -368,9 +349,9 @@ fn backtest_forecast<'py>(
 ///
 /// Returns
 /// -------
-/// tuple[float, str | None]
-///     ``(solved_driver_value, updated_model_json)``. The updated model
-///     JSON is ``None`` when ``update_model`` is ``False``.
+/// tuple[float, FinancialModelSpec | None]
+///     ``(solved_driver_value, updated_model)``. The updated model is
+///     ``None`` when ``update_model`` is ``False``.
 #[pyfunction]
 #[pyo3(signature = (model, target_node, target_period, target_value, driver_node, driver_period, update_model=true, bounds=None))]
 #[allow(clippy::too_many_arguments)]
@@ -384,7 +365,7 @@ fn goal_seek(
     driver_period: &str,
     update_model: bool,
     bounds: Option<(f64, f64)>,
-) -> PyResult<(f64, Option<String>)> {
+) -> PyResult<(f64, Option<PyFinancialModelSpec>)> {
     let mut model = extract_model_ref(model)?.into_owned();
     let tp: finstack_quant_core::dates::PeriodId = target_period.parse().map_err(display_to_py)?;
     let dp: finstack_quant_core::dates::PeriodId = driver_period.parse().map_err(display_to_py)?;
@@ -404,12 +385,8 @@ fn goal_seek(
         )
         .map_err(display_to_py)?;
 
-        let updated_json = if update_model {
-            Some(serde_json::to_string(&model).map_err(display_to_py)?)
-        } else {
-            None
-        };
-        Ok((result, updated_json))
+        let updated = update_model.then(|| PyFinancialModelSpec::from_inner(model));
+        Ok((result, updated))
     })
 }
 
@@ -460,9 +437,11 @@ fn goal_seek(
 /// Returns
 /// -------
 /// dict
-///     Result dict with ``equity_value``, ``enterprise_value``,
-///     ``net_debt``, ``terminal_value_pv``, ``equity_value_per_share``,
-///     ``diluted_shares`` (all floats, in model currency).
+///     Serde form of the Rust ``CorporateValuationResult``: ``equity_value``,
+///     ``enterprise_value``, ``net_debt`` and ``terminal_value_pv`` are
+///     ``Money`` wire objects (``{"amount": "<decimal string>", "currency":
+///     "USD"}``); ``equity_value_per_share`` and ``diluted_shares`` are floats
+///     or ``None``.
 ///
 /// Raises
 /// ------
@@ -502,7 +481,7 @@ fn evaluate_dcf<'py>(
     market: Option<&Bound<'py, PyAny>>,
     as_of: Option<&Bound<'py, PyAny>>,
     exit_multiple_metric_node: Option<&str>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'py, PyAny>> {
     use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 
     let model = extract_model_ref(model)?.into_owned();
@@ -550,7 +529,7 @@ fn evaluate_dcf<'py>(
         })
         .map_err(display_to_py)?;
 
-    dcf_equity_result_dict(py, &result)
+    serde_to_py(py, &result)
 }
 
 /// Rank the headline DCF assumptions by enterprise-value impact.
@@ -603,11 +582,11 @@ fn evaluate_dcf<'py>(
 /// Returns
 /// -------
 /// dict
-///     Dict with ``baseline_enterprise_value`` (float), ``currency`` (str),
-///     ``entries`` (list of ``TornadoEntry`` serde dicts:
-///     ``{"parameter_id", "downside", "upside"}``), ``wacc_down``,
-///     ``wacc_down_clamped``, ``terminal_growth_up``,
-///     ``terminal_growth_up_clamped``.
+///     Serde form of the Rust ``DcfSensitivityResult``:
+///     ``baseline_enterprise_value`` (``Money`` wire object), ``entries``
+///     (list of ``TornadoEntry`` dicts: ``{"parameter_id", "downside",
+///     "upside"}``), ``wacc_down``, ``wacc_down_clamped``,
+///     ``terminal_growth_up``, ``terminal_growth_up_clamped``.
 #[pyfunction]
 #[pyo3(signature = (
     model,
@@ -638,7 +617,7 @@ fn dcf_sensitivity<'py>(
     mid_year_convention: bool,
     market: Option<&Bound<'py, PyAny>>,
     exit_multiple_metric_node: Option<&str>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'py, PyAny>> {
     use finstack_quant_statements_analytics::analysis::{DcfOptions, ExitMultipleBump};
     use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 
@@ -678,28 +657,7 @@ fn dcf_sensitivity<'py>(
         })
         .map_err(display_to_py)?;
 
-    // Serde-convert the entries so new `TornadoEntry` fields flow through
-    // without a hand-mapping edit (the WASM twin does the same).
-    let entries = serde_to_py(py, &result.entries)?;
-
-    let dict = PyDict::new(py);
-    dict.set_item(
-        "baseline_enterprise_value",
-        result.baseline_enterprise_value.amount(),
-    )?;
-    dict.set_item(
-        "currency",
-        result.baseline_enterprise_value.currency().to_string(),
-    )?;
-    dict.set_item("entries", entries)?;
-    dict.set_item("wacc_down", result.wacc_down)?;
-    dict.set_item("wacc_down_clamped", result.wacc_down_clamped)?;
-    dict.set_item("terminal_growth_up", result.terminal_growth_up)?;
-    dict.set_item(
-        "terminal_growth_up_clamped",
-        result.terminal_growth_up_clamped,
-    )?;
-    Ok(dict)
+    serde_to_py(py, &result)
 }
 
 /// Evaluate a leveraged-buyout transaction against a statement model.
@@ -768,7 +726,7 @@ fn evaluate_lbo<'py>(
     exit_period: &str,
     sources: Vec<(String, f64)>,
     transaction_fees: f64,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'py, PyAny>> {
     use finstack_quant_statements_analytics::analysis::{LboConfig, LboTranche};
 
     let model = extract_model_ref(model)?.into_owned();
@@ -796,30 +754,7 @@ fn evaluate_lbo<'py>(
         })
         .map_err(display_to_py)?;
 
-    let dict = PyDict::new(py);
-    dict.set_item(
-        "entry_enterprise_value",
-        result.entry_enterprise_value.amount(),
-    )?;
-    dict.set_item("entry_metric", result.entry_metric)?;
-    dict.set_item("debt_total", result.debt_total.amount())?;
-    dict.set_item("equity_check", result.equity_check.amount())?;
-    dict.set_item("sources_total", result.sources_total.amount())?;
-    dict.set_item("uses_total", result.uses_total.amount())?;
-    dict.set_item("sources_uses_balanced", result.sources_uses_balanced)?;
-    dict.set_item(
-        "exit_enterprise_value",
-        result.exit_enterprise_value.amount(),
-    )?;
-    dict.set_item("exit_metric", result.exit_metric)?;
-    dict.set_item("exit_net_debt", result.exit_net_debt.amount())?;
-    dict.set_item("exit_equity_proceeds", result.exit_equity_proceeds.amount())?;
-    dict.set_item("moic", result.moic)?;
-    dict.set_item(
-        "currency",
-        result.entry_enterprise_value.currency().to_string(),
-    )?;
-    Ok(dict)
+    serde_to_py(py, &result)
 }
 
 /// Weighted-average cost of capital (WACC).
@@ -909,12 +844,13 @@ fn wacc(
 /// Returns
 /// -------
 /// dict
-///     Dict with ``statement_json`` (str), optional ``equity`` (dict of
-///     scalar values), and ``credit`` (dict mapping instrument_id to
-///     credit metrics JSON, including ``dscr_incl_fees`` /
-///     ``dscr_incl_fees_min``). ``ev_suppressed_non_positive`` reports
-///     whether a non-positive DCF enterprise value was excluded from LTV
-///     metrics.
+///     Dict with ``statement`` (typed ``StatementResult``), ``equity``
+///     (serde dict of the Rust ``CorporateValuationResult`` with ``Money``
+///     wire objects, or ``None`` when no DCF was configured), and ``credit``
+///     (dict mapping instrument_id to the serde ``CreditContextMetrics``
+///     dict, including ``dscr_incl_fees`` / ``dscr_incl_fees_min``).
+///     ``ev_suppressed_non_positive`` reports whether a non-positive DCF
+///     enterprise value was excluded from LTV metrics.
 #[pyfunction]
 #[pyo3(signature = (
     model,
@@ -986,20 +922,21 @@ fn run_corporate_analysis<'py>(
         .map_err(display_to_py)?;
 
     let dict = PyDict::new(py);
-
-    let stmt_json = serde_json::to_string(&analysis.statement).map_err(display_to_py)?;
-    dict.set_item("statement_json", stmt_json)?;
-
-    if let Some(ref equity) = analysis.equity {
-        dict.set_item("equity", dcf_equity_result_dict(py, equity)?)?;
-    }
-
-    let credit_dict = PyDict::new(py);
-    for (inst_id, credit) in &analysis.credit {
-        let cred_json = serde_json::to_string(&credit).map_err(display_to_py)?;
-        credit_dict.set_item(inst_id.as_str(), cred_json)?;
-    }
-    dict.set_item("credit", credit_dict)?;
+    dict.set_item(
+        "statement",
+        PyStatementResult {
+            inner: analysis.statement,
+        },
+    )?;
+    dict.set_item(
+        "equity",
+        analysis
+            .equity
+            .as_ref()
+            .map(|equity| serde_to_py(py, equity))
+            .transpose()?,
+    )?;
+    dict.set_item("credit", serde_to_py(py, &analysis.credit)?)?;
     dict.set_item(
         "ev_suppressed_non_positive",
         analysis.ev_suppressed_non_positive,

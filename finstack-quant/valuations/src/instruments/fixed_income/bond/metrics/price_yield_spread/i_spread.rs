@@ -182,7 +182,7 @@ pub(crate) fn interpolated_swap_quote_rate(
                 return None;
             };
             let time = match pillar {
-                RateCalibrationPillar::Tenor(tenor) => Ok(tenor.to_years_simple()),
+                RateCalibrationPillar::Tenor(tenor) => Ok(tenor.to_years()),
                 RateCalibrationPillar::Date(date) => disc.day_count().year_fraction(
                     disc.base_date(),
                     *date,

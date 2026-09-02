@@ -4,40 +4,41 @@ use crate::utils::{to_js_err, to_js_err_core};
 use finstack_quant_core::dates::{
     adjust as core_adjust, available_calendars as core_available_calendars,
     fx::resolve_calendar as rust_resolve_calendar, BusinessDayConvention, DayCount as RustDayCount,
-    DayCountContext as RustDayCountContext, Tenor as RustTenor,
+    DayCountContext as RustDayCountContext, DayCountContextState, Tenor as RustTenor,
 };
 use wasm_bindgen::prelude::*;
 
 /// Optional context for day-count conventions that need market metadata.
 #[wasm_bindgen(js_name = DayCountContext)]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct JsDayCountContext {
-    calendar_code: Option<String>,
-    frequency: Option<RustTenor>,
-    bus_basis: Option<u16>,
-    coupon_period: Option<(time::Date, time::Date)>,
-    end_is_termination_date: bool,
+    /// Serializable state; the live calendar is resolved on each use.
+    pub(crate) inner: DayCountContextState,
+}
+
+impl Default for JsDayCountContext {
+    fn default() -> Self {
+        Self {
+            inner: DayCountContextState {
+                calendar_id: None,
+                frequency: None,
+                bus_basis: None,
+                coupon_period: None,
+                end_is_termination_date: false,
+            },
+        }
+    }
 }
 
 impl JsDayCountContext {
     /// Resolve to a runtime context.
     ///
-    /// Errors when `calendar_code` is set but unknown to the global calendar
-    /// lookup, instead of silently dropping the calendar.
+    /// Errors when the calendar id is set but unknown to the global calendar
+    /// lookup, instead of silently dropping the calendar. Routes through the
+    /// core registry error so unknown codes surface "Did you mean …?"
+    /// suggestions and a structured `not_found` kind.
     fn to_rust_ctx(&self) -> Result<RustDayCountContext<'static>, JsValue> {
-        let calendar = match self.calendar_code.as_deref() {
-            // Routes through the core registry error so unknown codes surface
-            // "Did you mean …?" suggestions and a structured `not_found` kind.
-            Some(code) => Some(rust_resolve_calendar(Some(code)).map_err(|e| to_js_err_core(&e))?),
-            None => None,
-        };
-        Ok(RustDayCountContext {
-            calendar,
-            frequency: self.frequency,
-            bus_basis: self.bus_basis,
-            coupon_period: self.coupon_period,
-            end_is_termination_date: self.end_is_termination_date,
-        })
+        self.inner.to_ctx().map_err(|e| to_js_err_core(&e))
     }
 }
 
@@ -55,7 +56,7 @@ impl JsDayCountContext {
     #[wasm_bindgen(js_name = withCalendar)]
     pub fn with_calendar(&self, calendar_code: &str) -> JsDayCountContext {
         let mut next = self.clone();
-        next.calendar_code = Some(calendar_code.to_string());
+        next.inner.calendar_id = Some(calendar_code.to_string());
         next
     }
 
@@ -65,7 +66,7 @@ impl JsDayCountContext {
     #[wasm_bindgen(js_name = withFrequency)]
     pub fn with_frequency(&self, frequency: &JsTenor) -> JsDayCountContext {
         let mut next = self.clone();
-        next.frequency = Some(frequency.inner);
+        next.inner.frequency = Some(frequency.inner);
         next
     }
 
@@ -75,7 +76,7 @@ impl JsDayCountContext {
     #[wasm_bindgen(js_name = withBusBasis)]
     pub fn with_bus_basis(&self, bus_basis: u16) -> JsDayCountContext {
         let mut next = self.clone();
-        next.bus_basis = Some(bus_basis);
+        next.inner.bus_basis = Some(bus_basis);
         next
     }
 
@@ -102,7 +103,7 @@ impl JsDayCountContext {
             .with_coupon_period(start, end)
             .map_err(to_js_err)?;
         let mut next = self.clone();
-        next.coupon_period = validated.coupon_period;
+        next.inner.coupon_period = validated.coupon_period;
         Ok(next)
     }
 
@@ -113,7 +114,7 @@ impl JsDayCountContext {
     #[wasm_bindgen(js_name = withEndIsTerminationDate)]
     pub fn with_end_is_termination_date(&self, value: bool) -> JsDayCountContext {
         let mut next = self.clone();
-        next.end_is_termination_date = value;
+        next.inner.end_is_termination_date = value;
         next
     }
 }
@@ -385,7 +386,7 @@ impl JsDayCount {
 /// await init();
 /// const t = new core.Tenor("3M");
 /// t.toString();        // "3M"
-/// t.toYearsSimple();   // 0.25
+/// t.toYears();   // 0.25
 ///
 /// const annual = core.Tenor.annual();
 /// annual.toString();   // "1Y"
@@ -465,9 +466,9 @@ impl JsTenor {
     }
 
     /// Approximate length in years (simple estimate, no calendar).
-    #[wasm_bindgen(js_name = toYearsSimple)]
-    pub fn to_years_simple(&self) -> f64 {
-        self.inner.to_years_simple()
+    #[wasm_bindgen(js_name = toYears)]
+    pub fn to_years(&self) -> f64 {
+        self.inner.to_years()
     }
 
     /// Tenor string representation.
@@ -642,13 +643,13 @@ mod tests {
     fn tenor_parse() {
         let t = JsTenor::new("3M").expect("valid");
         assert_eq!(t.count(), 3);
-        assert!(t.to_years_simple() > 0.24 && t.to_years_simple() < 0.26);
+        assert!(t.to_years() > 0.24 && t.to_years() < 0.26);
     }
 
     #[test]
     fn tenor_parse_year() {
         let t = JsTenor::new("1Y").expect("valid");
-        assert!((t.to_years_simple() - 1.0).abs() < 0.01);
+        assert!((t.to_years() - 1.0).abs() < 0.01);
     }
 
     #[test]
@@ -709,19 +710,19 @@ mod tests {
     #[test]
     fn tenor_semi_annual_years() {
         let t = JsTenor::semi_annual();
-        assert!((t.to_years_simple() - 0.5).abs() < 0.01);
+        assert!((t.to_years() - 0.5).abs() < 0.01);
     }
 
     #[test]
     fn tenor_annual_years() {
         let t = JsTenor::annual();
-        assert!((t.to_years_simple() - 1.0).abs() < 0.01);
+        assert!((t.to_years() - 1.0).abs() < 0.01);
     }
 
     #[test]
     fn tenor_daily_years() {
         let t = JsTenor::daily();
-        assert!(t.to_years_simple() < 0.01);
+        assert!(t.to_years() < 0.01);
     }
 
     // -- Boundary tests ------------------------------------------------

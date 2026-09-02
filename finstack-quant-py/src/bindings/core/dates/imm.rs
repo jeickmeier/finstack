@@ -8,7 +8,7 @@ use finstack_quant_core::dates::{
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use super::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 
 /// Public names registered by this module.
 pub const EXPORTS: &[&str] = &[
@@ -26,11 +26,6 @@ pub const EXPORTS: &[&str] = &[
     "next_equity_option_expiry",
 ];
 
-fn month(value: u8) -> PyResult<time::Month> {
-    time::Month::try_from(value)
-        .map_err(|_| crate::errors::value_error(format!("invalid month: {value}")))
-}
-
 /// Third Wednesday of the given month — the IMM date convention.
 #[pyfunction(name = "third_wednesday")]
 #[pyo3(text_signature = "(month, year)")]
@@ -39,7 +34,13 @@ fn py_third_wednesday<'py>(
     month_number: u8,
     year: i32,
 ) -> PyResult<Bound<'py, PyAny>> {
-    date_to_py(py, third_wednesday(month(month_number)?, year))
+    date_to_py(
+        py,
+        third_wednesday(
+            crate::bindings::date_utils::month_from_u8(month_number)?,
+            year,
+        ),
+    )
 }
 
 /// Third Friday of the given month — the listed-equity-option expiry
@@ -51,7 +52,13 @@ fn py_third_friday<'py>(
     month_number: u8,
     year: i32,
 ) -> PyResult<Bound<'py, PyAny>> {
-    date_to_py(py, third_friday(month(month_number)?, year))
+    date_to_py(
+        py,
+        third_friday(
+            crate::bindings::date_utils::month_from_u8(month_number)?,
+            year,
+        ),
+    )
 }
 
 /// Next quarterly IMM date strictly after `date`.
@@ -181,7 +188,13 @@ fn py_imm_option_expiry<'py>(
     month_number: u8,
     year: i32,
 ) -> PyResult<Bound<'py, PyAny>> {
-    date_to_py(py, imm_option_expiry(month(month_number)?, year))
+    date_to_py(
+        py,
+        imm_option_expiry(
+            crate::bindings::date_utils::month_from_u8(month_number)?,
+            year,
+        ),
+    )
 }
 
 /// Next quarterly IMM option expiry strictly after `date`.

@@ -2079,45 +2079,6 @@ class Performance:
         This accessor does not raise; it returns the stored or derived value.
         """
 
-    def skew_kurt(self) -> tuple[pd.Series, pd.Series]:
-        """
-        Per-ticker ``(skewness, kurtosis)`` from one moments pass.
-
-        Returns
-        -------
-        tuple[pd.Series, pd.Series]
-            ``(skewness, kurtosis)``, each indexed by ticker name and named
-            after its metric.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
-        """
-
-    def value_at_risk_and_es(
-        self,
-        confidence: float = 0.95,
-    ) -> tuple[pd.Series, pd.Series]:
-        """
-        Per-ticker ``(value_at_risk, expected_shortfall)`` from one tail pass.
-
-        Parameters
-        ----------
-        confidence : float, default 0.95
-            Confidence level.
-
-        Returns
-        -------
-        tuple[pd.Series, pd.Series]
-            ``(value_at_risk, expected_shortfall)``, each indexed by ticker
-            name and named after its metric.
-
-        Raises
-        ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
-        """
-
     def downside_deviation(self, mar: float = 0.0) -> pd.Series:
         """
         Downside deviation for each ticker.

@@ -144,7 +144,7 @@ fn resolve_bump_targets(
             let tenor_years_ctx = tenor
                 .to_years_with_context(as_of, None, BusinessDayConvention::Unadjusted, day_count)
                 .map_err(|e| Error::Internal(e.to_string()))?;
-            (tenor_years_ctx, tenor.to_years_simple())
+            (tenor_years_ctx, tenor.to_years())
         };
 
         let add = *bp;

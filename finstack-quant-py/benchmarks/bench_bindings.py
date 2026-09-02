@@ -41,7 +41,7 @@ from finstack_quant.analytics import Performance
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.market_data import DiscountCurve, ForwardCurve, FxMatrix, MarketContext
-from finstack_quant.core.math import count_consecutive, linalg, stats
+from finstack_quant.core.math import linalg, longest_positive_run, stats
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Rate
 from finstack_quant.margin import (
@@ -398,7 +398,7 @@ _MODEL_SPEC = _build_model_spec()
 _MODEL_JSON = _MODEL_SPEC.to_json()
 
 SENSITIVITY_CONFIG_JSON = json.dumps({
-    "mode": "Diagonal",
+    "mode": "diagonal",
     "parameters": [
         {
             "node_id": "revenue",
@@ -588,8 +588,8 @@ class TestAnalyticsBenchmarks:
     def test_period_stats(self, benchmark) -> None:
         benchmark(_PERFORMANCE_10K.period_stats, 0, "monthly")
 
-    def test_count_consecutive(self, benchmark) -> None:
-        benchmark(count_consecutive, RETURNS_10K)
+    def test_longest_positive_run(self, benchmark) -> None:
+        benchmark(longest_positive_run, RETURNS_10K)
 
 
 # Correlation domain

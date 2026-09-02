@@ -1,6 +1,6 @@
 //! Typed Python wrappers for scenario specifications and template metadata.
 
-use crate::bindings::core::dates::utils::date_to_py;
+use crate::bindings::date_utils::date_to_py;
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;

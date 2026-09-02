@@ -7,7 +7,7 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 use super::helpers::{parse_day_count, parse_extrapolation, parse_interp_style};
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 /// Forward price curve for commodities and other price-based assets.

@@ -2,9 +2,10 @@
 
 use super::types::*;
 use crate::bindings::core::dates::daycount::PyDayCount;
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::bindings::pandas_utils::{
-    dates_to_datetime_index, dict_to_dataframe, int_values_to_series, values_to_series,
+    dates_to_datetime_index, dict_to_dataframe, int_values_to_series, table_to_dataframe,
+    values_to_series,
 };
 use crate::errors::analytics_to_py as core_to_py;
 use crate::errors::value_error;
@@ -17,7 +18,6 @@ use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use std::collections::BTreeSet;
 
 type PyPeriodicReturnPanel<'py> = Vec<Vec<(Bound<'py, PyAny>, f64)>>;
 
@@ -30,10 +30,6 @@ fn vec_to_pyarray<'py>(py: Python<'py>, values: Vec<f64>) -> Bound<'py, PyArray1
 /// Wrap a borrowed `&[f64]` as a NumPy `float64` array (one copy).
 fn slice_to_pyarray<'py>(py: Python<'py>, values: &[f64]) -> Bound<'py, PyArray1<f64>> {
     PyArray1::from_slice(py, values)
-}
-
-fn py_dates_to_rust(dates: &[Bound<'_, PyAny>]) -> PyResult<Vec<time::Date>> {
-    dates.iter().map(py_to_date).collect()
 }
 
 /// Default fiscal-year start month (January) when callers do not override.
@@ -150,7 +146,10 @@ fn extract_dataframe(df: &Bound<'_, PyAny>) -> PyResult<DataFramePanel> {
     let index = df.getattr("index")?;
     let dates_list = index.call_method0("tolist")?;
     let dates_py: Vec<Bound<'_, PyAny>> = dates_list.extract()?;
-    let dates = py_dates_to_rust(&dates_py)?;
+    let dates = dates_py
+        .iter()
+        .map(py_to_date)
+        .collect::<PyResult<Vec<_>>>()?;
 
     let columns = df.getattr("columns")?;
     let cols_list = columns.call_method0("tolist")?;
@@ -251,55 +250,33 @@ fn panel_to_dataframe<'py>(
     perf: &fa::Performance,
     panel: Vec<Vec<f64>>,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let ticker_names = perf.ticker_names();
-    let dates = perf.active_dates();
-    let data = PyDict::new(py);
-    for (ticker_idx, (name, series)) in ticker_names.iter().zip(panel).enumerate() {
-        let ticker_dates = perf
-            .active_dates_for_ticker(ticker_idx)
-            .map_err(core_to_py)?;
-        let mut padded = vec![f64::NAN; dates.len()];
-        let mut global_idx = 0usize;
-        for (&date, &value) in ticker_dates.iter().zip(series.iter()) {
-            while global_idx < dates.len() && dates[global_idx] < date {
-                global_idx += 1;
-            }
-            if global_idx < dates.len() && dates[global_idx] == date {
-                padded[global_idx] = value;
-            }
-        }
-        data.set_item(name, vec_to_pyarray(py, padded))?;
-    }
-    let idx = dates_to_datetime_index(py, dates)?;
-    dict_to_dataframe(py, &data, Some(idx))
+    let (dates, columns) = perf.aligned_panel(panel).map_err(core_to_py)?;
+    aligned_columns_to_dataframe(py, perf, &dates, columns)
 }
 
-/// Rectangularize ragged per-ticker periodic series onto the sorted union of
-/// period-end dates, producing a pandas ``DataFrame`` with one column per ticker.
+/// Calendar-bucketed returns on the union of period-end dates, one column per
+/// ticker.
 fn periodic_panel_to_dataframe<'py>(
     py: Python<'py>,
     perf: &fa::Performance,
-    panel: Vec<Vec<(time::Date, f64)>>,
+    frequency: PeriodKind,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let mut all_dates: BTreeSet<time::Date> = BTreeSet::new();
-    for series in &panel {
-        for (d, _) in series {
-            all_dates.insert(*d);
-        }
-    }
-    let dates: Vec<time::Date> = all_dates.into_iter().collect();
+    let (dates, columns) = perf.periodic_returns_aligned(frequency);
+    aligned_columns_to_dataframe(py, perf, &dates, columns)
+}
 
+/// Build a date-indexed frame from Rust-aligned per-ticker columns.
+fn aligned_columns_to_dataframe<'py>(
+    py: Python<'py>,
+    perf: &fa::Performance,
+    dates: &[time::Date],
+    columns: Vec<Vec<f64>>,
+) -> PyResult<Bound<'py, PyAny>> {
     let data = PyDict::new(py);
-    for (name, series) in perf.ticker_names().iter().zip(panel) {
-        let mut padded = vec![f64::NAN; dates.len()];
-        for (d, v) in series {
-            if let Ok(pos) = dates.binary_search(&d) {
-                padded[pos] = v;
-            }
-        }
+    for (name, padded) in perf.ticker_names().iter().zip(columns) {
         data.set_item(name, vec_to_pyarray(py, padded))?;
     }
-    let idx = dates_to_datetime_index(py, &dates)?;
+    let idx = dates_to_datetime_index(py, dates)?;
     dict_to_dataframe(py, &data, Some(idx))
 }
 
@@ -368,7 +345,7 @@ impl PyPerformance {
         benchmark_ticker: Option<&str>,
         frequency: &str,
     ) -> PyResult<Self> {
-        let rust_dates = py_dates_to_rust(&dates)?;
+        let rust_dates = dates.iter().map(py_to_date).collect::<PyResult<Vec<_>>>()?;
         build_performance(
             py,
             rust_dates,
@@ -417,7 +394,7 @@ impl PyPerformance {
         benchmark_ticker: Option<&str>,
         frequency: &str,
     ) -> PyResult<Self> {
-        let rust_dates = py_dates_to_rust(&dates)?;
+        let rust_dates = dates.iter().map(py_to_date).collect::<PyResult<Vec<_>>>()?;
         build_returns_performance(
             py,
             rust_dates,
@@ -696,45 +673,6 @@ impl PyPerformance {
     fn geometric_mean<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let values = self.inner.geometric_mean();
         values_to_series(py, values, self.inner.ticker_names(), "geometric_mean")
-    }
-
-    /// Per-ticker ``(skewness, kurtosis)`` from one moments pass per ticker.
-    ///
-    /// Equivalent to calling :meth:`skewness` and :meth:`kurtosis` but walking
-    /// each ticker once.
-    ///
-    /// Returns
-    /// -------
-    /// tuple of pandas.Series
-    ///     ``(skewness, kurtosis)``, each indexed by ticker name.
-    fn skew_kurt<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
-        let (skew, kurt) = self.inner.skew_kurt();
-        let names = self.inner.ticker_names();
-        let skew_series = values_to_series(py, skew, names, "skewness")?;
-        let kurt_series = values_to_series(py, kurt, names, "kurtosis")?;
-        Ok((skew_series, kurt_series))
-    }
-
-    /// Per-ticker ``(value_at_risk, expected_shortfall)`` from one tail pass.
-    ///
-    /// Equivalent to calling :meth:`value_at_risk` and
-    /// :meth:`expected_shortfall` but sharing the tail partition.
-    ///
-    /// Returns
-    /// -------
-    /// tuple of pandas.Series
-    ///     ``(value_at_risk, expected_shortfall)``, each indexed by ticker name.
-    #[pyo3(signature = (confidence = 0.95))]
-    fn value_at_risk_and_es<'py>(
-        &self,
-        py: Python<'py>,
-        confidence: f64,
-    ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
-        let (var, es) = self.inner.value_at_risk_and_es(confidence);
-        let names = self.inner.ticker_names();
-        let var_series = values_to_series(py, var, names, "value_at_risk")?;
-        let es_series = values_to_series(py, es, names, "expected_shortfall")?;
-        Ok((var_series, es_series))
     }
 
     /// Downside deviation for each ticker.
@@ -1356,53 +1294,13 @@ impl PyPerformance {
         risk_free_rate: f64,
         confidence: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        // Share work where the analytics layer offers combined helpers, so
-        // pairs that always travel together (VaR/ES, skewness/kurtosis) only
-        // walk each ticker once. All 22 metrics each walk the full return
-        // panel; release the GIL for the whole O(22 * n * m) block so other
-        // Python threads run concurrently.
-        let metrics: [(&str, Vec<f64>); 22] =
-            py.detach(|| -> PyResult<[(&str, Vec<f64>); 22]> {
-                let (var, es) = self.inner.value_at_risk_and_es(confidence);
-                let (skew, kurt) = self.inner.skew_kurt();
-                Ok([
-                    (
-                        "cagr",
-                        self.inner
-                            .cagr(fa::CagrDayCount::default(), None)
-                            .map_err(core_to_py)?,
-                    ),
-                    ("mean_return", self.inner.mean_return(true)),
-                    ("volatility", self.inner.volatility(true)),
-                    ("sharpe", self.inner.sharpe(risk_free_rate)),
-                    ("sortino", self.inner.sortino(0.0)),
-                    ("calmar", self.inner.calmar().map_err(core_to_py)?),
-                    ("max_drawdown", self.inner.max_drawdown()),
-                    ("value_at_risk", var),
-                    ("expected_shortfall", es),
-                    ("tracking_error", self.inner.tracking_error()),
-                    ("information_ratio", self.inner.information_ratio()),
-                    ("skewness", skew),
-                    ("kurtosis", kurt),
-                    ("geometric_mean", self.inner.geometric_mean()),
-                    ("downside_deviation", self.inner.downside_deviation(0.0)),
-                    ("omega_ratio", self.inner.omega_ratio(0.0)),
-                    ("gain_to_pain", self.inner.gain_to_pain()),
-                    ("ulcer_index", self.inner.ulcer_index()),
-                    ("pain_index", self.inner.pain_index()),
-                    ("recovery_factor", self.inner.recovery_factor()),
-                    ("tail_ratio", self.inner.tail_ratio(confidence)),
-                    ("r_squared", self.inner.r_squared()),
-                ])
-            })?;
-
-        let data = PyDict::new(py);
-        for (name, values) in metrics {
-            data.set_item(name, vec_to_pyarray(py, values))?;
-        }
-
-        let idx = ticker_index(py, self.inner.ticker_names())?;
-        dict_to_dataframe(py, &data, Some(idx))
+        // The 22-metric table is assembled in Rust (`Performance::summary`),
+        // so pandas and JS read the same rows; release the GIL for the
+        // O(22 * n * m) walk.
+        let table = py
+            .detach(|| self.inner.summary(risk_free_rate, confidence))
+            .map_err(core_to_py)?;
+        table_to_dataframe(py, &table)?.call_method1("set_index", ("ticker",))
     }
 
     /// Per-period simple returns for all tickers as a pandas ``DataFrame``.
@@ -1437,7 +1335,7 @@ impl PyPerformance {
         frequency: &str,
     ) -> PyResult<Bound<'py, PyAny>> {
         let kind = parse_frequency(frequency)?;
-        periodic_panel_to_dataframe(py, &self.inner, self.inner.periodic_returns(kind))
+        periodic_panel_to_dataframe(py, &self.inner, kind)
     }
 
     /// Drawdown series for all tickers as a pandas ``DataFrame``.

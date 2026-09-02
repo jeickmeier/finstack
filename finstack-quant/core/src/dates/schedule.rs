@@ -220,7 +220,9 @@ use crate::dates::Tenor;
 /// # See Also
 ///
 /// - [`ScheduleBuilder::stub_rule`] to configure stub behavior
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
@@ -317,7 +319,9 @@ pub enum ScheduleWarning {
 }
 
 /// Explicit policy for how schedule construction should respond to recoverable issues.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ScheduleErrorPolicy {

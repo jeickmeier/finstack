@@ -24,7 +24,6 @@
 use crate::errors::display_to_py;
 use finstack_quant_valuations::instruments::rates::hw1f::coupon_profiles;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 
 /// Simulate a TARN coupon profile along a deterministic floating-rate path.
 ///
@@ -72,7 +71,7 @@ fn tarn_coupon_profile<'py>(
     floating_fixings: Vec<f64>,
     target_coupon: f64,
     day_count_fraction: f64,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'py, PyAny>> {
     let profile = coupon_profiles::tarn_coupon_profile(
         fixed_rate,
         coupon_floor,
@@ -81,21 +80,7 @@ fn tarn_coupon_profile<'py>(
         day_count_fraction,
     )
     .map_err(display_to_py)?;
-
-    let out = PyDict::new(py);
-    out.set_item("coupons_paid", profile.coupons_paid)?;
-    out.set_item("cumulative", profile.cumulative)?;
-    match profile.redemption_index {
-        Some(idx) => {
-            out.set_item("redemption_index", idx)?;
-            out.set_item("redeemed_early", profile.redeemed_early)?;
-        }
-        None => {
-            out.set_item("redemption_index", py.None())?;
-            out.set_item("redeemed_early", profile.redeemed_early)?;
-        }
-    }
-    Ok(out)
+    crate::bindings::pandas_utils::serde_to_py(py, &profile)
 }
 
 /// Compute the coupon schedule for a snowball note.

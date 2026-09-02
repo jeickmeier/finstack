@@ -1,11 +1,10 @@
 //! Python bindings for day-count conventions from [`finstack_quant_core::dates`].
 
 use crate::bindings::core::dates::tenor::PyTenor;
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 use finstack_quant_core::dates::{
-    fx::resolve_calendar, DayCount, DayCountContext, DayCountContextState, Tenor,
-    Thirty360Convention,
+    DayCount, DayCountContext, DayCountContextState, Thirty360Convention,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyModule, PyType};
@@ -16,9 +15,10 @@ use pyo3::types::{PyModule, PyType};
     module = "finstack_quant.core.dates",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyDayCount {
     /// Inner day-count convention.
     pub(crate) inner: DayCount,
@@ -162,37 +162,12 @@ impl PyDayCount {
         Ok(DayCount::calendar_days(s, e))
     }
 
-    /// Hash based on the discriminant.
-    fn __hash__(&self) -> isize {
-        self.discriminant() as isize
-    }
-
     fn __repr__(&self) -> String {
         format!("DayCount('{}')", self.inner)
     }
 
     fn __str__(&self) -> String {
         self.inner.to_string()
-    }
-}
-
-impl PyDayCount {
-    fn discriminant(&self) -> u8 {
-        match self.inner {
-            DayCount::Act360 => 0,
-            DayCount::Act365F => 1,
-            DayCount::Act365L => 2,
-            DayCount::Thirty360 => 3,
-            DayCount::ThirtyE360 => 4,
-            DayCount::ThirtyE360Isda => 5,
-            DayCount::ActAct => 6,
-            DayCount::ActActIsma => 7,
-            DayCount::Bus252 => 8,
-            DayCount::ActActAfb => 9,
-            DayCount::Thirty360It => 10,
-            #[allow(unreachable_patterns)]
-            _ => 255,
-        }
     }
 }
 
@@ -209,19 +184,8 @@ impl PyDayCount {
 )]
 #[derive(Clone, Debug)]
 pub struct PyDayCountContext {
-    /// Calendar identifier (e.g. ``"target2"``).
-    calendar_id: Option<String>,
-    /// Coupon frequency for ISMA conventions.
-    frequency: Option<Tenor>,
-    /// Custom business-day divisor (defaults to 252 when omitted).
-    bus_basis: Option<u16>,
-    /// Reference coupon period ``(start, end)`` for ACT/ACT (ICMA).
-    coupon_period: Option<(
-        finstack_quant_core::dates::Date,
-        finstack_quant_core::dates::Date,
-    )>,
-    /// Whether the accrual end is the instrument termination date.
-    end_is_termination_date: bool,
+    /// Serializable state; the live calendar is resolved on each use.
+    pub(crate) inner: DayCountContextState,
 }
 
 impl PyDayCountContext {
@@ -232,19 +196,9 @@ impl PyDayCountContext {
     /// Raises ``KeyError`` when ``calendar_id`` is set but cannot be resolved
     /// in the global calendar registry.
     fn to_rust_ctx(&self) -> PyResult<DayCountContext<'static>> {
-        let calendar = match self.calendar_id.as_deref() {
-            // Routes through the core registry error so unknown codes surface
-            // "Did you mean …?" suggestions instead of a bare message.
-            Some(code) => Some(resolve_calendar(Some(code)).map_err(core_to_py)?),
-            None => None,
-        };
-        Ok(DayCountContext {
-            calendar,
-            frequency: self.frequency,
-            bus_basis: self.bus_basis,
-            coupon_period: self.coupon_period,
-            end_is_termination_date: self.end_is_termination_date,
-        })
+        // Routes through the core registry error so unknown codes surface
+        // "Did you mean …?" suggestions instead of a bare message.
+        self.inner.to_ctx().map_err(core_to_py)
     }
 }
 
@@ -275,30 +229,32 @@ impl PyDayCountContext {
             })
             .transpose()?;
         Ok(Self {
-            calendar_id,
-            frequency: frequency.map(|f| f.inner),
-            bus_basis,
-            coupon_period,
-            end_is_termination_date,
+            inner: DayCountContextState {
+                calendar_id,
+                frequency: frequency.map(|f| f.inner),
+                bus_basis,
+                coupon_period,
+                end_is_termination_date,
+            },
         })
     }
 
     /// Optional calendar identifier.
     #[getter]
     fn calendar_id(&self) -> Option<&str> {
-        self.calendar_id.as_deref()
+        self.inner.calendar_id.as_deref()
     }
 
     /// Optional coupon frequency.
     #[getter]
     fn frequency(&self) -> Option<PyTenor> {
-        self.frequency.map(PyTenor::from_inner)
+        self.inner.frequency.map(PyTenor::from_inner)
     }
 
     /// Optional custom business-day divisor.
     #[getter]
     fn bus_basis(&self) -> Option<u16> {
-        self.bus_basis
+        self.inner.bus_basis
     }
 
     /// Optional reference coupon period as ``(start, end)`` dates.
@@ -307,7 +263,8 @@ impl PyDayCountContext {
         &self,
         py: Python<'py>,
     ) -> PyResult<Option<(Bound<'py, PyAny>, Bound<'py, PyAny>)>> {
-        self.coupon_period
+        self.inner
+            .coupon_period
             .map(|(s, e)| Ok((date_to_py(py, s)?, date_to_py(py, e)?)))
             .transpose()
     }
@@ -315,30 +272,24 @@ impl PyDayCountContext {
     /// Whether the accrual end is the instrument termination date.
     #[getter]
     fn end_is_termination_date(&self) -> bool {
-        self.end_is_termination_date
+        self.inner.end_is_termination_date
     }
 
     /// Convert to a serializable state snapshot.
     fn to_state(&self) -> PyDayCountContextState {
         PyDayCountContextState {
-            inner: DayCountContextState {
-                calendar_id: self.calendar_id.clone(),
-                frequency: self.frequency,
-                bus_basis: self.bus_basis,
-                coupon_period: self.coupon_period,
-                end_is_termination_date: self.end_is_termination_date,
-            },
+            inner: self.inner.clone(),
         }
     }
 
     fn __repr__(&self) -> String {
         format!(
             "DayCountContext(calendar_id={:?}, frequency={:?}, bus_basis={:?}, coupon_period={:?}, end_is_termination_date={})",
-            self.calendar_id,
-            self.frequency,
-            self.bus_basis,
-            self.coupon_period,
-            self.end_is_termination_date,
+            self.inner.calendar_id,
+            self.inner.frequency,
+            self.inner.bus_basis,
+            self.inner.coupon_period,
+            self.inner.end_is_termination_date,
         )
     }
 }
@@ -388,11 +339,7 @@ impl PyDayCountContextState {
     /// Reconstruct a live [`DayCountContext`] from this state.
     fn to_context(&self) -> PyDayCountContext {
         PyDayCountContext {
-            calendar_id: self.inner.calendar_id.clone(),
-            frequency: self.inner.frequency,
-            bus_basis: self.inner.bus_basis,
-            coupon_period: self.inner.coupon_period,
-            end_is_termination_date: self.inner.end_is_termination_date,
+            inner: self.inner.clone(),
         }
     }
 
@@ -450,9 +397,10 @@ impl PyDayCountContextState {
     module = "finstack_quant.core.dates",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyThirty360Convention {
     /// Inner convention variant.
     pub(crate) inner: Thirty360Convention,
@@ -480,16 +428,6 @@ impl PyThirty360Convention {
     const ITALIAN: PyThirty360Convention = PyThirty360Convention {
         inner: Thirty360Convention::Italian,
     };
-
-    /// Hash based on the discriminant.
-    fn __hash__(&self) -> isize {
-        match self.inner {
-            Thirty360Convention::UsSia => 0,
-            Thirty360Convention::Isda => 1,
-            Thirty360Convention::European => 2,
-            Thirty360Convention::Italian => 3,
-        }
-    }
 
     fn __repr__(&self) -> String {
         let label = match self.inner {

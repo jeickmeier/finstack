@@ -52,16 +52,15 @@ fn diebold_li_fit_factors<'py>(
     let fts = model
         .factors()
         .ok_or_else(|| crate::errors::value_error("factor extraction produced no factors"))?;
-    let t = fts.factors.nrows();
-
-    let mut beta1 = Vec::with_capacity(t);
-    let mut beta2 = Vec::with_capacity(t);
-    let mut beta3 = Vec::with_capacity(t);
-    for i in 0..t {
-        beta1.push(fts.factors[(i, 0)]);
-        beta2.push(fts.factors[(i, 1)]);
-        beta3.push(fts.factors[(i, 2)]);
-    }
+    let mut columns = fts.columns().into_iter();
+    let (beta1, beta2, beta3) = match (columns.next(), columns.next(), columns.next()) {
+        (Some(b1), Some(b2), Some(b3)) => (b1, b2, b3),
+        _ => {
+            return Err(crate::errors::value_error(
+                "factor extraction produced fewer than three factor columns",
+            ))
+        }
+    };
 
     let d = PyDict::new(py);
     d.set_item("beta1", beta1)?;
@@ -149,7 +148,7 @@ fn diebold_li_forecast<'py>(
 ///     cumulative_variance: list[float] -- cumulative variance ratio across
 ///         the leading ``n_components`` (length ``n_components``).
 ///     mean_change: list[float] -- column means subtracted before PCA (length N).
-///     tenors_index_hint: int -- informational; always equals N.
+///     tenors: list[float] -- tenor grid in years, in loading-row order (length N).
 #[pyfunction]
 #[pyo3(signature = (yield_changes, n_components=3))]
 #[pyo3(text_signature = "(yield_changes, n_components=3)")]
@@ -157,70 +156,11 @@ fn yield_pca_fit<'py>(
     py: Python<'py>,
     yield_changes: Vec<Vec<f64>>,
     n_components: usize,
-) -> PyResult<Bound<'py, PyDict>> {
-    let pca = py
-        .detach(|| YieldPca::fit_yield_changes(yield_changes))
+) -> PyResult<Bound<'py, PyAny>> {
+    let view = py
+        .detach(|| YieldPca::fit_yield_changes(yield_changes)?.truncated(n_components))
         .map_err(core_to_py)?;
-    let n = pca.tenors().len();
-    if n_components == 0 || n_components > pca.num_components() {
-        return Err(crate::errors::value_error(format!(
-            "n_components must be in [1, {}], got {n_components}",
-            pca.num_components()
-        )));
-    }
-
-    // Truncate to n_components.
-    let loadings = pca.loadings();
-    let scores = pca.scores();
-
-    let mut loadings_out: Vec<Vec<f64>> = Vec::with_capacity(n);
-    for row in 0..n {
-        let mut r = Vec::with_capacity(n_components);
-        for k in 0..n_components {
-            r.push(loadings[(row, k)]);
-        }
-        loadings_out.push(r);
-    }
-
-    let t_changes = scores.nrows();
-    let mut scores_out: Vec<Vec<f64>> = Vec::with_capacity(t_changes);
-    for i in 0..t_changes {
-        let mut r = Vec::with_capacity(n_components);
-        for k in 0..n_components {
-            r.push(scores[(i, k)]);
-        }
-        scores_out.push(r);
-    }
-
-    let eigenvalues: Vec<f64> = pca
-        .eigenvalues()
-        .iter()
-        .take(n_components)
-        .copied()
-        .collect();
-    let evr: Vec<f64> = pca
-        .variance_explained()
-        .iter()
-        .take(n_components)
-        .copied()
-        .collect();
-    let cum: Vec<f64> = pca
-        .cumulative_variance()
-        .iter()
-        .take(n_components)
-        .copied()
-        .collect();
-    let mean_change: Vec<f64> = pca.mean_change().iter().copied().collect();
-
-    let d = PyDict::new(py);
-    d.set_item("loadings", loadings_out)?;
-    d.set_item("scores", scores_out)?;
-    d.set_item("eigenvalues", eigenvalues)?;
-    d.set_item("explained_variance_ratio", evr)?;
-    d.set_item("cumulative_variance", cum)?;
-    d.set_item("mean_change", mean_change)?;
-    d.set_item("tenors_index_hint", n)?;
-    Ok(d)
+    crate::bindings::pandas_utils::serde_to_py(py, &view)
 }
 
 /// Generate a single-component N-sigma PCA scenario shift to the yield curve.

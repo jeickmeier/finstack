@@ -1,9 +1,9 @@
 //! Python wrappers for the statement evaluator and results.
 
 use super::types::PyFinancialModelSpec;
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::market_data::context::PyMarketContext;
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::py_to_date;
 use crate::bindings::pandas_utils::{selected_table_to_dataframe, table_to_dataframe};
 use crate::errors::{display_to_py, statements_to_py};
 use pyo3::prelude::*;

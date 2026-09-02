@@ -9,8 +9,8 @@ use pyo3::types::PyDict;
 use crate::bindings::cashflows::primitives::PyCashFlow;
 use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::periods::PyPeriod;
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 use super::orchestrator::PyCashFlowBuilder;

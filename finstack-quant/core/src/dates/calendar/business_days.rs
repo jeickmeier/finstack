@@ -201,7 +201,7 @@ pub struct CalendarMetadata {
 /// assert_eq!(adj.day(), 3);
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]

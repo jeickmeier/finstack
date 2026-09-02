@@ -20,17 +20,23 @@ def test_surface_report_keys_match_stub_contract() -> None:
         "elapsed_us",
     }
     assert set(report["by_severity"]) == {"negligible", "minor", "major", "critical"}
-    assert set(report["by_type"]) == {"butterfly", "calendar_spread", "local_vol_density"}
+    # Every `ArbitrageType` variant is reported, including the SVI checks.
+    assert set(report["by_type"]) == {
+        "butterfly",
+        "calendar_spread",
+        "local_vol_density",
+        "svi_moment_bound",
+        "svi_butterfly_condition",
+        "svi_calendar_spread",
+    }
 
+    # Violation rows are the serde form of the Rust `ArbitrageViolation`.
     expected_violation_keys = {
-        "type",
+        "violation_type",
+        "location",
         "severity",
-        "strike",
-        "expiry",
-        "adjacent_expiry",
         "magnitude",
-        "value",
-        "message",
         "description",
+        "suggested_adjustment",
     }
     assert all(set(violation) == expected_violation_keys for violation in report["violations"])

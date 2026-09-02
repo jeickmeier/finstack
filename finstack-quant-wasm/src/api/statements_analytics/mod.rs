@@ -104,10 +104,11 @@ pub fn evaluate_scenario_set(
     to_js_value(&map)
 }
 
-/// Compute forecast accuracy metrics (MAE, MAPE, RMSE).
+/// Compute forecast accuracy metrics (MAE, MAPE, sMAPE, RMSE).
 ///
-/// Takes two float arrays (actual, forecast) and returns a JSON object
-/// with keys `mae`, `mape`, `rmse`, `n`.
+/// Takes two float arrays (actual, forecast) and returns the serde form of
+/// the Rust `ForecastMetrics` (`mae`, `mape`, `mape_effective_n`, `smape`,
+/// `rmse`, `n`).
 ///
 /// # Errors
 ///
@@ -126,14 +127,7 @@ pub fn backtest_forecast(actual: JsValue, forecast: JsValue) -> Result<JsValue, 
         &forecast_vec,
     )
     .map_err(to_js_err)?;
-
-    let result = serde_json::json!({
-        "mae": metrics.mae,
-        "mape": metrics.mape,
-        "rmse": metrics.rmse,
-        "n": metrics.n,
-    });
-    to_js_value(&result)
+    to_js_value(&metrics)
 }
 
 /// Generate tornado chart entries for a sensitivity result.
@@ -237,19 +231,9 @@ pub fn dcf_sensitivity(
     )
     .map_err(to_js_err)?;
 
-    // Serde-convert the entries so new `TornadoEntry` fields flow through
-    // without a hand-mapping edit (the Python twin does the same).
-    let entries = serde_json::to_value(&result.entries).map_err(to_js_err)?;
-
-    to_js_value(&serde_json::json!({
-        "baseline_enterprise_value": result.baseline_enterprise_value.amount(),
-        "currency": result.baseline_enterprise_value.currency().to_string(),
-        "entries": entries,
-        "wacc_down": result.wacc_down,
-        "wacc_down_clamped": result.wacc_down_clamped,
-        "terminal_growth_up": result.terminal_growth_up,
-        "terminal_growth_up_clamped": result.terminal_growth_up_clamped,
-    }))
+    // Serde form of the Rust `DcfSensitivityResult`; `baseline_enterprise_value`
+    // is a `Money` wire object (`{amount, currency}`).
+    to_js_value(&result)
 }
 
 /// Evaluate a leveraged-buyout transaction against a statement model.
@@ -292,15 +276,8 @@ pub fn evaluate_lbo(
 ) -> Result<JsValue, JsValue> {
     use finstack_quant_statements_analytics::analysis::{LboConfig, LboTranche};
 
-    #[derive(serde::Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct TrancheInput {
-        name: String,
-        amount: f64,
-    }
-
     let model = parse_validated_model(model_json)?;
-    let tranches: Vec<TrancheInput> = serde_json::from_str(sources_json).map_err(to_js_err)?;
+    let sources: Vec<LboTranche> = serde_json::from_str(sources_json).map_err(to_js_err)?;
     let exit_period: finstack_quant_core::dates::PeriodId =
         exit_period.parse().map_err(to_js_err)?;
 
@@ -308,13 +285,7 @@ pub fn evaluate_lbo(
         entry_multiple,
         entry_metric_node: entry_metric_node.to_owned(),
         transaction_fees,
-        sources: tranches
-            .into_iter()
-            .map(|t| LboTranche {
-                name: t.name,
-                amount: t.amount,
-            })
-            .collect(),
+        sources,
         exit_multiple,
         exit_metric_node: exit_metric_node.to_owned(),
         exit_net_debt_node: exit_net_debt_node.to_owned(),
@@ -325,21 +296,9 @@ pub fn evaluate_lbo(
     let result = finstack_quant_statements_analytics::analysis::evaluate_lbo(&model, &config)
         .map_err(to_js_err)?;
 
-    to_js_value(&serde_json::json!({
-        "entry_enterprise_value": result.entry_enterprise_value.amount(),
-        "entry_metric": result.entry_metric,
-        "debt_total": result.debt_total.amount(),
-        "equity_check": result.equity_check.amount(),
-        "sources_total": result.sources_total.amount(),
-        "uses_total": result.uses_total.amount(),
-        "sources_uses_balanced": result.sources_uses_balanced,
-        "exit_enterprise_value": result.exit_enterprise_value.amount(),
-        "exit_metric": result.exit_metric,
-        "exit_net_debt": result.exit_net_debt.amount(),
-        "exit_equity_proceeds": result.exit_equity_proceeds.amount(),
-        "moic": result.moic,
-        "currency": result.entry_enterprise_value.currency().to_string(),
-    }))
+    // Serde form of the Rust `LboResult`; monetary fields are `Money` wire
+    // objects (`{amount, currency}`).
+    to_js_value(&result)
 }
 
 /// Weighted-average cost of capital (WACC).

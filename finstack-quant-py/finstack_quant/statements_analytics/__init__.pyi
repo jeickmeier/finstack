@@ -118,7 +118,7 @@ class SensitivityConfig:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import SensitivityConfig
-    >>> config = SensitivityConfig("Diagonal", [], ["profit"])
+    >>> config = SensitivityConfig("diagonal", [], ["profit"])
     >>> (config.parameter_count, config.target_metrics)
     (0, ['profit'])
 
@@ -136,7 +136,7 @@ class SensitivityConfig:
         ----------
         mode : str
             Scenario-construction mode accepted by the Rust sensitivity engine,
-            such as ``"Diagonal"``.
+            such as ``"diagonal"``.
         parameters : list[tuple[str, str, float, list[float]]]
             Tuples of node ID, model period, base value, and ordered shocked
             values; an empty list produces no parameter shocks.
@@ -175,7 +175,7 @@ class SensitivityConfig:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import SensitivityConfig
-        >>> config = SensitivityConfig("Diagonal", [], ["profit"])
+        >>> config = SensitivityConfig("diagonal", [], ["profit"])
         >>> SensitivityConfig.from_json(config.to_json()).target_metrics
         ['profit']
 
@@ -200,7 +200,7 @@ class SensitivityConfig:
     @property
     def mode(self) -> str:
         """
-        Analysis mode: ``"Diagonal"``, ``"FullGrid"``, or ``"Tornado"``.
+        Analysis mode: ``"diagonal"``, ``"full_grid"``, or ``"tornado"``.
 
         Returns
         -------
@@ -656,7 +656,7 @@ class SensitivityResult:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import SensitivityConfig, SensitivityResult
-    >>> payload = '{"config":' + SensitivityConfig("Diagonal").to_json() + ',"scenarios":[]}'
+    >>> payload = '{"config":' + SensitivityConfig("diagonal").to_json() + ',"scenarios":[]}'
     >>> len(SensitivityResult.from_json(payload))
     0
 
@@ -686,7 +686,7 @@ class SensitivityResult:
         Examples
         --------
         >>> from finstack_quant.statements_analytics import SensitivityConfig, SensitivityResult
-        >>> payload = '{"config":' + SensitivityConfig("Diagonal").to_json() + ',"scenarios":[]}'
+        >>> payload = '{"config":' + SensitivityConfig("diagonal").to_json() + ',"scenarios":[]}'
         >>> SensitivityResult.from_json(payload).target_metrics
         []
 
@@ -1232,7 +1232,7 @@ def run_sensitivity(
     >>> _ = builder.periods("2025Q1..Q1")
     >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> _ = builder.compute("profit", "revenue * 0.5")
-    >>> config = SensitivityConfig("Diagonal", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
+    >>> config = SensitivityConfig("diagonal", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
     >>> len(run_sensitivity(builder.build(), config))
     2
 
@@ -1274,7 +1274,7 @@ def generate_tornado_entries(
     >>> _ = builder.periods("2025Q1..Q1")
     >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> _ = builder.compute("profit", "revenue * 0.5")
-    >>> config = SensitivityConfig("Tornado", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
+    >>> config = SensitivityConfig("tornado", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
     >>> entries = generate_tornado_entries(run_sensitivity(builder.build(), config), "profit", "2025Q1")
     >>> (len(entries), entries[0].parameter_id)
     (1, 'revenue')
@@ -1363,7 +1363,7 @@ def evaluate_scenario_set(
 
 def backtest_forecast(actual: list[float], forecast: list[float]) -> dict[str, float | int]:
     """
-    Compute forecast accuracy metrics (MAE, MAPE, RMSE).
+    Compute forecast accuracy metrics (MAE, MAPE, sMAPE, RMSE).
 
     Parameters
     ----------
@@ -1375,7 +1375,8 @@ def backtest_forecast(actual: list[float], forecast: list[float]) -> dict[str, f
     Returns
     -------
     dict[str, float | int]
-        Dict with keys ``mae``, ``mape``, ``rmse``, and ``n``.
+        Serde form of the Rust ``ForecastMetrics``: ``mae``, ``mape``,
+        ``mape_effective_n``, ``smape``, ``rmse``, and ``n``.
 
     Raises
     ------
@@ -1400,7 +1401,7 @@ def goal_seek(
     driver_period: str,
     update_model: bool = True,
     bounds: tuple[float, float] | None = None,
-) -> tuple[float, str | None]:
+) -> tuple[float, FinancialModelSpec | None]:
     """
     Find the driver value that makes a target node hit a target value.
 
@@ -1425,9 +1426,10 @@ def goal_seek(
 
     Returns
     -------
-    tuple[float, str | None]
-        ``(solved_driver_value, updated_model_json)``. The updated model JSON
-        is ``None`` when ``update_model`` is ``False``.
+    tuple[float, FinancialModelSpec | None]
+        ``(solved_driver_value, updated_model)``. The updated model is a typed
+        ``FinancialModelSpec`` with the solved driver written back, or
+        ``None`` when ``update_model`` is ``False``.
 
     Raises
     ------
@@ -1508,9 +1510,12 @@ def evaluate_dcf(
 
     Returns
     -------
-    dict[str, float | str]
-        Dict with ``equity_value``, ``equity_currency``, ``enterprise_value``, ``net_debt``,
-        ``terminal_value_pv``, ``equity_value_per_share``, ``diluted_shares``.
+    dict[str, Any]
+        Serde form of the Rust ``CorporateValuationResult``. ``equity_value``,
+        ``enterprise_value``, ``net_debt`` and ``terminal_value_pv`` are
+        ``Money`` wire objects ``{"amount": "<decimal string>", "currency":
+        "USD"}``; ``equity_value_per_share`` and ``diluted_shares`` are floats
+        or ``None``.
 
     Raises
     ------
@@ -1529,8 +1534,9 @@ def evaluate_dcf(
     >>> _ = builder.value_money("ufcf", [("2025", Money(100.0, "USD")), ("2026", Money(110.0, "USD"))])
     >>> _ = builder.with_meta("currency", '"USD"')
     >>> terminal = '{"type":"gordon_growth","growth_rate":0.02}'
-    >>> evaluate_dcf(builder.build(), 0.10, terminal, net_debt_override=0.0)["enterprise_value"] > 0.0
-    True
+    >>> ev = evaluate_dcf(builder.build(), 0.10, terminal, net_debt_override=0.0)["enterprise_value"]
+    >>> (ev["currency"], float(ev["amount"]) > 0.0)
+    ('USD', True)
 
     """
     ...
@@ -1597,8 +1603,10 @@ def dcf_sensitivity(
     Returns
     -------
     dict[str, object]
-        Dict with ``baseline_enterprise_value``, ``currency``, ``entries``
-        (list of ``{"parameter_id", "downside", "upside"}``), ``wacc_down``,
+        Serde form of the Rust ``DcfSensitivityResult``:
+        ``baseline_enterprise_value`` (``Money`` wire object
+        ``{"amount", "currency"}``), ``entries`` (list of
+        ``{"parameter_id", "downside", "upside"}``), ``wacc_down``,
         ``wacc_down_clamped``, ``terminal_growth_up``, ``terminal_growth_up_clamped``.
 
     Raises
@@ -1632,7 +1640,7 @@ def evaluate_lbo(
     exit_period: str,
     sources: list[tuple[str, float]],
     transaction_fees: float = 0.0,
-) -> dict[str, float | bool | str]:
+) -> dict[str, Any]:
     """
     Evaluate a leveraged-buyout transaction against a statement model.
 
@@ -1668,11 +1676,13 @@ def evaluate_lbo(
 
     Returns
     -------
-    dict[str, float | bool | str]
-        Dict with ``entry_enterprise_value``, ``entry_metric``, ``debt_total``,
-        ``equity_check``, ``sources_total``, ``uses_total``, ``sources_uses_balanced``,
-        ``exit_enterprise_value``, ``exit_metric``, ``exit_net_debt``,
-        ``exit_equity_proceeds``, ``moic``, and ``currency``.
+    dict[str, Any]
+        Serde form of the Rust ``LboResult``: ``entry_enterprise_value``,
+        ``debt_total``, ``equity_check``, ``sources_total``, ``uses_total``,
+        ``exit_enterprise_value``, ``exit_net_debt`` and ``exit_equity_proceeds``
+        are ``Money`` wire objects ``{"amount": "<decimal string>", "currency":
+        "USD"}``; ``entry_metric``, ``exit_metric`` and ``moic`` are floats and
+        ``sources_uses_balanced`` is a bool.
 
     Raises
     ------
@@ -1692,7 +1702,7 @@ def evaluate_lbo(
     ...     builder.build(), 8.5, "ebitda", 9.5, "ebitda", "total_debt", "2026", [("debt", 115.0)], 3.0
     ... )
     >>> (result["entry_enterprise_value"], result["sources_uses_balanced"])
-    (187.0, True)
+    ({'amount': '187', 'currency': 'USD'}, True)
 
     """
     ...
@@ -1795,11 +1805,13 @@ def run_corporate_analysis(
     Returns
     -------
     dict[str, Any]
-        Dict with ``statement_json``, optional ``equity`` scalars, ``credit``
-        (instrument_id → credit metrics JSON including ``dscr_incl_fees`` /
-        ``dscr_incl_fees_min``), and ``ev_suppressed_non_positive``. The
-        credit metrics include ``skipped_periods`` for periods dropped from
-        min/max stats.
+        Dict with ``statement`` (typed ``StatementResult``), ``equity`` (serde
+        dict of the Rust ``CorporateValuationResult`` with ``Money`` wire
+        objects, or ``None`` when no DCF was configured), ``credit``
+        (instrument_id → serde ``CreditContextMetrics`` dict including
+        ``dscr_incl_fees`` / ``dscr_incl_fees_min``), and
+        ``ev_suppressed_non_positive``. The credit metrics include
+        ``skipped_periods`` for periods dropped from min/max stats.
 
     Raises
     ------
@@ -1815,7 +1827,7 @@ def run_corporate_analysis(
     >>> _ = builder.periods("2025Q1..Q1")
     >>> _ = builder.value("ebitda", [("2025Q1", 25.0)])
     >>> sorted(run_corporate_analysis(builder.build()))
-    ['credit', 'ev_suppressed_non_positive', 'statement_json']
+    ['credit', 'equity', 'ev_suppressed_non_positive', 'statement']
 
     """
     ...
@@ -6022,6 +6034,77 @@ class ScenarioDiff:
     'down'
 
     """
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Support ``pickle`` via the canonical JSON round-trip.
+
+        Returns
+        -------
+        tuple[Any, tuple[str]]
+            ``(ScenarioDiff.from_json, (json,))`` so unpickling rebuilds the diff.
+
+        Notes
+        -----
+        This accessor does not raise; it serializes the stored value.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ScenarioDiff:
+        """
+        Deserialize a scenario diff from its canonical JSON form.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON with ``baseline``, ``comparison`` and ``variance``.
+
+        Returns
+        -------
+        ScenarioDiff
+            Reconstructed diff.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or has an incompatible shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> from finstack_quant.statements_analytics import (
+        ...     ScenarioDiff,
+        ...     ScenarioSet,
+        ...     evaluate_scenario_set,
+        ...     scenario_diff,
+        ... )
+        >>> builder = ModelBuilder("demo")
+        >>> _ = builder.periods("2025Q1..Q1")
+        >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
+        >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
+        >>> results = evaluate_scenario_set(builder.build(), scenarios)
+        >>> diff = scenario_diff(scenarios, results, "base", "down", ["revenue"], ["2025Q1"])
+        >>> ScenarioDiff.from_json(diff.to_json()).comparison
+        'down'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to canonical JSON (``baseline``, ``comparison``, ``variance``).
+
+        Returns
+        -------
+        str
+            Canonical JSON representation of this `ScenarioDiff`, suitable for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
 
     @property
     def baseline(self) -> str:

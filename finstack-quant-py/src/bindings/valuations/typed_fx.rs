@@ -9,8 +9,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use crate::bindings::core::currency::PyCurrency;
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::py_to_date;
 use crate::bindings::extract::extract_market;
 use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -126,11 +126,6 @@ fn envelope_option_greeks<'py>(
         .map_err(core_to_py)?;
     let out = PyDict::new(py);
     for (metric, value) in pairs {
-        if !value.is_finite() {
-            return Err(value_error(format!(
-                "greek '{metric}' evaluated to a non-finite value ({value})"
-            )));
-        }
         out.set_item(metric, value)?;
     }
     Ok(out)

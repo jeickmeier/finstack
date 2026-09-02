@@ -184,15 +184,3 @@ pub(crate) fn py_to_serde<'py, T: serde::de::DeserializeOwned + Send>(
 pub(crate) fn parse_currency(code: &str) -> PyResult<finstack_quant_core::currency::Currency> {
     code.parse().map_err(crate::errors::display_to_py)
 }
-
-/// Build a [`Date`] from calendar parts, mapping both failures to `ValueError`.
-pub(crate) fn parse_date(
-    year: i32,
-    month: u8,
-    day: u8,
-) -> PyResult<finstack_quant_core::dates::Date> {
-    let month = time::Month::try_from(month)
-        .map_err(|e| crate::errors::value_error(format!("invalid month: {e}")))?;
-    finstack_quant_core::dates::Date::from_calendar_date(year, month, day)
-        .map_err(|e| crate::errors::value_error(format!("invalid date: {e}")))
-}

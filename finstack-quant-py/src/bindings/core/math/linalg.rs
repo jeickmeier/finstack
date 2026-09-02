@@ -120,33 +120,17 @@ fn apply_lower_triangular(py: Python<'_>, l: &Bound<'_, PyAny>, z: Vec<f64>) -> 
         .map_err(cholesky_err)
 }
 
-/// Validate that a matrix is a valid correlation matrix.
-///
-/// Checks diagonal elements are 1, off-diagonal entries are in [-1, 1],
-/// symmetry, and positive semi-definiteness. Accepts a ``numpy.ndarray``
-/// (``float64``) or ``list[list[float]]``.
-///
-/// Raises ``CholeskyError`` if any check fails.
-#[pyfunction]
-#[pyo3(text_signature = "(matrix)")]
-fn validate_correlation_matrix(py: Python<'_>, matrix: &Bound<'_, PyAny>) -> PyResult<()> {
-    let (flat, n) = extract_square_matrix(matrix)?;
-    py.detach(|| linalg::validate_correlation_matrix(&flat, n))
-        .map_err(cholesky_err)
-}
-
 /// Build the `finstack_quant.core.math.linalg` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "linalg")?;
     m.setattr(
         "__doc__",
-        "Linear algebra utilities: Cholesky decomposition, correlation matrices.",
+        "Linear algebra utilities: Cholesky decomposition and triangular solves.",
     )?;
 
     m.add_function(wrap_pyfunction!(apply_lower_triangular, &m)?)?;
     m.add_function(wrap_pyfunction!(cholesky_decomposition, &m)?)?;
     m.add_function(wrap_pyfunction!(cholesky_solve, &m)?)?;
-    m.add_function(wrap_pyfunction!(validate_correlation_matrix, &m)?)?;
 
     m.add("CholeskyError", py.get_type::<CholeskyError>())?;
 
@@ -164,7 +148,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "apply_lower_triangular",
             "cholesky_decomposition",
             "cholesky_solve",
-            "validate_correlation_matrix",
         ],
     )?;
     m.setattr("__all__", all)?;

@@ -1,6 +1,6 @@
 //! Shared helpers for constructing pandas DataFrames and Series from Rust data.
 
-use crate::bindings::core::dates::utils::date_to_py;
+use crate::bindings::date_utils::date_to_py;
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
 use numpy::PyArray1;
 use pyo3::prelude::*;

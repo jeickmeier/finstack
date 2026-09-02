@@ -13,6 +13,7 @@ mod aggregation;
 mod benchmark;
 mod rolling;
 mod scalar;
+mod table;
 
 /// Central performance analytics engine.
 ///

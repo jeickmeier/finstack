@@ -11,11 +11,10 @@ from finstack_quant.reporting import dcf_tearsheet
 from finstack_quant.reporting.document import TearSheet
 
 _VAL: dict[str, Any] = {
-    "equity_value": 850.0,
-    "equity_currency": "USD",
-    "enterprise_value": 1000.0,
-    "net_debt": 150.0,
-    "terminal_value_pv": 600.0,
+    "equity_value": {"amount": "850.00", "currency": "USD"},
+    "enterprise_value": {"amount": "1000.00", "currency": "USD"},
+    "net_debt": {"amount": "150.00", "currency": "USD"},
+    "terminal_value_pv": {"amount": "600.00", "currency": "USD"},
     "equity_value_per_share": 8.5,
     "diluted_shares": 100.0,
 }
@@ -84,7 +83,7 @@ def test_dcf_tearsheet_rejects_bad_valuation() -> None:
 
 def test_dcf_tearsheet_zero_net_debt_renders_bridge() -> None:
     val = dict(_VAL)
-    val["net_debt"] = 0.0
+    val["net_debt"] = {"amount": "0", "currency": "USD"}
     html = dcf_tearsheet(val, generated=dt.date(2026, 6, 22)).to_html()
     assert "Equity Bridge" in html
 

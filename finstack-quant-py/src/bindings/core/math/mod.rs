@@ -33,8 +33,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "count_consecutive",
             "linalg",
+            "longest_positive_run",
             "special_functions",
             "stats",
             "summation",

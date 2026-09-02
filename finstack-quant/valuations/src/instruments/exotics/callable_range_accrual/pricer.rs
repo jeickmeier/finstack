@@ -483,7 +483,7 @@ fn build_schedule(
                 "CallableRangeAccrual requires reference_tenor".to_string(),
             )
         })?
-        .to_years_simple();
+        .to_years();
     if !reference_tenor.is_finite() || reference_tenor <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
             "CallableRangeAccrual '{}' reference_tenor must be positive",

@@ -960,15 +960,9 @@ impl JsVolCube {
             .map_err(to_js_err)?;
             sabr_params.push(p);
         }
-        let mode = match interpolation_mode.as_deref().unwrap_or("vol") {
-            "vol" => VolInterpolationMode::Vol,
-            "total_variance" => VolInterpolationMode::TotalVariance,
-            other => {
-                return Err(to_js_err(format!(
-                    "invalid volatility interpolation mode {other:?}; expected 'vol' or 'total_variance'"
-                )));
-            }
-        };
+        let mode: VolInterpolationMode =
+            finstack_quant_core::wire::serde_parse(interpolation_mode.as_deref().unwrap_or("vol"))
+                .map_err(to_js_err)?;
         let cube = RustVolCube::from_grid(id, expiries, tenors, &sabr_params, forwards)
             .map_err(to_js_err)?
             .with_interpolation_mode(mode);
@@ -979,12 +973,8 @@ impl JsVolCube {
 
     /// Interpolation contract used across the expiry axis.
     #[wasm_bindgen(getter, js_name = interpolationMode)]
-    pub fn interpolation_mode(&self) -> String {
-        match self.inner.interpolation_mode() {
-            VolInterpolationMode::Vol => "vol",
-            VolInterpolationMode::TotalVariance => "total_variance",
-        }
-        .to_string()
+    pub fn interpolation_mode(&self) -> Result<String, JsValue> {
+        finstack_quant_core::wire::serde_label(&self.inner.interpolation_mode()).map_err(to_js_err)
     }
 
     /// Cube identifier.

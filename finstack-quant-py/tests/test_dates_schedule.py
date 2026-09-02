@@ -12,7 +12,7 @@ from finstack_quant.core.dates import (
     BusinessDayConvention,
     FiscalConfig,
     PeriodId,
-    ScheduleBuilder,
+    Schedule,
     ScheduleErrorPolicy,
     StubKind,
 )
@@ -20,7 +20,7 @@ from finstack_quant.core.dates import (
 
 def test_default_frequency_is_monthly() -> None:
     """An unspecified frequency defaults to monthly, matching Rust."""
-    builder = ScheduleBuilder(date(2025, 1, 15), date(2026, 1, 15))
+    builder = Schedule.builder(date(2025, 1, 15), date(2026, 1, 15))
     schedule = builder.build()
     # 12 monthly periods over one year -> 13 dates (start + 12 period ends).
     assert len(schedule) == 13
@@ -30,12 +30,12 @@ def test_imm_modes_use_last_call_wins() -> None:
     start = date(2025, 1, 15)
     end = date(2025, 9, 30)
 
-    cds_builder = ScheduleBuilder(start, end)
+    cds_builder = Schedule.builder(start, end)
     cds_builder.imm()
     cds_builder.cds_imm()
     cds_dates = cds_builder.build().dates
 
-    imm_builder = ScheduleBuilder(start, end)
+    imm_builder = Schedule.builder(start, end)
     imm_builder.cds_imm()
     imm_builder.imm()
     imm_dates = imm_builder.build().dates
@@ -47,7 +47,7 @@ def test_imm_modes_use_last_call_wins() -> None:
 
 
 def test_schedule_builder_setters_are_fluent_and_mutate_in_place() -> None:
-    builder = ScheduleBuilder(date(2025, 1, 15), date(2026, 1, 15))
+    builder = Schedule.builder(date(2025, 1, 15), date(2026, 1, 15))
 
     result = (
         builder
@@ -66,7 +66,8 @@ def test_schedule_builder_setters_are_fluent_and_mutate_in_place() -> None:
 
 def test_schedule_payment_and_fixing_dates() -> None:
     schedule = (
-        ScheduleBuilder(date(2025, 1, 2), date(2025, 1, 9))
+        Schedule
+        .builder(date(2025, 1, 2), date(2025, 1, 9))
         .frequency("1W")
         .adjust_with(BusinessDayConvention.FOLLOWING, "weekends")
         .payment_lag_business_days(2)
@@ -79,7 +80,7 @@ def test_schedule_payment_and_fixing_dates() -> None:
 
 
 def test_schedule_builder_fluent_setter_preserves_exceptions() -> None:
-    builder = ScheduleBuilder(date(2025, 1, 15), date(2026, 1, 15))
+    builder = Schedule.builder(date(2025, 1, 15), date(2026, 1, 15))
     with pytest.raises(ValueError, match=r"(?i)(tenor|parse|invalid)"):
         builder.frequency("not-a-tenor")
 

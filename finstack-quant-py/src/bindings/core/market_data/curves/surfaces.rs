@@ -1,7 +1,7 @@
 //! Volatility surface bindings.
 
 use finstack_quant_core::market_data::surfaces::{
-    FxDeltaVolSurface, SabrParameterData, VolCube, VolGridOpts, VolInterpolationMode, VolSurface,
+    FxDeltaVolSurface, SabrParameterData, VolCube, VolGridOpts, VolSurface,
 };
 use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
 use pyo3::types::PyDict;
@@ -12,9 +12,9 @@ use pyo3::prelude::*;
 
 use super::helpers::{
     parse_day_count, parse_extrapolation, parse_interp_style, parse_vol_interpolation_mode,
-    parse_vol_quote_type, parse_vol_surface_axis,
+    parse_vol_quote_type, parse_vol_surface_axis, vol_interpolation_mode_name,
 };
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 /// Two-dimensional implied volatility surface on an expiry x strike grid.
@@ -106,11 +106,8 @@ impl PyVolSurface {
 
     /// Interpolation contract used between grid points.
     #[getter]
-    fn interpolation_mode(&self) -> String {
-        match self.inner.interpolation_mode() {
-            VolInterpolationMode::Vol => "vol".to_string(),
-            VolInterpolationMode::TotalVariance => "total_variance".to_string(),
-        }
+    fn interpolation_mode(&self) -> PyResult<String> {
+        vol_interpolation_mode_name(self.inner.interpolation_mode())
     }
 
     /// Surface grid shape as `(n_expiries, n_strikes)`.
@@ -348,11 +345,8 @@ impl PyVolCube {
 
     /// Interpolation contract (``"vol"`` or ``"total_variance"``).
     #[getter]
-    fn interpolation_mode(&self) -> &'static str {
-        match self.inner.interpolation_mode() {
-            VolInterpolationMode::Vol => "vol",
-            VolInterpolationMode::TotalVariance => "total_variance",
-        }
+    fn interpolation_mode(&self) -> PyResult<String> {
+        vol_interpolation_mode_name(self.inner.interpolation_mode())
     }
 
     fn __repr__(&self) -> String {

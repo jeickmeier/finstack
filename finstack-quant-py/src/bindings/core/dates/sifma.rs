@@ -7,7 +7,7 @@ use finstack_quant_core::dates::{
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use super::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 
 /// Public names registered by this module.
 pub const EXPORTS: &[&str] = &[
@@ -67,11 +67,6 @@ impl PySifmaSettlementClass {
     }
 }
 
-fn month(value: u8) -> PyResult<time::Month> {
-    time::Month::try_from(value)
-        .map_err(|_| crate::errors::value_error(format!("invalid month: {value}")))
-}
-
 /// Published SIFMA settlement date for a delivery month.
 ///
 /// Parameters
@@ -99,9 +94,12 @@ fn py_sifma_settlement_date<'py>(
     month_number: u8,
     year: i32,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
-    sifma_settlement_date(month(month_number)?, year)
-        .map(|date| date_to_py(py, date))
-        .transpose()
+    sifma_settlement_date(
+        crate::bindings::date_utils::month_from_u8(month_number)?,
+        year,
+    )
+    .map(|date| date_to_py(py, date))
+    .transpose()
 }
 
 /// Published SIFMA settlement date for one settlement class.
@@ -134,9 +132,13 @@ fn py_sifma_settlement_date_for_class<'py>(
     year: i32,
     settlement_class: PyRef<'_, PySifmaSettlementClass>,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
-    sifma_settlement_date_for_class(month(month_number)?, year, settlement_class.inner)
-        .map(|date| date_to_py(py, date))
-        .transpose()
+    sifma_settlement_date_for_class(
+        crate::bindings::date_utils::month_from_u8(month_number)?,
+        year,
+        settlement_class.inner,
+    )
+    .map(|date| date_to_py(py, date))
+    .transpose()
 }
 
 /// Estimated SIFMA settlement date for one settlement class.
@@ -174,7 +176,7 @@ fn py_estimated_sifma_settlement_date_for_class<'py>(
     date_to_py(
         py,
         estimated_sifma_settlement_date_for_class(
-            month(month_number)?,
+            crate::bindings::date_utils::month_from_u8(month_number)?,
             year,
             settlement_class.inner,
         ),

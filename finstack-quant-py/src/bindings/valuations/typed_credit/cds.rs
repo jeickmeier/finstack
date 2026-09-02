@@ -335,7 +335,7 @@ impl PyCreditDefaultSwapBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let date = crate::bindings::core::dates::utils::py_to_date(value)?;
+        let date = crate::bindings::date_utils::py_to_date(value)?;
         let b = take_cds(&mut slf)?;
         slf.inner = Some(b.protection_effective_date(date));
         Ok(slf)

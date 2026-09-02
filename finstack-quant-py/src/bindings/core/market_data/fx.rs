@@ -12,7 +12,7 @@ use pyo3::types::{PyList, PyModule};
 use pyo3::wrap_pyfunction;
 
 use crate::bindings::core::currency::{extract_currency, PyCurrency};
-use crate::bindings::core::dates::utils::py_to_date;
+use crate::bindings::date_utils::py_to_date;
 use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
 use crate::errors::{core_to_py, display_to_py};
 

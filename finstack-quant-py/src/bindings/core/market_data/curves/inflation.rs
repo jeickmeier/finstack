@@ -7,7 +7,7 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 use super::helpers::{parse_day_count, parse_interp_style};
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 /// CPI inflation curve for inflation-linked pricing and breakeven analysis.
@@ -94,12 +94,6 @@ impl PyInflationCurve {
     #[pyo3(text_signature = "(self, t1, t2)")]
     fn inflation_rate(&self, t1: f64, t2: f64) -> f64 {
         self.inner.inflation_rate(t1, t2)
-    }
-
-    /// Simple non-compounded inflation rate between `t1` and `t2`.
-    #[pyo3(text_signature = "(self, t1, t2)")]
-    fn inflation_rate_simple(&self, t1: f64, t2: f64) -> f64 {
-        self.inner.inflation_rate_simple(t1, t2)
     }
 
     /// Curve identifier string.

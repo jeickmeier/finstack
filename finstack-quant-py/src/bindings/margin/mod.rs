@@ -8,7 +8,6 @@ mod im;
 mod metrics;
 mod regulatory;
 mod schema;
-mod sensitivity_frame;
 mod types;
 mod xva;
 

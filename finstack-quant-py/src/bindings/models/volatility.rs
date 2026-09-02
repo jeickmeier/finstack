@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use crate::bindings::core::market_data::curves::{PyFxDeltaVolSurface, PyVolCube, PyVolSurface};
+use crate::bindings::pandas_utils::serde_to_py;
 use crate::errors::display_to_py;
 use finstack_quant_models::volatility as vol;
 use finstack_quant_models::volatility::sabr::{
@@ -288,29 +289,16 @@ impl PySabrSmile {
             .inner
             .validate_no_arbitrage(&strikes, r, q)
             .map_err(display_to_py)?;
-
-        let butterflies = PyList::empty(py);
-        for v in &result.butterfly_violations {
-            let item = PyDict::new(py);
-            item.set_item("strike", v.strike)?;
-            item.set_item("butterfly_value", v.butterfly_value)?;
-            item.set_item("severity_pct", v.severity_pct)?;
-            butterflies.append(item)?;
-        }
-        let mono = PyList::empty(py);
-        for v in &result.monotonicity_violations {
-            let item = PyDict::new(py);
-            item.set_item("strike_low", v.strike_low)?;
-            item.set_item("strike_high", v.strike_high)?;
-            item.set_item("price_low", v.price_low)?;
-            item.set_item("price_high", v.price_high)?;
-            mono.append(item)?;
-        }
-
         let out = PyDict::new(py);
         out.set_item("arbitrage_free", result.is_arbitrage_free())?;
-        out.set_item("butterfly_violations", butterflies)?;
-        out.set_item("monotonicity_violations", mono)?;
+        out.set_item(
+            "butterfly_violations",
+            serde_to_py(py, &result.butterfly_violations)?,
+        )?;
+        out.set_item(
+            "monotonicity_violations",
+            serde_to_py(py, &result.monotonicity_violations)?,
+        )?;
         Ok(out)
     }
 

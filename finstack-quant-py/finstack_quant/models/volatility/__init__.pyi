@@ -1090,29 +1090,35 @@ def strike_to_delta(strike: float, forward: float, vol: float, expiry: float) ->
     """
     ...
 
-class _ArbitrageViolation(TypedDict):
-    type: Literal[
-        "butterfly",
-        "calendar_spread",
-        "local_vol_density",
-        "svi_moment_bound",
-        "svi_butterfly_condition",
-        "svi_calendar_spread",
-    ]
-    severity: Literal["negligible", "minor", "major", "critical"]
+_ArbitrageTypeName = Literal[
+    "butterfly",
+    "calendar_spread",
+    "local_vol_density",
+    "svi_moment_bound",
+    "svi_butterfly_condition",
+    "svi_calendar_spread",
+]
+
+class _ViolationLocation(TypedDict):
     strike: float
     expiry: float
     adjacent_expiry: float | None
+
+class _ArbitrageViolation(TypedDict):
+    """Serde form of the Rust ``ArbitrageViolation``."""
+
+    violation_type: _ArbitrageTypeName
+    location: _ViolationLocation
+    severity: Literal["negligible", "minor", "major", "critical"]
     magnitude: float
-    value: float
-    message: str
     description: str
+    suggested_adjustment: float | None
 
 class _ArbitrageReport(TypedDict):
     total_violations: int
     passed: bool
     by_severity: dict[Literal["negligible", "minor", "major", "critical"], int]
-    by_type: dict[Literal["butterfly", "calendar_spread", "local_vol_density"], int]
+    by_type: dict[_ArbitrageTypeName, int]
     violations: list[_ArbitrageViolation]
     elapsed_us: int
 

@@ -650,7 +650,7 @@ impl CompiledCashFlowPlan {
             if schedule.spec.rate_spec.overnight_compounding.is_some() {
                 continue;
             }
-            let spec_years = spec_tenor.to_years_simple();
+            let spec_years = spec_tenor.to_years();
             let curve_years = curve.tenor();
             if curve_years > 0.0
                 && spec_years > 0.0

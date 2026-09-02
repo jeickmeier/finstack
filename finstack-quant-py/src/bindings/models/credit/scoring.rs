@@ -12,13 +12,9 @@ use pyo3::types::{PyList, PyModule};
 
 use crate::errors::display_to_py;
 
-/// Convert a `ScoringZone` into a lowercase Python string.
-fn zone_to_str(zone: ScoringZone) -> &'static str {
-    match zone {
-        ScoringZone::Safe => "safe",
-        ScoringZone::Grey => "grey",
-        ScoringZone::Distress => "distress",
-    }
+/// Serde name of a [`ScoringZone`] (`"safe"`, `"grey"`, `"distress"`).
+fn zone_to_str(zone: ScoringZone) -> PyResult<String> {
+    finstack_quant_core::wire::serde_label(&zone).map_err(crate::errors::core_to_py)
 }
 
 /// Compute the original Altman Z-Score (1968) for publicly traded manufacturing firms.
@@ -42,7 +38,7 @@ fn altman_z_score(
         sales_to_total_assets,
     };
     let r = core_altman_z_score(&input).map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string()))
+    Ok((r.score, zone_to_str(r.zone)?))
 }
 
 /// Compute the Altman Z'-Score for private firms.
@@ -68,7 +64,7 @@ fn altman_z_prime(
         sales_to_total_assets,
     };
     let r = core_altman_z_prime(&input).map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string()))
+    Ok((r.score, zone_to_str(r.zone)?))
 }
 
 /// Compute the Altman Z''-Score for non-manufacturing firms (non-EM model;
@@ -94,7 +90,7 @@ fn altman_z_double_prime(
         book_equity_to_total_liabilities,
     };
     let r = core_altman_z_double_prime(&input).map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string()))
+    Ok((r.score, zone_to_str(r.zone)?))
 }
 
 /// Compute the Altman EM-Score for emerging-market corporates.
@@ -122,7 +118,7 @@ fn altman_em_score(
         book_equity_to_total_liabilities,
     };
     let r = core_altman_em_score(&input).map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
+    Ok((r.score, zone_to_str(r.zone)?, r.implied_pd))
 }
 
 /// Compute the Ohlson O-Score (1980) nine-predictor logistic bankruptcy model.
@@ -163,7 +159,7 @@ fn ohlson_o_score(
         net_income_change,
     };
     let r = core_ohlson_o_score(&input).map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
+    Ok((r.score, zone_to_str(r.zone)?, r.implied_pd))
 }
 
 /// Compute the Zmijewski (1984) probit bankruptcy score.
@@ -189,7 +185,7 @@ fn zmijewski_score(
         current_assets_to_current_liabilities,
     };
     let r = core_zmijewski_score(&input).map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
+    Ok((r.score, zone_to_str(r.zone)?, r.implied_pd))
 }
 
 /// Build the `finstack_quant.models.credit.scoring` submodule.

@@ -250,7 +250,65 @@ pub enum Error {
 /// Convenience result type used throughout the core crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Coarse classification of an [`Error`] for host-language exception mapping.
+///
+/// Language bindings map this three-way split onto their native exception
+/// types (Python `KeyError` / `ValueError` / `RuntimeError`; JS error
+/// `kind` of `"not_found"` / `"validation"` / `"computation"`), so the
+/// partition is defined once here, by variant, never by message text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorKind {
+    /// A lookup by identifier failed (curve, calendar, FX pair, generic id).
+    NotFound,
+    /// The inputs were rejected before or during computation.
+    Validation,
+    /// The computation itself failed operationally (solver non-convergence,
+    /// calibration, internal invariant, dependency cycle, allocation limit).
+    Computation,
+}
+
 impl Error {
+    /// Classify this error for host-language exception mapping.
+    ///
+    /// - Lookup misses (`InputError::{MissingCurve, NotFound, CalendarNotFound,
+    ///   FxTriangulationFailed}`) → [`ErrorKind::NotFound`]
+    /// - `Calibration`, `Internal`, `CircularDependency`, and
+    ///   `InputError::{SolverConvergenceFailed, VolatilityConversionFailed,
+    ///   TooLarge}` → [`ErrorKind::Computation`]
+    /// - `MetricCalculationFailed` follows its cause: solver / calibration /
+    ///   internal / cycle causes are `Computation`, anything else `Validation`
+    /// - Everything else → [`ErrorKind::Validation`]
+    #[must_use]
+    pub fn kind(&self) -> ErrorKind {
+        match self {
+            Error::Input(
+                InputError::MissingCurve { .. }
+                | InputError::NotFound { .. }
+                | InputError::CalendarNotFound { .. }
+                | InputError::FxTriangulationFailed { .. },
+            ) => ErrorKind::NotFound,
+            Error::Calibration { .. }
+            | Error::Internal(_)
+            | Error::CircularDependency { .. }
+            | Error::Input(
+                InputError::SolverConvergenceFailed { .. }
+                | InputError::VolatilityConversionFailed { .. }
+                | InputError::TooLarge { .. },
+            ) => ErrorKind::Computation,
+            Error::MetricCalculationFailed { cause, .. } => match cause.as_ref() {
+                Error::Calibration { .. }
+                | Error::Internal(_)
+                | Error::CircularDependency { .. }
+                | Error::Input(InputError::SolverConvergenceFailed { .. }) => {
+                    ErrorKind::Computation
+                }
+                _ => ErrorKind::Validation,
+            },
+            _ => ErrorKind::Validation,
+        }
+    }
+
     /// Create a MissingCurve error with suggestions based on available curves.
     ///
     /// Performs fuzzy matching to find similar curve IDs.

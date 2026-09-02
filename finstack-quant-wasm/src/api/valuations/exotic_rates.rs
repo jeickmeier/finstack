@@ -54,14 +54,7 @@ pub fn tarn_coupon_profile(
         day_count_fraction,
     )
     .map_err(to_js_err)?;
-
-    let payload = serde_json::json!({
-        "coupons_paid": profile.coupons_paid,
-        "cumulative": profile.cumulative,
-        "redemption_index": profile.redemption_index,
-        "redeemed_early": profile.redeemed_early,
-    });
-    to_js_value(&payload)
+    to_js_value(&profile)
 }
 
 /// Snowball coupon schedule.

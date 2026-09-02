@@ -1,6 +1,6 @@
 //! Result structs and enums for the analytics domain.
 
-use crate::bindings::core::dates::utils::date_to_py;
+use crate::bindings::date_utils::date_to_py;
 use crate::bindings::pandas_utils::{
     dates_to_pylist, dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
     serde_rows_to_dataframe_with_schema, ColumnSchema,

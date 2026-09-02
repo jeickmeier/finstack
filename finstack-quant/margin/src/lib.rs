@@ -78,6 +78,7 @@ pub mod metrics;
 pub(crate) mod registry;
 /// Generated JSON Schema contract support.
 pub mod schema;
+pub mod table;
 /// Standalone traits used by the margin crate.
 pub mod traits;
 /// Margin and collateral domain types.

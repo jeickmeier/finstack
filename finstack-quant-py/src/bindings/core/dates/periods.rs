@@ -1,6 +1,6 @@
 //! Python bindings for period types from [`finstack_quant_core::dates`].
 
-use crate::bindings::core::dates::utils::date_to_py;
+use crate::bindings::date_utils::date_to_py;
 use crate::errors::core_to_py;
 use finstack_quant_core::dates::{
     build_fiscal_periods, build_periods, FiscalConfig, Period, PeriodId, PeriodKind, PeriodPlan,
@@ -410,28 +410,10 @@ impl PyFiscalConfig {
         Self::from_inner(FiscalConfig::japan())
     }
 
-    /// Canadian fiscal year (April 1).
-    #[classmethod]
-    fn canada(_cls: &Bound<'_, PyType>) -> Self {
-        Self::from_inner(FiscalConfig::canada())
-    }
-
     /// Australian fiscal year (July 1).
     #[classmethod]
     fn australia(_cls: &Bound<'_, PyType>) -> Self {
         Self::from_inner(FiscalConfig::australia())
-    }
-
-    /// German fiscal year (January 1, same as calendar year).
-    #[classmethod]
-    fn germany(_cls: &Bound<'_, PyType>) -> Self {
-        Self::from_inner(FiscalConfig::germany())
-    }
-
-    /// French fiscal year (January 1, same as calendar year).
-    #[classmethod]
-    fn france(_cls: &Bound<'_, PyType>) -> Self {
-        Self::from_inner(FiscalConfig::france())
     }
 
     /// Month when the fiscal year starts (1-12).

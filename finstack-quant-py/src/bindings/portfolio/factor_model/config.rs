@@ -4,12 +4,9 @@ use pyo3::types::PyType;
 use finstack_quant_models::factor::credit::VolHorizon;
 use finstack_quant_models::factor::risk::{DecompositionConfig, DecompositionMethod};
 
-/// Convert a Rust `DecompositionMethod` to a stable Python string.
-pub(super) fn decomposition_method_label(method: DecompositionMethod) -> &'static str {
-    match method {
-        DecompositionMethod::Parametric => "parametric",
-        DecompositionMethod::Historical => "historical",
-    }
+/// Serde name of a [`DecompositionMethod`] (`"parametric"` / `"historical"`).
+pub(super) fn decomposition_method_label(method: DecompositionMethod) -> PyResult<String> {
+    finstack_quant_core::wire::serde_label(&method).map_err(crate::errors::core_to_py)
 }
 
 /// Forecast horizon used to scale a calibrated `Sample` vol estimate.
@@ -174,8 +171,9 @@ impl PyDecompositionConfig {
         self.inner.confidence
     }
 
+    /// Decomposition method: ``"parametric"`` or ``"historical"``.
     #[getter]
-    fn method(&self) -> &'static str {
+    fn method(&self) -> PyResult<String> {
         decomposition_method_label(self.inner.method)
     }
 
@@ -193,7 +191,7 @@ impl PyDecompositionConfig {
         format!(
             "DecompositionConfig(confidence={}, method={:?}, compute_incremental={}, seed={:?})",
             self.inner.confidence,
-            decomposition_method_label(self.inner.method),
+            decomposition_method_label(self.inner.method).unwrap_or_else(|_| "?".to_string()),
             self.inner.compute_incremental,
             self.inner.seed,
         )

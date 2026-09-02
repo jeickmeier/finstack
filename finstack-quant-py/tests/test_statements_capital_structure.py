@@ -104,7 +104,7 @@ class TestWaterfallSpec:
         assert ws.priority_of_payments == ["interest", "sweep", "equity"]
 
     def test_rejects_unknown_priority_token(self) -> None:
-        with pytest.raises(ValueError, match="unknown payment priority"):
+        with pytest.raises(ValueError, match="nonexistent"):
             statements.WaterfallSpec(priority_of_payments=["nonexistent"])
 
     def test_with_ecf_and_pik(self) -> None:

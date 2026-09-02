@@ -258,36 +258,12 @@ impl JsSabrSmile {
             .inner
             .validate_no_arbitrage(&strikes, r.unwrap_or(0.0), q.unwrap_or(0.0))
             .map_err(to_js_err)?;
-        // Keep snake_case keys matching the Rust canonical fields and the Python
-        // binding so cross-binding consumers and parity tests read the same
-        // names (the earlier camelCase remap diverged from Python).
-        let butterfly: Vec<serde_json::Value> = result
-            .butterfly_violations
-            .iter()
-            .map(|v| {
-                serde_json::json!({
-                    "strike": v.strike,
-                    "butterfly_value": v.butterfly_value,
-                    "severity_pct": v.severity_pct,
-                })
-            })
-            .collect();
-        let monotonicity: Vec<serde_json::Value> = result
-            .monotonicity_violations
-            .iter()
-            .map(|v| {
-                serde_json::json!({
-                    "strike_low": v.strike_low,
-                    "strike_high": v.strike_high,
-                    "price_low": v.price_low,
-                    "price_high": v.price_high,
-                })
-            })
-            .collect();
+        // Violation rows are the serde form of the Rust types, so field
+        // names stay identical to Python and to `ArbitrageValidationResult`.
         let out = serde_json::json!({
             "arbitrage_free": result.is_arbitrage_free(),
-            "butterfly_violations": butterfly,
-            "monotonicity_violations": monotonicity,
+            "butterfly_violations": result.butterfly_violations,
+            "monotonicity_violations": result.monotonicity_violations,
         });
         to_js_value(&out)
     }

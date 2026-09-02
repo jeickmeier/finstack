@@ -1,6 +1,6 @@
 //! Python bindings for holiday calendars and business-day adjustment.
 
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 use finstack_quant_core::dates::{
     adjust, available_calendars, fx::resolve_calendar, BusinessDayConvention, CalendarMetadata,
@@ -9,14 +9,9 @@ use finstack_quant_core::dates::{
 use pyo3::prelude::*;
 use pyo3::types::{PyModule, PyType};
 
-/// Map [`WeekendRule`] to its stable snake_case serde name.
-const fn weekend_rule_str(rule: WeekendRule) -> &'static str {
-    match rule {
-        WeekendRule::SaturdaySunday => "saturday_sunday",
-        WeekendRule::FridaySaturday => "friday_saturday",
-        WeekendRule::FridayOnly => "friday_only",
-        WeekendRule::None => "none",
-    }
+/// Serde name of a [`WeekendRule`] (the stable snake_case wire form).
+fn weekend_rule_str(rule: WeekendRule) -> PyResult<String> {
+    finstack_quant_core::wire::serde_label(&rule).map_err(crate::errors::core_to_py)
 }
 
 /// Business-day adjustment convention.
@@ -25,9 +20,10 @@ const fn weekend_rule_str(rule: WeekendRule) -> &'static str {
     module = "finstack_quant.core.dates",
     frozen,
     eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyBusinessDayConvention {
     /// Inner convention variant.
     pub(crate) inner: BusinessDayConvention,
@@ -82,20 +78,6 @@ impl PyBusinessDayConvention {
             .map_err(crate::errors::value_error)
     }
 
-    /// Hash based on discriminant.
-    fn __hash__(&self) -> isize {
-        match self.inner {
-            BusinessDayConvention::Unadjusted => 0,
-            BusinessDayConvention::Following => 1,
-            BusinessDayConvention::ModifiedFollowing => 2,
-            BusinessDayConvention::Preceding => 3,
-            BusinessDayConvention::ModifiedPreceding => 4,
-            BusinessDayConvention::Nearest => 5,
-            #[allow(unreachable_patterns)]
-            _ => 255,
-        }
-    }
-
     fn __repr__(&self) -> String {
         format!("BusinessDayConvention('{}')", self.inner)
     }
@@ -143,13 +125,13 @@ pub struct PyCalendarMetadata {
 
 impl PyCalendarMetadata {
     /// Build from a Rust [`CalendarMetadata`].
-    fn from_rust(m: CalendarMetadata) -> Self {
-        Self {
+    fn from_rust(m: CalendarMetadata) -> PyResult<Self> {
+        Ok(Self {
             id: m.id.to_string(),
             name: m.name.to_string(),
             ignore_weekends: m.ignore_weekends,
-            weekend_rule: weekend_rule_str(m.weekend_rule).to_string(),
-        }
+            weekend_rule: weekend_rule_str(m.weekend_rule)?,
+        })
     }
 }
 
@@ -230,7 +212,9 @@ impl PyHolidayCalendar {
     #[getter]
     fn metadata(&self) -> PyResult<Option<PyCalendarMetadata>> {
         let cal = self.resolve()?;
-        Ok(cal.metadata().map(PyCalendarMetadata::from_rust))
+        cal.metadata()
+            .map(PyCalendarMetadata::from_rust)
+            .transpose()
     }
 
     /// Stable holiday-calendar identifier such as ``nyc`` or ``target``.

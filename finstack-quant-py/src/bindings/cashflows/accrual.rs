@@ -8,7 +8,7 @@ use pyo3::types::{PyList, PyModule, PyType};
 
 use crate::bindings::cashflows::builder::schedule::PyCashFlowSchedule;
 use crate::bindings::core::dates::tenor::extract_tenor;
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 /// Wrapper for [`AccrualMethod`] (`finstack_quant.cashflows.accrual.AccrualMethod`).

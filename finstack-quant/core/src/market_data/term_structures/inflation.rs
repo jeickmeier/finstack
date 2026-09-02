@@ -396,31 +396,6 @@ impl InflationCurve {
         (c2 / c1).powf(1.0 / dt) - 1.0
     }
 
-    /// Simple (non-compounded) inflation rate between `t1` and `t2`.
-    ///
-    /// # NaN contract
-    ///
-    /// Returns [`f64::NAN`] (rather than an error) when `t2 <= t1` or when
-    /// `t1` / `t2` are non-finite; see [`inflation_rate`](Self::inflation_rate)
-    /// for the rationale. A `debug_assert` fires in debug builds.
-    ///
-    /// Returns `(I(t2) / I(t1) - 1) / (t2 - t1)`, which is the simple
-    /// linear approximation. For most applications, prefer [`inflation_rate`](Self::inflation_rate)
-    /// which uses the correct CAGR formula.
-    #[must_use]
-    pub fn inflation_rate_simple(&self, t1: f64, t2: f64) -> f64 {
-        debug_assert!(
-            t1.is_finite() && t2.is_finite() && t2 > t1,
-            "InflationCurve::inflation_rate_simple requires finite t1 < t2 (got t1={t1}, t2={t2})"
-        );
-        if !(t1.is_finite() && t2.is_finite()) || t2 <= t1 {
-            return f64::NAN;
-        }
-        let c1 = self.cpi(t1);
-        let c2 = self.cpi(t2);
-        (c2 / c1 - 1.0) / (t2 - t1)
-    }
-
     /// CPI level on a specific calendar date, without indexation lag.
     ///
     /// This is the date-based equivalent of [`cpi`](Self::cpi), consistent with
@@ -751,22 +726,6 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "inflation_rate_simple requires finite t1 < t2")]
-    fn inflation_rate_simple_non_increasing_times_debug_asserts() {
-        let ic = sample_curve();
-        let _ = ic.inflation_rate_simple(1.0, 0.0);
-    }
-
-    #[cfg(not(debug_assertions))]
-    #[test]
-    fn inflation_rate_simple_rejects_non_increasing_times_with_nan() {
-        let ic = sample_curve();
-        assert!(ic.inflation_rate_simple(1.0, 0.0).is_nan());
-        assert!(ic.inflation_rate_simple(1.0, 1.0).is_nan());
-    }
-
-    #[cfg(debug_assertions)]
-    #[test]
     #[should_panic(expected = "inflation_rate requires finite t1 < t2")]
     fn inflation_rate_non_finite_times_debug_asserts() {
         let ic = sample_curve();
@@ -790,18 +749,6 @@ mod tests {
             (r - 0.02).abs() < 1e-6,
             "Expected ~2% CAGR inflation rate, got {:.4}%",
             r * 100.0
-        );
-    }
-
-    #[test]
-    fn inflation_rate_simple_differs_from_cagr() {
-        let ic = sample_curve();
-        let cagr = ic.inflation_rate(0.0, 2.0);
-        let simple = ic.inflation_rate_simple(0.0, 2.0);
-        // For multi-year periods, CAGR and simple rates should differ
-        assert!(
-            (cagr - simple).abs() > 1e-8,
-            "CAGR ({cagr}) and simple ({simple}) should differ over 2 years"
         );
     }
 

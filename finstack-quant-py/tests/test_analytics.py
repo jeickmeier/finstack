@@ -274,14 +274,6 @@ class TestScalarMetricSeries:
         assert durations.dtype.kind == "i"
         assert durations["ACME"] >= 0
 
-    def test_paired_metrics_return_named_series(self, perf_prices: Performance) -> None:
-        skew, kurt = perf_prices.skew_kurt()
-        assert (skew.name, kurt.name) == ("skewness", "kurtosis")
-        assert skew["ACME"] == pytest.approx(perf_prices.skewness()["ACME"])
-        var, es = perf_prices.value_at_risk_and_es(0.95)
-        assert (var.name, es.name) == ("value_at_risk", "expected_shortfall")
-        assert var["BENCH"] == pytest.approx(perf_prices.value_at_risk(0.95)["BENCH"])
-
 
 # Periodic returns
 

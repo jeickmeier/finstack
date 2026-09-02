@@ -202,8 +202,8 @@ impl PyTenor {
 
     /// Approximate tenor length in years (simple estimate, no calendar).
     #[allow(clippy::wrong_self_convention)]
-    fn to_years_simple(&self) -> f64 {
-        self.inner.to_years_simple()
+    fn to_years(&self) -> f64 {
+        self.inner.to_years()
     }
 
     /// Approximate tenor length in calendar days.

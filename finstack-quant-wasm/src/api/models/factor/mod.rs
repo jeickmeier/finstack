@@ -44,54 +44,6 @@ fn ensure_finite(field: &str, v: f64) -> Result<(), JsValue> {
     }
 }
 
-/// Validate every entry of a factor covariance matrix is finite.
-fn ensure_covariance_finite(
-    cov: &finstack_quant_models::factor::FactorCovarianceMatrix,
-) -> Result<(), JsValue> {
-    for (i, v) in cov.as_slice().iter().enumerate() {
-        ensure_finite(&format!("covariance.data[{i}]"), *v)?;
-    }
-    Ok(())
-}
-
-/// Validate every numeric field of a `LevelsAtDate` snapshot is finite.
-fn ensure_levels_finite(
-    levels: &finstack_quant_models::factor::credit::decomposition::LevelsAtDate,
-) -> Result<(), JsValue> {
-    ensure_finite("generic", levels.generic)?;
-    for lev in &levels.by_level {
-        for (bucket, v) in &lev.values {
-            ensure_finite(
-                &format!("by_level[{}].values[{bucket}]", lev.level_index),
-                *v,
-            )?;
-        }
-    }
-    for (issuer, v) in &levels.adder {
-        ensure_finite(&format!("adder[{}]", issuer.as_str()), *v)?;
-    }
-    Ok(())
-}
-
-/// Validate every numeric field of a `PeriodDecomposition` is finite.
-fn ensure_period_finite(
-    period: &finstack_quant_models::factor::credit::decomposition::PeriodDecomposition,
-) -> Result<(), JsValue> {
-    ensure_finite("d_generic", period.d_generic)?;
-    for lev in &period.by_level {
-        for (bucket, v) in &lev.deltas {
-            ensure_finite(
-                &format!("by_level[{}].deltas[{bucket}]", lev.level_index),
-                *v,
-            )?;
-        }
-    }
-    for (issuer, v) in &period.d_adder {
-        ensure_finite(&format!("d_adder[{}]", issuer.as_str()), *v)?;
-    }
-    Ok(())
-}
-
 /// Calibrated credit factor hierarchy artifact.
 ///
 /// Produced by [`JsCreditCalibrator`] or loaded from JSON via
@@ -207,8 +159,9 @@ impl JsLevelsAtDate {
     /// @returns A validated `LevelsAtDate` handle.
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(json: &str) -> Result<JsLevelsAtDate, JsValue> {
-        let inner = serde_json::from_str(json).map_err(to_js_err)?;
-        ensure_levels_finite(&inner)?;
+        let inner: finstack_quant_models::factor::credit::decomposition::LevelsAtDate =
+            serde_json::from_str(json).map_err(to_js_err)?;
+        inner.validate().map_err(to_js_err)?;
         Ok(Self { inner })
     }
 
@@ -219,7 +172,7 @@ impl JsLevelsAtDate {
     /// the offending field instead of silently serializing `null`.
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
-        ensure_levels_finite(&self.inner)?;
+        self.inner.validate().map_err(to_js_err)?;
         serde_json::to_string(&self.inner).map_err(to_js_err)
     }
 
@@ -302,8 +255,9 @@ impl JsPeriodDecomposition {
     /// @returns A validated `PeriodDecomposition` handle.
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(json: &str) -> Result<JsPeriodDecomposition, JsValue> {
-        let inner = serde_json::from_str(json).map_err(to_js_err)?;
-        ensure_period_finite(&inner)?;
+        let inner: finstack_quant_models::factor::credit::decomposition::PeriodDecomposition =
+            serde_json::from_str(json).map_err(to_js_err)?;
+        inner.validate().map_err(to_js_err)?;
         Ok(Self { inner })
     }
 
@@ -314,7 +268,7 @@ impl JsPeriodDecomposition {
     /// the offending field instead of silently serializing `null`.
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
-        ensure_period_finite(&self.inner)?;
+        self.inner.validate().map_err(to_js_err)?;
         serde_json::to_string(&self.inner).map_err(to_js_err)
     }
 
@@ -506,7 +460,7 @@ impl JsFactorCovarianceForecast {
         let forecast =
             finstack_quant_models::factor::credit::FactorCovarianceForecast::new(&self.model);
         let cov = forecast.covariance_at(h).map_err(to_js_err)?;
-        ensure_covariance_finite(&cov)?;
+        cov.validate().map_err(to_js_err)?;
         crate::utils::to_js_value(&cov)
     }
 
@@ -552,7 +506,7 @@ impl JsFactorCovarianceForecast {
         let config = forecast
             .factor_model_config_at(h, measure)
             .map_err(to_js_err)?;
-        ensure_covariance_finite(&config.covariance)?;
+        config.covariance.validate().map_err(to_js_err)?;
         crate::utils::to_js_value(&config)
     }
 }

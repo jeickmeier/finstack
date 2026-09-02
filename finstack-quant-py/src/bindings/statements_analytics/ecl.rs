@@ -16,22 +16,9 @@ use finstack_quant_statements_analytics::analysis as rust_ecl;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-/// Parse a stage label (case-insensitive: "stage1"/"1", "stage2"/"2", "stage3"/"3").
+/// Parse the serde name of an IFRS 9 [`rust_ecl::Stage`] (`"stage1"`, `"stage2"`, `"stage3"`).
 fn parse_stage(s: &str) -> PyResult<rust_ecl::Stage> {
-    let normalized: String = s
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .flat_map(|c| c.to_lowercase())
-        .collect();
-    match normalized.as_str() {
-        "stage1" | "1" | "s1" => Ok(rust_ecl::Stage::Stage1),
-        "stage2" | "2" | "s2" => Ok(rust_ecl::Stage::Stage2),
-        "stage3" | "3" | "s3" => Ok(rust_ecl::Stage::Stage3),
-        other => Err(crate::errors::value_error(format!(
-            "unknown stage '{}' (expected one of: stage1/stage2/stage3 or 1/2/3)",
-            other
-        ))),
-    }
+    finstack_quant_core::wire::serde_parse(s).map_err(crate::errors::core_to_py)
 }
 
 /// Render a [`rust_ecl::StagingTrigger`] as a short human-readable reason.

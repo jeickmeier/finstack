@@ -5,8 +5,8 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule, PyType};
 
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 /// Wrapper for [`CFKind`] exposed as `finstack_quant.cashflows.primitives.CFKind`.

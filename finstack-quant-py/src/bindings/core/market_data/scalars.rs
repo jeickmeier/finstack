@@ -11,8 +11,8 @@ use pyo3::types::{PyDict, PyList, PyModule};
 use rust_decimal::prelude::ToPrimitive;
 
 use crate::bindings::core::currency::{extract_currency, PyCurrency};
-use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::bindings::core::money::{decimal_from_py, is_python_decimal};
+use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::bindings::pandas_utils::{dates_to_datetime_index, dict_to_dataframe};
 use crate::errors::core_to_py;
 

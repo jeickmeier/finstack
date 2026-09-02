@@ -9,61 +9,27 @@ use finstack_quant_models::volatility::arbitrage::{
     self as model_arbitrage, ArbitrageSeverity, ArbitrageType, ArbitrageViolation,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyModule};
+use pyo3::types::{PyDict, PyModule};
 
+use crate::bindings::pandas_utils::serde_to_py;
 use crate::errors::core_to_py;
 
-/// Stable lowercase string name for an [`ArbitrageType`].
-fn arbitrage_type_str(t: ArbitrageType) -> &'static str {
-    match t {
-        ArbitrageType::Butterfly => "butterfly",
-        ArbitrageType::CalendarSpread => "calendar_spread",
-        ArbitrageType::LocalVolDensity => "local_vol_density",
-        ArbitrageType::SviMomentBound => "svi_moment_bound",
-        ArbitrageType::SviButterflyCondition => "svi_butterfly_condition",
-        ArbitrageType::SviCalendarSpread => "svi_calendar_spread",
-    }
+/// Serde name of an arbitrage enum variant (the `snake_case` wire form).
+fn label<T: serde::Serialize>(value: &T) -> PyResult<String> {
+    finstack_quant_core::wire::serde_label(value).map_err(core_to_py)
 }
 
-/// Stable lowercase string name for an [`ArbitrageSeverity`].
-fn severity_str(s: ArbitrageSeverity) -> &'static str {
-    match s {
-        ArbitrageSeverity::Negligible => "negligible",
-        ArbitrageSeverity::Minor => "minor",
-        ArbitrageSeverity::Major => "major",
-        ArbitrageSeverity::Critical => "critical",
-    }
-}
-
-/// Convert a single violation into a Python dict.
-fn violation_to_dict<'py>(py: Python<'py>, v: &ArbitrageViolation) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new(py);
-    d.set_item("type", arbitrage_type_str(v.violation_type))?;
-    d.set_item("severity", severity_str(v.severity))?;
-    d.set_item("strike", v.location.strike)?;
-    d.set_item("expiry", v.location.expiry)?;
-    if let Some(ae) = v.location.adjacent_expiry {
-        d.set_item("adjacent_expiry", ae)?;
-    } else {
-        d.set_item("adjacent_expiry", py.None())?;
-    }
-    d.set_item("magnitude", v.magnitude)?;
-    d.set_item("value", v.magnitude)?;
-    d.set_item("message", v.description.as_str())?;
-    d.set_item("description", v.description.as_str())?;
-    Ok(d)
-}
-
-/// Convert a slice of violations into a Python list of dicts.
+/// Convert a slice of violations into a Python list of serde dicts.
+///
+/// Each entry is the wire form of the Rust ``ArbitrageViolation``:
+/// ``violation_type``, ``severity``, ``location`` (``strike``, ``expiry``,
+/// ``adjacent_expiry``), ``magnitude``, ``description``,
+/// ``suggested_adjustment``.
 fn violations_to_pylist<'py>(
     py: Python<'py>,
     violations: &[ArbitrageViolation],
-) -> PyResult<Bound<'py, PyList>> {
-    let items: Vec<Bound<'py, PyDict>> = violations
-        .iter()
-        .map(|v| violation_to_dict(py, v))
-        .collect::<PyResult<Vec<_>>>()?;
-    PyList::new(py, items)
+) -> PyResult<Bound<'py, PyAny>> {
+    serde_to_py(py, &violations)
 }
 
 /// Check butterfly arbitrage via Durrleman's g(k) density condition.
@@ -97,7 +63,7 @@ fn check_butterfly_grid<'py>(
     vols: Vec<Vec<f64>>,
     forward_prices: Vec<f64>,
     tolerance: f64,
-) -> PyResult<Bound<'py, PyList>> {
+) -> PyResult<Bound<'py, PyAny>> {
     let violations = model_arbitrage::check_butterfly_grid(
         &strikes,
         &expiries,
@@ -138,7 +104,7 @@ fn check_calendar_spread_grid<'py>(
     vols: Vec<Vec<f64>>,
     forward_prices: Vec<f64>,
     tolerance: f64,
-) -> PyResult<Bound<'py, PyList>> {
+) -> PyResult<Bound<'py, PyAny>> {
     let violations = model_arbitrage::check_calendar_spread_grid(
         &strikes,
         &expiries,
@@ -177,7 +143,7 @@ fn check_local_vol_density_grid<'py>(
     expiries: Vec<f64>,
     vols: Vec<Vec<f64>>,
     forward_prices: Vec<f64>,
-) -> PyResult<Bound<'py, PyList>> {
+) -> PyResult<Bound<'py, PyAny>> {
     let violations =
         model_arbitrage::check_local_vol_density_grid(&strikes, &expiries, &vols, forward_prices)
             .map_err(core_to_py)?;
@@ -232,20 +198,25 @@ fn check_surface_grid<'py>(
         ArbitrageSeverity::Critical,
     ] {
         by_sev.set_item(
-            severity_str(sev),
+            label(&sev)?,
             report.counts_by_severity.get(&sev).copied().unwrap_or(0),
         )?;
     }
     out.set_item("by_severity", by_sev)?;
 
+    // Every variant `ArbitrageReport::counts_by_type` can carry, so the SVI
+    // checks are reported rather than silently dropped.
     let by_type = PyDict::new(py);
     for t in [
         ArbitrageType::Butterfly,
         ArbitrageType::CalendarSpread,
         ArbitrageType::LocalVolDensity,
+        ArbitrageType::SviMomentBound,
+        ArbitrageType::SviButterflyCondition,
+        ArbitrageType::SviCalendarSpread,
     ] {
         by_type.set_item(
-            arbitrage_type_str(t),
+            label(&t)?,
             report.counts_by_type.get(&t).copied().unwrap_or(0),
         )?;
     }

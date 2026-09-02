@@ -4,9 +4,8 @@
 //! require a Python representation of the Rust `Marginable` trait.
 
 use super::calculators::{money_from_amount, PyImResult};
-use super::sensitivity_frame::SensitivityRows;
 use super::types::{PyCollateralAssetClass, PyEligibleCollateralSchedule};
-use crate::bindings::module_utils::{parse_currency, parse_date};
+use crate::bindings::module_utils::parse_currency;
 use crate::errors::core_to_py;
 use finstack_quant_margin as fm;
 use pyo3::prelude::*;
@@ -15,13 +14,6 @@ use pyo3::prelude::*;
 ///
 /// Reads the sector's own serde representation rather than re-listing the
 /// thirteen variants here, so the label cannot drift from the wire format.
-fn credit_sector_label(sector: fm::SimmCreditSector) -> String {
-    match serde_json::to_value(sector) {
-        Ok(serde_json::Value::String(label)) => label,
-        _ => format!("{sector:?}"),
-    }
-}
-
 fn parse_simm_version(version: &str) -> PyResult<fm::SimmVersion> {
     version
         .parse::<fm::SimmVersion>()
@@ -206,116 +198,10 @@ impl PySimmSensitivities {
     /// currency, in whatever convention the caller supplied — SIMM does not
     /// re-scale these on ingest.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let mut rows = SensitivityRows::default();
-        let sens = &self.inner;
-
-        for ((currency, tenor), amount) in &sens.ir_delta {
-            rows.push(
-                "interest_rate",
-                "delta",
-                Some(currency.to_string()),
-                None,
-                Some(tenor.clone()),
-                *amount,
-            );
-        }
-        for ((currency, tenor), amount) in &sens.ir_vega {
-            rows.push(
-                "interest_rate",
-                "vega",
-                Some(currency.to_string()),
-                None,
-                Some(tenor.clone()),
-                *amount,
-            );
-        }
-
-        for ((sector, name, tenor), amount) in &sens.credit_qualifying_delta {
-            rows.push(
-                "credit_qualifying",
-                "delta",
-                Some(name.clone()),
-                Some(credit_sector_label(*sector)),
-                Some(tenor.clone()),
-                *amount,
-            );
-        }
-        for ((name, tenor), amount) in &sens.credit_non_qualifying_delta {
-            rows.push(
-                "credit_non_qualifying",
-                "delta",
-                Some(name.clone()),
-                None,
-                Some(tenor.clone()),
-                *amount,
-            );
-        }
-
-        for (underlier, amount) in &sens.equity_delta {
-            rows.push(
-                "equity",
-                "delta",
-                Some(underlier.clone()),
-                None,
-                None,
-                *amount,
-            );
-        }
-        for (underlier, amount) in &sens.equity_vega {
-            rows.push(
-                "equity",
-                "vega",
-                Some(underlier.clone()),
-                None,
-                None,
-                *amount,
-            );
-        }
-
-        for (currency, amount) in &sens.fx_delta {
-            rows.push(
-                "fx",
-                "delta",
-                Some(currency.to_string()),
-                None,
-                None,
-                *amount,
-            );
-        }
-        for ((ccy1, ccy2), amount) in &sens.fx_vega {
-            rows.push(
-                "fx",
-                "vega",
-                Some(format!("{ccy1}/{ccy2}")),
-                None,
-                None,
-                *amount,
-            );
-        }
-
-        for (bucket, amount) in &sens.commodity_delta {
-            rows.push(
-                "commodity",
-                "delta",
-                None,
-                Some(bucket.clone()),
-                None,
-                *amount,
-            );
-        }
-
-        for (risk_class, amount) in &sens.curvature {
-            rows.push(
-                risk_class.to_string(),
-                "curvature",
-                None,
-                None,
-                None,
-                *amount,
-            );
-        }
-
-        rows.into_dataframe(py)
+        crate::bindings::pandas_utils::table_to_dataframe(
+            py,
+            &self.inner.to_table().map_err(core_to_py)?,
+        )
     }
 
     /// Render as an HTML table in Jupyter notebooks.
@@ -406,7 +292,7 @@ impl PySimmCalculator {
         day: u8,
     ) -> PyResult<PyImResult> {
         let ccy = parse_currency(currency)?;
-        let as_of = parse_date(year, month, day)?;
+        let as_of = crate::bindings::date_utils::date_from_ymd(year, month, day)?;
         let inner = py.detach(|| {
             self.inner
                 .calculate_from_sensitivities_result(&sensitivities.inner, ccy, as_of)
@@ -482,7 +368,7 @@ impl PyScheduleImCalculator {
         day: u8,
     ) -> PyResult<PyImResult> {
         let ccy = parse_currency(currency)?;
-        let as_of = parse_date(year, month, day)?;
+        let as_of = crate::bindings::date_utils::date_from_ymd(year, month, day)?;
         let asset_class = parse_schedule_asset_class(asset_class)?;
         Ok(PyImResult::from_inner(self.inner.calculate_for_notional(
             money_from_amount(notional, ccy)?,
@@ -506,7 +392,7 @@ impl PyScheduleImCalculator {
         day: u8,
     ) -> PyResult<Option<PyImResult>> {
         let ccy = parse_currency(currency)?;
-        let as_of = parse_date(year, month, day)?;
+        let as_of = crate::bindings::date_utils::date_from_ymd(year, month, day)?;
         let asset_class = parse_schedule_asset_class(asset_class)?;
         let money_positions: Vec<_> = positions
             .into_iter()
@@ -602,7 +488,7 @@ impl PyHaircutImCalculator {
         day: u8,
     ) -> PyResult<PyImResult> {
         let ccy = parse_currency(currency)?;
-        let as_of = parse_date(year, month, day)?;
+        let as_of = crate::bindings::date_utils::date_from_ymd(year, month, day)?;
         Ok(PyImResult::from_inner(
             self.inner
                 .calculate_for_collateral(

@@ -224,6 +224,21 @@ pub struct FactorTimeSeries {
     pub r_squared_avg: f64,
 }
 
+impl FactorTimeSeries {
+    /// The factor matrix as one `Vec` per factor column (`level`, `slope`,
+    /// `curvature` for Diebold–Li), each with one entry per observation date.
+    #[must_use]
+    pub fn columns(&self) -> Vec<Vec<f64>> {
+        (0..self.factors.ncols())
+            .map(|k| {
+                (0..self.factors.nrows())
+                    .map(|i| self.factors[(i, k)])
+                    .collect()
+            })
+            .collect()
+    }
+}
+
 /// h-step ahead yield curve forecast with confidence bands.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YieldForecast {

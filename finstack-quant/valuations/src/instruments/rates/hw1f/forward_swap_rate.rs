@@ -48,7 +48,7 @@ pub(crate) fn validate_term_curve_tenor(
     tenor: Tenor,
     instrument: &str,
 ) -> Result<()> {
-    let expected = tenor.to_years_simple();
+    let expected = tenor.to_years();
     if (curve.tenor() - expected).abs() > 1e-8 {
         return Err(finstack_quant_core::Error::Validation(format!(
             "{instrument} floating tenor {expected} does not match forward curve '{}' tenor {}",

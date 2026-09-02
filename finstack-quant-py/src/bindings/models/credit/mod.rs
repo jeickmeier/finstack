@@ -9,10 +9,10 @@ mod scoring;
 
 use std::sync::Arc;
 
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::market_data::curves::helpers::parse_day_count;
 use crate::bindings::core::market_data::curves::PyHazardCurve;
 use crate::bindings::core::types::PyCreditRating;
+use crate::bindings::date_utils::py_to_date;
 use crate::bindings::pandas_utils::{serde_object_to_single_row_dataframe, serde_to_py};
 use crate::errors::display_to_py;
 use finstack_quant_core::math::random::Pcg64Rng;
@@ -658,6 +658,29 @@ impl PySimulatedPaths {
 
 #[pymethods]
 impl PySimulatedPaths {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize simulated paths from their canonical JSON form.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: SimulatedPaths = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to canonical JSON (``times``, ``asset_values``, ``num_paths``,
+    /// ``num_steps``).
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
     /// Time grid from 0 to the simulation horizon.
     #[getter]
     fn times(&self) -> Vec<f64> {
@@ -708,13 +731,10 @@ impl PySimulatedPaths {
 
     /// Identify this value in notebooks and logs.
     ///
-    /// The inner type is not `Serialize`, so the headline shape is rendered
-    /// directly; the path arrays themselves are summarised by length.
+    /// Rendered from the wire representation; the path arrays are summarised
+    /// by length.
     fn __repr__(&self) -> String {
-        format!(
-            "SimulatedPaths(num_paths={}, num_steps={})",
-            self.inner.num_paths, self.inner.num_steps
-        )
+        crate::bindings::repr_support::repr_from_serde("SimulatedPaths", &self.inner)
     }
 }
 

@@ -13,18 +13,8 @@ use finstack_quant_models::credit::{
     EndogenousHazardSpec, MertonModel, OptimalToggle, ThresholdDirection, ToggleExerciseModel,
 };
 use js_sys::Float64Array;
-use serde::Serialize;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-
-/// JSON envelope for [`finstack_quant_models::credit::SimulatedPaths`].
-#[derive(Serialize)]
-struct MertonSimulatedPathsJson<'a> {
-    times: &'a [f64],
-    asset_values: &'a [f64],
-    num_paths: usize,
-    num_steps: usize,
-}
 
 fn parse_f64_tenors(value: JsValue) -> Result<Vec<f64>, JsValue> {
     if value.is_instance_of::<Float64Array>() {
@@ -488,13 +478,7 @@ pub fn merton_simulate_paths_json(
     let paths = model
         .simulate_paths(num_paths, num_steps, horizon, &mut rng, antithetic)
         .map_err(to_js_err)?;
-    let payload = MertonSimulatedPathsJson {
-        times: &paths.times,
-        asset_values: &paths.asset_values,
-        num_paths: paths.num_paths,
-        num_steps: paths.num_steps,
-    };
-    serde_json::to_string(&payload).map_err(to_js_err)
+    serde_json::to_string(&paths).map_err(to_js_err)
 }
 
 /// Evaluate a `DynamicRecoverySpec` JSON payload at a given accreted

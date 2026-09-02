@@ -659,34 +659,10 @@ impl FiscalConfig {
         }
     }
 
-    /// Canadian fiscal year (April 1).
-    pub fn canada() -> Self {
-        Self {
-            start_month: 4,
-            start_day: 1,
-        }
-    }
-
     /// Australian fiscal year (July 1).
     pub fn australia() -> Self {
         Self {
             start_month: 7,
-            start_day: 1,
-        }
-    }
-
-    /// German fiscal year (January 1).
-    pub fn germany() -> Self {
-        Self {
-            start_month: 1,
-            start_day: 1,
-        }
-    }
-
-    /// French fiscal year (January 1).
-    pub fn france() -> Self {
-        Self {
-            start_month: 1,
             start_day: 1,
         }
     }

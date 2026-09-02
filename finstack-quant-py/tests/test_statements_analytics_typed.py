@@ -43,7 +43,7 @@ def _model() -> object:
 
 def test_typed_configs_round_trip_structured_fields() -> None:
     sensitivity = SensitivityConfig(
-        mode="Diagonal",
+        mode="diagonal",
         parameters=[("revenue", "2025Q2", 110.0, [100.0, 110.0, 120.0])],
         target_metrics=["profit"],
     )
@@ -90,7 +90,7 @@ def test_analysis_functions_accept_typed_configs_and_return_typed_results() -> N
     sensitivity = run_sensitivity(
         model,
         SensitivityConfig(
-            "Diagonal",
+            "diagonal",
             [("revenue", "2025Q2", 110.0, [100.0, 110.0, 120.0])],
             ["profit"],
         ),
@@ -140,7 +140,7 @@ def test_analysis_functions_accept_typed_configs_and_return_typed_results() -> N
 def test_analysis_functions_retain_json_config_input() -> None:
     model = _model()
     config_json = SensitivityConfig(
-        "Diagonal",
+        "diagonal",
         [("revenue", "2025Q2", 110.0, [100.0, 120.0])],
         ["profit"],
     ).to_json()

@@ -525,41 +525,6 @@ impl JsPerformance {
         vec_f64_to_js(&self.inner.geometric_mean())
     }
 
-    /// Per-asset skewness and kurtosis from one moments pass, as
-    /// `{ skewness: Float64Array, kurtosis: Float64Array }`.
-    ///
-    /// # Errors
-    ///
-    /// Rejects if the JavaScript result object's properties cannot be created.
-    /// @returns Object `{ skewness: Float64Array, kurtosis: Float64Array }` in `tickerNames()` order.
-    #[wasm_bindgen(js_name = skewKurt)]
-    pub fn skew_kurt(&self) -> Result<JsValue, JsValue> {
-        let (skew, kurt) = self.inner.skew_kurt();
-        obj_from_pairs(&[
-            ("skewness", vec_f64_to_js(&skew)),
-            ("kurtosis", vec_f64_to_js(&kurt)),
-        ])
-    }
-
-    /// Per-asset historical VaR and expected shortfall from one tail pass, as
-    /// `{ value_at_risk: Float64Array, expected_shortfall: Float64Array }`.
-    ///
-    /// # Errors
-    ///
-    /// Rejects if the JavaScript result object's properties cannot be created.
-    /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
-    /// @returns Object `{ value_at_risk: Float64Array, expected_shortfall: Float64Array }` in `tickerNames()` order.
-    #[wasm_bindgen(js_name = valueAtRiskAndEs)]
-    pub fn value_at_risk_and_es(&self, confidence: Option<f64>) -> Result<JsValue, JsValue> {
-        let (var, es) = self
-            .inner
-            .value_at_risk_and_es(confidence.unwrap_or(DEFAULT_CONFIDENCE));
-        obj_from_pairs(&[
-            ("value_at_risk", vec_f64_to_js(&var)),
-            ("expected_shortfall", vec_f64_to_js(&es)),
-        ])
-    }
-
     /// Downside deviation per asset below the per-period minimum acceptable return.
     /// @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
@@ -841,6 +806,39 @@ impl JsPerformance {
     #[wasm_bindgen(js_name = cumulativeReturns)]
     pub fn cumulative_returns(&self) -> JsValue {
         matrix_f64_to_js(&self.inner.cumulative_returns())
+    }
+
+    /// The standard per-ticker summary as a table envelope.
+    ///
+    /// One row per ticker with 22 metric columns (`cagr`, `mean_return`,
+    /// `volatility`, `sharpe`, `sortino`, `calmar`, `max_drawdown`,
+    /// `value_at_risk`, `expected_shortfall`, `tracking_error`,
+    /// `information_ratio`, `skewness`, `kurtosis`, `geometric_mean`,
+    /// `downside_deviation`, `omega_ratio`, `gain_to_pain`, `ulcer_index`,
+    /// `pain_index`, `recovery_factor`, `tail_ratio`, `r_squared`) plus a
+    /// leading `ticker` dimension column. Same rows as the Python
+    /// `Performance.to_summary_dataframe`.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the panel is too short to annualize
+    /// (`cagr` / `calmar`) or the table cannot be converted.
+    /// @param risk_free_rate - Annualized risk-free rate as a decimal (0.02 = 2%); affects only `sharpe`. Defaults to 0.0.
+    /// @param confidence - Tail confidence as a decimal probability applied to VaR, ES and tail ratio; defaults to 0.95.
+    #[wasm_bindgen(js_name = summary)]
+    pub fn summary(
+        &self,
+        risk_free_rate: Option<f64>,
+        confidence: Option<f64>,
+    ) -> Result<JsValue, JsValue> {
+        let table = self
+            .inner
+            .summary(
+                risk_free_rate.unwrap_or(0.0),
+                confidence.unwrap_or(DEFAULT_CONFIDENCE),
+            )
+            .map_err(to_js_err)?;
+        to_js(&table)
     }
 
     /// Calendar-bucketed compounded returns per ticker.

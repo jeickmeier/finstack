@@ -59,34 +59,28 @@ impl PyUnknownScalePolicy {
     #[classmethod]
     #[pyo3(text_signature = "(cls, name)")]
     fn from_name(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<Self> {
-        match name {
-            "error" => Ok(Self::from_inner(UnknownScalePolicy::Error)),
-            "fallback_to_default" => Ok(Self::from_inner(UnknownScalePolicy::FallbackToDefault)),
-            "warn_and_fallback" => Ok(Self::from_inner(UnknownScalePolicy::WarnAndFallback)),
-            _ => Err(crate::errors::value_error(format!(
-                "unknown UnknownScalePolicy variant {name:?}"
-            ))),
-        }
+        finstack_quant_core::wire::serde_parse(name)
+            .map(Self::from_inner)
+            .map_err(crate::errors::core_to_py)
     }
 
-    /// Canonical snake_case name (matches the serde representation).
+    /// Canonical snake_case name (the serde representation).
     #[getter]
-    fn name(&self) -> &'static str {
-        match self.inner {
-            UnknownScalePolicy::Error => "error",
-            UnknownScalePolicy::FallbackToDefault => "fallback_to_default",
-            UnknownScalePolicy::WarnAndFallback => "warn_and_fallback",
-        }
+    fn name(&self) -> PyResult<String> {
+        finstack_quant_core::wire::serde_label(&self.inner).map_err(crate::errors::core_to_py)
     }
 
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
-        format!("UnknownScalePolicy({})", self.name())
+        format!(
+            "UnknownScalePolicy({})",
+            self.name().unwrap_or_else(|_| "?".to_string())
+        )
     }
 
     /// Return ``str(self)``.
     fn __str__(&self) -> String {
-        self.name().to_string()
+        self.name().unwrap_or_else(|_| "?".to_string())
     }
 
     /// Serialize to a JSON string.

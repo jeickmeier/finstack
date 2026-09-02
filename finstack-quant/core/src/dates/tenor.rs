@@ -16,7 +16,7 @@
 //! assert_eq!(tenor.unit(), TenorUnit::Months);
 //!
 //! // Convert to years with default settings (simple approximation)
-//! let years = tenor.to_years_simple();
+//! let years = tenor.to_years();
 //! assert!((years - 0.25).abs() < 1e-6);
 //! # Ok(())
 //! # }
@@ -448,15 +448,15 @@ impl Tenor {
     /// # fn main() -> finstack_quant_core::Result<()> {
     ///
     /// let tenor = Tenor::parse("6M")?;
-    /// assert!((tenor.to_years_simple() - 0.5).abs() < 1e-6);
+    /// assert!((tenor.to_years() - 0.5).abs() < 1e-6);
     ///
     /// let tenor = Tenor::parse("1Y")?;
-    /// assert!((tenor.to_years_simple() - 1.0).abs() < 1e-6);
+    /// assert!((tenor.to_years() - 1.0).abs() < 1e-6);
     /// # Ok(())
     /// # }
     /// ```
     #[inline]
-    pub fn to_years_simple(&self) -> f64 {
+    pub fn to_years(&self) -> f64 {
         let count = f64::from(self.count);
         match self.unit {
             TenorUnit::Days => count / 365.0,
@@ -468,7 +468,7 @@ impl Tenor {
 
     /// Number of payments per year for a payment-frequency tenor.
     ///
-    /// Uses the same calendar approximations as [`to_years_simple`](Self::to_years_simple)
+    /// Uses the same calendar approximations as [`to_years`](Self::to_years)
     /// for months and years (`6M` → 2, `1Y` → 1); week and day tenors use the
     /// market coupon-count conventions `52` weeks and `365` days per year
     /// (`1W` → 52, `1D` → 365), which is the convention swaption cash-settlement
@@ -498,7 +498,7 @@ impl Tenor {
 
     /// Convert tenor to an approximate number of days.
     ///
-    /// This uses consistent approximations that align with [`to_years_simple`](Self::to_years_simple):
+    /// This uses consistent approximations that align with [`to_years`](Self::to_years):
     /// - 1D = 1 day
     /// - 1W = 7 days
     /// - 1M = 365/12 ≈ 30.42 days (consistent with 1M = 1/12 year)
@@ -863,15 +863,15 @@ mod tests {
     }
 
     #[test]
-    fn test_to_years_simple() {
-        assert!((Tenor::parse("1D").expect("valid").to_years_simple() - 1.0 / 365.0).abs() < 1e-10);
-        assert!((Tenor::parse("7D").expect("valid").to_years_simple() - 7.0 / 365.0).abs() < 1e-10);
-        assert!((Tenor::parse("1W").expect("valid").to_years_simple() - 7.0 / 365.0).abs() < 1e-10);
-        assert!((Tenor::parse("1M").expect("valid").to_years_simple() - 1.0 / 12.0).abs() < 1e-10);
-        assert!((Tenor::parse("3M").expect("valid").to_years_simple() - 0.25).abs() < 1e-10);
-        assert!((Tenor::parse("6M").expect("valid").to_years_simple() - 0.5).abs() < 1e-10);
-        assert!((Tenor::parse("1Y").expect("valid").to_years_simple() - 1.0).abs() < 1e-10);
-        assert!((Tenor::parse("5Y").expect("valid").to_years_simple() - 5.0).abs() < 1e-10);
+    fn test_to_years() {
+        assert!((Tenor::parse("1D").expect("valid").to_years() - 1.0 / 365.0).abs() < 1e-10);
+        assert!((Tenor::parse("7D").expect("valid").to_years() - 7.0 / 365.0).abs() < 1e-10);
+        assert!((Tenor::parse("1W").expect("valid").to_years() - 7.0 / 365.0).abs() < 1e-10);
+        assert!((Tenor::parse("1M").expect("valid").to_years() - 1.0 / 12.0).abs() < 1e-10);
+        assert!((Tenor::parse("3M").expect("valid").to_years() - 0.25).abs() < 1e-10);
+        assert!((Tenor::parse("6M").expect("valid").to_years() - 0.5).abs() < 1e-10);
+        assert!((Tenor::parse("1Y").expect("valid").to_years() - 1.0).abs() < 1e-10);
+        assert!((Tenor::parse("5Y").expect("valid").to_years() - 5.0).abs() < 1e-10);
     }
 
     #[test]
@@ -928,11 +928,11 @@ mod tests {
         assert_eq!(Tenor::parse("1Y").expect("valid").to_days_approx(), 365);
         assert_eq!(Tenor::parse("5Y").expect("valid").to_days_approx(), 1825);
 
-        // Consistency: to_days_approx() / 365 ≈ to_years_simple()
+        // Consistency: to_days_approx() / 365 ≈ to_years()
         for tenor_str in &["1M", "3M", "6M", "1Y", "5Y"] {
             let tenor = Tenor::parse(tenor_str).expect("valid");
             let days = tenor.to_days_approx() as f64;
-            let years = tenor.to_years_simple();
+            let years = tenor.to_years();
             // Allow 1 day tolerance due to rounding
             assert!(
                 (days / 365.0 - years).abs() < 0.003,

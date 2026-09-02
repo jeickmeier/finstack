@@ -13,9 +13,12 @@ use pyo3::types::{PyList, PyModule, PyType};
 #[pyclass(
     module = "finstack_quant.core.config",
     name = "RoundingMode",
+    frozen,
+    eq,
+    hash,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PyRoundingMode {
     /// Underlying Rust rounding mode.
     pub(crate) inner: RoundingMode,
@@ -71,31 +74,6 @@ impl PyRoundingMode {
 
     fn __str__(&self) -> String {
         self.inner.to_string()
-    }
-
-    fn __hash__(&self) -> isize {
-        self.discriminant() as isize
-    }
-
-    fn __eq__(&self, other: Bound<'_, PyAny>) -> PyResult<bool> {
-        match other.extract::<PyRef<Self>>() {
-            Ok(o) => Ok(self.inner == o.inner),
-            Err(_) => Ok(false),
-        }
-    }
-}
-
-impl PyRoundingMode {
-    fn discriminant(self) -> u8 {
-        match self.inner {
-            RoundingMode::Bankers => 0,
-            RoundingMode::AwayFromZero => 1,
-            RoundingMode::TowardZero => 2,
-            RoundingMode::Floor => 3,
-            RoundingMode::Ceil => 4,
-            #[allow(unreachable_patterns)]
-            _ => 255,
-        }
     }
 }
 

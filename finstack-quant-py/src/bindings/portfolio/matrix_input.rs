@@ -43,13 +43,11 @@ impl PositionPnlMatrix {
                 self.data
             }
             PositionPnlOrder::PositionMajor => {
-                let mut transposed = Vec::with_capacity(self.data.len());
-                for scenario in 0..self.n_scenarios {
-                    for position in 0..n_positions {
-                        transposed.push(self.data[position * self.n_scenarios + scenario]);
-                    }
-                }
-                transposed
+                finstack_quant_core::math::linalg::transpose_row_major(
+                    &self.data,
+                    n_positions,
+                    self.n_scenarios,
+                )
             }
         }
     }

@@ -657,14 +657,13 @@ fn coupon_events(
             let fixing_time =
                 inst.day_count
                     .year_fraction(as_of, start, DayCountContext::default())?;
-            let coeffs =
-                term_forward.period_coeffs(fixing_time, inst.floating_tenor.to_years_simple());
+            let coeffs = term_forward.period_coeffs(fixing_time, inst.floating_tenor.to_years());
             let discount_time = discount_curve.day_count().signed_year_fraction(
                 discount_curve.base_date(),
                 start,
                 DayCountContext::default(),
             )?;
-            let tenor = inst.floating_tenor.to_years_simple();
+            let tenor = inst.floating_tenor.to_years();
             let discount_forward =
                 (discount_curve.df(discount_time) / discount_curve.df(discount_time + tenor) - 1.0)
                     / tenor;

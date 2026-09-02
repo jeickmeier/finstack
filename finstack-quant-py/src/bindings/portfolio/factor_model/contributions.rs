@@ -762,7 +762,7 @@ impl PyPositionRiskDecomposition {
 
     /// Decomposition method: ``"parametric"`` or ``"historical"``.
     #[getter]
-    fn method(&self) -> &'static str {
+    fn method(&self) -> PyResult<String> {
         decomposition_method_label(self.inner.method)
     }
 
@@ -854,7 +854,7 @@ impl PyPositionRiskDecomposition {
             self.inner.portfolio_es,
             self.inner.confidence,
             self.inner.n_positions,
-            decomposition_method_label(self.inner.method),
+            decomposition_method_label(self.inner.method).unwrap_or_else(|_| "?".to_string()),
         )
     }
 

@@ -40,9 +40,19 @@ _PL_ROWS: list[tuple[str, str, Any]] = [
 ]
 
 
+def _money_parts(value: Any) -> tuple[float | None, str | None]:
+    """Split a ``Money`` wire object ``{"amount", "currency"}`` into ``(float, code)``.
+
+    Returns ``(None, None)`` when the value is missing.
+    """
+    if not isinstance(value, dict) or value.get("amount") is None:
+        return None, None
+    return float(value["amount"]), value.get("currency")
+
+
 def _section_bridge(val: dict[str, Any], theme: Theme) -> Section | None:
-    ev = val.get("enterprise_value")
-    nd = val.get("net_debt")
+    ev, _ = _money_parts(val.get("enterprise_value"))
+    nd, _ = _money_parts(val.get("net_debt"))
     if ev is None or nd is None:
         return None
     return Section(
@@ -105,8 +115,10 @@ def dcf_tearsheet(
     Parameters
     ----------
     valuation : dict | str
-        An ``evaluate_dcf`` result (dict or JSON string) with ``enterprise_value``,
-        ``equity_value``, ``net_debt``, ``equity_value_per_share``, ``equity_currency``.
+        An ``evaluate_dcf`` result (dict or JSON string). ``enterprise_value``,
+        ``equity_value`` and ``net_debt`` are ``Money`` wire objects
+        (``{"amount": "<decimal string>", "currency": "USD"}``);
+        ``equity_value_per_share`` is a plain float.
     results : StatementResult | str | dict, optional
         Statement results for the UFCF and forecast-summary sections.
     sensitivity : list[dict], optional
@@ -158,10 +170,10 @@ def dcf_tearsheet(
     if "pl" in wanted and (s := _section_pl(results)) is not None:
         secs.append(s)
 
-    ccy = val.get("equity_currency")
-    ev = val.get("enterprise_value")
-    eq = val.get("equity_value")
-    nd = val.get("net_debt")
+    ev, ccy = _money_parts(val.get("enterprise_value"))
+    eq, eq_ccy = _money_parts(val.get("equity_value"))
+    nd, _ = _money_parts(val.get("net_debt"))
+    ccy = ccy or eq_ccy
     per_share = val.get("equity_value_per_share")
     kpis = [
         KPI("Enterprise Value", fmt.money(ev, ccy), ""),

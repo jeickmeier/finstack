@@ -25,15 +25,9 @@ pub(super) fn parse_extrapolation(s: &str) -> PyResult<ExtrapolationPolicy> {
         .map_err(|e| crate::errors::value_error(format!("Invalid extrapolation {s:?}: {e}")))
 }
 
-/// Parse a [`VolSurfaceAxis`] from a Python string.
+/// Parse a [`VolSurfaceAxis`] from its serde name (`"strike"` or `"tenor"`).
 pub(super) fn parse_vol_surface_axis(s: &str) -> PyResult<VolSurfaceAxis> {
-    match s {
-        "strike" => Ok(VolSurfaceAxis::Strike),
-        "tenor" => Ok(VolSurfaceAxis::Tenor),
-        _ => Err(crate::errors::value_error(format!(
-            "Invalid vol surface axis {s:?}: expected 'strike' or 'tenor'",
-        ))),
-    }
+    finstack_quant_core::wire::serde_parse(s).map_err(crate::errors::core_to_py)
 }
 
 /// Parse a [`VolQuoteType`] from a Python string.
@@ -42,13 +36,12 @@ pub(super) fn parse_vol_quote_type(s: &str) -> PyResult<VolQuoteType> {
         .map_err(crate::errors::value_error)
 }
 
-/// Parse a [`VolInterpolationMode`] from a Python string.
+/// Parse a [`VolInterpolationMode`] from its serde name (`"vol"` or `"total_variance"`).
 pub(super) fn parse_vol_interpolation_mode(s: &str) -> PyResult<VolInterpolationMode> {
-    match s {
-        "vol" => Ok(VolInterpolationMode::Vol),
-        "total_variance" => Ok(VolInterpolationMode::TotalVariance),
-        _ => Err(crate::errors::value_error(format!(
-            "Invalid vol interpolation mode {s:?}: expected 'vol' or 'total_variance'",
-        ))),
-    }
+    finstack_quant_core::wire::serde_parse(s).map_err(crate::errors::core_to_py)
+}
+
+/// Serde name of a [`VolInterpolationMode`] (`"vol"` or `"total_variance"`).
+pub(super) fn vol_interpolation_mode_name(mode: VolInterpolationMode) -> PyResult<String> {
+    finstack_quant_core::wire::serde_label(&mode).map_err(crate::errors::core_to_py)
 }

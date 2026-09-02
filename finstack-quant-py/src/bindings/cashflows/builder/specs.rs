@@ -18,8 +18,8 @@ use crate::bindings::core::dates::calendar::extract_business_day_convention;
 use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::schedule::PyStubKind;
 use crate::bindings::core::dates::tenor::{extract_tenor, PyTenor};
-use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::{decimal_from_py, decimal_to_py, is_python_decimal, PyMoney};
+use crate::bindings::date_utils::py_to_date;
 use crate::errors::core_to_py;
 
 /// Extract a `rust_decimal::Decimal` from `decimal.Decimal`, `float`, or `int`.
