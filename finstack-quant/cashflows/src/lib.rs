@@ -125,7 +125,7 @@ pub use builder::{cdr_to_mdr, cpr_to_smm, mdr_to_cdr, smm_to_cpr};
 pub use json::{
     accrued_interest, build_cashflow_schedule_json, dated_flows_json,
     validate_cashflow_schedule_json, CashflowScheduleBuildSpec, CouponLegSpec, DatedFlowJson,
-    PaymentProgramSpec, PaymentStepSpec, PrincipalEventSpec, RateStepSpec,
+    PaymentProgramSpec,
 };
 pub use traits::{
     schedule_from_classified_flows, schedule_from_dated_flows, CashflowProvider,
