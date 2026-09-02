@@ -1,8 +1,8 @@
 //! FRTB Sensitivity-Based Approach engine.
 //!
 //! Computes the standardized market risk capital charge per BCBS d457.
-//! The engine is configured at build time; all configuration validation
-//! happens in the builder so `calculate()` is infallible given valid inputs.
+//! The engine is configured at construction; all configuration validation
+//! happens in [`FrtbSbaEngine::new`] so `calculate()` only validates inputs.
 
 use super::aggregation::aggregate_sba;
 use super::curvature::curvature_charge;
@@ -27,11 +27,48 @@ pub struct FrtbSbaEngine {
     risk_classes: Vec<FrtbRiskClass>,
 }
 
+impl Default for FrtbSbaEngine {
+    /// All three correlation scenarios and every risk class.
+    fn default() -> Self {
+        Self {
+            scenarios: CorrelationScenario::ALL.to_vec(),
+            risk_classes: FrtbRiskClass::ALL.to_vec(),
+        }
+    }
+}
+
 impl FrtbSbaEngine {
-    /// Create a builder for configuring the engine.
-    #[must_use]
-    pub fn builder() -> FrtbSbaEngineBuilder {
-        FrtbSbaEngineBuilder::default()
+    /// Create an engine restricted to the given scenarios and risk classes.
+    ///
+    /// # Arguments
+    ///
+    /// * `scenarios` - Correlation scenarios to evaluate; the charge is the
+    ///   maximum across them. Use [`CorrelationScenario::ALL`] for the
+    ///   regulatory three.
+    /// * `risk_classes` - Risk classes whose delta, vega and curvature
+    ///   charges are included. Use [`FrtbRiskClass::ALL`] for a full run.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if either list is empty.
+    pub fn new(
+        scenarios: Vec<CorrelationScenario>,
+        risk_classes: Vec<FrtbRiskClass>,
+    ) -> Result<Self> {
+        if scenarios.is_empty() {
+            return Err(finstack_quant_core::Error::Validation(
+                "FRTB SBA engine requires at least one correlation scenario".into(),
+            ));
+        }
+        if risk_classes.is_empty() {
+            return Err(finstack_quant_core::Error::Validation(
+                "FRTB SBA engine requires at least one risk class".into(),
+            ));
+        }
+        Ok(Self {
+            scenarios,
+            risk_classes,
+        })
     }
 
     /// Compute the full FRTB SBA capital charge.
@@ -105,88 +142,31 @@ impl FrtbSbaEngine {
     }
 }
 
-/// Builder for `FrtbSbaEngine`.
-#[derive(Default)]
-pub struct FrtbSbaEngineBuilder {
-    scenarios: Option<Vec<CorrelationScenario>>,
-    risk_classes: Option<Vec<FrtbRiskClass>>,
-}
-
-impl FrtbSbaEngineBuilder {
-    /// Override correlation scenarios (default: Low, Medium, High).
-    #[must_use]
-    pub fn scenarios(mut self, s: Vec<CorrelationScenario>) -> Self {
-        self.scenarios = Some(s);
-        self
-    }
-
-    /// Restrict to specific risk classes (default: all).
-    #[must_use]
-    pub fn risk_classes(mut self, rc: Vec<FrtbRiskClass>) -> Self {
-        self.risk_classes = Some(rc);
-        self
-    }
-
-    /// Build the engine, validating configuration.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if no scenarios or risk classes are configured.
-    pub fn build(self) -> Result<FrtbSbaEngine> {
-        let scenarios = self
-            .scenarios
-            .unwrap_or_else(|| CorrelationScenario::ALL.to_vec());
-        let risk_classes = self
-            .risk_classes
-            .unwrap_or_else(|| FrtbRiskClass::ALL.to_vec());
-
-        if scenarios.is_empty() {
-            return Err(finstack_quant_core::Error::Validation(
-                "FRTB SBA engine requires at least one correlation scenario".into(),
-            ));
-        }
-        if risk_classes.is_empty() {
-            return Err(finstack_quant_core::Error::Validation(
-                "FRTB SBA engine requires at least one risk class".into(),
-            ));
-        }
-
-        Ok(FrtbSbaEngine {
-            scenarios,
-            risk_classes,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::regulatory::frtb::types::*;
     use finstack_quant_core::currency::Currency;
 
-    // Builder tests
+    // Constructor tests
 
     #[test]
-    fn builder_default_creates_engine() {
-        let engine = FrtbSbaEngine::builder().build().expect("default build");
+    fn default_creates_engine() {
+        let engine = FrtbSbaEngine::default();
         assert_eq!(engine.scenarios.len(), 3);
         assert_eq!(engine.risk_classes.len(), FrtbRiskClass::ALL.len());
     }
 
     #[test]
-    fn builder_rejects_empty_scenarios() {
-        let err = FrtbSbaEngine::builder()
-            .scenarios(vec![])
-            .build()
-            .expect_err("empty scenarios");
+    fn new_rejects_empty_scenarios() {
+        let err =
+            FrtbSbaEngine::new(vec![], FrtbRiskClass::ALL.to_vec()).expect_err("empty scenarios");
         assert!(err.to_string().contains("scenario"));
     }
 
     #[test]
-    fn builder_rejects_empty_risk_classes() {
-        let err = FrtbSbaEngine::builder()
-            .risk_classes(vec![])
-            .build()
+    fn new_rejects_empty_risk_classes() {
+        let err = FrtbSbaEngine::new(CorrelationScenario::ALL.to_vec(), vec![])
             .expect_err("empty risk classes");
         assert!(err.to_string().contains("risk class"));
     }
@@ -195,10 +175,9 @@ mod tests {
 
     #[test]
     fn single_girr_delta_produces_positive_charge() {
-        let engine = FrtbSbaEngine::builder()
-            .risk_classes(vec![FrtbRiskClass::Girr])
-            .build()
-            .expect("build");
+        let engine =
+            FrtbSbaEngine::new(CorrelationScenario::ALL.to_vec(), vec![FrtbRiskClass::Girr])
+                .expect("build");
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.add_girr_delta(Currency::USD, "5Y", 100_000.0);
@@ -221,7 +200,7 @@ mod tests {
 
     #[test]
     fn calculate_rejects_unknown_labels_buckets_and_non_finite_values() {
-        let engine = FrtbSbaEngine::builder().build().expect("build");
+        let engine = FrtbSbaEngine::default();
 
         let mut unknown_tenor = FrtbSensitivities::new(Currency::USD);
         unknown_tenor.add_girr_delta(Currency::USD, "0.25y", 100.0);
@@ -240,11 +219,11 @@ mod tests {
 
     #[test]
     fn equity_delta_charge_reflects_risk_weight() {
-        let engine = FrtbSbaEngine::builder()
-            .risk_classes(vec![FrtbRiskClass::Equity])
-            .scenarios(vec![CorrelationScenario::Medium])
-            .build()
-            .expect("build");
+        let engine = FrtbSbaEngine::new(
+            vec![CorrelationScenario::Medium],
+            vec![FrtbRiskClass::Equity],
+        )
+        .expect("build");
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         // Bucket 12 (indices) has RW = 15.0.
@@ -268,10 +247,7 @@ mod tests {
 
     #[test]
     fn fx_delta_uniform_weight() {
-        let engine = FrtbSbaEngine::builder()
-            .risk_classes(vec![FrtbRiskClass::Fx])
-            .scenarios(vec![CorrelationScenario::Medium])
-            .build()
+        let engine = FrtbSbaEngine::new(vec![CorrelationScenario::Medium], vec![FrtbRiskClass::Fx])
             .expect("build");
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
@@ -295,7 +271,7 @@ mod tests {
 
     #[test]
     fn scenario_charges_differ_for_multi_factor() {
-        let engine = FrtbSbaEngine::builder().build().expect("build");
+        let engine = FrtbSbaEngine::default();
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.add_girr_delta(Currency::USD, "5Y", 100_000.0);
@@ -329,7 +305,7 @@ mod tests {
 
     #[test]
     fn drc_long_position_applies_risk_weight() {
-        let engine = FrtbSbaEngine::builder().build().expect("build");
+        let engine = FrtbSbaEngine::default();
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.drc_positions.push(DrcPosition {
@@ -357,7 +333,7 @@ mod tests {
     /// could offset a corporate long even though MAR22.23 forbids it.
     #[test]
     fn drc_hedge_benefit_is_per_bucket() {
-        let engine = FrtbSbaEngine::builder().build().expect("build");
+        let engine = FrtbSbaEngine::default();
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         // Long corporate bond (FinancialsCorporate bucket).
@@ -402,7 +378,7 @@ mod tests {
 
     #[test]
     fn rrao_exotic_applies_one_percent() {
-        let engine = FrtbSbaEngine::builder().build().expect("build");
+        let engine = FrtbSbaEngine::default();
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.rrao_exotic_notionals.push(RraoPosition {
@@ -422,7 +398,7 @@ mod tests {
 
     #[test]
     fn rrao_other_applies_point_one_percent() {
-        let engine = FrtbSbaEngine::builder().build().expect("build");
+        let engine = FrtbSbaEngine::default();
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.rrao_exotic_notionals.push(RraoPosition {
@@ -448,11 +424,11 @@ mod tests {
     /// capital because it ignored the additional tenor offset (0.65).
     #[test]
     fn csr_intra_bucket_tenor_rho_is_applied() {
-        let engine = FrtbSbaEngine::builder()
-            .risk_classes(vec![FrtbRiskClass::CsrNonSec])
-            .scenarios(vec![CorrelationScenario::Medium])
-            .build()
-            .expect("build");
+        let engine = FrtbSbaEngine::new(
+            vec![CorrelationScenario::Medium],
+            vec![FrtbRiskClass::CsrNonSec],
+        )
+        .expect("build");
 
         // Two issuer positions, same bucket (4 = basic materials), same name,
         // different tenors: name-identity rho = 1.0, but tenor rho = 0.65
@@ -494,7 +470,7 @@ mod tests {
 
     #[test]
     fn empty_sensitivities_zero_charge() {
-        let engine = FrtbSbaEngine::builder().build().expect("build");
+        let engine = FrtbSbaEngine::default();
         let sens = FrtbSensitivities::new(Currency::USD);
         let result = engine.calculate(&sens).expect("calculate");
         assert!(
@@ -508,10 +484,11 @@ mod tests {
 
     #[test]
     fn multi_risk_class_total_exceeds_individual() {
-        let engine = FrtbSbaEngine::builder()
-            .scenarios(vec![CorrelationScenario::Medium])
-            .build()
-            .expect("build");
+        let engine = FrtbSbaEngine::new(
+            vec![CorrelationScenario::Medium],
+            FrtbRiskClass::ALL.to_vec(),
+        )
+        .expect("build");
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.add_girr_delta(Currency::USD, "5Y", 100_000.0);
@@ -576,11 +553,9 @@ mod tests {
 
     #[test]
     fn girr_vega_single_factor() {
-        let engine = FrtbSbaEngine::builder()
-            .risk_classes(vec![FrtbRiskClass::Girr])
-            .scenarios(vec![CorrelationScenario::Medium])
-            .build()
-            .expect("build");
+        let engine =
+            FrtbSbaEngine::new(vec![CorrelationScenario::Medium], vec![FrtbRiskClass::Girr])
+                .expect("build");
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.add_girr_vega(Currency::USD, "1Y", "5Y", 500_000.0);
@@ -603,11 +578,9 @@ mod tests {
 
     #[test]
     fn girr_curvature_positive_shock() {
-        let engine = FrtbSbaEngine::builder()
-            .risk_classes(vec![FrtbRiskClass::Girr])
-            .scenarios(vec![CorrelationScenario::Medium])
-            .build()
-            .expect("build");
+        let engine =
+            FrtbSbaEngine::new(vec![CorrelationScenario::Medium], vec![FrtbRiskClass::Girr])
+                .expect("build");
 
         let mut sens = FrtbSensitivities::new(Currency::USD);
         // CVR_up = 50K, CVR_down = 30K. max(50K, 30K) = 50K. max(50K, 0) = 50K.

@@ -439,66 +439,77 @@ impl FrtbSensitivities {
             finite("girr_curvature.down", down)?;
         }
 
-        for ((issuer, bucket_id, label), value) in &self.csr_nonsec_delta {
-            identifier("csr_nonsec_delta.issuer", issuer)?;
-            bucket(
+        for (entries, allowed, field, label_kind, tenor_kind) in [
+            (
+                &self.csr_nonsec_delta,
+                super::params::csr::CSR_NONSEC_RISK_WEIGHTS,
                 "csr_nonsec_delta",
-                *bucket_id,
-                super::params::csr::CSR_NONSEC_RISK_WEIGHTS,
-            )?;
-            tenor("csr_nonsec_delta.tenor", label)?;
-            finite("csr_nonsec_delta", *value)?;
-        }
-        for ((name, bucket_id, label), value) in &self.csr_sec_ctp_delta {
-            identifier("csr_sec_ctp_delta.name", name)?;
-            bucket(
+                "issuer",
+                "tenor",
+            ),
+            (
+                &self.csr_sec_ctp_delta,
+                super::params::csr::CSR_SEC_CTP_RISK_WEIGHTS,
                 "csr_sec_ctp_delta",
-                *bucket_id,
-                super::params::csr::CSR_SEC_CTP_RISK_WEIGHTS,
-            )?;
-            tenor("csr_sec_ctp_delta.tenor", label)?;
-            finite("csr_sec_ctp_delta", *value)?;
-        }
-        for ((name, bucket_id, label), value) in &self.csr_sec_nonctp_delta {
-            identifier("csr_sec_nonctp_delta.name", name)?;
-            bucket(
+                "name",
+                "tenor",
+            ),
+            (
+                &self.csr_sec_nonctp_delta,
+                super::params::csr::CSR_SEC_NONCTP_RISK_WEIGHTS,
                 "csr_sec_nonctp_delta",
-                *bucket_id,
-                super::params::csr::CSR_SEC_NONCTP_RISK_WEIGHTS,
-            )?;
-            tenor("csr_sec_nonctp_delta.tenor", label)?;
-            finite("csr_sec_nonctp_delta", *value)?;
-        }
-
-        for ((issuer, bucket_id, maturity), value) in &self.csr_nonsec_vega {
-            identifier("csr_nonsec_vega.issuer", issuer)?;
-            bucket(
-                "csr_nonsec_vega",
-                *bucket_id,
+                "name",
+                "tenor",
+            ),
+            (
+                &self.csr_nonsec_vega,
                 super::params::csr::CSR_NONSEC_RISK_WEIGHTS,
-            )?;
-            tenor("csr_nonsec_vega.maturity", maturity)?;
-            finite("csr_nonsec_vega", *value)?;
-        }
-        for ((name, bucket_id, maturity), value) in &self.csr_sec_ctp_vega {
-            identifier("csr_sec_ctp_vega.name", name)?;
-            bucket(
-                "csr_sec_ctp_vega",
-                *bucket_id,
+                "csr_nonsec_vega",
+                "issuer",
+                "maturity",
+            ),
+            (
+                &self.csr_sec_ctp_vega,
                 super::params::csr::CSR_SEC_CTP_RISK_WEIGHTS,
-            )?;
-            tenor("csr_sec_ctp_vega.maturity", maturity)?;
-            finite("csr_sec_ctp_vega", *value)?;
-        }
-        for ((name, bucket_id, maturity), value) in &self.csr_sec_nonctp_vega {
-            identifier("csr_sec_nonctp_vega.name", name)?;
-            bucket(
-                "csr_sec_nonctp_vega",
-                *bucket_id,
+                "csr_sec_ctp_vega",
+                "name",
+                "maturity",
+            ),
+            (
+                &self.csr_sec_nonctp_vega,
                 super::params::csr::CSR_SEC_NONCTP_RISK_WEIGHTS,
-            )?;
-            tenor("csr_sec_nonctp_vega.maturity", maturity)?;
-            finite("csr_sec_nonctp_vega", *value)?;
+                "csr_sec_nonctp_vega",
+                "name",
+                "maturity",
+            ),
+            (
+                &self.equity_vega,
+                super::params::equity::EQUITY_RISK_WEIGHTS,
+                "equity_vega",
+                "underlier",
+                "maturity",
+            ),
+            (
+                &self.commodity_delta,
+                super::params::commodity::COMMODITY_RISK_WEIGHTS,
+                "commodity_delta",
+                "name",
+                "tenor",
+            ),
+            (
+                &self.commodity_vega,
+                super::params::commodity::COMMODITY_RISK_WEIGHTS,
+                "commodity_vega",
+                "name",
+                "maturity",
+            ),
+        ] {
+            for ((label, bucket_id, tenor_label), value) in entries {
+                identifier(&format!("{field}.{label_kind}"), label)?;
+                bucket(field, *bucket_id, allowed)?;
+                tenor(&format!("{field}.{tenor_kind}"), tenor_label)?;
+                finite(field, *value)?;
+            }
         }
 
         for ((underlier, bucket_id), value) in &self.equity_delta {
@@ -510,57 +521,6 @@ impl FrtbSensitivities {
             )?;
             finite("equity_delta", *value)?;
         }
-        for ((underlier, bucket_id, maturity), value) in &self.equity_vega {
-            identifier("equity_vega.underlier", underlier)?;
-            bucket(
-                "equity_vega",
-                *bucket_id,
-                super::params::equity::EQUITY_RISK_WEIGHTS,
-            )?;
-            tenor("equity_vega.maturity", maturity)?;
-            finite("equity_vega", *value)?;
-        }
-        for ((underlier, bucket_id), &(up, down)) in &self.equity_curvature {
-            identifier("equity_curvature.underlier", underlier)?;
-            bucket(
-                "equity_curvature",
-                *bucket_id,
-                super::params::equity::EQUITY_RISK_WEIGHTS,
-            )?;
-            finite("equity_curvature.up", up)?;
-            finite("equity_curvature.down", down)?;
-        }
-
-        for ((name, bucket_id, label), value) in &self.commodity_delta {
-            identifier("commodity_delta.name", name)?;
-            bucket(
-                "commodity_delta",
-                *bucket_id,
-                super::params::commodity::COMMODITY_RISK_WEIGHTS,
-            )?;
-            tenor("commodity_delta.tenor", label)?;
-            finite("commodity_delta", *value)?;
-        }
-        for ((name, bucket_id, maturity), value) in &self.commodity_vega {
-            identifier("commodity_vega.name", name)?;
-            bucket(
-                "commodity_vega",
-                *bucket_id,
-                super::params::commodity::COMMODITY_RISK_WEIGHTS,
-            )?;
-            tenor("commodity_vega.maturity", maturity)?;
-            finite("commodity_vega", *value)?;
-        }
-        for ((name, bucket_id), &(up, down)) in &self.commodity_curvature {
-            identifier("commodity_curvature.name", name)?;
-            bucket(
-                "commodity_curvature",
-                *bucket_id,
-                super::params::commodity::COMMODITY_RISK_WEIGHTS,
-            )?;
-            finite("commodity_curvature.up", up)?;
-            finite("commodity_curvature.down", down)?;
-        }
 
         for ((_, _, maturity), value) in &self.fx_vega {
             tenor("fx_vega.maturity", maturity)?;
@@ -571,28 +531,48 @@ impl FrtbSensitivities {
             finite("fx_curvature.down", down)?;
         }
 
-        for (entries, allowed, field) in [
+        for (entries, allowed, field, label_kind, message_prefix) in [
             (
                 &self.csr_nonsec_curvature,
                 super::params::csr::CSR_NONSEC_RISK_WEIGHTS,
                 "csr_nonsec_curvature",
+                "name",
+                "csr_curvature",
             ),
             (
                 &self.csr_sec_ctp_curvature,
                 super::params::csr::CSR_SEC_CTP_RISK_WEIGHTS,
                 "csr_sec_ctp_curvature",
+                "name",
+                "csr_curvature",
             ),
             (
                 &self.csr_sec_nonctp_curvature,
                 super::params::csr::CSR_SEC_NONCTP_RISK_WEIGHTS,
                 "csr_sec_nonctp_curvature",
+                "name",
+                "csr_curvature",
+            ),
+            (
+                &self.equity_curvature,
+                super::params::equity::EQUITY_RISK_WEIGHTS,
+                "equity_curvature",
+                "underlier",
+                "equity_curvature",
+            ),
+            (
+                &self.commodity_curvature,
+                super::params::commodity::COMMODITY_RISK_WEIGHTS,
+                "commodity_curvature",
+                "name",
+                "commodity_curvature",
             ),
         ] {
-            for ((issuer, bucket_id), &(up, down)) in entries {
-                identifier("csr_curvature.name", issuer)?;
+            for ((label, bucket_id), &(up, down)) in entries {
+                identifier(&format!("{message_prefix}.{label_kind}"), label)?;
                 bucket(field, *bucket_id, allowed)?;
-                finite("csr_curvature.up", up)?;
-                finite("csr_curvature.down", down)?;
+                finite(&format!("{message_prefix}.up"), up)?;
+                finite(&format!("{message_prefix}.down"), down)?;
             }
         }
         for position in &self.drc_positions {

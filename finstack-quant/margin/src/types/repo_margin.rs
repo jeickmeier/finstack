@@ -1,7 +1,6 @@
 //! Repo margin specification types.
 
 use crate::types::{EligibleCollateralSchedule, MarginTenor};
-use finstack_quant_core::types::Percentage;
 
 /// Repo margin type.
 ///
@@ -185,18 +184,6 @@ impl RepoMarginSpec {
         })
     }
 
-    /// Create a standard mark-to-market margin spec using typed percentages.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the embedded margin registry cannot be loaded.
-    pub fn mark_to_market_pct(
-        margin_ratio: Percentage,
-        threshold: Percentage,
-    ) -> finstack_quant_core::Result<Self> {
-        Self::mark_to_market(margin_ratio.as_decimal(), threshold.as_decimal())
-    }
-
     /// Create a tri-party repo margin spec.
     ///
     /// # Errors
@@ -214,15 +201,6 @@ impl RepoMarginSpec {
             substitution_allowed: true,
             eligible_substitutes: Some(EligibleCollateralSchedule::bcbs_standard()?),
         })
-    }
-
-    /// Create a tri-party repo margin spec using a typed percentage.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the embedded margin registry cannot be loaded.
-    pub fn triparty_pct(margin_ratio: Percentage) -> finstack_quant_core::Result<Self> {
-        Self::triparty(margin_ratio.as_decimal())
     }
 
     /// Check if this spec has active margin management.

@@ -737,8 +737,7 @@ fn parse_simm(value: Option<&Value>) -> Result<HashMap<String, SimmParams>> {
         // weights via `unwrap_or(85.0)`, a flat 0.27 across every sector pair,
         // per-bucket thresholds collapsed to the aggregate), producing
         // confident margin numbers that match no ISDA calibration.
-        let cq_bucket_weights = parse_cq_bucket_weights(&record.cq_bucket_weights, true)?
-            .ok_or_else(|| missing_cq_table(version, "cq_bucket_weights"))?;
+        let cq_bucket_weights = parse_cq_bucket_weights(&record.cq_bucket_weights)?;
         let cq_intra_bucket_correlation = record
             .cq_intra_bucket_correlation
             .ok_or_else(|| missing_cq_table(version, "cq_intra_bucket_correlation"))?;
@@ -748,11 +747,9 @@ fn parse_simm(value: Option<&Value>) -> Result<HashMap<String, SimmParams>> {
             ));
         }
         let cq_inter_bucket_correlations =
-            parse_cq_inter_bucket_correlations(&record.cq_inter_bucket_correlations, true)?
-                .ok_or_else(|| missing_cq_table(version, "cq_inter_bucket_correlations"))?;
+            parse_cq_inter_bucket_correlations(&record.cq_inter_bucket_correlations)?;
         let cq_concentration_thresholds =
-            parse_cq_concentration_thresholds(&record.cq_concentration_thresholds, true)?
-                .ok_or_else(|| missing_cq_table(version, "cq_concentration_thresholds"))?;
+            parse_cq_concentration_thresholds(&record.cq_concentration_thresholds)?;
         let commodity_inter_bucket_correlations = record.commodity_inter_bucket_correlations;
         if commodity_inter_bucket_correlations.is_empty() {
             return Err(Error::Validation(format!(
@@ -896,31 +893,20 @@ fn parse_number_map(value: &Value, context: &str) -> Result<HashMap<String, f64>
     Ok(out)
 }
 
-fn parse_cq_bucket_weights(
-    value: &Value,
-    required: bool,
-) -> Result<Option<HashMap<SimmCreditSector, f64>>> {
-    parse_credit_sector_number_map(value, "simm.cq_bucket_weights", required)
+fn parse_cq_bucket_weights(value: &Value) -> Result<HashMap<SimmCreditSector, f64>> {
+    parse_credit_sector_number_map(value, "simm.cq_bucket_weights")
 }
 
-fn parse_cq_concentration_thresholds(
-    value: &Value,
-    required: bool,
-) -> Result<Option<HashMap<SimmCreditSector, f64>>> {
-    parse_credit_sector_number_map(value, "simm.cq_concentration_thresholds", required)
+fn parse_cq_concentration_thresholds(value: &Value) -> Result<HashMap<SimmCreditSector, f64>> {
+    parse_credit_sector_number_map(value, "simm.cq_concentration_thresholds")
 }
 
 fn parse_credit_sector_number_map(
     value: &Value,
     context: &str,
-    required: bool,
-) -> Result<Option<HashMap<SimmCreditSector, f64>>> {
+) -> Result<HashMap<SimmCreditSector, f64>> {
     if value.is_null() {
-        return if required {
-            Err(Error::Validation(format!("{context} missing")))
-        } else {
-            Ok(None)
-        };
+        return Err(Error::Validation(format!("{context} missing")));
     }
     let obj = value
         .as_object()
@@ -937,21 +923,16 @@ fn parse_credit_sector_number_map(
         validate_non_negative(&format!("{context}[{k}]"), num)?;
         out.insert(sector, num);
     }
-    Ok(Some(out))
+    Ok(out)
 }
 
 fn parse_cq_inter_bucket_correlations(
     value: &Value,
-    required: bool,
-) -> Result<Option<HashMap<(SimmCreditSector, SimmCreditSector), f64>>> {
+) -> Result<HashMap<(SimmCreditSector, SimmCreditSector), f64>> {
     if value.is_null() {
-        return if required {
-            Err(Error::Validation(
-                "simm.cq_inter_bucket_correlations missing".to_string(),
-            ))
-        } else {
-            Ok(None)
-        };
+        return Err(Error::Validation(
+            "simm.cq_inter_bucket_correlations missing".to_string(),
+        ));
     }
     let obj = value.as_object().ok_or_else(|| {
         Error::Validation("simm.cq_inter_bucket_correlations must be an object".to_string())
@@ -978,7 +959,7 @@ fn parse_cq_inter_bucket_correlations(
             rho,
         );
     }
-    Ok(Some(out))
+    Ok(out)
 }
 
 /// Parse the `simm.ir_tenor_correlations` overlay map.
@@ -1148,28 +1129,28 @@ pub(crate) fn validate_simm_params(p: &SimmParams) -> Result<()> {
 fn validate_cq_tables(p: &SimmParams) -> Result<()> {
     let sectors = simm_cq_validation_sectors();
     for sector in sectors {
-        let require_v26 = p.version == SimmVersion::V2_6;
-        let weight = p.cq_bucket_weights.get(&sector).copied();
-        if require_v26 && weight.is_none() {
-            return Err(Error::Validation(format!(
+        let weight = p.cq_bucket_weights.get(&sector).copied().ok_or_else(|| {
+            Error::Validation(format!(
                 "SIMM registry {:?}: cq_bucket_weights missing {sector:?}",
                 p.version
-            )));
-        }
-        if let Some(v) = weight {
-            validate_non_negative(&format!("simm.cq_bucket_weights[{sector:?}]"), v)?;
-        }
+            ))
+        })?;
+        validate_non_negative(&format!("simm.cq_bucket_weights[{sector:?}]"), weight)?;
 
-        let threshold = p.cq_concentration_thresholds.get(&sector).copied();
-        if require_v26 && threshold.is_none() {
-            return Err(Error::Validation(format!(
-                "SIMM registry {:?}: cq_concentration_thresholds missing {sector:?}",
-                p.version
-            )));
-        }
-        if let Some(v) = threshold {
-            validate_non_negative(&format!("simm.cq_concentration_thresholds[{sector:?}]"), v)?;
-        }
+        let threshold = p
+            .cq_concentration_thresholds
+            .get(&sector)
+            .copied()
+            .ok_or_else(|| {
+                Error::Validation(format!(
+                    "SIMM registry {:?}: cq_concentration_thresholds missing {sector:?}",
+                    p.version
+                ))
+            })?;
+        validate_non_negative(
+            &format!("simm.cq_concentration_thresholds[{sector:?}]"),
+            threshold,
+        )?;
     }
 
     for (i, &a) in sectors.iter().enumerate() {
@@ -1666,7 +1647,7 @@ mod tests {
         let val = serde_json::json!({
             "sovereign": -5.0,
         });
-        let err = parse_credit_sector_number_map(&val, "simm.cq_bucket_weights", false)
+        let err = parse_credit_sector_number_map(&val, "simm.cq_bucket_weights")
             .expect_err("negative bucket weight must be rejected");
         let msg = err.to_string();
         assert!(

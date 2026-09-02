@@ -15,6 +15,32 @@ use finstack_quant_core::HashMap;
 /// [`SimmSensitivities::merge`] so adding a new sensitivity bucket is a
 /// one-line change in `merge` rather than a copy-paste-edit cycle that
 /// risks dropping the new field.
+/// The thirteen signed-amount maps of [`SimmSensitivities`], listed once.
+///
+/// `is_empty`, `merge` and `scale_amounts` all walk every map; routing them
+/// through this list means a new bucket is added in exactly one place (plus
+/// the explicit JSON DTO, which stays hand-written for wire stability).
+macro_rules! amount_maps {
+    (@fields $($args:tt)*) => {
+        amount_maps!($($args)*;
+            ir_delta, ir_vega,
+            credit_qualifying_delta, credit_qualifying_vega,
+            credit_non_qualifying_delta, credit_non_qualifying_vega,
+            equity_delta, equity_vega,
+            fx_delta, fx_vega,
+            commodity_delta, commodity_vega,
+            curvature)
+    };
+    (is_empty $s:ident) => { amount_maps!(@fields @is_empty $s) };
+    (@is_empty $s:ident; $($f:ident),*) => { true $(&& $s.$f.is_empty())* };
+    (merge $s:ident, $other:ident) => { amount_maps!(@fields @merge $s, $other) };
+    (@merge $s:ident, $other:ident; $($f:ident),*) => { $( merge_into(&mut $s.$f, &$other.$f); )* };
+    (scale $s:ident, $factor:ident) => { amount_maps!(@fields @scale $s, $factor) };
+    (@scale $s:ident, $factor:ident; $($f:ident),*) => {
+        $( for v in $s.$f.values_mut() { *v *= $factor; } )*
+    };
+}
+
 fn merge_into<K>(target: &mut HashMap<K, f64>, source: &HashMap<K, f64>)
 where
     K: Eq + Hash + Clone,
@@ -704,19 +730,7 @@ impl SimmSensitivities {
     /// Note: This checks bucket existence, not whether net sensitivities are zero.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.ir_delta.is_empty()
-            && self.ir_vega.is_empty()
-            && self.credit_qualifying_delta.is_empty()
-            && self.credit_qualifying_vega.is_empty()
-            && self.credit_non_qualifying_delta.is_empty()
-            && self.credit_non_qualifying_vega.is_empty()
-            && self.equity_delta.is_empty()
-            && self.equity_vega.is_empty()
-            && self.fx_delta.is_empty()
-            && self.fx_vega.is_empty()
-            && self.commodity_delta.is_empty()
-            && self.commodity_vega.is_empty()
-            && self.curvature.is_empty()
+        amount_maps!(is_empty self)
     }
 
     /// Merge another set of sensitivities into this one.
@@ -727,31 +741,7 @@ impl SimmSensitivities {
     ///
     /// * `other` - Second operand used by the binary arithmetic or merge operation
     pub fn merge(&mut self, other: &SimmSensitivities) {
-        merge_into(&mut self.ir_delta, &other.ir_delta);
-        merge_into(&mut self.ir_vega, &other.ir_vega);
-        merge_into(
-            &mut self.credit_qualifying_delta,
-            &other.credit_qualifying_delta,
-        );
-        merge_into(
-            &mut self.credit_qualifying_vega,
-            &other.credit_qualifying_vega,
-        );
-        merge_into(
-            &mut self.credit_non_qualifying_delta,
-            &other.credit_non_qualifying_delta,
-        );
-        merge_into(
-            &mut self.credit_non_qualifying_vega,
-            &other.credit_non_qualifying_vega,
-        );
-        merge_into(&mut self.equity_delta, &other.equity_delta);
-        merge_into(&mut self.equity_vega, &other.equity_vega);
-        merge_into(&mut self.fx_delta, &other.fx_delta);
-        merge_into(&mut self.fx_vega, &other.fx_vega);
-        merge_into(&mut self.commodity_delta, &other.commodity_delta);
-        merge_into(&mut self.commodity_vega, &other.commodity_vega);
-        merge_into(&mut self.curvature, &other.curvature);
+        amount_maps!(merge self, other);
     }
 
     /// Return a copy of these sensitivities re-expressed in `target_currency`.
@@ -814,58 +804,13 @@ impl SimmSensitivities {
     /// Keys (risk-factor names) and `base_currency` are untouched; only the
     /// signed amounts are rescaled.
     fn scale_amounts(&mut self, factor: f64) {
-        for v in self.ir_delta.values_mut() {
-            *v *= factor;
-        }
-        for v in self.ir_vega.values_mut() {
-            *v *= factor;
-        }
-        for v in self.credit_qualifying_delta.values_mut() {
-            *v *= factor;
-        }
-        for v in self.credit_qualifying_vega.values_mut() {
-            *v *= factor;
-        }
-        for v in self.credit_non_qualifying_delta.values_mut() {
-            *v *= factor;
-        }
-        for v in self.credit_non_qualifying_vega.values_mut() {
-            *v *= factor;
-        }
-        for v in self.equity_delta.values_mut() {
-            *v *= factor;
-        }
-        for v in self.equity_vega.values_mut() {
-            *v *= factor;
-        }
-        for v in self.fx_delta.values_mut() {
-            *v *= factor;
-        }
-        for v in self.fx_vega.values_mut() {
-            *v *= factor;
-        }
-        for v in self.commodity_delta.values_mut() {
-            *v *= factor;
-        }
-        for v in self.commodity_vega.values_mut() {
-            *v *= factor;
-        }
-        for v in self.curvature.values_mut() {
-            *v *= factor;
-        }
+        amount_maps!(scale self, factor);
     }
 
     /// Get total IR delta across all currencies and tenors.
     #[must_use]
     pub fn total_ir_delta(&self) -> f64 {
         self.ir_delta.values().sum()
-    }
-
-    /// Get total credit delta (qualifying + non-qualifying).
-    #[must_use]
-    pub fn total_credit_delta(&self) -> f64 {
-        self.credit_qualifying_delta.values().sum::<f64>()
-            + self.credit_non_qualifying_delta.values().sum::<f64>()
     }
 
     /// Get total equity delta.
@@ -1054,7 +999,11 @@ mod tests {
 
         assert!(!sens.is_empty());
         assert_eq!(sens.total_ir_delta(), 150_000.0);
-        assert_eq!(sens.total_credit_delta(), 25_000.0);
+        assert_eq!(
+            sens.credit_qualifying_delta.values().sum::<f64>()
+                + sens.credit_non_qualifying_delta.values().sum::<f64>(),
+            25_000.0
+        );
         assert_eq!(sens.fx_vega[&(Currency::EUR, Currency::USD)], 1_000.0);
         assert_eq!(sens.commodity_delta["energy"], 2_000.0);
         assert_eq!(sens.curvature[&SimmRiskClass::Equity], 3_000.0);

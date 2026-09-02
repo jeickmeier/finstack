@@ -146,6 +146,19 @@ pub enum MaturityBucket {
 /// Default schedule IM registry id for the BCBS-IOSCO grid (`schedule_im.v1.json`).
 pub const BCBS_IOSCO_SCHEDULE_ID: &str = "bcbs_iosco";
 
+/// Look up a schedule IM grid by id in `registry`.
+fn schedule_entry<'a>(
+    registry: &'a crate::registry::MarginRegistry,
+    schedule_id: &str,
+) -> Result<&'a crate::registry::ScheduleImSchedule> {
+    registry.schedule_im.get(schedule_id).ok_or_else(|| {
+        finstack_quant_core::InputError::NotFound {
+            id: format!("schedule_im '{schedule_id}'"),
+        }
+        .into()
+    })
+}
+
 impl RegulatorySchedule {
     /// BCBS-IOSCO standard schedule loaded from the embedded registry.
     ///
@@ -163,13 +176,9 @@ impl RegulatorySchedule {
     ///
     /// Returns an error if the registry cannot be loaded or `schedule_id` is absent.
     pub fn from_registry_id(schedule_id: &str) -> Result<Self> {
-        let registry = embedded_registry()?;
-        let schedule = registry.schedule_im.get(schedule_id).ok_or_else(|| {
-            finstack_quant_core::InputError::NotFound {
-                id: format!("schedule_im '{schedule_id}'"),
-            }
-        })?;
-        Ok(Self::from_registry(schedule.clone()))
+        Ok(Self::from_registry(
+            schedule_entry(embedded_registry()?, schedule_id)?.clone(),
+        ))
     }
 
     /// Build from a registry entry.
@@ -286,26 +295,13 @@ impl ScheduleImCalculator {
     ///
     /// Returns an error if the registry cannot be loaded or `schedule_id` is not found.
     pub fn from_registry_id(schedule_id: &str) -> Result<Self> {
-        let registry = embedded_registry()?;
-        let entry = registry.schedule_im.get(schedule_id).ok_or_else(|| {
-            finstack_quant_core::InputError::NotFound {
-                id: format!("schedule_im '{schedule_id}'"),
-            }
-        })?;
-        Ok(Self::from_registry(entry))
+        Ok(Self::from_entry(schedule_entry(
+            embedded_registry()?,
+            schedule_id,
+        )?))
     }
 
-    /// Create calculator from a resolved registry entry.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry` - Fully parsed schedule grid with decimal rates and bucket boundaries
-    ///
-    /// # Returns
-    ///
-    /// A calculator using the registry defaults for asset class, maturity, and MPOR.
-    #[must_use]
-    pub fn from_registry(entry: &crate::registry::ScheduleImSchedule) -> Self {
+    fn from_entry(entry: &crate::registry::ScheduleImSchedule) -> Self {
         Self {
             schedule: RegulatorySchedule::from_registry(entry.clone()),
             default_asset_class: entry.default_asset_class.clone(),
@@ -325,13 +321,10 @@ impl ScheduleImCalculator {
     /// "bcbs_iosco" schedule entry is missing.
     pub fn from_finstack_config(cfg: &finstack_quant_core::config::FinstackConfig) -> Result<Self> {
         let registry = margin_registry_from_config(cfg)?;
-        let entry = registry
-            .schedule_im
-            .get(BCBS_IOSCO_SCHEDULE_ID)
-            .ok_or_else(|| finstack_quant_core::InputError::NotFound {
-                id: format!("schedule_im '{}'", BCBS_IOSCO_SCHEDULE_ID),
-            })?;
-        Ok(Self::from_registry(entry))
+        Ok(Self::from_entry(schedule_entry(
+            &registry,
+            BCBS_IOSCO_SCHEDULE_ID,
+        )?))
     }
 
     /// Set the default asset class used by [`ImCalculator::calculate`].

@@ -126,14 +126,17 @@ impl MarginEnvelope {
 /// documented defaults rather than invented numbers.
 #[cfg(feature = "json-schema")]
 fn margin_examples() -> finstack_quant_core::Result<Vec<Value>> {
+    let registry = crate::registry::embedded_registry()?;
     let csa = crate::types::CsaSpec {
         id: "CSA-ACME-2024".to_string(),
         base_currency: finstack_quant_core::currency::Currency::USD,
         calendar_id: "nyse".to_string(),
-        vm_params: Default::default(),
+        vm_params: crate::types::VmParameters::regulatory_standard(
+            finstack_quant_core::currency::Currency::USD,
+        )?,
         im_params: None,
         eligible_collateral: Default::default(),
-        call_timing: Default::default(),
+        call_timing: registry.defaults.timing.standard.clone(),
         collateral_curve_id: "USD-OIS".into(),
     };
     let envelope = MarginEnvelope::csa_spec(csa);

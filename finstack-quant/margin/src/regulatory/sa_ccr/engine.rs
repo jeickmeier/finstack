@@ -20,11 +20,31 @@ pub struct SaCcrEngine {
     alpha: f64,
 }
 
+impl Default for SaCcrEngine {
+    /// Regulatory alpha of 1.4.
+    fn default() -> Self {
+        Self { alpha: 1.4 }
+    }
+}
+
 impl SaCcrEngine {
-    /// Create a builder for configuring the engine.
-    #[must_use]
-    pub fn builder() -> SaCcrEngineBuilder {
-        SaCcrEngineBuilder::default()
+    /// Create an engine with a supervisory alpha override.
+    ///
+    /// # Arguments
+    ///
+    /// * `alpha` - EAD multiplier applied to `RC + PFE` (regulatory value
+    ///   1.4). Must be finite and at least 1.0.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if `alpha` is non-finite or below 1.0.
+    pub fn with_alpha(alpha: f64) -> Result<Self> {
+        if !alpha.is_finite() || alpha < 1.0 {
+            return Err(finstack_quant_core::Error::Validation(
+                "SA-CCR alpha must be finite and >= 1.0".into(),
+            ));
+        }
+        Ok(Self { alpha })
     }
 
     /// Compute EAD for a netting set.
@@ -104,36 +124,6 @@ impl SaCcrEngine {
     }
 }
 
-/// Builder for `SaCcrEngine`.
-#[derive(Default)]
-pub struct SaCcrEngineBuilder {
-    alpha: Option<f64>,
-}
-
-impl SaCcrEngineBuilder {
-    /// Override alpha (default: 1.4). Must be >= 1.0.
-    #[must_use]
-    pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(alpha);
-        self
-    }
-
-    /// Build the engine, validating configuration.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if alpha is less than 1.0.
-    pub fn build(self) -> Result<SaCcrEngine> {
-        let alpha = self.alpha.unwrap_or(1.4);
-        if !alpha.is_finite() || alpha < 1.0 {
-            return Err(finstack_quant_core::Error::Validation(
-                "SA-CCR alpha must be finite and >= 1.0".into(),
-            ));
-        }
-        Ok(SaCcrEngine { alpha })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,41 +182,35 @@ mod tests {
         )
     }
 
-    // Builder tests
+    // Constructor tests
 
     #[test]
     fn builder_default() {
-        let engine = SaCcrEngine::builder().build().expect("default build");
+        let engine = SaCcrEngine::default();
         assert!((engine.alpha - 1.4).abs() < 1e-10);
     }
 
     #[test]
     fn builder_custom_alpha() {
-        let engine = SaCcrEngine::builder()
-            .alpha(1.5)
-            .build()
-            .expect("custom alpha");
+        let engine = SaCcrEngine::with_alpha(1.5).expect("custom alpha");
         assert!((engine.alpha - 1.5).abs() < 1e-10);
     }
 
     #[test]
     fn builder_rejects_low_alpha() {
-        let err = SaCcrEngine::builder()
-            .alpha(0.9)
-            .build()
-            .expect_err("low alpha");
+        let err = SaCcrEngine::with_alpha(0.9).expect_err("low alpha");
         assert!(err.to_string().contains("alpha"));
     }
 
     #[test]
     fn builder_rejects_non_finite_alpha() {
-        assert!(SaCcrEngine::builder().alpha(f64::NAN).build().is_err());
-        assert!(SaCcrEngine::builder().alpha(f64::INFINITY).build().is_err());
+        assert!(SaCcrEngine::with_alpha(f64::NAN).is_err());
+        assert!(SaCcrEngine::with_alpha(f64::INFINITY).is_err());
     }
 
     #[test]
     fn calculate_rejects_invalid_margin_configuration() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let mut config = margined_config(0.0, 0.0, 0.0, 0.0);
         config.mpor_days = 0;
         assert!(engine.calculate_ead(&config, &[]).is_err());
@@ -239,7 +223,7 @@ mod tests {
 
     #[test]
     fn empty_netting_set_zero_ead() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(0.0);
         let result = engine.calculate_ead(&config, &[]).expect("calculate");
         assert!(
@@ -254,7 +238,7 @@ mod tests {
 
     #[test]
     fn rc_unmargined_positive_mtm_no_collateral() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(0.0);
         let trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 2_500_000.0);
         let result = engine.calculate_ead(&config, &[trade]).expect("calculate");
@@ -268,7 +252,7 @@ mod tests {
 
     #[test]
     fn rc_unmargined_over_collateralized() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(5_000_000.0);
         let trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 2_500_000.0);
         let result = engine.calculate_ead(&config, &[trade]).expect("calculate");
@@ -284,7 +268,7 @@ mod tests {
 
     #[test]
     fn rc_margined_uses_margin_terms() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = margined_config(5_000_000.0, 0.0, 500_000.0, 1_000_000.0);
         let trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 2_500_000.0);
         let result = engine.calculate_ead(&config, &[trade]).expect("calculate");
@@ -304,7 +288,7 @@ mod tests {
     /// independent amount had no offsetting effect.
     #[test]
     fn nica_reduces_pfe_multiplier() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 2_500_000.0);
 
         let config_no_nica = margined_config(5_000_000.0, 0.0, 500_000.0, 0.0);
@@ -404,7 +388,7 @@ mod tests {
 
     #[test]
     fn ead_alpha_factor() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(0.0);
         let trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 2_500_000.0);
         let result = engine.calculate_ead(&config, &[trade]).expect("calculate");
@@ -420,7 +404,7 @@ mod tests {
 
     #[test]
     fn ead_positive_for_single_trade() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(0.0);
         let trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 2_500_000.0);
         let result = engine.calculate_ead(&config, &[trade]).expect("calculate");
@@ -432,7 +416,7 @@ mod tests {
 
     #[test]
     fn margined_lower_ead_than_unmargined() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
 
         let trades = vec![
             simple_ir_trade("T1", 100_000_000.0, 1.0, 2_500_000.0),
@@ -461,7 +445,7 @@ mod tests {
 
     #[test]
     fn add_on_only_for_present_asset_classes() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(0.0);
         let trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 1_000_000.0);
         let result = engine.calculate_ead(&config, &[trade]).expect("calculate");
@@ -485,7 +469,7 @@ mod tests {
 
     #[test]
     fn multiple_asset_classes_aggregate() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(0.0);
 
         let ir_trade = simple_ir_trade("T1", 100_000_000.0, 1.0, 1_000_000.0);
@@ -528,7 +512,7 @@ mod tests {
     /// flipped adjusted notional.
     #[test]
     fn calculate_ead_rejects_trade_with_supervisory_delta_sign_mismatch() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
         let config = unmargined_config(0.0);
         let mut bad = simple_ir_trade("BAD", 100_000_000.0, 1.0, 0.0);
         // Linear long direction with short supervisory_delta: caller bug.
@@ -545,7 +529,7 @@ mod tests {
 
     #[test]
     fn ead_always_non_negative() {
-        let engine = SaCcrEngine::builder().build().expect("build");
+        let engine = SaCcrEngine::default();
 
         // Trade with negative MTM and large collateral.
         let config = unmargined_config(10_000_000.0);

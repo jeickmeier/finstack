@@ -20,15 +20,6 @@ pub const SUPERVISORY_CORRELATIONS: &[(SaCcrAssetClass, f64)] = &[
     (SaCcrAssetClass::Commodity, 0.40),
 ];
 
-/// Supervisory option volatilities per BCBS 279 Table 2.
-pub const SUPERVISORY_OPTION_VOLS: &[(SaCcrAssetClass, f64)] = &[
-    (SaCcrAssetClass::InterestRate, 0.50),
-    (SaCcrAssetClass::ForeignExchange, 0.15),
-    (SaCcrAssetClass::Credit, 1.00),
-    (SaCcrAssetClass::Equity, 1.20),
-    (SaCcrAssetClass::Commodity, 1.50),
-];
-
 /// Look up supervisory factor for an asset class.
 ///
 /// # Arguments

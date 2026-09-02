@@ -330,7 +330,7 @@ impl VmCalculator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{EligibleCollateralSchedule, MarginCallTiming, VmParameters};
+    use crate::types::{EligibleCollateralSchedule, VmParameters};
     use crate::MarginCallType;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::types::CurveId;
@@ -352,7 +352,12 @@ mod tests {
             ),
             im_params: None,
             eligible_collateral: EligibleCollateralSchedule::default(),
-            call_timing: MarginCallTiming::default(),
+            call_timing: crate::registry::embedded_registry()
+                .expect("registry should load")
+                .defaults
+                .timing
+                .standard
+                .clone(),
             collateral_curve_id: CurveId::new("USD-OIS"),
         }
     }

@@ -10,12 +10,9 @@
 //! CME CORE).
 
 use crate::calculators::traits::{ImCalculator, ImResult};
-use crate::registry::{
-    embedded_registry_or_panic, margin_registry_from_config, CcpParams, MarginRegistry,
-};
+use crate::registry::{embedded_registry_or_panic, CcpParams, MarginRegistry};
 use crate::traits::Marginable;
 use crate::types::ImMethodology;
-use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
@@ -274,23 +271,6 @@ impl ClearingHouseImCalculator {
         }
     }
 
-    /// Create a calculator using registry overrides from config.
-    ///
-    /// # Arguments
-    ///
-    /// * `ccp` - Human-readable CCP name used to infer the methodology
-    /// * `cfg` - Config whose margin-registry extension may override CCP parameters
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the margin registry cannot be loaded from `cfg`.
-    pub fn for_ccp_with_config(ccp: &str, cfg: &FinstackConfig) -> Result<Self> {
-        let registry = margin_registry_from_config(cfg)?;
-        let methodology = CcpMethodology::from_ccp_name_with_registry(ccp, &registry);
-        let params = methodology.params_from_registry(&registry);
-        Ok(Self::with_params(methodology, params))
-    }
-
     /// Create calculator for LCH SwapClear (IRS).
     #[must_use]
     pub fn lch_swapclear() -> Self {
@@ -325,14 +305,6 @@ impl ClearingHouseImCalculator {
             confidence,
             lookback_days,
         })
-    }
-
-    /// Create a generic VaR-based fallback calculator from registry defaults.
-    #[must_use]
-    pub fn generic_var_default() -> Self {
-        Self::new(CcpMethodology::generic_var_from_registry(
-            embedded_registry_or_panic(),
-        ))
     }
 
     /// Attach a CCP input source that provides external VaR or SPAN outputs.

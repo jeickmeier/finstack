@@ -2,7 +2,7 @@
 //! had no numeric coverage at all: CSR securitisation (CTP), CSR
 //! securitisation (non-CTP), and commodity.
 //!
-//! Every test drives [`FrtbSbaEngine`] end-to-end (`builder()` ->
+//! Every test drives [`FrtbSbaEngine`] end-to-end (`new()` ->
 //! `calculate()`) and asserts the resulting charge against a value derived by
 //! hand. Each derivation is written out in the comment above the assertion
 //! with every risk weight and correlation quoted as a literal, so a change to
@@ -74,10 +74,7 @@ fn assert_charge(actual: f64, expected: f64, what: &str) {
 /// Build an engine restricted to one risk class under the Medium (prescribed)
 /// correlation scenario, so the hand derivation has no scenario ambiguity.
 fn medium_engine(risk_class: FrtbRiskClass) -> FrtbSbaEngine {
-    FrtbSbaEngine::builder()
-        .risk_classes(vec![risk_class])
-        .scenarios(vec![CorrelationScenario::Medium])
-        .build()
+    FrtbSbaEngine::new(vec![CorrelationScenario::Medium], vec![risk_class])
         .expect("engine builds for a single risk class and scenario")
 }
 
@@ -554,10 +551,11 @@ fn csr_sec_nonctp_curvature_pins_current_implementation() {
 fn commodity_delta_scenario_maximum_binds_at_high_correlation() {
     // Default engine: all three correlation scenarios, maximum taken
     // (MAR21.7).
-    let engine = FrtbSbaEngine::builder()
-        .risk_classes(vec![FrtbRiskClass::Commodity])
-        .build()
-        .expect("default-scenario engine builds");
+    let engine = FrtbSbaEngine::new(
+        CorrelationScenario::ALL.to_vec(),
+        vec![FrtbRiskClass::Commodity],
+    )
+    .expect("default-scenario engine builds");
 
     let mut sens = FrtbSensitivities::new(Currency::USD);
     sens.add_commodity_delta("COAL_A", 1, "1Y", 100_000.0);
@@ -620,15 +618,15 @@ fn previously_uncovered_risk_classes_contribute_additively() {
     // per-risk-class delta/vega/curvature charges — the SBA has no
     // cross-risk-class correlation matrix. Pin that all three previously
     // uncovered risk classes reach the result breakdown and add up.
-    let engine = FrtbSbaEngine::builder()
-        .risk_classes(vec![
+    let engine = FrtbSbaEngine::new(
+        vec![CorrelationScenario::Medium],
+        vec![
             FrtbRiskClass::Commodity,
             FrtbRiskClass::CsrSecCtp,
             FrtbRiskClass::CsrSecNonCtp,
-        ])
-        .scenarios(vec![CorrelationScenario::Medium])
-        .build()
-        .expect("engine builds");
+        ],
+    )
+    .expect("engine builds");
 
     let mut sens = FrtbSensitivities::new(Currency::USD);
     sens.add_commodity_delta("COAL_A", 1, "1Y", 100_000.0);

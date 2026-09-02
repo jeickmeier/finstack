@@ -521,14 +521,15 @@ impl PyFrtbSbaEngine {
     #[new]
     #[pyo3(signature = (correlation_scenario = None))]
     fn new(correlation_scenario: Option<&str>) -> PyResult<Self> {
-        let mut builder = FrtbSbaEngine::builder();
-        if let Some(s) = correlation_scenario {
-            let scenario = parse_correlation_scenario(s)?;
-            builder = builder.scenarios(vec![scenario]);
-        }
-        Ok(Self {
-            inner: builder.build().map_err(core_to_py)?,
-        })
+        let inner = match correlation_scenario {
+            Some(s) => {
+                let scenario = parse_correlation_scenario(s)?;
+                FrtbSbaEngine::new(vec![scenario], FrtbRiskClass::ALL.to_vec())
+                    .map_err(core_to_py)?
+            }
+            None => FrtbSbaEngine::default(),
+        };
+        Ok(Self { inner })
     }
 
     /// Calculate the FRTB SBA charge for a sensitivity portfolio.
@@ -765,13 +766,11 @@ impl PySaCcrEngine {
     #[new]
     #[pyo3(signature = (alpha = None))]
     fn new(alpha: Option<f64>) -> PyResult<Self> {
-        let mut builder = SaCcrEngine::builder();
-        if let Some(a) = alpha {
-            builder = builder.alpha(a);
-        }
-        Ok(Self {
-            inner: builder.build().map_err(core_to_py)?,
-        })
+        let inner = match alpha {
+            Some(a) => SaCcrEngine::with_alpha(a).map_err(core_to_py)?,
+            None => SaCcrEngine::default(),
+        };
+        Ok(Self { inner })
     }
 
     /// Calculate SA-CCR EAD for a netting set and trade list.
@@ -1178,12 +1177,13 @@ pub fn frtb_sba_charge(
     sensitivities: &PyFrtbSensitivities,
     correlation_scenario: Option<&str>,
 ) -> PyResult<PyFrtbSbaResult> {
-    let mut builder = FrtbSbaEngine::builder();
-    if let Some(s) = correlation_scenario {
-        let scenario = parse_correlation_scenario(s)?;
-        builder = builder.scenarios(vec![scenario]);
-    }
-    let engine = builder.build().map_err(core_to_py)?;
+    let engine = match correlation_scenario {
+        Some(s) => {
+            let scenario = parse_correlation_scenario(s)?;
+            FrtbSbaEngine::new(vec![scenario], FrtbRiskClass::ALL.to_vec()).map_err(core_to_py)?
+        }
+        None => FrtbSbaEngine::default(),
+    };
     let result = py
         .detach(|| engine.calculate(&sensitivities.inner))
         .map_err(core_to_py)?;
@@ -1250,7 +1250,7 @@ pub fn saccr_ead(
             "saccr_ead requires at least one trade",
         ));
     }
-    let engine = SaCcrEngine::builder().build().map_err(core_to_py)?;
+    let engine = SaCcrEngine::default();
     let netting_id = NettingSetId::bilateral(counterparty_id, csa_id);
     let trade_vec: Vec<SaCcrTrade> = trades.iter().map(|t| t.inner.clone()).collect();
     let as_of = parse_date(as_of_year, as_of_month, as_of_day)?;

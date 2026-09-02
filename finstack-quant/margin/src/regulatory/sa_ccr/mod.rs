@@ -11,5 +11,5 @@ pub mod pfe;
 pub mod replacement_cost;
 pub mod types;
 
-pub use engine::{SaCcrEngine, SaCcrEngineBuilder};
+pub use engine::SaCcrEngine;
 pub use types::{EadResult, SaCcrAssetClass, SaCcrNettingSetConfig, SaCcrOptionType, SaCcrTrade};

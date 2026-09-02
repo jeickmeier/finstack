@@ -40,16 +40,6 @@ pub struct MarginCallTiming {
     pub delivery_grace_days: u8,
 }
 
-impl Default for MarginCallTiming {
-    fn default() -> Self {
-        crate::registry::embedded_registry_or_panic()
-            .defaults
-            .timing
-            .standard
-            .clone()
-    }
-}
-
 impl MarginCallTiming {
     /// Standard timing for regulatory VM CSA.
     ///
@@ -269,19 +259,6 @@ impl CsaSpec {
     }
 }
 
-impl Default for CsaSpec {
-    fn default() -> Self {
-        // Touch the embedded registry first via the consolidated panic
-        // helper so any compile-time-asset failure surfaces with the
-        // standard message; `usd_regulatory()` would also fail at the
-        // same point but with a less specific error chain.
-        let _ = crate::registry::embedded_registry_or_panic();
-        #[allow(clippy::expect_used)] // proven reachable only on a build-pipeline regression
-        Self::usd_regulatory()
-            .expect("usd_regulatory(): embedded margin registry must already be loaded")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,7 +281,12 @@ mod tests {
 
     #[test]
     fn margin_call_timing_defaults() {
-        let timing = MarginCallTiming::default();
+        let timing = crate::registry::embedded_registry()
+            .expect("registry should load")
+            .defaults
+            .timing
+            .standard
+            .clone();
         assert_eq!(timing.notification_deadline_hours, 13);
         assert_eq!(timing.dispute_resolution_days, 2);
     }
