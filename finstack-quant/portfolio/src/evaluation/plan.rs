@@ -43,16 +43,10 @@ pub(crate) enum RiskFailurePolicy {
     BestEffort,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum BaseCurrencyPolicy {
-    Convert,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct EvaluationProfile {
     pub(crate) metrics: EvaluationMetricProfile,
     pub(crate) risk_policy: RiskFailurePolicy,
-    pub(crate) base_currency_policy: BaseCurrencyPolicy,
 }
 
 #[derive(Clone, Debug)]
@@ -85,7 +79,6 @@ impl EvaluationProfile {
             } else {
                 RiskFailurePolicy::BestEffort
             },
-            base_currency_policy: BaseCurrencyPolicy::Convert,
         }
     }
 
@@ -98,7 +91,6 @@ impl EvaluationProfile {
                 EvaluationMetricProfile::Metrics(metrics.into_boxed_slice())
             },
             risk_policy: RiskFailurePolicy::Strict,
-            base_currency_policy: BaseCurrencyPolicy::Convert,
         }
     }
 }
@@ -108,10 +100,6 @@ struct EvaluationKey {
     market_state: MarketStateId,
     portfolio_state: PortfolioStateId,
     profile: EvaluationProfile,
-}
-
-pub(crate) enum ParentResult<'a> {
-    External(&'a PortfolioValuation),
 }
 
 pub(crate) struct PositionInvalidation {
@@ -158,12 +146,8 @@ pub(crate) struct PortfolioEvaluationPlan<'a> {
     jobs_by_key: HashMap<EvaluationKey, EvaluationId>,
 }
 
-pub(crate) struct PortfolioEvaluationBatch {
-    results: IndexMap<EvaluationId, Arc<PortfolioValuation>>,
-}
-
 pub(crate) struct PortfolioEvaluationOutcome {
-    batch: PortfolioEvaluationBatch,
+    results: IndexMap<EvaluationId, Arc<PortfolioValuation>>,
     failures: IndexMap<EvaluationId, Error>,
 }
 
@@ -223,15 +207,6 @@ impl<'a> PortfolioEvaluationPlan<'a> {
         market: MarketStateId,
         portfolio: PortfolioStateId,
         profile: EvaluationProfile,
-    ) -> Result<EvaluationId> {
-        self.register_evaluation_with_execution(market, portfolio, profile, PositionExecution::Auto)
-    }
-
-    pub(crate) fn register_evaluation_with_execution(
-        &mut self,
-        market: MarketStateId,
-        portfolio: PortfolioStateId,
-        profile: EvaluationProfile,
         execution: PositionExecution,
     ) -> Result<EvaluationId> {
         self.validate_state_ids(market, portfolio)?;
@@ -260,7 +235,7 @@ impl<'a> PortfolioEvaluationPlan<'a> {
         market: MarketStateId,
         portfolio: PortfolioStateId,
         profile: EvaluationProfile,
-        parent: ParentResult<'a>,
+        parent: &'a PortfolioValuation,
         invalidation: PositionInvalidation,
     ) -> Result<EvaluationId> {
         self.validate_state_ids(market, portfolio)?;
@@ -275,34 +250,28 @@ impl<'a> PortfolioEvaluationPlan<'a> {
 
         let portfolio_state = self.portfolio(portfolio)?;
         let market_state = self.market(market)?;
-        let selective = match parent {
-            ParentResult::External(valuation)
-                if valuation.as_of == market_state.as_of
-                    && valuation.provenance.as_ref().is_some_and(|provenance| {
-                        provenance.profile == profile
-                            && provenance.base_currency == portfolio_state.portfolio.base_currency
-                            && (provenance.portfolio_state_id
-                                == portfolio_state.portfolio.evaluation_state_id
-                                || invalidation.authoritative_portfolio_change)
-                    })
-                    && prior_matches_portfolio(
-                        valuation,
-                        &portfolio_state.portfolio,
-                        &invalidation.reprice_indices,
-                    )
-                    && invalidation
-                        .reprice_indices
-                        .iter()
-                        .all(|index| *index < portfolio_state.portfolio.positions.len()) =>
-            {
-                Some(SelectiveJob {
-                    prior: valuation,
-                    reprice_indices: invalidation.reprice_indices,
-                    refresh_base_currency: invalidation.refresh_base_currency,
-                })
-            }
-            ParentResult::External(_) => None,
-        };
+        let reusable = parent.as_of == market_state.as_of
+            && parent.provenance.as_ref().is_some_and(|provenance| {
+                provenance.profile == profile
+                    && provenance.base_currency == portfolio_state.portfolio.base_currency
+                    && (provenance.portfolio_state_id
+                        == portfolio_state.portfolio.evaluation_state_id
+                        || invalidation.authoritative_portfolio_change)
+            })
+            && prior_matches_portfolio(
+                parent,
+                &portfolio_state.portfolio,
+                &invalidation.reprice_indices,
+            )
+            && invalidation
+                .reprice_indices
+                .iter()
+                .all(|index| *index < portfolio_state.portfolio.positions.len());
+        let selective = reusable.then_some(SelectiveJob {
+            prior: parent,
+            reprice_indices: invalidation.reprice_indices,
+            refresh_base_currency: invalidation.refresh_base_currency,
+        });
 
         let id = EvaluationId(next_id(self.jobs.len()));
         self.jobs.push(EvaluationJob {
@@ -358,10 +327,7 @@ impl<'a> PortfolioEvaluationPlan<'a> {
             }
         }
 
-        PortfolioEvaluationOutcome {
-            batch: PortfolioEvaluationBatch { results },
-            failures,
-        }
+        PortfolioEvaluationOutcome { results, failures }
     }
 
     fn execute_job(
@@ -410,7 +376,7 @@ impl<'a> PortfolioEvaluationPlan<'a> {
 
 impl PortfolioEvaluationOutcome {
     pub(crate) fn get(&self, id: EvaluationId) -> Result<&Arc<PortfolioValuation>> {
-        if let Some(result) = self.batch.results.get(&id) {
+        if let Some(result) = self.results.get(&id) {
             return Ok(result);
         }
         if let Some(error) = self.failures.get(&id) {
@@ -422,18 +388,14 @@ impl PortfolioEvaluationOutcome {
         )))
     }
 
-    pub(crate) fn into_valuation(mut self, id: EvaluationId) -> Result<PortfolioValuation> {
-        self.take_valuation(id)
-    }
-
     pub(crate) fn take_valuation(&mut self, id: EvaluationId) -> Result<PortfolioValuation> {
         if let Some(error) = self.failures.shift_remove(&id) {
             return Err(error);
         }
-        let result =
-            self.batch.results.shift_remove(&id).ok_or_else(|| {
-                Error::invalid_input(format!("unknown evaluation result {}", id.0))
-            })?;
+        let result = self
+            .results
+            .shift_remove(&id)
+            .ok_or_else(|| Error::invalid_input(format!("unknown evaluation result {}", id.0)))?;
         Ok(Arc::try_unwrap(result).unwrap_or_else(|shared| shared.as_ref().clone()))
     }
 }
@@ -709,10 +671,20 @@ mod tests {
         });
 
         let first = plan
-            .register_evaluation(market_state, portfolio_state, best_effort.clone())
+            .register_evaluation(
+                market_state,
+                portfolio_state,
+                best_effort.clone(),
+                PositionExecution::Auto,
+            )
             .expect("first job");
         let duplicate = plan
-            .register_evaluation(market_state, portfolio_state, best_effort.clone())
+            .register_evaluation(
+                market_state,
+                portfolio_state,
+                best_effort.clone(),
+                PositionExecution::Auto,
+            )
             .expect("duplicate job");
         assert_eq!(first, duplicate);
         assert_eq!(plan.jobs.len(), 1);
@@ -722,7 +694,12 @@ mod tests {
             ..best_effort.clone()
         };
         let strict_job = plan
-            .register_evaluation(market_state, portfolio_state, strict)
+            .register_evaluation(
+                market_state,
+                portfolio_state,
+                strict,
+                PositionExecution::Auto,
+            )
             .expect("strict job");
         assert_ne!(first, strict_job);
 
@@ -730,7 +707,12 @@ mod tests {
             plan.register_market(&market, portfolio.as_of + time::Duration::days(1));
         assert_ne!(market_state, second_market_state);
         let dated_job = plan
-            .register_evaluation(second_market_state, portfolio_state, best_effort)
+            .register_evaluation(
+                second_market_state,
+                portfolio_state,
+                best_effort,
+                PositionExecution::Auto,
+            )
             .expect("dated job");
         assert_ne!(first, dated_job);
     }
@@ -749,10 +731,15 @@ mod tests {
         });
 
         let first = plan
-            .register_evaluation(market_state, portfolio_state, profile.clone())
+            .register_evaluation(
+                market_state,
+                portfolio_state,
+                profile.clone(),
+                PositionExecution::Auto,
+            )
             .expect("first PV-only job");
         let duplicate = plan
-            .register_evaluation_with_execution(
+            .register_evaluation(
                 market_state,
                 portfolio_state,
                 profile,
@@ -789,10 +776,15 @@ mod tests {
             metrics: RequestedMetrics::Only(Vec::new()),
         });
         let initial_job = plan
-            .register_evaluation(initial, portfolio_state, profile.clone())
+            .register_evaluation(
+                initial,
+                portfolio_state,
+                profile.clone(),
+                PositionExecution::Auto,
+            )
             .expect("initial job");
         let next_job = plan
-            .register_evaluation(next, portfolio_state, profile)
+            .register_evaluation(next, portfolio_state, profile, PositionExecution::Auto)
             .expect("next-date job");
 
         let outcome = plan.execute();
@@ -818,10 +810,20 @@ mod tests {
         });
         let strict = EvaluationProfile::strict_metrics(&[MetricId::Dv01]);
         let best_effort_job = plan
-            .register_evaluation(market_state, portfolio_state, best_effort)
+            .register_evaluation(
+                market_state,
+                portfolio_state,
+                best_effort,
+                PositionExecution::Auto,
+            )
             .expect("best-effort job");
         let strict_job = plan
-            .register_evaluation(market_state, portfolio_state, strict)
+            .register_evaluation(
+                market_state,
+                portfolio_state,
+                strict,
+                PositionExecution::Auto,
+            )
             .expect("strict job");
 
         let outcome = plan.execute();
@@ -850,7 +852,7 @@ mod tests {
         let serial_portfolio = serial_plan.register_portfolio(&portfolio);
         let serial_market = serial_plan.register_market(&market, portfolio.as_of);
         let serial_job = serial_plan
-            .register_evaluation_with_execution(
+            .register_evaluation(
                 serial_market,
                 serial_portfolio,
                 profile.clone(),
@@ -859,14 +861,14 @@ mod tests {
             .expect("serial job");
         let serial = serial_plan
             .execute()
-            .into_valuation(serial_job)
+            .take_valuation(serial_job)
             .expect("serial result");
 
         let mut parallel_plan = PortfolioEvaluationPlan::new(&config);
         let parallel_portfolio = parallel_plan.register_portfolio(&portfolio);
         let parallel_market = parallel_plan.register_market(&market, portfolio.as_of);
         let parallel_job = parallel_plan
-            .register_evaluation_with_execution(
+            .register_evaluation(
                 parallel_market,
                 parallel_portfolio,
                 profile,
@@ -875,7 +877,7 @@ mod tests {
             .expect("parallel job");
         let parallel = parallel_plan
             .execute()
-            .into_valuation(parallel_job)
+            .take_valuation(parallel_job)
             .expect("parallel result");
 
         assert_eq!(serial.as_of, parallel.as_of);
@@ -904,18 +906,38 @@ mod tests {
         let market_state = plan.register_market(&market, first_portfolio.as_of);
         let profile = EvaluationProfile::strict_metrics(&[MetricId::Dv01]);
         let first = plan
-            .register_evaluation(market_state, first_state, profile.clone())
+            .register_evaluation(
+                market_state,
+                first_state,
+                profile.clone(),
+                PositionExecution::Auto,
+            )
             .expect("first failure");
         let second = plan
-            .register_evaluation(market_state, second_state, profile.clone())
+            .register_evaluation(
+                market_state,
+                second_state,
+                profile.clone(),
+                PositionExecution::Auto,
+            )
             .expect("second failure");
         for _ in 0..3 {
             let state = plan.register_portfolio(&first_portfolio);
-            plan.register_evaluation(market_state, state, profile.clone())
-                .expect("additional failure");
+            plan.register_evaluation(
+                market_state,
+                state,
+                profile.clone(),
+                PositionExecution::Auto,
+            )
+            .expect("additional failure");
             let state = plan.register_portfolio(&second_portfolio);
-            plan.register_evaluation(market_state, state, profile.clone())
-                .expect("additional failure");
+            plan.register_evaluation(
+                market_state,
+                state,
+                profile.clone(),
+                PositionExecution::Auto,
+            )
+            .expect("additional failure");
         }
 
         let outcome = plan.execute();

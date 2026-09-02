@@ -375,9 +375,8 @@ fn value_portfolio_with_execution_at(
     let market_state = plan.register_market(market, as_of);
     let portfolio_state = plan.register_portfolio(portfolio);
     let profile = crate::evaluation::EvaluationProfile::from_options(options);
-    let evaluation =
-        plan.register_evaluation_with_execution(market_state, portfolio_state, profile, execution)?;
-    plan.execute().into_valuation(evaluation)
+    let evaluation = plan.register_evaluation(market_state, portfolio_state, profile, execution)?;
+    plan.execute().take_valuation(evaluation)
 }
 
 /// Revalue only the positions affected by a set of changed market factor keys.
@@ -443,10 +442,10 @@ pub fn revalue_affected(
         market_state,
         portfolio_state,
         profile,
-        crate::evaluation::ParentResult::External(prior),
+        prior,
         crate::evaluation::PositionInvalidation::new(affected_indices, refresh_base_currency),
     )?;
-    plan.execute().into_valuation(evaluation)
+    plan.execute().take_valuation(evaluation)
 }
 
 #[cfg(test)]

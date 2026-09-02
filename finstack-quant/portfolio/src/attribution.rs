@@ -662,13 +662,13 @@ fn prepare_ordinary_endpoints(
     let portfolio_state = plan.register_portfolio(portfolio);
     let market_t0_state = plan.register_market(market_t0, as_of_t0);
     let market_t1_state = plan.register_market(market_t1, as_of_t1);
-    let t0_job = plan.register_evaluation_with_execution(
+    let t0_job = plan.register_evaluation(
         market_t0_state,
         portfolio_state,
         profile.clone(),
         PositionExecution::Parallel,
     )?;
-    let t1_job = plan.register_evaluation_with_execution(
+    let t1_job = plan.register_evaluation(
         market_t1_state,
         portfolio_state,
         profile,
@@ -1024,13 +1024,13 @@ fn attribute_portfolio_pnl_metrics_prepared(
     let portfolio_state = plan.register_portfolio(portfolio);
     let market_t0_state = plan.register_market(market_t0, as_of_t0);
     let market_t1_state = plan.register_market(market_t1, as_of_t1);
-    let t0_job = plan.register_evaluation_with_execution(
+    let t0_job = plan.register_evaluation(
         market_t0_state,
         portfolio_state,
         profile.clone(),
         PositionExecution::Parallel,
     )?;
-    let t1_job = plan.register_evaluation_with_execution(
+    let t1_job = plan.register_evaluation(
         market_t1_state,
         portfolio_state,
         profile,

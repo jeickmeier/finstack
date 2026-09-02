@@ -269,7 +269,12 @@ fn phase_a_results(
         .iter()
         .map(|(date, market)| {
             let market_state = plan.register_market(market, *date);
-            plan.register_evaluation(market_state, portfolio_state, profile.clone())
+            plan.register_evaluation(
+                market_state,
+                portfolio_state,
+                profile.clone(),
+                crate::evaluation::PositionExecution::Auto,
+            )
         })
         .collect::<Result<Vec<_>>>()?;
     let mut outcome = plan.execute();
@@ -301,8 +306,13 @@ fn attribution_endpoint_batch(
         .map(|&index| {
             let (date, market, _) = &surviving[index];
             let market_state = plan.register_market(market, *date);
-            plan.register_evaluation(market_state, portfolio_state, profile.clone())
-                .map(|job| (index, job))
+            plan.register_evaluation(
+                market_state,
+                portfolio_state,
+                profile.clone(),
+                crate::evaluation::PositionExecution::Auto,
+            )
+            .map(|job| (index, job))
         })
         .collect::<Result<Vec<_>>>()?;
     let mut outcome = plan.execute();
@@ -321,8 +331,7 @@ fn valuation_matches_endpoint_profile(
 ) -> bool {
     valuation.provenance.as_ref().is_some_and(|provenance| {
         let same_state = provenance.portfolio_state_id == portfolio.evaluation_state_id
-            && provenance.base_currency == portfolio.base_currency
-            && provenance.profile.base_currency_policy == profile.base_currency_policy;
+            && provenance.base_currency == portfolio.base_currency;
         if !same_state {
             return false;
         }

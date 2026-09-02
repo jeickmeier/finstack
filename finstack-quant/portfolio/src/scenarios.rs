@@ -312,8 +312,13 @@ pub fn apply_and_revalue(
         Cow::Owned(portfolio) => plan.register_owned_portfolio(portfolio),
     };
     let profile = crate::evaluation::EvaluationProfile::from_options(&Default::default());
-    let evaluation = plan.register_evaluation(market_state, portfolio_state, profile)?;
-    let valuation = plan.execute().into_valuation(evaluation)?;
+    let evaluation = plan.register_evaluation(
+        market_state,
+        portfolio_state,
+        profile,
+        crate::evaluation::PositionExecution::Auto,
+    )?;
+    let valuation = plan.execute().take_valuation(evaluation)?;
 
     Ok((valuation, report))
 }
@@ -619,11 +624,16 @@ pub fn scenario_pnl_batch(
                     market_state,
                     portfolio_state,
                     profile.clone(),
-                    crate::evaluation::ParentResult::External(&base),
+                    &base,
                     invalidation,
                 )?
             } else {
-                plan.register_evaluation(market_state, portfolio_state, profile.clone())?
+                plan.register_evaluation(
+                    market_state,
+                    portfolio_state,
+                    profile.clone(),
+                    crate::evaluation::PositionExecution::Auto,
+                )?
             };
             jobs.push((scenario_id, report, evaluation));
         }

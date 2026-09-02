@@ -215,64 +215,6 @@ impl<'a> WhatIfEngine<'a> {
         })
     }
 
-    /// Shock factors and reprice positions without a stressed risk decomposition.
-    ///
-    /// Returns each position's stressed-minus-base PV and a portfolio total in
-    /// the portfolio base currency. Native PVs are converted with
-    /// the portfolio spot FX helper on the **stressed** market at `as_of`,
-    /// so FX-factor shocks flow through the bumped spot matrix. Position P&L
-    /// is that difference times [`crate::position::Position::scale_factor`].
-    ///
-    /// # Arguments
-    ///
-    /// * `stresses` - Factor IDs and shock magnitudes in each factor's
-    ///   configured market-mapping convention.
-    ///
-    /// # Errors
-    ///
-    /// Propagates invalid factor shocks, market-stress construction, pricing,
-    /// and FX conversion errors. Returns validation errors for non-finite PVs.
-    /// Missing FX for a cross-currency position fails the same way NAV does.
-    pub fn factor_stress_pnl(&self, stresses: &[(FactorId, f64)]) -> Result<StressPnl> {
-        factor_stress_pnl(
-            self.model,
-            self.portfolio,
-            self.market,
-            self.as_of,
-            stresses,
-        )
-        .map(|(pnl, _)| pnl)
-    }
-
-    /// Shock factors, reprice positions, and recompute the stressed decomposition.
-    ///
-    /// Returns each position's stressed-minus-base PV and a portfolio total in
-    /// the portfolio base currency. Native PVs are converted with
-    /// the portfolio spot FX helper on the **stressed** market at `as_of`,
-    /// so FX-factor shocks flow through the bumped spot matrix. Position P&L
-    /// is that difference times [`crate::position::Position::scale_factor`].
-    ///
-    /// # Arguments
-    ///
-    /// * `stresses` - Factor IDs and shock magnitudes in each factor's
-    ///   configured market-mapping convention.
-    ///
-    /// # Errors
-    ///
-    /// Propagates invalid factor shocks, market-stress construction, pricing,
-    /// FX conversion, and decomposition errors. Returns validation errors for
-    /// non-finite PVs. Missing FX for a cross-currency position fails the same
-    /// way NAV does.
-    pub fn factor_stress(&self, stresses: &[(FactorId, f64)]) -> Result<StressResult> {
-        factor_stress(
-            self.model,
-            self.portfolio,
-            self.market,
-            self.as_of,
-            stresses,
-        )
-    }
-
     fn position_index(&self, position_id: &PositionId) -> Option<usize> {
         self.base_sensitivities
             .position_ids()
@@ -612,27 +554,12 @@ mod tests {
         let Some((model, portfolio, market)) = setup else {
             return;
         };
-        let base_result = model.analyze(&portfolio, &market, date!(2024 - 01 - 01));
-        assert!(base_result.is_ok());
-        let Ok(base) = base_result else {
-            return;
-        };
-        let sensitivities_result =
-            model.compute_sensitivities(&portfolio, &market, date!(2024 - 01 - 01));
-        assert!(sensitivities_result.is_ok());
-        let Ok(sensitivities) = sensitivities_result else {
-            return;
-        };
-
-        let stress_result = model
-            .what_if(
-                &base,
-                &sensitivities,
-                &portfolio,
-                &market,
-                date!(2024 - 01 - 01),
-            )
-            .factor_stress(&[(FactorId::new("Rates"), 1.0)]);
+        let stress_result = model.factor_stress(
+            &portfolio,
+            &market,
+            date!(2024 - 01 - 01),
+            &[(FactorId::new("Rates"), 1.0)],
+        );
         assert!(stress_result.is_ok());
         let Ok(stress_result) = stress_result else {
             return;
@@ -678,15 +605,13 @@ mod tests {
         };
 
         let run = |model: &FactorModel, portfolio: &Portfolio| -> f64 {
-            let base = model
-                .analyze(portfolio, &market, date!(2024 - 01 - 01))
-                .expect("analyze");
-            let sens = model
-                .compute_sensitivities(portfolio, &market, date!(2024 - 01 - 01))
-                .expect("sensitivities");
             model
-                .what_if(&base, &sens, portfolio, &market, date!(2024 - 01 - 01))
-                .factor_stress(&[(FactorId::new("Rates"), 1.0)])
+                .factor_stress(
+                    portfolio,
+                    &market,
+                    date!(2024 - 01 - 01),
+                    &[(FactorId::new("Rates"), 1.0)],
+                )
                 .expect("stress")
                 .total_pnl
         };
@@ -857,22 +782,13 @@ mod tests {
             .position(position)
             .build()
             .expect("portfolio");
-        let base = model
-            .analyze(&portfolio, &market, date!(2024 - 01 - 01))
-            .expect("base analysis");
-        let sensitivities = model
-            .compute_sensitivities(&portfolio, &market, date!(2024 - 01 - 01))
-            .expect("sensitivities");
-
         let err = model
-            .what_if(
-                &base,
-                &sensitivities,
+            .factor_stress(
                 &portfolio,
                 &market,
                 date!(2024 - 01 - 01),
+                &[(FactorId::new("Rates"), 1.0)],
             )
-            .factor_stress(&[(FactorId::new("Rates"), 1.0)])
             .expect_err("cross-currency factor stress without FX must fail");
         let message = err.to_string();
         assert!(
@@ -999,17 +915,16 @@ mod tests {
             .position(position)
             .build()
             .expect("portfolio");
-        let base = model.analyze(&portfolio, &market, as_of).expect("base");
-        let sensitivities = model
-            .compute_sensitivities(&portfolio, &market, as_of)
-            .expect("sensitivities");
-
         let result = model
-            .what_if(&base, &sensitivities, &portfolio, &market, as_of)
-            .factor_stress(&[
-                (FactorId::new("credit::level0::Rating::B"), 25.0),
-                (FactorId::new("credit::generic"), 5.0),
-            ])
+            .factor_stress(
+                &portfolio,
+                &market,
+                as_of,
+                &[
+                    (FactorId::new("credit::level0::Rating::B"), 25.0),
+                    (FactorId::new("credit::generic"), 5.0),
+                ],
+            )
             .expect("stress");
         let (manually_stressed, _) = model
             .stressed_market_with_factor_keys(

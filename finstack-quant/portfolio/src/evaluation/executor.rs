@@ -1,6 +1,6 @@
 //! Canonical position-evaluation kernel.
 
-use super::{BaseCurrencyPolicy, EvaluationMetricProfile, EvaluationProfile, RiskFailurePolicy};
+use super::{EvaluationMetricProfile, EvaluationProfile, RiskFailurePolicy};
 use crate::error::{Error, Result};
 use crate::position::Position;
 use crate::types::{EntityId, PositionId};
@@ -462,7 +462,6 @@ fn reuse_position(
 }
 
 fn collapse_to_base(input: &EvaluationInput<'_>, value_native: Money) -> Result<Money> {
-    let BaseCurrencyPolicy::Convert = input.profile.base_currency_policy;
     crate::fx::convert_to_base(
         value_native,
         input.as_of,

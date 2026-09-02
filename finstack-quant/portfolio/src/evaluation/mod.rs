@@ -15,6 +15,6 @@ pub(crate) use executor::{
     evaluate_raw_portfolio, PositionExecution, RawEvaluationInput, RawSelectiveSeed,
 };
 pub(crate) use plan::{
-    BaseCurrencyPolicy, EvaluationMetricProfile, EvaluationProfile, EvaluationProvenance,
-    ParentResult, PortfolioEvaluationPlan, PositionInvalidation, RiskFailurePolicy,
+    EvaluationMetricProfile, EvaluationProfile, EvaluationProvenance, PortfolioEvaluationPlan,
+    PositionInvalidation, RiskFailurePolicy,
 };
