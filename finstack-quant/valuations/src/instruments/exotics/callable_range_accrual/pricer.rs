@@ -5,10 +5,9 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::callable_range_accrual::CallableRangeAccrual;
 use crate::instruments::exotics::range_accrual::BoundsType;
 use crate::instruments::rates::hw1f::{
-    basis_for_degree, hw1f_overrides_from_model_config, initial_short_rate_from_curve,
-    prepare_hw1f_params, resolve_hw1f_params, ExerciseBoundaryPayoff, Hw1fParamFamily,
-    Hw1fResolveRequest, Hw1fTermForward, PeriodForwardCoeffs, RateExoticHw1fLsmcPricer,
-    RateExoticHw1fMcPricer, RateExoticMcConfig,
+    basis_for_degree, initial_short_rate_from_curve, prepare_hw1f_params, resolve_hw1f_params,
+    ExerciseBoundaryPayoff, Hw1fParamFamily, Hw1fTermForward, PeriodForwardCoeffs,
+    RateExoticHw1fLsmcPricer, RateExoticHw1fMcPricer, RateExoticMcConfig,
 };
 use crate::metrics::MetricId;
 use crate::pricer::{
@@ -20,7 +19,6 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
-use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
 use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use std::collections::BTreeMap;
@@ -250,41 +248,23 @@ impl CallableRangeAccrualPricer {
         &self,
         inst: &CallableRangeAccrual,
         market: &MarketContext,
-        _as_of: Date,
     ) -> Result<HullWhiteCalibrationParams> {
-        let overrides =
-            hw1f_overrides_from_model_config(&inst.instrument_pricing_overrides.model_config)
-                .or_else(|| {
-                    self.hw_params.map(|params| {
-                serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
-            })
-                });
-        let context_label = format!("CallableRangeAccrual {}", inst.id);
-        let req = Hw1fResolveRequest {
-            curve_id: inst.range_accrual.discount_curve_id.as_str(),
-            family: Hw1fParamFamily::CapFloor,
-            overrides: overrides.as_ref(),
-            context: context_label.as_str(),
-        };
-        // Provenance (`hw1f_param_source`) is stamped by the resolver's
-        // structured logs under the instrument context label.
-        resolve_hw1f_params(&req, market).map(|(params, _source)| params)
+        resolve_hw1f_params(
+            Hw1fParamFamily::CapFloor,
+            inst.range_accrual.discount_curve_id.as_str(),
+            &inst.instrument_pricing_overrides.model_config,
+            self.hw_params,
+            &format!("CallableRangeAccrual {}", inst.id),
+            market,
+        )
     }
 
     fn effective_config(&self, inst: &CallableRangeAccrual) -> RateExoticMcConfig {
-        let mut cfg = self.config;
-        if let Some(paths) = inst.instrument_pricing_overrides.model_config.mc_paths {
-            cfg.num_paths = paths.max(if cfg.antithetic { 2 } else { 1 });
-        }
-        cfg.seed = inst
-            .metric_pricing_overrides
-            .mc_seed_scenario
-            .as_deref()
-            .map_or_else(
-                || seed::derive_seed(&inst.id, "base"),
-                |scenario| seed::derive_seed(&inst.id, scenario),
-            );
-        cfg
+        self.config.with_instrument_overrides(
+            &inst.id,
+            inst.instrument_pricing_overrides.model_config.mc_paths,
+            inst.metric_pricing_overrides.mc_seed_scenario.as_deref(),
+        )
     }
 
     fn price_estimate(
@@ -327,7 +307,7 @@ impl CallableRangeAccrualPricer {
         }
 
         let discount_curve = market.get_discount(inst.range_accrual.discount_curve_id.as_ref())?;
-        let hw_params = self.effective_hw_params(inst, market, as_of)?;
+        let hw_params = self.effective_hw_params(inst, market)?;
         // HW1F bond-reconstruction built from the discount curve; turns the
         // simulated short rate at each observation into the term reference rate.
         let term_forward = Hw1fTermForward::new(hw_params, discount_curve.as_ref(), as_of)?;

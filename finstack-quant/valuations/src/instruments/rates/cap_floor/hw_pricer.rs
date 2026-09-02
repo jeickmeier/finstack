@@ -30,9 +30,7 @@ use crate::instruments::rates::cap_floor::pricing::projection::{
     resolve_optioned_caplet_inputs, OptionedCouponProjection,
 };
 use crate::instruments::rates::cap_floor::types::{CapFloor, RateOptionType};
-use crate::instruments::rates::hw1f::{
-    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest,
-};
+use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily};
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -344,13 +342,9 @@ impl CapFloorHullWhitePricer {
 
         // Resolve a complete HW1F input from either explicit overrides or
         // pre-fitted MarketContext parameters. Missing/partial inputs fail.
-        let hw_model =
-            resolve_capfloor_hw1f_model_params(cap_floor, market, as_of).map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::default(),
-                )
-            })?;
+        let hw_model = resolve_capfloor_hw1f_model_params(cap_floor, market).map_err(|e| {
+            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
+        })?;
 
         // Price each caplet/floorlet in closed form (Bachelier with the
         // HW1F-implied normal vol); no tree is built.
@@ -511,20 +505,15 @@ impl CapFloorHullWhitePricer {
 pub(crate) fn resolve_capfloor_hw1f_params(
     cap_floor: &CapFloor,
     market: &MarketContext,
-    _as_of: finstack_quant_core::dates::Date,
 ) -> finstack_quant_core::Result<HullWhiteCalibrationParams> {
-    let context_label = format!("CapFloor {}", cap_floor.id);
-    let overrides =
-        hw1f_overrides_from_model_config(&cap_floor.instrument_pricing_overrides.model_config);
-    let req = Hw1fResolveRequest {
-        curve_id: cap_floor.discount_curve_id.as_str(),
-        family: Hw1fParamFamily::CapFloor,
-        overrides: overrides.as_ref(),
-        context: context_label.as_str(),
-    };
-    // Provenance (`hw1f_param_source`) is stamped by the resolver's
-    // structured logs under the instrument context label.
-    resolve_hw1f_params(&req, market).map(|(params, _source)| params)
+    resolve_hw1f_params(
+        Hw1fParamFamily::CapFloor,
+        cap_floor.discount_curve_id.as_str(),
+        &cap_floor.instrument_pricing_overrides.model_config,
+        None,
+        &format!("CapFloor {}", cap_floor.id),
+        market,
+    )
 }
 
 /// Resolve the full cap/floor HW1F model, including an explicit scheduled
@@ -532,7 +521,6 @@ pub(crate) fn resolve_capfloor_hw1f_params(
 pub(crate) fn resolve_capfloor_hw1f_model_params(
     cap_floor: &CapFloor,
     market: &MarketContext,
-    as_of: finstack_quant_core::dates::Date,
 ) -> finstack_quant_core::Result<HullWhiteParams> {
     if let Some(schedule) = &cap_floor
         .instrument_pricing_overrides
@@ -616,7 +604,7 @@ pub(crate) fn resolve_capfloor_hw1f_model_params(
             );
         }
     }
-    HullWhiteParams::try_from(resolve_capfloor_hw1f_params(cap_floor, market, as_of)?)
+    HullWhiteParams::try_from(resolve_capfloor_hw1f_params(cap_floor, market)?)
 }
 
 #[cfg(test)]
@@ -1739,7 +1727,7 @@ mod tests {
             .insert_price(&kappa_key, MarketScalar::Unitless(0.05))
             .insert_series(schedule);
 
-        let model = resolve_capfloor_hw1f_model_params(&caplet, &market, as_of).expect("model");
+        let model = resolve_capfloor_hw1f_model_params(&caplet, &market).expect("model");
 
         assert_eq!(model.volatility.times()[0], 0.0);
         assert_eq!(model.volatility.values(), &[0.01, 0.02]);

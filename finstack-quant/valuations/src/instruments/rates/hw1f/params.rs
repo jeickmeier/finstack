@@ -1,8 +1,9 @@
 //! Resolve already-fitted HW1F short-rate parameters for valuation.
 //!
-//! Pricing accepts either a complete explicit `(kappa, sigma)` override or a
-//! complete pair written to the market by a prior calibration step. It never
-//! reads a volatility surface, performs a fit, or substitutes model defaults.
+//! Pricing accepts either a complete explicit `(kappa, sigma)` override, a
+//! complete pair supplied by the pricer, or a complete pair written to the
+//! market by a prior calibration step. It never reads a volatility surface,
+//! performs a fit, or substitutes model defaults.
 
 use crate::instruments::pricing_overrides::ModelConfig;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -11,26 +12,6 @@ use finstack_quant_core::Result;
 use finstack_quant_models::rates::hull_white::{
     capfloor_hw1f_scalar_keys, hw1f_scalar_keys, HullWhiteCalibrationParams,
 };
-
-/// Source of the complete HW1F parameter pair used for pricing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Hw1fParamSource {
-    /// Both parameters came from instrument pricing overrides.
-    Override,
-    /// Both parameters came from the pre-calibrated market scalar store.
-    MarketScalars,
-}
-
-impl Hw1fParamSource {
-    /// Stable provenance label used by pricing diagnostics.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Override => "override",
-            Self::MarketScalars => "market_scalars",
-        }
-    }
-}
 
 /// Parameter family that determines the market-scalar key convention.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,18 +31,6 @@ impl Hw1fParamFamily {
     }
 }
 
-/// Inputs needed to resolve a complete pre-fitted HW1F parameter pair.
-pub struct Hw1fResolveRequest<'a> {
-    /// Curve identifier used by the fitting step when storing scalars.
-    pub curve_id: &'a str,
-    /// Parameter family selecting the scalar key convention.
-    pub family: Hw1fParamFamily,
-    /// Optional model-configuration object containing `hw1f_kappa` and `hw1f_sigma`.
-    pub overrides: Option<&'a serde_json::Value>,
-    /// Instrument or pricing-path label included in validation errors.
-    pub context: &'a str,
-}
-
 fn scalar_as_positive_f64(scalar: &MarketScalar) -> Option<f64> {
     let value = match scalar {
         MarketScalar::Unitless(value) => *value,
@@ -70,86 +39,63 @@ fn scalar_as_positive_f64(scalar: &MarketScalar) -> Option<f64> {
     (value.is_finite() && value > 0.0).then_some(value)
 }
 
-fn override_positive_f64(
-    object: Option<&serde_json::Map<String, serde_json::Value>>,
-    key: &str,
-) -> Result<Option<f64>> {
-    let Some(raw) = object.and_then(|value| value.get(key)) else {
-        return Ok(None);
-    };
-    let value = raw.as_f64().ok_or_else(|| {
-        finstack_quant_core::Error::Validation(format!(
-            "{key} override must be a positive finite number"
-        ))
-    })?;
-    if value.is_finite() && value > 0.0 {
-        Ok(Some(value))
-    } else {
-        Err(finstack_quant_core::Error::Validation(format!(
+fn override_positive_f64(value: Option<f64>, key: &str) -> Result<Option<f64>> {
+    match value {
+        None => Ok(None),
+        Some(value) if value.is_finite() && value > 0.0 => Ok(Some(value)),
+        Some(value) => Err(finstack_quant_core::Error::Validation(format!(
             "{key} override must be positive and finite, got {value}"
-        )))
+        ))),
     }
-}
-
-/// Build the HW1F override JSON object consumed by [`resolve_hw1f_params`].
-///
-/// Maps `hw1f_mean_reversion` → `hw1f_kappa` and `hw1f_sigma` → `hw1f_sigma`.
-/// `hw1f_sigma` is short-rate absolute volatility (annual decimal, typically
-/// 0.005–0.015), not an option implied volatility. Returns `None` when
-/// neither field is set so the resolver can fall back to pre-fitted market
-/// scalars. The JSON shape is unchanged from the previous per-pricer helpers.
-///
-/// # Arguments
-///
-/// * `config` - Instrument model configuration whose optional HW1F pair is
-///   copied into the override object. Empty configs produce `None` rather
-///   than `{}`.
-#[must_use]
-pub fn hw1f_overrides_from_model_config(config: &ModelConfig) -> Option<serde_json::Value> {
-    let mut values = serde_json::Map::new();
-    if let Some(kappa) = config.hw1f_mean_reversion {
-        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
-    }
-    if let Some(sigma) = config.hw1f_sigma {
-        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
-    }
-    (!values.is_empty()).then_some(serde_json::Value::Object(values))
 }
 
 /// Resolve a complete HW1F parameter pair without fitting during pricing.
 ///
+/// Precedence: a complete `(hw1f_mean_reversion, hw1f_sigma)` pair on
+/// `config` wins; a partial pair is an error. Otherwise `fallback` (a pair the
+/// pricer was constructed with) is used when present; otherwise the complete
+/// pre-fitted market scalar pair keyed by `family` and `curve_id`.
+///
 /// # Arguments
 ///
-/// * `request` - Curve identity, scalar-key family, optional explicit overrides,
-///   and diagnostic context.
+/// * `family` - Scalar-key convention (swaption grid or cap/floor strip fit).
+/// * `curve_id` - Curve identifier used by the fitting step when storing scalars.
+/// * `config` - Instrument model configuration carrying the optional
+///   `hw1f_mean_reversion` (κ, inverse years) and `hw1f_sigma` (short-rate
+///   absolute volatility, annual decimal) overrides.
+/// * `fallback` - Optional complete pair supplied by the pricer, consulted
+///   only when `config` sets neither override.
+/// * `context` - Instrument or pricing-path label included in validation errors.
 /// * `market` - Pre-calibrated market that may contain the complete scalar pair.
 ///
 /// # Errors
 ///
 /// Returns a validation error for invalid, partial, or missing parameters.
 pub fn resolve_hw1f_params(
-    request: &Hw1fResolveRequest<'_>,
+    family: Hw1fParamFamily,
+    curve_id: &str,
+    config: &ModelConfig,
+    fallback: Option<HullWhiteCalibrationParams>,
+    context: &str,
     market: &MarketContext,
-) -> Result<(HullWhiteCalibrationParams, Hw1fParamSource)> {
-    let object = request.overrides.and_then(serde_json::Value::as_object);
-    let override_kappa = override_positive_f64(object, "hw1f_kappa")?;
-    let override_sigma = override_positive_f64(object, "hw1f_sigma")?;
+) -> Result<HullWhiteCalibrationParams> {
+    let override_kappa = override_positive_f64(config.hw1f_mean_reversion, "hw1f_kappa")?;
+    let override_sigma = override_positive_f64(config.hw1f_sigma, "hw1f_sigma")?;
     match (override_kappa, override_sigma) {
-        (Some(kappa), Some(sigma)) => {
-            return HullWhiteCalibrationParams::new(kappa, sigma)
-                .map(|params| (params, Hw1fParamSource::Override));
-        }
+        (Some(kappa), Some(sigma)) => return HullWhiteCalibrationParams::new(kappa, sigma),
         (None, None) => {}
         (kappa, sigma) => {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "{}: partial HW1F override (hw1f_kappa={kappa:?}, hw1f_sigma={sigma:?}); \
-                 supply both positive finite parameters",
-                request.context
+                "{context}: partial HW1F override (hw1f_kappa={kappa:?}, hw1f_sigma={sigma:?}); \
+                 supply both positive finite parameters"
             )));
         }
     }
+    if let Some(params) = fallback {
+        return Ok(params);
+    }
 
-    let (kappa_key, sigma_key) = request.family.scalar_keys(request.curve_id);
+    let (kappa_key, sigma_key) = family.scalar_keys(curve_id);
     let kappa = market
         .get_price(&kappa_key)
         .ok()
@@ -159,17 +105,14 @@ pub fn resolve_hw1f_params(
         .ok()
         .and_then(scalar_as_positive_f64);
     match (kappa, sigma) {
-        (Some(kappa), Some(sigma)) => HullWhiteCalibrationParams::new(kappa, sigma)
-            .map(|params| (params, Hw1fParamSource::MarketScalars)),
+        (Some(kappa), Some(sigma)) => HullWhiteCalibrationParams::new(kappa, sigma),
         (None, None) => Err(finstack_quant_core::Error::Validation(format!(
-            "{}: missing HW1F parameters for curve '{}'; provide both hw1f_kappa and \
-             hw1f_sigma overrides or pre-calibrate market scalars '{}' and '{}'",
-            request.context, request.curve_id, kappa_key, sigma_key
+            "{context}: missing HW1F parameters for curve '{curve_id}'; provide both hw1f_kappa and \
+             hw1f_sigma overrides or pre-calibrate market scalars '{kappa_key}' and '{sigma_key}'"
         ))),
         (kappa, sigma) => Err(finstack_quant_core::Error::Validation(format!(
-            "{}: partial calibrated HW1F scalars for curve '{}' \
-             ({kappa_key}={kappa:?}, {sigma_key}={sigma:?}); both must be present",
-            request.context, request.curve_id
+            "{context}: partial calibrated HW1F scalars for curve '{curve_id}' \
+             ({kappa_key}={kappa:?}, {sigma_key}={sigma:?}); both must be present"
         ))),
     }
 }
@@ -177,36 +120,30 @@ pub fn resolve_hw1f_params(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
-    fn request<'a>(overrides: Option<&'a serde_json::Value>) -> Hw1fResolveRequest<'a> {
-        Hw1fResolveRequest {
-            curve_id: "USD-OIS",
-            family: Hw1fParamFamily::Swaption,
-            overrides,
-            context: "test",
-        }
-    }
-
-    #[test]
-    fn overrides_from_model_config_preserve_json_shape() {
-        let mut config = ModelConfig::default();
-        assert!(hw1f_overrides_from_model_config(&config).is_none());
-        config.hw1f_mean_reversion = Some(0.05);
-        config.hw1f_sigma = Some(0.012);
-        assert_eq!(
-            hw1f_overrides_from_model_config(&config),
-            Some(json!({"hw1f_kappa": 0.05, "hw1f_sigma": 0.012}))
-        );
+    fn resolve(
+        config: &ModelConfig,
+        fallback: Option<HullWhiteCalibrationParams>,
+        market: &MarketContext,
+    ) -> Result<HullWhiteCalibrationParams> {
+        resolve_hw1f_params(
+            Hw1fParamFamily::Swaption,
+            "USD-OIS",
+            config,
+            fallback,
+            "test",
+            market,
+        )
     }
 
     #[test]
     fn complete_override_is_used() {
-        let overrides = json!({"hw1f_kappa": 0.05, "hw1f_sigma": 0.012});
-        let (params, source) =
-            resolve_hw1f_params(&request(Some(&overrides)), &MarketContext::new())
-                .expect("complete override");
-        assert_eq!(source, Hw1fParamSource::Override);
+        let config = ModelConfig {
+            hw1f_mean_reversion: Some(0.05),
+            hw1f_sigma: Some(0.012),
+            ..Default::default()
+        };
+        let params = resolve(&config, None, &MarketContext::new()).expect("complete override");
         assert_eq!(
             params,
             HullWhiteCalibrationParams::new(0.05, 0.012).expect("valid")
@@ -215,17 +152,31 @@ mod tests {
 
     #[test]
     fn missing_parameters_are_rejected() {
-        let error = resolve_hw1f_params(&request(None), &MarketContext::new())
+        let error = resolve(&ModelConfig::default(), None, &MarketContext::new())
             .expect_err("missing parameters");
         assert!(error.to_string().contains("missing HW1F parameters"));
     }
 
     #[test]
     fn partial_override_is_rejected() {
-        let overrides = json!({"hw1f_kappa": 0.05});
-        let error = resolve_hw1f_params(&request(Some(&overrides)), &MarketContext::new())
-            .expect_err("partial override");
+        let config = ModelConfig {
+            hw1f_mean_reversion: Some(0.05),
+            ..Default::default()
+        };
+        let error = resolve(&config, None, &MarketContext::new()).expect_err("partial override");
         assert!(error.to_string().contains("partial HW1F override"));
+    }
+
+    #[test]
+    fn fallback_is_used_when_config_is_silent() {
+        let fallback = HullWhiteCalibrationParams::new(0.02, 0.007).expect("valid");
+        let params = resolve(
+            &ModelConfig::default(),
+            Some(fallback),
+            &MarketContext::new(),
+        )
+        .expect("fallback pair");
+        assert_eq!(params, fallback);
     }
 
     #[test]
@@ -234,9 +185,7 @@ mod tests {
         let market = MarketContext::new()
             .insert_price(kappa_key, MarketScalar::Unitless(0.04))
             .insert_price(sigma_key, MarketScalar::Unitless(0.009));
-        let (params, source) =
-            resolve_hw1f_params(&request(None), &market).expect("complete market pair");
-        assert_eq!(source, Hw1fParamSource::MarketScalars);
+        let params = resolve(&ModelConfig::default(), None, &market).expect("complete market pair");
         assert_eq!(
             params,
             HullWhiteCalibrationParams::new(0.04, 0.009).expect("valid")

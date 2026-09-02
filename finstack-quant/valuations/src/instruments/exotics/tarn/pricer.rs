@@ -9,9 +9,7 @@ use crate::instruments::rates::hw1f::hw1f_curve::{
 };
 use crate::instruments::rates::hw1f::hw1f_mc::RateExoticHw1fMcPricer;
 use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
-use crate::instruments::rates::hw1f::{
-    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest,
-};
+use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily};
 use crate::metrics::MetricId;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -22,7 +20,6 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
-use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
 use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use std::sync::Arc;
@@ -239,41 +236,23 @@ impl TarnPricer {
         &self,
         inst: &Tarn,
         market: &MarketContext,
-        _as_of: Date,
     ) -> Result<HullWhiteCalibrationParams> {
-        let overrides =
-            hw1f_overrides_from_model_config(&inst.instrument_pricing_overrides.model_config)
-                .or_else(|| {
-                    self.hw_params.map(|params| {
-                serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
-            })
-                });
-        let context_label = format!("TARN {}", inst.id);
-        let req = Hw1fResolveRequest {
-            curve_id: inst.discount_curve_id.as_str(),
-            family: Hw1fParamFamily::CapFloor,
-            overrides: overrides.as_ref(),
-            context: context_label.as_str(),
-        };
-        // Provenance (`hw1f_param_source`) is stamped by the resolver's
-        // structured logs under the instrument context label.
-        resolve_hw1f_params(&req, market).map(|(params, _source)| params)
+        resolve_hw1f_params(
+            Hw1fParamFamily::CapFloor,
+            inst.discount_curve_id.as_str(),
+            &inst.instrument_pricing_overrides.model_config,
+            self.hw_params,
+            &format!("TARN {}", inst.id),
+            market,
+        )
     }
 
     fn effective_config(&self, inst: &Tarn) -> RateExoticMcConfig {
-        let mut cfg = self.config;
-        if let Some(paths) = inst.instrument_pricing_overrides.model_config.mc_paths {
-            cfg.num_paths = paths.max(if cfg.antithetic { 2 } else { 1 });
-        }
-        cfg.seed = inst
-            .metric_pricing_overrides
-            .mc_seed_scenario
-            .as_deref()
-            .map_or_else(
-                || seed::derive_seed(&inst.id, "base"),
-                |scenario| seed::derive_seed(&inst.id, scenario),
-            );
-        cfg
+        self.config.with_instrument_overrides(
+            &inst.id,
+            inst.instrument_pricing_overrides.model_config.mc_paths,
+            inst.metric_pricing_overrides.mc_seed_scenario.as_deref(),
+        )
     }
 
     fn price_estimate(
@@ -318,7 +297,7 @@ impl TarnPricer {
             inst.id.as_str(),
         )?;
 
-        let hw_params = self.effective_hw_params(inst, market, as_of)?;
+        let hw_params = self.effective_hw_params(inst, market)?;
         // HW1F bond-reconstruction built from the discount curve; turns the
         // short rate sampled at each coupon's in-advance fixing date into that
         // coupon's term forward.

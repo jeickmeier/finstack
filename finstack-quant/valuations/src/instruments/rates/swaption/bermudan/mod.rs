@@ -1,10 +1,7 @@
 //! Bermudan swaption pricer implementations.
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::hw1f::{
-    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fParamSource,
-    Hw1fResolveRequest,
-};
+use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily};
 use crate::instruments::rates::swaption::pricing::BermudanSwaptionTreeValuator;
 use crate::instruments::rates::swaption::BermudanSwaption;
 use crate::pricer::{
@@ -282,19 +279,16 @@ impl BermudanSwaptionPricer {
         &self,
         swaption: &BermudanSwaption,
         market: &MarketContext,
-        _ttm: f64,
-    ) -> std::result::Result<(HullWhiteCalibrationParams, Hw1fParamSource), PricingError> {
-        let context_label = format!("BermudanSwaption {}", swaption.id);
-        let overrides =
-            hw1f_overrides_from_model_config(&swaption.instrument_pricing_overrides.model_config);
-        let req = Hw1fResolveRequest {
-            curve_id: swaption.get_discount_curve_id().as_str(),
-            family: Hw1fParamFamily::Swaption,
-            overrides: overrides.as_ref(),
-            context: context_label.as_str(),
-        };
-
-        resolve_hw1f_params(&req, market).map_err(|e| {
+    ) -> std::result::Result<HullWhiteCalibrationParams, PricingError> {
+        resolve_hw1f_params(
+            Hw1fParamFamily::Swaption,
+            swaption.get_discount_curve_id().as_str(),
+            &swaption.instrument_pricing_overrides.model_config,
+            None,
+            &format!("BermudanSwaption {}", swaption.id),
+            market,
+        )
+        .map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })
     }
@@ -378,7 +372,7 @@ impl BermudanSwaptionPricer {
             (pv, true)
         } else {
             // Prepare a request-local tree (O(Steps × Time) per instrument).
-            let (hw_params, _hw_source) = self.effective_hw_params(swaption, market, ttm)?;
+            let hw_params = self.effective_hw_params(swaption, market)?;
             // Thread exercise dates into the tree grid so Bermudan exercise
             // decisions land exactly on grid points.
             let tree_steps = self.effective_tree_steps(swaption);
@@ -483,7 +477,7 @@ impl BermudanSwaptionPricer {
                 )
             })?;
 
-        let (hw_params, _hw_source) = self.effective_hw_params(swaption, market, ttm)?;
+        let hw_params = self.effective_hw_params(swaption, market)?;
 
         // Get exercise times in years
         // Filter exercise times to be within [0, ttm]

@@ -28,9 +28,7 @@
 use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::hw1f::{
-    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest,
-};
+use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily};
 use crate::instruments::rates::swaption::types::Swaption;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -157,18 +155,15 @@ impl SwaptionHullWhitePricer {
         }
 
         // Resolve only complete explicit or pre-calibrated HW1F parameters.
-        let context_label = format!("Swaption {}", swaption.id);
-        let overrides =
-            hw1f_overrides_from_model_config(&swaption.instrument_pricing_overrides.model_config);
-        let req = Hw1fResolveRequest {
-            curve_id: swaption.get_discount_curve_id().as_str(),
-            family: Hw1fParamFamily::Swaption,
-            overrides: overrides.as_ref(),
-            context: context_label.as_str(),
-        };
-        // Provenance (`hw1f_param_source`) is stamped by the resolver's
-        // structured logs under the instrument context label.
-        let (hw_params, _hw1f_param_source) = resolve_hw1f_params(&req, market).map_err(|e| {
+        let hw_params = resolve_hw1f_params(
+            Hw1fParamFamily::Swaption,
+            swaption.get_discount_curve_id().as_str(),
+            &swaption.instrument_pricing_overrides.model_config,
+            None,
+            &format!("Swaption {}", swaption.id),
+            market,
+        )
+        .map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 

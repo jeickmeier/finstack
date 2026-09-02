@@ -71,6 +71,34 @@ impl RateExoticMcConfig {
         }
     }
 
+    /// Apply per-instrument overrides: an optional `mc_paths` from the
+    /// instrument's model config (clamped to at least one antithetic pair) and
+    /// a seed derived deterministically from the instrument id and the
+    /// optional `mc_seed_scenario` label (`"base"` when absent).
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument_id` - Instrument identifier that seeds the RNG stream.
+    /// * `mc_paths` - Optional path-count override from `ModelConfig::mc_paths`.
+    /// * `mc_seed_scenario` - Optional scenario label from
+    ///   `MetricPricingOverrides::mc_seed_scenario` used to derive the seed.
+    #[must_use]
+    pub fn with_instrument_overrides(
+        mut self,
+        instrument_id: &finstack_quant_core::types::InstrumentId,
+        mc_paths: Option<usize>,
+        mc_seed_scenario: Option<&str>,
+    ) -> Self {
+        if let Some(paths) = mc_paths {
+            self.num_paths = paths.max(self.split().multiplicity);
+        }
+        self.seed = finstack_quant_models::monte_carlo::seed::derive_seed(
+            instrument_id,
+            mc_seed_scenario.unwrap_or("base"),
+        );
+        self
+    }
+
     /// Path-index partition implied by `antithetic` and `oos_lsmc`.
     ///
     /// Antithetic legs of one raw stream occupy consecutive path slots, so
