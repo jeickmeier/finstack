@@ -43,7 +43,7 @@ fn test_value_via_instrument_trait() {
 
     // Assert - both methods should give similar results
     // Small differences acceptable due to implementation details
-    assert_approx_eq(
+    relative_eq(
         pv_direct.amount(),
         pv_trait.amount(),
         0.01,
@@ -285,7 +285,7 @@ fn test_npv_consistency_with_schedule() {
         finstack_quant_core::cashflow::npv(disc.as_ref(), disc.base_date(), &flows).unwrap();
 
     // Assert
-    assert_approx_eq(
+    relative_eq(
         pv.amount(),
         expected_pv.amount(),
         REL_TOL,
@@ -328,7 +328,7 @@ fn test_npv_with_quoted_price_doesnt_affect_npv() {
     let pv2 = ilb2.value(&ctx, as_of).unwrap();
 
     // Assert - NPV should be calculated from curves, not quoted price
-    assert_approx_eq(
+    relative_eq(
         pv1.amount(),
         pv2.amount(),
         EPSILON,
@@ -367,7 +367,7 @@ fn test_npv_scales_with_notional() {
     let pv_2m = ilb_2m.value(&ctx, as_of).unwrap();
 
     // Assert - 2x notional → 2x PV
-    assert_approx_eq(
+    relative_eq(
         pv_2m.amount() / pv_1m.amount(),
         2.0,
         REL_TOL,
@@ -466,7 +466,7 @@ fn test_pv_matches_projected_index_ratio_times_nominal_df() {
     let index_ratio = 1.0404; // 104.04 / 100 at maturity
     let expected = 1_000_000.0 * index_ratio * df_2y; // ≈ 980_676.78
 
-    assert_approx_eq(
+    relative_eq(
         pv,
         expected,
         1e-7,

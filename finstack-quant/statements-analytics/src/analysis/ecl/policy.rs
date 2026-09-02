@@ -3,17 +3,15 @@
 use super::{
     CeclConfig, CeclMethodology, EclConfig, LgdType, MacroScenario, ReversionMethod, StagingConfig,
 };
-use finstack_quant_core::config::FinstackConfig;
+use finstack_quant_core::embedded_registry::EmbeddedJsonRegistry;
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
 
-const EMBEDDED_ECL_POLICY: &str = include_str!("../../../data/accounting/ecl_policy.v1.json");
-
-static EMBEDDED_REGISTRY: OnceLock<Result<EclPolicyRegistry>> = OnceLock::new();
-
-/// Config extension key for overriding ECL accounting-policy defaults.
-pub const ECL_POLICY_EXTENSION_KEY: &str = "statements_analytics.ecl_policy.v1";
+static EMBEDDED_REGISTRY: EmbeddedJsonRegistry<EclPolicyRegistry> = EmbeddedJsonRegistry::new(
+    include_str!("../../../data/accounting/ecl_policy.v1.json"),
+    None,
+    "ECL policy",
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -287,25 +285,6 @@ impl Default for EclConfig {
     }
 }
 
-/// Return the default IFRS 9 ECL configuration from config or embedded policy.
-///
-/// A complete policy registry in the ECL config extension replaces the
-/// embedded registry; it is not merged with it.
-///
-/// # Arguments
-///
-/// * `config` - Finstack configuration whose ECL policy extension, if present,
-///   fully replaces the embedded IFRS 9 policy registry.
-///
-/// # Errors
-///
-/// Returns an error if the configured registry cannot be parsed or validated,
-/// the embedded fallback cannot load, or it contains no default IFRS 9 policy.
-pub fn default_ecl_config_from_config(config: &FinstackConfig) -> Result<EclConfig> {
-    let registry = registry_from_config(config)?;
-    registry.default_ifrs9_policy().map(ecl_config_from_policy)
-}
-
 fn ecl_config_from_policy(policy: &Ifrs9PolicyRecord) -> EclConfig {
     EclConfig {
         bucket_width_years: policy.ecl.bucket_width_years,
@@ -331,46 +310,12 @@ impl Default for StagingConfig {
     }
 }
 
-/// Return the default IFRS 9 staging configuration from config or embedded policy.
-///
-/// # Arguments
-///
-/// * `config` - Finstack configuration whose ECL policy extension, if present,
-///   fully replaces the embedded IFRS 9 policy registry.
-///
-/// # Errors
-///
-/// Returns an error if the configured registry cannot be parsed or validated,
-/// the embedded fallback cannot load, or it contains no default IFRS 9 policy.
-pub fn default_staging_config_from_config(config: &FinstackConfig) -> Result<StagingConfig> {
-    let registry = registry_from_config(config)?;
-    registry
-        .default_ifrs9_policy()
-        .map(|policy| policy.staging.config())
-}
-
 impl Default for CeclConfig {
     /// The default CECL configuration from the embedded policy registry.
     fn default() -> Self {
         let policy = required_policy(registry().default_cecl_policy());
         cecl_config_from_policy(policy)
     }
-}
-
-/// Return the default CECL configuration from config or embedded policy.
-///
-/// # Arguments
-///
-/// * `config` - Finstack configuration whose ECL policy extension, if present,
-///   fully replaces the embedded CECL policy registry.
-///
-/// # Errors
-///
-/// Returns an error if the configured registry cannot be parsed or validated,
-/// the embedded fallback cannot load, or it contains no default CECL policy.
-pub fn default_cecl_config_from_config(config: &FinstackConfig) -> Result<CeclConfig> {
-    let registry = registry_from_config(config)?;
-    registry.default_cecl_policy().map(cecl_config_from_policy)
 }
 
 fn cecl_config_from_policy(policy: &CeclPolicyRecord) -> CeclConfig {
@@ -404,32 +349,7 @@ fn required_policy<T>(result: Result<T>) -> T {
 }
 
 pub(crate) fn embedded_registry() -> Result<&'static EclPolicyRegistry> {
-    match EMBEDDED_REGISTRY.get_or_init(|| parse_registry_json(EMBEDDED_ECL_POLICY)) {
-        Ok(registry) => Ok(registry),
-        Err(err) => Err(err.clone()),
-    }
-}
-
-pub(crate) fn registry_from_config(config: &FinstackConfig) -> Result<EclPolicyRegistry> {
-    if let Some(value) = config.extensions.get(ECL_POLICY_EXTENSION_KEY) {
-        let registry = serde_json::from_value(value.clone()).map_err(|err| {
-            Error::Validation(format!(
-                "failed to parse ECL policy registry extension: {err}"
-            ))
-        })?;
-        validate_registry(registry)
-    } else {
-        Ok(embedded_registry()?.clone())
-    }
-}
-
-fn parse_registry_json(raw: &str) -> Result<EclPolicyRegistry> {
-    let registry = serde_json::from_str(raw).map_err(|err| {
-        Error::Validation(format!(
-            "failed to parse embedded ECL policy registry: {err}"
-        ))
-    })?;
-    validate_registry(registry)
+    EMBEDDED_REGISTRY.load(validate_registry)
 }
 
 fn validate_registry(registry: EclPolicyRegistry) -> Result<EclPolicyRegistry> {

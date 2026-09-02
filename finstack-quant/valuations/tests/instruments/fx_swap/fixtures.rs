@@ -11,6 +11,7 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::fx::{FxConversionPolicy, FxMatrix, FxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::HashMap;
+pub use finstack_quant_test_utils::assert::approx_eq;
 use finstack_quant_valuations::instruments::fx::fx_swap::FxSwap;
 use std::sync::Arc;
 use time::Month;
@@ -225,21 +226,8 @@ pub fn create_fx_swap_with_rates(
         .unwrap()
 }
 
-/// Assert that a value is approximately equal within tolerance.
-pub fn assert_approx_eq(actual: f64, expected: f64, tolerance: f64, msg: &str) {
-    let diff = (actual - expected).abs();
-    assert!(
-        diff <= tolerance,
-        "{}: expected {}, got {} (diff: {})",
-        msg,
-        expected,
-        actual,
-        diff
-    );
-}
-
 /// Assert that a value is within a relative percentage range.
 pub fn assert_within_pct(actual: f64, expected: f64, pct: f64, msg: &str) {
     let tolerance = expected.abs() * pct / 100.0;
-    assert_approx_eq(actual, expected, tolerance, msg);
+    approx_eq(actual, expected, tolerance, msg);
 }

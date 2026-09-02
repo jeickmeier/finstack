@@ -36,7 +36,7 @@ fn test_atm_call_delta_near_fifty() {
 
     // ATM call delta should be ~0.5-0.65 per share, * 100 contract size = ~50-65
     // Allow wider range due to discounting, time value, and dividend yield effects
-    assert_in_range(delta, 40.0, 70.0, "ATM call delta");
+    in_range(delta, 40.0, 70.0, "ATM call delta");
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn test_itm_call_delta_approaches_one() {
     let delta_per_share = delta / 100.0; // Normalize by contract size
 
     // Deep ITM call delta should be high (approaching 1.0 per share)
-    assert_in_range(delta_per_share, 0.75, 1.0, "Deep ITM call delta per share");
+    in_range(delta_per_share, 0.75, 1.0, "Deep ITM call delta per share");
 }
 
 #[test]
@@ -162,7 +162,7 @@ fn test_otm_call_delta_approaches_zero() {
     let delta_per_share = delta / 100.0;
 
     // OTM call delta should be low
-    assert_in_range(delta_per_share, 0.0, 0.35, "OTM call delta per share");
+    in_range(delta_per_share, 0.0, 0.35, "OTM call delta per share");
 }
 
 #[test]
@@ -331,7 +331,7 @@ fn test_gamma_same_for_call_and_put() {
         .get("gamma")
         .unwrap();
 
-    assert_approx_eq_tol(call_gamma, put_gamma, LOOSE_TOL, "Gamma parity");
+    approx_eq(call_gamma, put_gamma, LOOSE_TOL, "Gamma parity");
 }
 
 // ==================== VEGA TESTS ====================
@@ -463,7 +463,7 @@ fn test_vega_same_for_call_and_put() {
         .get("vega")
         .unwrap();
 
-    assert_approx_eq_tol(call_vega, put_vega, LOOSE_TOL, "Vega parity");
+    approx_eq(call_vega, put_vega, LOOSE_TOL, "Vega parity");
 }
 
 #[test]

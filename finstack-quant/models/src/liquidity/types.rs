@@ -318,8 +318,10 @@ pub struct LiquidityConfig {
 }
 
 impl Default for LiquidityConfig {
+    #[allow(clippy::expect_used)] // Embedded liquidity defaults are a compile-time asset.
     fn default() -> Self {
-        super::registry::embedded_liquidity_defaults_or_panic()
+        super::registry::embedded_liquidity_defaults()
+            .expect("embedded models liquidity defaults are compile-time assets")
             .default_config
             .clone()
     }

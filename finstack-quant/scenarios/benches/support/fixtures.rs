@@ -16,7 +16,7 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{
     BaseCorrelationCurve, DiscountCurve, ForwardCurve, HazardCurve, InflationCurve, PriceCurve,
-    VolatilityIndexCurve,
+    PriceCurveKind,
 };
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
@@ -160,9 +160,10 @@ pub fn full_market() -> MarketContext {
         .build()
         .unwrap();
 
-    let vol_index = VolatilityIndexCurve::builder(VIX)
+    let vol_index = PriceCurve::builder(VIX)
+        .kind(PriceCurveKind::VolIndex)
         .base_date(AS_OF)
-        .spot_level(18.0)
+        .spot_price(18.0)
         .knots([(0.0, 18.0), (0.25, 19.0), (1.0, 20.0), (2.0, 21.0)])
         .build()
         .unwrap();

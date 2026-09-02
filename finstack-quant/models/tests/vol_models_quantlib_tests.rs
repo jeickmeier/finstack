@@ -68,15 +68,8 @@ use finstack_quant_models::volatility::rough_heston::RoughHestonFourierParams;
 use finstack_quant_models::volatility::sabr::SabrParameters;
 use finstack_quant_models::volatility::svi::SviParams;
 use finstack_quant_models::volatility::{implied_vol_bachelier, implied_vol_black};
-use finstack_quant_test_utils::golden::{load_suite_from_path, GoldenSuite};
+use finstack_quant_test_utils::golden::{golden_path, load_suite_from_path, GoldenSuite};
 use serde::Deserialize;
-
-/// Helper macro to get the path to golden test data.
-macro_rules! golden_path {
-    ($file:expr) => {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../core/tests/golden/", $file)
-    };
-}
 
 /// Expected call/put price pair with relative tolerance.
 #[derive(Debug, Deserialize)]
@@ -249,7 +242,11 @@ fn check_rel(
 }
 
 fn load_vol_suite() -> GoldenSuite<VolCase> {
-    let path = golden_path!("data/vol_models_quantlib.json");
+    // The vol golden suite lives in the core crate's golden tree.
+    let path = golden_path(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../core"),
+        "data/vol_models_quantlib.json",
+    );
     let suite: GoldenSuite<VolCase> =
         load_suite_from_path(path).expect("Failed to load vol models golden suite");
     assert_eq!(suite.meta.suite_id, "vol_models_quantlib_parity");

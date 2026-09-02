@@ -100,7 +100,7 @@ fn test_cs01_buy_sell_opposite_sign() {
         .unwrap();
 
     // Assert
-    assert_relative_eq(
+    relative_eq(
         cs01_buy,
         -cs01_sell,
         0.001,
@@ -154,7 +154,7 @@ fn test_standard_cs01_is_normalized_across_bump_sizes() {
         .expect("2bp replay-backed CS01");
 
     assert!(cs01_1bp.is_finite() && cs01_2bp.is_finite());
-    assert_relative_eq(
+    relative_eq(
         cs01_1bp,
         cs01_2bp,
         0.01,
@@ -306,7 +306,7 @@ fn test_cs01_preserves_bespoke_index_structure_during_bumps() {
         .get("cs01_hazard")
         .unwrap();
 
-    assert_relative_eq(
+    relative_eq(
         actual_cs01,
         expected_cs01,
         1e-6,
@@ -477,7 +477,7 @@ fn test_jump_to_default_scales_with_notional() {
         .unwrap();
 
     // Assert
-    assert_relative_eq(
+    relative_eq(
         jtd_20 / jtd_10,
         2.0,
         0.001,
@@ -554,7 +554,7 @@ fn test_spread_dv01_scales_with_notional() {
         .unwrap();
 
     // Assert
-    assert_relative_eq(
+    relative_eq(
         dv01_20 / dv01_10,
         2.0,
         0.001,
@@ -629,7 +629,7 @@ fn test_par_spread_gives_zero_npv() {
         .amount();
 
     // Assert: PV at par spread should be very close to zero
-    assert_absolute_eq(
+    approx_eq(
         pv_at_par,
         0.0,
         tranche.notional.amount() * 0.001, // Allow 0.1% of notional tolerance
@@ -693,7 +693,7 @@ fn test_par_spread_positive_and_side_invariant() {
 
     // (b) Both sides must agree to within 0.1% relative tolerance — par spread is a
     //     property of the tranche, not of who holds the protection.
-    assert_relative_eq(
+    relative_eq(
         par_buy,
         par_sell,
         0.001,
@@ -710,7 +710,7 @@ fn test_par_spread_positive_and_side_invariant() {
         .price_tranche(&at_par_sell, &market, as_of)
         .unwrap()
         .amount();
-    assert_absolute_eq(
+    approx_eq(
         npv_sell,
         0.0,
         npv_tol,
@@ -723,7 +723,7 @@ fn test_par_spread_positive_and_side_invariant() {
         .price_tranche(&at_par_buy, &market, as_of)
         .unwrap()
         .amount();
-    assert_absolute_eq(
+    approx_eq(
         npv_buy,
         0.0,
         npv_tol,
@@ -749,5 +749,5 @@ fn test_upfront_equals_pv() {
         .amount();
 
     // Assert
-    assert_absolute_eq(upfront, pv, 1e-6, "Upfront should equal PV");
+    approx_eq(upfront, pv, 1e-6, "Upfront should equal PV");
 }

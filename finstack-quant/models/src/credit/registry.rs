@@ -2,14 +2,17 @@
 
 use crate::credit::lgd::seniority::{BetaRecovery, SeniorityCalibration, SeniorityClass};
 use crate::credit::pd::MasterScaleGrade;
+use finstack_quant_core::embedded_registry::EmbeddedJsonRegistry;
 use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::{Error, HashMap, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
 
-const CREDIT_ASSUMPTIONS: &str = include_str!("../../data/credit/credit_assumptions.v1.json");
-
-static EMBEDDED_REGISTRY: OnceLock<Result<CreditAssumptionRegistry>> = OnceLock::new();
+static EMBEDDED_REGISTRY: EmbeddedJsonRegistry<CreditAssumptionRegistry> =
+    EmbeddedJsonRegistry::new(
+        include_str!("../../data/credit/credit_assumptions.v1.json"),
+        None,
+        "credit assumptions",
+    );
 
 /// Versioned credit-assumption registry loaded from JSON.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -278,20 +281,7 @@ impl CreditAssumptionRegistry {
 /// recovery, or calibration validation. An error represents a package defect,
 /// not missing market data that can safely be projected at runtime.
 pub fn embedded_registry() -> Result<&'static CreditAssumptionRegistry> {
-    match EMBEDDED_REGISTRY.get_or_init(parse_embedded_registry) {
-        Ok(registry) => Ok(registry),
-        Err(err) => Err(err.clone()),
-    }
-}
-
-fn parse_embedded_registry() -> Result<CreditAssumptionRegistry> {
-    let registry: CreditAssumptionRegistry =
-        serde_json::from_str(CREDIT_ASSUMPTIONS).map_err(|err| {
-            Error::Validation(format!(
-                "failed to parse embedded credit assumptions: {err}"
-            ))
-        })?;
-    validate_registry(registry)
+    EMBEDDED_REGISTRY.load(validate_registry)
 }
 
 fn validate_registry(registry: CreditAssumptionRegistry) -> Result<CreditAssumptionRegistry> {

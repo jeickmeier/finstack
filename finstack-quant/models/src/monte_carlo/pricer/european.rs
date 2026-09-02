@@ -485,7 +485,8 @@ mod tests {
         assert_eq!(first.stderr, second.stderr);
         assert!(first.mean.amount() > 0.0);
 
-        let expected: Currency = crate::monte_carlo::registry::embedded_defaults_or_panic()
+        let expected: Currency = crate::monte_carlo::registry::embedded_defaults()
+            .expect("embedded defaults")
             .convenience
             .default_currency
             .parse()

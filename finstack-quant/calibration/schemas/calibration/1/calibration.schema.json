@@ -4061,10 +4061,21 @@
               },
               "type": "array"
             },
-            "spot_price": {
-              "description": "Spot price",
+            "spot_level": {
+              "description": "Spot index level (volatility index curves)",
               "format": "double",
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spot_price": {
+              "description": "Spot price (signed price curves)",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
             }
           },
           "required": [
@@ -4072,7 +4083,6 @@
             "id",
             "base",
             "day_count",
-            "spot_price",
             "knot_points",
             "interp_style",
             "extrapolation"
@@ -4081,7 +4091,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Pre-built volatility-index forward curve.",
+          "description": "Pre-built volatility-index forward curve (a [`PriceCurve`] of kind `VolIndex`).",
           "properties": {
             "base": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -4127,9 +4137,20 @@
               "type": "array"
             },
             "spot_level": {
-              "description": "Spot index level",
+              "description": "Spot index level (volatility index curves)",
               "format": "double",
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spot_price": {
+              "description": "Spot price (signed price curves)",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
             }
           },
           "required": [
@@ -4137,7 +4158,6 @@
             "id",
             "base",
             "day_count",
-            "spot_level",
             "knot_points",
             "interp_style",
             "extrapolation"

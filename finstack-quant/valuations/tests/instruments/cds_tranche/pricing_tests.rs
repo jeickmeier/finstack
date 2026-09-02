@@ -155,7 +155,7 @@ fn test_buy_sell_protection_symmetry() {
         .amount();
 
     // Assert
-    assert_relative_eq(
+    relative_eq(
         buy_pv,
         -sell_pv,
         0.001,
@@ -200,7 +200,7 @@ fn test_at_maturity_pricing() {
     // Assert: PV should be zero or minimal at maturity
     assert!(result.is_ok());
     let pv = result.unwrap();
-    assert_absolute_eq(
+    approx_eq(
         pv.amount(),
         0.0,
         1e-2,
@@ -234,7 +234,7 @@ fn test_fully_wiped_tranche_prices_to_zero() {
         .expect("fully wiped tranche should price")
         .amount();
 
-    assert_absolute_eq(pv, 0.0, 1e-12, "fully wiped tranche should have zero PV");
+    approx_eq(pv, 0.0, 1e-12, "fully wiped tranche should have zero PV");
 }
 
 #[test]
@@ -268,13 +268,13 @@ fn test_same_day_upfront_has_opposite_sign_for_buy_and_sell() {
         .expect("buy tranche PV")
         .amount();
 
-    assert_absolute_eq(
+    approx_eq(
         sell_pv - sell_base_pv,
         upfront.amount(),
         1e-6,
         "same-day upfront should add directly to sell-protection PV",
     );
-    assert_absolute_eq(
+    approx_eq(
         buy_pv - buy_base_pv,
         -upfront.amount(),
         1e-6,
@@ -294,7 +294,7 @@ fn test_after_maturity_pricing_returns_zero() {
         .expect("post-maturity pricing should succeed")
         .amount();
 
-    assert_absolute_eq(pv, 0.0, 1e-12, "post-maturity tranche should have zero PV");
+    approx_eq(pv, 0.0, 1e-12, "post-maturity tranche should have zero PV");
 }
 
 // ==================== Notional Scaling Tests ====================
@@ -323,7 +323,7 @@ fn test_pv_scales_with_notional() {
         .amount();
 
     // Assert
-    assert_relative_eq(
+    relative_eq(
         pv_20 / pv_10,
         2.0,
         0.001,

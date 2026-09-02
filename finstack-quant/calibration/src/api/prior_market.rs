@@ -9,7 +9,7 @@
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{
     BaseCorrelationCurve, BasisSpreadCurve, DiscountCurve, ForwardCurve, HazardCurve,
-    InflationCurve, ParametricCurve, PriceCurve, VolatilityIndexCurve,
+    InflationCurve, ParametricCurve, PriceCurve,
 };
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
@@ -45,10 +45,8 @@ pub enum PriorMarketObject {
     ParametricCurve(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] ParametricCurve),
     /// Pre-built spot / forward price curve.
     PriceCurve(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] PriceCurve),
-    /// Pre-built volatility-index forward curve.
-    VolatilityIndexCurve(
-        #[cfg_attr(feature = "ts_export", ts(type = "unknown"))] VolatilityIndexCurve,
-    ),
+    /// Pre-built volatility-index forward curve (a [`PriceCurve`] of kind `VolIndex`).
+    VolatilityIndexCurve(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] PriceCurve),
     /// Pre-built volatility surface (expiry x strike).
     VolSurface(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] VolSurface),
 }
@@ -64,8 +62,9 @@ impl PriorMarketObject {
             PriorMarketObject::BaseCorrelationCurve(c) => c.id().as_str(),
             PriorMarketObject::BasisSpreadCurve(c) => c.id().as_str(),
             PriorMarketObject::ParametricCurve(c) => c.id().as_str(),
-            PriorMarketObject::PriceCurve(c) => c.id().as_str(),
-            PriorMarketObject::VolatilityIndexCurve(c) => c.id().as_str(),
+            PriorMarketObject::PriceCurve(c) | PriorMarketObject::VolatilityIndexCurve(c) => {
+                c.id().as_str()
+            }
             PriorMarketObject::VolSurface(s) => s.id().as_str(),
         }
     }

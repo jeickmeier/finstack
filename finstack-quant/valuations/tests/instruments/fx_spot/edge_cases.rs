@@ -35,7 +35,7 @@ fn test_extremely_large_notional() {
     let market = MarketContext::new();
     let pv = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(pv.amount(), 1.2e15, 1e5, "Extremely large notional");
+    approx_eq(pv.amount(), 1.2e15, 1e5, "Extremely large notional");
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn test_extremely_large_rate() {
     let market = MarketContext::new();
     let pv = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(pv.amount(), 1_000_000.0, EPSILON, "Extremely large rate");
+    approx_eq(pv.amount(), 1_000_000.0, EPSILON, "Extremely large rate");
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn test_negative_notional() {
     let market = MarketContext::new();
     let pv = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(
+    approx_eq(
         pv.amount(),
         -1_200_000.0,
         EPSILON,
@@ -113,7 +113,7 @@ fn test_valuation_on_leap_day() {
     let as_of = d(2024, 2, 29); // Leap day
 
     let pv = fx.value(&market, as_of).unwrap();
-    assert_approx_eq(pv.amount(), 1_200_000.0, EPSILON, "Leap day valuation");
+    approx_eq(pv.amount(), 1_200_000.0, EPSILON, "Leap day valuation");
 }
 
 #[test]
@@ -177,7 +177,7 @@ fn test_concurrent_pricing() {
 
     for handle in handles {
         let pv = handle.join().unwrap();
-        assert_approx_eq(pv.amount(), 1_200_000.0, EPSILON, "Concurrent pricing");
+        approx_eq(pv.amount(), 1_200_000.0, EPSILON, "Concurrent pricing");
     }
 }
 
@@ -209,7 +209,7 @@ fn test_numerical_precision_accumulation() {
     }
 
     // Should converge to 1.20
-    assert_approx_eq(accumulated, 1.20, EPSILON, "Numerical precision");
+    approx_eq(accumulated, 1.20, EPSILON, "Numerical precision");
 }
 
 #[test]
@@ -220,7 +220,7 @@ fn test_rate_precision_limits() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     // Decimal precision limit - expect 2 decimal places by default
-    assert_approx_eq(pv.amount(), 1.23, 1e-2, "Rate precision");
+    approx_eq(pv.amount(), 1.23, 1e-2, "Rate precision");
 }
 
 #[test]
@@ -269,7 +269,7 @@ fn test_fractional_notional_precision() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     let expected = 1234567.89012345 * 1.23456789;
-    assert_approx_eq(pv.amount(), expected, 1e-2, "Fractional precision"); // Relaxed for Decimal
+    approx_eq(pv.amount(), expected, 1e-2, "Fractional precision"); // Relaxed for Decimal
 }
 
 #[test]
@@ -280,7 +280,7 @@ fn test_default_notional_with_various_rates() {
         let fx = sample_eurusd().with_rate(rate).expect("test rate");
         let pv = fx.value(&market, test_date()).unwrap();
 
-        assert_approx_eq(pv.amount(), rate, EPSILON, &format!("Rate {}", rate));
+        approx_eq(pv.amount(), rate, EPSILON, &format!("Rate {}", rate));
     }
 }
 

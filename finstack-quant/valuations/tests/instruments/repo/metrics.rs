@@ -50,7 +50,7 @@ fn test_collateral_value_metric() {
     let collateral_value = results.get(&MetricId::CollateralValue).unwrap();
 
     // 1M * 1.02 = 1,020,000
-    assert_approx_eq(*collateral_value, 1_020_000.0, 1.0);
+    approx_eq(*collateral_value, 1_020_000.0, 1.0, "collateral_value");
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn test_required_collateral_metric() {
     let required = results.get(&MetricId::RequiredCollateral).unwrap();
 
     // 1M / (1 - 0.02) = 1,020,408.16
-    assert_approx_eq(*required, 1_020_408.16, 1.0);
+    approx_eq(*required, 1_020_408.16, 1.0, "required");
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn test_collateral_coverage_metric() {
     let coverage = results.get(&MetricId::CollateralCoverage).unwrap();
 
     // 1,020,000 / 1,020,000 = 1.0
-    assert_approx_eq(*coverage, 1.0, 0.01);
+    approx_eq(*coverage, 1.0, 0.01, "coverage");
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn test_repo_interest_metric() {
     let metric_interest = results.get(&MetricId::RepoInterest).unwrap();
     let direct_interest = repo.interest_amount().unwrap().amount();
 
-    assert_approx_eq(*metric_interest, direct_interest, 1e-9);
+    approx_eq(*metric_interest, direct_interest, 1e-9, "metric_interest");
 }
 
 #[test]
@@ -153,10 +153,11 @@ fn test_effective_rate_metric() {
 
     let effective_rate = results.get(&MetricId::EffectiveRate).unwrap();
 
-    assert_approx_eq(
+    approx_eq(
         *effective_rate,
         repo.effective_rate().expect("effective rate"),
         1e-9,
+        "effective_rate",
     );
 }
 
@@ -193,7 +194,7 @@ fn test_time_to_maturity_at_maturity() {
 
     let ttm = results.get(&MetricId::TimeToMaturity).unwrap();
 
-    assert_approx_eq(*ttm, 0.0, 1e-6);
+    approx_eq(*ttm, 0.0, 1e-6, "ttm");
 }
 
 #[test]
@@ -307,7 +308,7 @@ fn test_accrued_interest_before_start() {
     let accrued = results.get(&MetricId::Accrued).unwrap();
 
     // No accrual before start
-    assert_approx_eq(*accrued, 0.0, 1e-6);
+    approx_eq(*accrued, 0.0, 1e-6, "accrued");
 }
 
 #[test]
@@ -325,7 +326,7 @@ fn test_accrued_interest_at_maturity() {
     let total_interest = repo.interest_amount().unwrap().amount();
 
     // At maturity, accrued should equal total interest
-    assert_approx_eq(*accrued, total_interest, 1.0);
+    approx_eq(*accrued, total_interest, 1.0, "accrued");
 }
 
 #[test]

@@ -8,8 +8,8 @@
 use finstack_quant_core::HashMap;
 use finstack_quant_core::{currency::Currency, dates::Date, money::Money, types::InstrumentId};
 use finstack_quant_margin::{
-    ClearingStatus, CsaSpec, ImMethodology, ImParameters, MarginTenor, OtcMarginSpec,
-    ScheduleImCalculator, SimmCalculator, VmCalculator, VmParameters,
+    ClearingStatus, CsaSpec, ImMethodology, ImParameters, MarginCallTiming, MarginTenor,
+    OtcMarginSpec, ScheduleImCalculator, SimmCalculator, VmCalculator, VmParameters,
 };
 use finstack_quant_valuations::instruments::{InterestRateSwap, PayReceive};
 use time::Month;
@@ -58,7 +58,7 @@ fn create_bilateral_margin_spec() -> OtcMarginSpec {
         vm_params,
         im_params: Some(im_params),
         eligible_collateral: Default::default(),
-        call_timing: Default::default(),
+        call_timing: MarginCallTiming::regulatory_standard().expect("registry should load"),
         collateral_curve_id: "USD-OIS".into(),
     };
 
@@ -97,7 +97,7 @@ fn create_cleared_margin_spec() -> OtcMarginSpec {
         vm_params,
         im_params: Some(im_params),
         eligible_collateral: Default::default(),
-        call_timing: Default::default(),
+        call_timing: MarginCallTiming::regulatory_standard().expect("registry should load"),
         collateral_curve_id: "USD-OIS".into(),
     };
 

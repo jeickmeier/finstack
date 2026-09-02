@@ -10,6 +10,7 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::InflationCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
+pub use finstack_quant_test_utils::assert::relative_eq;
 use finstack_quant_valuations::instruments::fixed_income::inflation_linked_bond::{
     DeflationProtection, IndexationMethod, InflationLinkedBond,
 };
@@ -210,18 +211,4 @@ pub fn relative_diff(a: f64, b: f64) -> f64 {
     } else {
         ((a - b) / b).abs()
     }
-}
-
-/// Assert two values are approximately equal
-#[track_caller]
-pub fn assert_approx_eq(a: f64, b: f64, tol: f64, msg: &str) {
-    let diff = relative_diff(a, b);
-    assert!(
-        diff < tol,
-        "{}: expected {}, got {} (rel diff: {})",
-        msg,
-        b,
-        a,
-        diff
-    );
 }

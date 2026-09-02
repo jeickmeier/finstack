@@ -45,7 +45,12 @@ fn test_theta_at_market_fra_near_zero() {
 
     let theta = *result.measures.get("theta").unwrap();
 
-    assert_near_zero(theta.abs(), 10.0, "At-market FRA theta should be near zero");
+    approx_eq(
+        theta.abs(),
+        0.0,
+        10.0,
+        "At-market FRA theta should be near zero",
+    );
 }
 
 #[test]
@@ -102,7 +107,7 @@ fn test_theta_scales_with_notional() {
         .unwrap();
     let theta_10m = *result_10m.measures.get("theta").unwrap();
 
-    assert_approx_equal(
+    approx_eq(
         theta_10m,
         theta_1m * 10.0,
         5.0,

@@ -59,7 +59,7 @@ fn test_metric_par_spread() {
 
     assert_positive(par_spread, "Par spread metric");
     let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
-    assert_in_range(
+    in_range(
         par_spread,
         expected * 0.85,
         expected * 1.15,
@@ -139,7 +139,7 @@ fn test_metric_legs_npv_consistency() {
     let npv = result.value.amount();
 
     let expected_npv = prot_pv - prem_pv;
-    assert_relative_eq(npv, expected_npv, 0.001, "NPV = Protection - Premium");
+    relative_eq(npv, expected_npv, 0.001, "NPV = Protection - Premium");
 }
 
 #[test]
@@ -295,7 +295,7 @@ fn test_par_spread_reasonable_range() {
     let par_spread = *result.measures.get("par_spread").unwrap();
 
     let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
-    assert_in_range(
+    in_range(
         par_spread,
         expected * 0.85,
         expected * 1.15,

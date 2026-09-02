@@ -122,7 +122,7 @@ fn test_forward_rate_matches_par_rate() {
 
     let par_rate = *result.measures.get("par_rate").unwrap();
 
-    assert_approx_equal(
+    approx_eq(
         par_rate,
         0.05,
         0.001,
@@ -177,7 +177,12 @@ fn test_zero_curve_zero_pv() {
     let fra = TestFraBuilder::new().fixed_rate(0.0).build();
     let pv = fra.value(&market, BASE_DATE).unwrap();
 
-    assert_near_zero(pv.amount(), 1.0, "Zero curve should imply near-zero PV");
+    approx_eq(
+        pv.amount(),
+        0.0,
+        1.0,
+        "Zero curve should imply near-zero PV",
+    );
 }
 
 #[test]
@@ -199,7 +204,7 @@ fn test_pv_independent_of_notional_currency() {
     let pv_eur = fra_eur.value(&market, BASE_DATE).unwrap().amount();
 
     // Same calculation, same result (just different currency labels)
-    assert_approx_equal(
+    approx_eq(
         pv_usd,
         pv_eur,
         0.01,

@@ -7,6 +7,7 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
+pub use finstack_quant_test_utils::assert::{approx_eq, in_range};
 use finstack_quant_valuations::instruments::equity::equity_option::EquityOption;
 use finstack_quant_valuations::instruments::SettlementType;
 use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
@@ -17,8 +18,6 @@ pub const SPOT_ID: &str = "AAPL";
 pub const VOL_ID: &str = "AAPL_VOL";
 pub const DIV_ID: &str = "AAPL_DIV";
 
-/// Approximation tolerance for floating point comparisons
-pub const DEFAULT_TOL: f64 = 1e-6;
 pub const TIGHT_TOL: f64 = 1e-10;
 pub const LOOSE_TOL: f64 = 1e-3;
 
@@ -174,37 +173,6 @@ pub fn build_smile_market(as_of: Date, spot: f64, rate: f64, div_yield: f64) -> 
         .insert_price(DIV_ID, MarketScalar::Unitless(div_yield))
 }
 
-/// Assert approximate equality with default tolerance
-pub fn assert_approx_eq(actual: f64, expected: f64, label: &str) {
-    assert_approx_eq_tol(actual, expected, DEFAULT_TOL, label);
-}
-
-/// Assert approximate equality with custom tolerance
-pub fn assert_approx_eq_tol(actual: f64, expected: f64, tol: f64, label: &str) {
-    let diff = (actual - expected).abs();
-    assert!(
-        diff <= tol,
-        "{}: expected {}, got {} (diff {} > tol {})",
-        label,
-        expected,
-        actual,
-        diff,
-        tol
-    );
-}
-
-/// Assert value is within bounds (inclusive)
-pub fn assert_in_range(value: f64, min: f64, max: f64, label: &str) {
-    assert!(
-        value >= min && value <= max,
-        "{}: {} not in range [{}, {}]",
-        label,
-        value,
-        min,
-        max
-    );
-}
-
 /// Assert value is positive
 pub fn assert_positive(value: f64, label: &str) {
     assert!(value > 0.0, "{}: expected positive, got {}", label, value);
@@ -224,11 +192,6 @@ pub fn assert_non_negative(value: f64, label: &str) {
 mod tests {
     use super::*;
     use time::Month;
-
-    #[test]
-    fn test_assert_approx_eq_helper() {
-        assert_approx_eq(1.0 + DEFAULT_TOL * 0.5, 1.0, "Within default tolerance");
-    }
 
     #[test]
     fn test_smile_surface_builder() {

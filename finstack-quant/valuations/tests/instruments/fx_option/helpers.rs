@@ -12,6 +12,8 @@ use finstack_quant_core::money::fx::FxMatrix;
 use finstack_quant_core::money::fx::SimpleFxProvider;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_test_utils::assert::approx_eq;
+pub use finstack_quant_test_utils::assert::in_range;
 use finstack_quant_valuations::instruments::fx::fx_option::{
     FxDeltaConvention, FxDeltaConventionKind, FxOption,
 };
@@ -220,33 +222,16 @@ pub fn compute_greeks(option: &FxOption, market: &MarketContext, as_of: Date) ->
     }
 }
 
-/// Assert two floats are approximately equal with relative and absolute tolerance.
+/// Assert `actual` is within `abs_tol` of `expected`, or within `rel_tol`
+/// relative to `|expected|` (relative tolerance is read as absolute when
+/// `|expected| <= 1e-12`).
 pub fn assert_approx_eq(actual: f64, expected: f64, rel_tol: f64, abs_tol: f64, msg: &str) {
-    let diff = (actual - expected).abs();
-    let rel_diff = if expected.abs() > 1e-12 {
-        diff / expected.abs()
+    let scale = if expected.abs() > 1e-12 {
+        expected.abs()
     } else {
-        diff
+        1.0
     };
-
-    let passes = diff <= abs_tol || rel_diff <= rel_tol;
-    assert!(
-        passes,
-        "{}: expected {}, got {} (abs_diff={:.6e}, rel_diff={:.6e})",
-        msg, expected, actual, diff, rel_diff
-    );
-}
-
-/// Assert value is within a range (inclusive).
-pub fn assert_in_range(value: f64, min: f64, max: f64, msg: &str) {
-    assert!(
-        value >= min && value <= max,
-        "{}: expected value in [{}, {}], got {}",
-        msg,
-        min,
-        max,
-        value
-    );
+    approx_eq(actual, expected, abs_tol.max(rel_tol * scale), msg);
 }
 
 /// Finite difference delta approximation for validation.

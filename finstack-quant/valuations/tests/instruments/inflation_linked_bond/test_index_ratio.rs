@@ -57,7 +57,7 @@ fn test_index_ratio_with_3month_lag() {
     let ratio = ilb.index_ratio(d(2025, 4, 1), &index).unwrap();
 
     // Assert - should use Jan 1 CPI (301) vs base (300)
-    assert_approx_eq(ratio, 301.0 / 300.0, REL_TOL, "3-month lag ratio");
+    relative_eq(ratio, 301.0 / 300.0, REL_TOL, "3-month lag ratio");
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn test_index_ratio_with_8month_lag_uk() {
     let ratio = ilb.index_ratio(d(2025, 10, 1), &index).unwrap();
 
     // Assert
-    assert_approx_eq(ratio, 326.4 / 320.0, REL_TOL, "8-month lag ratio");
+    relative_eq(ratio, 326.4 / 320.0, REL_TOL, "8-month lag ratio");
 }
 
 /// Monthly US CPI-U (NSA) observations around early 2019, anchored at the
@@ -114,7 +114,7 @@ fn test_ref_cpi_mid_month_matches_treasury_golden() {
     let index = cpi_2019_index();
     let ref_cpi = index.ref_cpi_months_lag(d(2019, 4, 15), 3).unwrap();
     let expected = 251.712 + 14.0 / 30.0 * (252.776 - 251.712);
-    assert_approx_eq(ref_cpi, expected, 1e-12, "mid-month RefCPI");
+    relative_eq(ref_cpi, expected, 1e-12, "mid-month RefCPI");
     assert!(
         (ref_cpi - 252.20853).abs() < 5e-6,
         "Treasury golden: {ref_cpi}"
@@ -125,7 +125,7 @@ fn test_ref_cpi_mid_month_matches_treasury_golden() {
     ilb.lag = InflationLag::Months(3);
     ilb.base_index = 251.712;
     let ratio = ilb.index_ratio(d(2019, 4, 15), &index).unwrap();
-    assert_approx_eq(ratio, expected / 251.712, 1e-12, "mid-month index ratio");
+    relative_eq(ratio, expected / 251.712, 1e-12, "mid-month index ratio");
 }
 
 #[test]
@@ -137,11 +137,11 @@ fn test_ref_cpi_end_of_month_31_day_month() {
     let index = cpi_2019_index();
     let ref_cpi = index.ref_cpi_months_lag(d(2019, 5, 31), 3).unwrap();
     let expected = 252.776 + 30.0 / 31.0 * (254.202 - 252.776);
-    assert_approx_eq(ref_cpi, expected, 1e-12, "end-of-month RefCPI");
+    relative_eq(ref_cpi, expected, 1e-12, "end-of-month RefCPI");
 
     // One day later (June 1) the anchors roll to Mar/Apr with weight 0.
     let ref_cpi_next = index.ref_cpi_months_lag(d(2019, 6, 1), 3).unwrap();
-    assert_approx_eq(ref_cpi_next, 254.202, 1e-12, "first-of-month RefCPI");
+    relative_eq(ref_cpi_next, 254.202, 1e-12, "first-of-month RefCPI");
     // Continuity across the month boundary: the jump must be small (one
     // day's interpolation step), not a day-clamping artifact.
     assert!(
@@ -175,7 +175,7 @@ fn test_index_ratio_no_deflation_protection() {
 
     // Assert - no floor, ratio can be < 1.0
     assert!(ratio < 1.0);
-    assert_approx_eq(ratio, 295.0 / 300.0, REL_TOL, "deflation no protection");
+    relative_eq(ratio, 295.0 / 300.0, REL_TOL, "deflation no protection");
 }
 
 #[test]
@@ -209,7 +209,7 @@ fn test_index_ratio_maturity_only_deflation_protection() {
         ratio_at_maturity < 1.0,
         "raw ratio should reflect deflation"
     );
-    assert_approx_eq(
+    relative_eq(
         ratio_at_maturity,
         295.0 / 300.0,
         REL_TOL,
@@ -243,7 +243,7 @@ fn test_index_ratio_all_payments_deflation_protection() {
     let ratio = ilb.index_ratio(d(2025, 1, 1), &index).unwrap();
 
     assert!(ratio < 1.0, "raw ratio should reflect deflation");
-    assert_approx_eq(ratio, 295.0 / 300.0, REL_TOL, "raw deflation ratio");
+    relative_eq(ratio, 295.0 / 300.0, REL_TOL, "raw deflation ratio");
 }
 
 #[test]
@@ -279,7 +279,7 @@ fn test_index_ratio_from_curve_official_weighting() {
 
     let ratio = ilb.index_ratio_from_curve(d(2025, 5, 15), &curve).unwrap();
 
-    assert_approx_eq(
+    relative_eq(
         ratio,
         expected_ref_cpi / 300.0,
         REL_TOL,
@@ -298,7 +298,7 @@ fn test_index_ratio_from_market_routes_to_index() {
     let ratio_from_index = ilb.index_ratio(d(2025, 4, 1), &index).unwrap();
 
     // Assert - should be identical
-    assert_approx_eq(
+    relative_eq(
         ratio_from_market,
         ratio_from_index,
         EPSILON,
@@ -315,7 +315,7 @@ fn test_index_ratio_from_market_routes_to_curve() {
     let ratio_from_market = ilb.index_ratio_from_market(d(2025, 7, 1), &ctx).unwrap();
     let ratio_from_curve = ilb.index_ratio_from_curve(d(2025, 7, 1), &curve).unwrap();
 
-    assert_approx_eq(
+    relative_eq(
         ratio_from_market,
         ratio_from_curve,
         EPSILON,
@@ -450,7 +450,7 @@ fn test_index_ratio_extreme_inflation() {
     let ratio = ilb.index_ratio(d(2025, 1, 1), &index).unwrap();
 
     // Assert
-    assert_approx_eq(ratio, 5.0, REL_TOL, "extreme inflation");
+    relative_eq(ratio, 5.0, REL_TOL, "extreme inflation");
 }
 
 #[test]

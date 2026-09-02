@@ -556,7 +556,7 @@ fn test_equity_trs_with_zero_contract_size() {
     // TR leg should be zero, so NPV = -financing leg
     let npv = result.unwrap();
     let fin_pv = trs.pv_financing_leg(&market, as_of_date()).unwrap();
-    assert_approx_eq(
+    approx_eq(
         npv.amount(),
         -fin_pv.amount(),
         TOLERANCE_CENTS,

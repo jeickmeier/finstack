@@ -4,8 +4,7 @@
 //! defaults, and convenience-layer defaults can be reviewed and changed
 //! without hunting through constructor bodies.
 
-use std::sync::OnceLock;
-
+use finstack_quant_core::embedded_registry::EmbeddedJsonRegistry;
 use finstack_quant_core::{ContractDescriptor, Error, Result};
 use serde::Deserialize;
 
@@ -13,7 +12,8 @@ const PRICER_DEFAULTS: &str = include_str!("../../data/defaults/pricer_defaults.
 const MONTE_CARLO_DEFAULTS_CONTRACT: ContractDescriptor =
     ContractDescriptor::new("finstack_quant.models.monte_carlo_defaults");
 
-static EMBEDDED_DEFAULTS: OnceLock<Result<MonteCarloDefaults>> = OnceLock::new();
+static EMBEDDED_DEFAULTS: EmbeddedJsonRegistry<MonteCarloDefaults, DefaultsFile> =
+    EmbeddedJsonRegistry::new(PRICER_DEFAULTS, None, "Monte Carlo defaults");
 
 /// Resolved Monte Carlo defaults.
 #[derive(Debug, Clone, Deserialize)]
@@ -271,10 +271,7 @@ struct DefaultsFile {
 /// numeric and structural defaults fail the same validation applied to external
 /// configuration. A cached initialization error is cloned for later calls.
 pub fn embedded_defaults() -> Result<&'static MonteCarloDefaults> {
-    match EMBEDDED_DEFAULTS.get_or_init(parse_embedded_defaults) {
-        Ok(defaults) => Ok(defaults),
-        Err(err) => Err(err.clone()),
-    }
+    EMBEDDED_DEFAULTS.load(defaults_from_file)
 }
 
 /// Panic-on-failure access for `Default` implementations backed by embedded data.
@@ -282,15 +279,6 @@ pub fn embedded_defaults() -> Result<&'static MonteCarloDefaults> {
 #[allow(clippy::expect_used)]
 pub fn embedded_defaults_or_panic() -> &'static MonteCarloDefaults {
     embedded_defaults().expect("embedded Monte Carlo defaults are compile-time assets")
-}
-
-fn parse_embedded_defaults() -> Result<MonteCarloDefaults> {
-    let file: DefaultsFile = serde_json::from_str(PRICER_DEFAULTS).map_err(|err| {
-        Error::Validation(format!(
-            "failed to parse embedded Monte Carlo defaults: {err}"
-        ))
-    })?;
-    defaults_from_file(file)
 }
 
 fn defaults_from_file(file: DefaultsFile) -> Result<MonteCarloDefaults> {

@@ -7,6 +7,7 @@ use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
+pub use finstack_quant_test_utils::assert::{in_range, relative_eq};
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::PayReceive;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_index::{
@@ -147,40 +148,6 @@ pub fn assert_money_approx_eq(actual: Money, expected: Money, tolerance: f64, me
         expected.amount(),
         actual.amount(),
         diff
-    );
-}
-
-/// Assert relative error is within percentage tolerance
-pub fn assert_relative_eq(actual: f64, expected: f64, pct_tolerance: f64, message: &str) {
-    if expected.abs() < 1e-10 {
-        assert!(
-            actual.abs() < 1e-10,
-            "{}: expected ~0, got {}",
-            message,
-            actual
-        );
-    } else {
-        let rel_err = ((actual - expected) / expected).abs();
-        assert!(
-            rel_err <= pct_tolerance,
-            "{}: expected {}, got {} (rel err: {:.2}%)",
-            message,
-            expected,
-            actual,
-            rel_err * 100.0
-        );
-    }
-}
-
-/// Assert value is within range
-pub fn assert_in_range(value: f64, min: f64, max: f64, message: &str) {
-    assert!(
-        value >= min && value <= max,
-        "{}: expected {} in range [{}, {}]",
-        message,
-        value,
-        min,
-        max
     );
 }
 

@@ -24,7 +24,7 @@ use crate::market_data::{
     surfaces::{FxDeltaVolSurface, VolCube, VolSurface},
     term_structures::{
         BaseCorrelationCurve, BasisSpreadCurve, DiscountCurve, ForwardCurve, HazardCurve,
-        InflationCurve, ParametricCurve, PriceCurve, VolatilityIndexCurve,
+        InflationCurve, ParametricCurve, PriceCurve,
     },
 };
 use crate::money::fx::{

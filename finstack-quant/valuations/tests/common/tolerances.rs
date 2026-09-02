@@ -26,16 +26,16 @@
 //!
 //! ```rust,ignore
 //! use crate::common::tolerances;
-//! use crate::common::assertions::assert_approx_eq;
+//! use finstack_quant_test_utils::assert::approx_eq;
 //!
 //! // For analytical put-call parity check
-//! assert_approx_eq(call - put, forward - strike_pv, tolerances::TIGHT);
+//! approx_eq(call - put, forward - strike_pv, tolerances::TIGHT, "put-call parity");
 //!
 //! // For finite-difference delta approximation
-//! assert_approx_eq(fd_delta, analytical_delta, tolerances::STANDARD);
+//! approx_eq(fd_delta, analytical_delta, tolerances::STANDARD, "delta");
 //!
 //! // For Monte Carlo pricing
-//! assert_approx_eq(mc_price, analytical_price, tolerances::LOOSE);
+//! approx_eq(mc_price, analytical_price, tolerances::LOOSE, "mc price");
 //! ```
 //!
 //! # Migration Note

@@ -10,6 +10,7 @@ use finstack_quant_core::{
     money::Money,
     types::InstrumentId,
 };
+pub use finstack_quant_test_utils::assert::approx_eq;
 use finstack_quant_valuations::{
     instruments::fx::fx_spot::FxSpot,
     metrics::{standard_registry, MetricContext, MetricId},
@@ -149,19 +150,6 @@ pub fn market_full() -> MarketContext {
 /// Floating-point comparison tolerance
 pub const EPSILON: f64 = 1e-10;
 pub const LARGE_EPSILON: f64 = 1e-6;
-
-/// Assert approximately equal with tolerance
-pub fn assert_approx_eq(actual: f64, expected: f64, tolerance: f64, msg: &str) {
-    let diff = (actual - expected).abs();
-    assert!(
-        diff < tolerance,
-        "{}: expected {}, got {} (diff: {})",
-        msg,
-        expected,
-        actual,
-        diff
-    );
-}
 
 /// Calculate one FX spot metric through the production registry.
 pub fn calculate_metric(

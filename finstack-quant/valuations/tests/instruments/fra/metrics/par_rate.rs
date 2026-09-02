@@ -28,7 +28,7 @@ fn test_par_rate_matches_forward_curve() {
 
     let par_rate = *result.measures.get("par_rate").unwrap();
 
-    assert_approx_equal(
+    approx_eq(
         par_rate,
         0.05,
         0.001,
@@ -53,7 +53,7 @@ fn test_par_rate_at_market_fra_is_fixed_rate() {
 
     let par_rate = *result.measures.get("par_rate").unwrap();
 
-    assert_approx_equal(
+    approx_eq(
         par_rate,
         fra.fixed_rate.to_f64().unwrap_or_default(),
         0.001,
@@ -89,7 +89,7 @@ fn test_par_rate_independent_of_fixed_rate() {
         .unwrap();
     let par_6 = *result_6.measures.get("par_rate").unwrap();
 
-    assert_approx_equal(
+    approx_eq(
         par_4,
         par_6,
         0.0001,
@@ -117,7 +117,7 @@ fn test_par_rate_upward_sloping_curve() {
     let par_rate = *result.measures.get("par_rate").unwrap();
 
     assert_finite(par_rate, "Par rate should be finite");
-    assert_in_range(
+    in_range(
         par_rate,
         0.03,
         0.06,
@@ -239,7 +239,7 @@ fn test_par_rate_different_day_counts() {
     let par_365 = *result_365.measures.get("par_rate").unwrap();
 
     // Both should be close for flat curve (day count affects tau, not par rate directly)
-    assert_approx_equal(
+    approx_eq(
         par_360,
         par_365,
         0.001,
@@ -264,7 +264,7 @@ fn test_par_rate_negative_rate_environment() {
         .unwrap();
     let par_rate = *result.measures.get("par_rate").unwrap();
 
-    assert_approx_equal(
+    approx_eq(
         par_rate,
         -0.01,
         0.0005,

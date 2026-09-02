@@ -986,10 +986,11 @@ fn price_curve_rejects_unknown_fields() {
 
 #[test]
 fn volatility_index_curve_rejects_unknown_fields() {
-    use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
-    let curve = VolatilityIndexCurve::builder("VIX")
+    use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
+    let curve = PriceCurve::builder("VIX")
+        .kind(PriceCurveKind::VolIndex)
         .base_date(test_date())
-        .spot_level(15.0)
+        .spot_price(15.0)
         .knots([(0.0, 15.0), (1.0, 18.0)])
         .build()
         .unwrap();

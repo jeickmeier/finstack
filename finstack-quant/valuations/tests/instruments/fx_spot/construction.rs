@@ -160,7 +160,7 @@ fn test_construction_with_small_notional() {
         .with_notional(Money::new(0.01, Currency::EUR))
         .unwrap();
 
-    assert_approx_eq(
+    approx_eq(
         fx.get_effective_notional().amount(),
         0.01,
         EPSILON,

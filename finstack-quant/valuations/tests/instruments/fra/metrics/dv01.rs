@@ -30,7 +30,7 @@ fn test_dv01_standard_fra() {
 
     assert_finite(dv01, "DV01 should be finite");
     // 3M FRA on $1MM should have reasonable DV01 (10-500 range)
-    assert_in_range(
+    in_range(
         dv01.abs(),
         10.0,
         500.0,
@@ -69,7 +69,7 @@ fn test_dv01_scales_with_notional() {
         .unwrap();
     let dv01_10m = *result_10m.measures.get("dv01").unwrap();
 
-    assert_approx_equal(
+    approx_eq(
         dv01_10m,
         dv01_1m * 10.0,
         1.0,
@@ -187,7 +187,7 @@ fn test_fra_pv01_matches_forward_pv01_br01() {
     let forward_pv01 = *result.measures.get("forward_pv01").unwrap();
 
     assert_negative(pv01, "Receive-fixed FRA forward PV01 should be negative");
-    assert_approx_equal(
+    approx_eq(
         pv01,
         forward_pv01,
         1e-10,

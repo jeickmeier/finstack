@@ -133,12 +133,10 @@ mod hazard_curve;
 mod inflation;
 /// Nelson-Siegel and Nelson-Siegel-Svensson parametric yield curves.
 mod parametric_curve;
-/// Forward price curves (commodities, indices).
+/// Forward price curves (commodities, indices, volatility indices).
 mod price_curve;
 /// Serializable rate-curve calibration replay conventions.
 mod rate_calibration;
-/// Volatility index forward curves (VIX, VXN, VSTOXX).
-mod vol_index_curve;
 
 pub use base_correlation::{
     ArbitrageCheckResult, ArbitrageViolation, BaseCorrelationCurve, BaseCorrelationCurveBuilder,
@@ -155,10 +153,9 @@ pub use hazard_calibration::{HazardCalibrationInput, HazardCalibrationRecipe};
 pub use hazard_curve::{HazardCurve, HazardCurveBuilder, ParInterp, Seniority};
 pub use inflation::{InflationCurve, InflationCurveBuilder};
 pub use parametric_curve::{NelsonSiegelModel, NsVariant, ParametricCurve, ParametricCurveBuilder};
-pub use price_curve::{PriceCurve, PriceCurveBuilder};
+pub use price_curve::{PriceCurve, PriceCurveBuilder, PriceCurveKind};
 pub use rate_calibration::{
     RateCalibrationCurveRole, RateCalibrationFutureContractId, RateCalibrationMethod,
     RateCalibrationOisCompounding, RateCalibrationPillar, RateCalibrationQuote,
     RateCalibrationRecipe,
 };
-pub use vol_index_curve::{VolatilityIndexCurve, VolatilityIndexCurveBuilder};

@@ -47,7 +47,7 @@ fn test_standard_major_currency_pairs() {
         assert_eq!(pv.currency(), quote);
 
         let expected_pv = 1_000_000.0 * expected_rate;
-        assert_approx_eq(pv.amount(), expected_pv, LARGE_EPSILON, name);
+        approx_eq(pv.amount(), expected_pv, LARGE_EPSILON, name);
     }
 }
 
@@ -69,7 +69,7 @@ fn test_standard_notional_sizes() {
         let pv = fx.value(&market, test_date()).unwrap();
 
         let expected = notional * rate;
-        assert_approx_eq(pv.amount(), expected, LARGE_EPSILON, desc);
+        approx_eq(pv.amount(), expected, LARGE_EPSILON, desc);
     }
 }
 
@@ -107,7 +107,7 @@ fn test_cross_rate_consistency() {
 
     let eur_gbp_rate = eur_gbp.value(&market, as_of).unwrap().amount();
 
-    assert_approx_eq(
+    approx_eq(
         eur_gbp_rate,
         expected_eur_gbp,
         LARGE_EPSILON,
@@ -132,7 +132,7 @@ fn test_inverse_pair_consistency() {
     let usd_eur_rate = usd_eur.value(&market, as_of).unwrap().amount();
 
     let product = eur_usd_rate * usd_eur_rate;
-    assert_approx_eq(product, 1.0, LARGE_EPSILON, "Inverse pair consistency");
+    approx_eq(product, 1.0, LARGE_EPSILON, "Inverse pair consistency");
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn test_pip_value_calculation() {
     let pip_value = pv2 - pv1;
 
     // 1 pip on 100k notional = 10 USD
-    assert_approx_eq(pip_value, 10.0, LARGE_EPSILON, "Standard pip value");
+    approx_eq(pip_value, 10.0, LARGE_EPSILON, "Standard pip value");
 }
 
 #[test]
@@ -168,7 +168,7 @@ fn test_basis_point_sensitivity() {
     let sensitivity = pv_shifted - pv_base;
 
     // Expected: 1M * 1.20 * 0.0001 = 120
-    assert_approx_eq(sensitivity, 120.0, LARGE_EPSILON, "Basis point sensitivity");
+    approx_eq(sensitivity, 120.0, LARGE_EPSILON, "Basis point sensitivity");
 }
 
 #[test]
@@ -208,7 +208,7 @@ fn test_triangular_arbitrage_absence() {
         .unwrap()
         .amount();
 
-    assert_approx_eq(
+    approx_eq(
         eur_jpy,
         eur_jpy_implied,
         LARGE_EPSILON,
@@ -225,5 +225,5 @@ fn test_zero_value_at_par() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     assert_eq!(pv.currency(), Currency::USD);
-    assert_approx_eq(pv.amount(), 1_200_000.0, EPSILON, "PV at spot");
+    approx_eq(pv.amount(), 1_200_000.0, EPSILON, "PV at spot");
 }

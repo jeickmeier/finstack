@@ -202,7 +202,7 @@ fn test_par_spread_sign_based_on_side() {
 
     // The spreads should be equal in magnitude, opposite in application context
     // Both are calculated from the same market, so they should be equal
-    assert_approx_eq(
+    approx_eq(
         par_receive.abs(),
         par_pay.abs(),
         1.0, // 1bp tolerance
@@ -364,7 +364,7 @@ fn test_financing_annuity_scales_with_notional() {
     let annuity_1m = *result_1m.measures.get("financing_annuity").unwrap();
     let annuity_10m = *result_10m.measures.get("financing_annuity").unwrap();
 
-    assert_approx_eq(
+    approx_eq(
         annuity_10m / annuity_1m,
         10.0,
         0.01, // 1% tolerance
@@ -460,7 +460,7 @@ fn test_ir01_scales_with_notional() {
     let dv01_5m = *result_5m.measures.get("dv01").unwrap();
     let dv01_25m = *result_25m.measures.get("dv01").unwrap();
 
-    assert_approx_eq(
+    approx_eq(
         dv01_25m / dv01_5m,
         5.0,
         0.05, // absolute tolerance on ratio (central differencing may shift ratio slightly)
@@ -558,7 +558,7 @@ fn test_equity_trs_delta_magnitude_check() {
 
     // Assert - Delta should approximate finite difference
     let tolerance = notional * 0.02; // 2% of notional
-    assert_approx_eq(
+    approx_eq(
         dpv_delta,
         dpv_fd,
         tolerance,
@@ -607,7 +607,7 @@ fn test_fi_index_trs_duration_dv01_based_on_duration() {
         pay_dv01 > 0.0,
         "Pay TR (short bond) should have strictly positive duration DV01"
     );
-    assert_approx_eq(
+    approx_eq(
         receive_dv01.abs(),
         pay_dv01.abs(),
         1e-9,
@@ -818,7 +818,7 @@ fn test_par_spread_annuity_relationship() {
     .unwrap();
 
     let expected_par = (tr_pv.amount() - float_pv) / annuity * 10000.0;
-    assert_approx_eq(
+    approx_eq(
         par_spread,
         expected_par,
         0.01,

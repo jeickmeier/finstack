@@ -8,7 +8,7 @@ use crate::Result;
 
 use super::super::term_structures::{
     BaseCorrelationCurve, BasisSpreadCurve, DiscountCurve, ForwardCurve, HazardCurve,
-    InflationCurve, ParametricCurve, PriceCurve, VolatilityIndexCurve,
+    InflationCurve, ParametricCurve, PriceCurve, PriceCurveKind,
 };
 use super::BumpSpec;
 
@@ -25,7 +25,7 @@ macro_rules! for_each_context_curve {
                 type_name: "BaseCorrelation"
             },
             Price => { accessor: price, ty: PriceCurve, type_name: "Price" },
-            VolIndex => { accessor: vol_index, ty: VolatilityIndexCurve, type_name: "VolIndex" },
+            VolIndex => { accessor: vol_index, ty: PriceCurve, type_name: "VolIndex" },
             BasisSpread => { accessor: basis_spread, ty: BasisSpreadCurve, type_name: "BasisSpread" },
             Parametric => { accessor: parametric, ty: ParametricCurve, type_name: "Parametric" }
         }
@@ -59,7 +59,6 @@ impl_simple_rebuildable_with_id!(
     ForwardCurve,
     HazardCurve,
     InflationCurve,
-    VolatilityIndexCurve,
     PriceCurve,
     BasisSpreadCurve,
     ParametricCurve,
@@ -123,6 +122,13 @@ macro_rules! define_curve_storage {
             }
         }
 
+    };
+}
+
+for_each_context_curve!(define_curve_storage);
+
+macro_rules! impl_curve_storage_from {
+    ($( $variant:ident => $ty:ty ),* $(,)?) => {
         $(
             impl From<$ty> for CurveStorage {
                 fn from(curve: $ty) -> Self {
@@ -139,7 +145,33 @@ macro_rules! define_curve_storage {
     };
 }
 
-for_each_context_curve!(define_curve_storage);
+impl_curve_storage_from!(
+    Discount => DiscountCurve,
+    Forward => ForwardCurve,
+    Hazard => HazardCurve,
+    Inflation => InflationCurve,
+    BaseCorrelation => BaseCorrelationCurve,
+    BasisSpread => BasisSpreadCurve,
+    Parametric => ParametricCurve,
+);
+
+/// A [`PriceCurve`] lands in the `Price` or `VolIndex` slot according to its
+/// [`PriceCurveKind`], so `get_price_curve` / `get_vol_index_curve` stay
+/// type-checked lookups.
+impl From<Arc<PriceCurve>> for CurveStorage {
+    fn from(curve: Arc<PriceCurve>) -> Self {
+        match curve.kind() {
+            PriceCurveKind::Price => Self::Price(curve),
+            PriceCurveKind::VolIndex => Self::VolIndex(curve),
+        }
+    }
+}
+
+impl From<PriceCurve> for CurveStorage {
+    fn from(curve: PriceCurve) -> Self {
+        Arc::new(curve).into()
+    }
+}
 
 impl CurveStorage {
     /// Roll this curve storage forward by the provided number of days.
@@ -276,12 +308,8 @@ impl CurveStorage {
                 Ok(())
             }
             Self::VolIndex(original) => {
-                let curve = bump_curve_preserving_id(
-                    original.as_ref(),
-                    original_id,
-                    spec,
-                    VolatilityIndexCurve::id,
-                )?;
+                let curve =
+                    bump_curve_preserving_id(original.as_ref(), original_id, spec, PriceCurve::id)?;
                 *self = Self::VolIndex(Arc::new(curve));
                 Ok(())
             }

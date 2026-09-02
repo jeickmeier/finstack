@@ -9,6 +9,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
+pub use finstack_quant_test_utils::assert::{approx_eq, in_range};
 use finstack_quant_valuations::instruments::rates::fra::ForwardRateAgreement;
 use finstack_quant_valuations::instruments::rates::irs::PayReceive;
 use rust_decimal::Decimal;
@@ -272,42 +273,5 @@ pub fn assert_negative(value: f64, msg: &str) {
         "{}: value should be negative, got {}",
         msg,
         value
-    );
-}
-
-/// Assert value is within range (inclusive)
-pub fn assert_in_range(value: f64, min: f64, max: f64, msg: &str) {
-    assert!(
-        value >= min && value <= max,
-        "{}: value {} not in range [{}, {}]",
-        msg,
-        value,
-        min,
-        max
-    );
-}
-
-/// Assert value is near zero (within tolerance)
-pub fn assert_near_zero(value: f64, tolerance: f64, msg: &str) {
-    assert!(
-        value.abs() < tolerance,
-        "{}: |value| = {} exceeds tolerance {}",
-        msg,
-        value.abs(),
-        tolerance
-    );
-}
-
-/// Assert two values are approximately equal
-pub fn assert_approx_equal(a: f64, b: f64, tolerance: f64, msg: &str) {
-    let diff = (a - b).abs();
-    assert!(
-        diff < tolerance,
-        "{}: |{} - {}| = {} exceeds tolerance {}",
-        msg,
-        a,
-        b,
-        diff,
-        tolerance
     );
 }

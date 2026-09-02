@@ -38,7 +38,7 @@ fn test_registry_prices_fx_spot() {
         .unwrap();
 
     assert_eq!(result.instrument_id, "EURUSD");
-    assert_approx_eq(result.value.amount(), 1_200_000.0, EPSILON, "PV");
+    approx_eq(result.value.amount(), 1_200_000.0, EPSILON, "PV");
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn test_pricer_consistent_with_instrument_value() {
     // Price via instrument
     let instrument_value = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(
+    approx_eq(
         pricer_result.value.amount(),
         instrument_value.amount(),
         EPSILON,
@@ -130,7 +130,7 @@ fn test_pricer_with_fx_matrix() {
         )
         .unwrap();
 
-    assert_approx_eq(
+    approx_eq(
         result.value.amount(),
         1_200_000.0,
         LARGE_EPSILON,

@@ -20,7 +20,8 @@ use finstack_quant_valuations::market::conventions::ids::InflationSwapConvention
 use crate::calibration_support as cal_utils;
 use time::Month;
 
-use super::tolerances::{assert_close_abs, F64_ABS_TOL_LOOSE};
+use super::tolerances::F64_ABS_TOL_LOOSE;
+use finstack_quant_test_utils::assert::approx_eq;
 
 fn create_discount_curve(base_date: Date) -> DiscountCurve {
     DiscountCurve::builder("USD-OIS")
@@ -130,7 +131,7 @@ fn inflation_quote_time_uses_lagged_fixing_date() {
 
     assert_eq!(curve.knots().first().copied(), Some(0.0));
     assert_eq!(curve.knots().len(), 2);
-    assert_close_abs(
+    approx_eq(
         curve.knots()[1],
         expected_t,
         F64_ABS_TOL_LOOSE,

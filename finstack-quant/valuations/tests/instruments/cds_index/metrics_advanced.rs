@@ -159,7 +159,7 @@ fn test_jump_to_default_reasonable_magnitude() {
     let jtd = *result.measures.get("jump_to_default").unwrap();
 
     // For standard index: expect $30K-$70K range per name default
-    assert_in_range(jtd, 20_000.0, 100_000.0, "JTD magnitude");
+    in_range(jtd, 20_000.0, 100_000.0, "JTD magnitude");
 }
 
 #[test]
@@ -368,7 +368,7 @@ fn test_expected_loss_reasonable_magnitude() {
     let el = *result.measures.get("expected_loss").unwrap();
 
     // Expect 2%-8% of notional = $200K-$800K
-    assert_in_range(el, 100_000.0, 1_000_000.0, "Expected loss magnitude");
+    in_range(el, 100_000.0, 1_000_000.0, "Expected loss magnitude");
 }
 
 #[test]
@@ -410,8 +410,8 @@ fn test_jump_to_default_constituents_vs_single() {
     assert_positive(jtd_const, "JTD constituents");
 
     // Verify both are in reasonable ranges for $10MM notional
-    assert_in_range(jtd_single, 1_000.0, 200_000.0, "JTD single-curve range");
-    assert_in_range(jtd_const, 1_000.0, 10_000_000.0, "JTD constituents range");
+    in_range(jtd_single, 1_000.0, 200_000.0, "JTD single-curve range");
+    in_range(jtd_const, 1_000.0, 10_000_000.0, "JTD constituents range");
 }
 
 #[test]
@@ -447,7 +447,7 @@ fn test_expected_loss_constituents_vs_single() {
 
     // Expected loss should be identical (<0.1%) - both modes use the same
     // hazard rates, recovery, and integration methodology
-    assert_relative_eq(el_single, el_const, 0.001, "Expected loss cross-mode");
+    relative_eq(el_single, el_const, 0.001, "Expected loss cross-mode");
 }
 
 #[test]
@@ -514,7 +514,7 @@ fn test_jtd_per_name_basis() {
 
     // JTD should match the analytical formula exactly (within machine epsilon)
     // Both use identical calculations: JTD = (1/125) × Notional × LGD
-    assert_relative_eq(jtd, per_name_estimate, 1e-10, "JTD per-name basis");
+    relative_eq(jtd, per_name_estimate, 1e-10, "JTD per-name basis");
 }
 
 #[test]
@@ -545,7 +545,7 @@ fn test_jtd_uses_explicit_constituent_count_over_name_inference() {
 
     // Expected with the supplied count of 97.
     let expected_97 = 10_000_000.0 * (1.0 - STANDARD_RECOVERY_SENIOR) / 97.0;
-    assert_relative_eq(jtd, expected_97, 1e-10, "JTD uses explicit count of 97");
+    relative_eq(jtd, expected_97, 1e-10, "JTD uses explicit count of 97");
 
     // And it must NOT equal the count the name (or preset default) would imply.
     let with_default_125 = 10_000_000.0 * (1.0 - STANDARD_RECOVERY_SENIOR) / 125.0;
@@ -595,7 +595,7 @@ fn test_jtd_per_name_independent_of_index_factor() {
     let expected = 10_000_000.0 * (1.0 - STANDARD_RECOVERY_SENIOR) / 125.0;
 
     let jtd_seasoned = jtd_at_factor(0.92);
-    assert_relative_eq(
+    relative_eq(
         jtd_seasoned,
         expected,
         1e-10,
@@ -604,7 +604,7 @@ fn test_jtd_per_name_independent_of_index_factor() {
 
     // Factor must not change the per-name number at all.
     let jtd_fresh = jtd_at_factor(1.0);
-    assert_relative_eq(
+    relative_eq(
         jtd_seasoned,
         jtd_fresh,
         1e-12,

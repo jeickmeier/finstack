@@ -141,7 +141,7 @@ fn test_full_capital_structure_el_reproduces_pool_el() {
 
     for rho in [0.10, 0.50, 0.90] {
         let el = el_at_flat_corr(0.0, 100.0, 100.0, rho);
-        assert_relative_eq(
+        relative_eq(
             el,
             analytic_pool_el,
             5e-3,

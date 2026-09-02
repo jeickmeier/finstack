@@ -165,8 +165,8 @@ the display contract is `dpd_stage2 (dpd=30 >= 30)` /
 `drawn + undrawn × ccf` via core `ead_revolver` (`undrawn` default `0.0`,
 `ccf` default `0.75` / `DEFAULT_REVOLVER_CCF`). `RatingPdMap` is a
 rating-keyed map of `RawPdCurve` values; a missing rating skips the SICR
-PD-delta rather than failing the run. `EclConfig` can be persisted through
-the `ECL_POLICY_EXTENSION_KEY` `FinstackConfig` extension.
+PD-delta rather than failing the run. `EclConfig`, `StagingConfig` and
+`CeclConfig` defaults come from the embedded `ecl_policy.v1.json` registry.
 
 **Templates.** Build-time free functions over `ModelBuilder`:
 `roll_forward::add_roll_forward` (beginning + increases − decreases =

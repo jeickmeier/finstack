@@ -382,7 +382,7 @@ mod tests {
     use super::*;
     use crate::instruments::common_impl::traits::Instrument;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
+    use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
     use time::Month;
 
     fn setup_market() -> MarketContext {
@@ -396,9 +396,10 @@ mod tests {
             .expect("valid discount curve");
 
         // Create VIX forward curve - contango structure
-        let vix = VolatilityIndexCurve::builder("VIX")
+        let vix = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(base_date)
-            .spot_level(18.0)
+            .spot_price(18.0)
             .knots([(0.0, 18.0), (0.25, 20.0), (0.5, 21.0), (1.0, 22.0)])
             .build()
             .expect("valid VIX curve");

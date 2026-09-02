@@ -75,7 +75,7 @@ fn test_constituents_weight_based_allocation() {
 
     // Each constituent should have weight = 1/5 = 0.20
     for constituent in &idx.constituents {
-        assert_relative_eq(constituent.weight, 0.20, 0.001, "Constituent weight");
+        relative_eq(constituent.weight, 0.20, 0.001, "Constituent weight");
     }
 }
 
@@ -114,7 +114,7 @@ fn test_constituents_par_spread() {
 
     assert_positive(par_spread, "Par spread");
     let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
-    assert_in_range(
+    in_range(
         par_spread,
         expected * 0.85,
         expected * 1.15,
@@ -135,7 +135,7 @@ fn test_constituents_risky_pv01() {
     let rpv01 = metric_value(&idx, &ctx, as_of, MetricId::RiskyPv01);
 
     assert_positive(rpv01, "Risky PV01");
-    assert_in_range(rpv01, 3_500.0, 5_500.0, "Risky PV01 magnitude");
+    in_range(rpv01, 3_500.0, 5_500.0, "Risky PV01 magnitude");
 }
 
 #[test]
@@ -317,7 +317,7 @@ fn test_constituents_par_spread_independent_of_notional() {
     let par_1mm = metric_value(&idx_1mm, &ctx, as_of, MetricId::ParSpread);
     let par_100mm = metric_value(&idx_100mm, &ctx, as_of, MetricId::ParSpread);
 
-    assert_relative_eq(par_1mm, par_100mm, 0.001, "Par spread notional-independent");
+    relative_eq(par_1mm, par_100mm, 0.001, "Par spread notional-independent");
 }
 
 #[test]
@@ -397,7 +397,7 @@ fn test_constituents_single_constituent() {
     assert!(result.is_ok());
 
     assert_eq!(idx.constituents.len(), 1);
-    assert_relative_eq(
+    relative_eq(
         idx.constituents[0].weight,
         1.0,
         0.001,
@@ -482,12 +482,12 @@ fn test_constituents_detailed_additive_metrics() {
 
     let rpv01 = idx.risky_pv01_detailed(&ctx, as_of).unwrap();
     let rpv01_sum: f64 = rpv01.constituents.iter().map(|c| c.value).sum();
-    assert_relative_eq(rpv01.total, rpv01_sum, 1e-10, "Risky PV01 total equals sum");
+    relative_eq(rpv01.total, rpv01_sum, 1e-10, "Risky PV01 total equals sum");
 
     let provider = finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new();
     let cs01 = idx.cs01_detailed(&ctx, as_of, &provider).unwrap();
     let cs01_sum: f64 = cs01.constituents.iter().map(|c| c.value).sum();
-    assert_relative_eq(cs01.total, cs01_sum, 1e-10, "CS01 total equals sum");
+    relative_eq(cs01.total, cs01_sum, 1e-10, "CS01 total equals sum");
 }
 
 #[test]
@@ -505,13 +505,13 @@ fn test_constituents_detailed_weights_and_ids() {
         .iter()
         .map(|c| c.weight_effective)
         .sum();
-    assert_relative_eq(weight_sum, 1.0, 1e-12, "Effective weights sum to 1");
+    relative_eq(weight_sum, 1.0, 1e-12, "Effective weights sum to 1");
 
     for (i, c) in detailed.constituents.iter().enumerate() {
         let expected_curve = format!("HZ{}", i + 1);
         assert_eq!(c.credit_curve_id.as_str(), expected_curve);
-        assert_relative_eq(c.weight_raw, 1.0 / 3.0, 1e-12, "Raw weight");
-        assert_relative_eq(c.weight_effective, 1.0 / 3.0, 1e-12, "Effective weight");
+        relative_eq(c.weight_raw, 1.0 / 3.0, 1e-12, "Raw weight");
+        relative_eq(c.weight_effective, 1.0 / 3.0, 1e-12, "Effective weight");
         assert!(c.recovery_rate > 0.0 && c.recovery_rate < 1.0);
     }
 }
@@ -533,7 +533,7 @@ fn test_constituents_par_spread_detailed_non_additive() {
         .iter()
         .map(|c| c.value)
         .sum();
-    assert_relative_eq(
+    relative_eq(
         sum_spreads,
         detailed.total_spread_bp * 5.0,
         1e-10,
@@ -548,7 +548,7 @@ fn test_constituents_par_spread_detailed_non_additive() {
             detailed.numerator_protection_pv.amount() / detailed.denominator
         }
     };
-    assert_relative_eq(
+    relative_eq(
         detailed.total_spread_bp,
         expected_total,
         1e-12,

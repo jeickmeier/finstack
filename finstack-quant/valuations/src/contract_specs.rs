@@ -3,13 +3,15 @@
 use crate::instruments::equity::vol_index_future::VolIndexContractSpecs;
 use crate::instruments::fixed_income::bond_future::BondFutureSpecs;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount};
+use finstack_quant_core::embedded_registry::EmbeddedJsonRegistry;
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
 
-const EMBEDDED_CONTRACT_SPECS: &str = include_str!("../data/contract_specs/contract_specs.v1.json");
-
-static EMBEDDED_REGISTRY: OnceLock<Result<ContractSpecRegistry>> = OnceLock::new();
+static EMBEDDED_REGISTRY: EmbeddedJsonRegistry<ContractSpecRegistry> = EmbeddedJsonRegistry::new(
+    include_str!("../data/contract_specs/contract_specs.v1.json"),
+    None,
+    "contract-spec",
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -287,19 +289,7 @@ impl RepoDefaultRecord {
 }
 
 pub(crate) fn embedded_registry() -> Result<&'static ContractSpecRegistry> {
-    match EMBEDDED_REGISTRY.get_or_init(|| parse_registry_json(EMBEDDED_CONTRACT_SPECS)) {
-        Ok(registry) => Ok(registry),
-        Err(err) => Err(err.clone()),
-    }
-}
-
-fn parse_registry_json(raw: &str) -> Result<ContractSpecRegistry> {
-    let registry = serde_json::from_str(raw).map_err(|err| {
-        Error::Validation(format!(
-            "failed to parse embedded contract-spec registry: {err}"
-        ))
-    })?;
-    validate_registry(registry)
+    EMBEDDED_REGISTRY.load(validate_registry)
 }
 
 fn validate_registry(registry: ContractSpecRegistry) -> Result<ContractSpecRegistry> {

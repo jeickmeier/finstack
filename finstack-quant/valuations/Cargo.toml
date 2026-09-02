@@ -35,6 +35,7 @@ ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde
 rayon = "1.11"
 
 [dev-dependencies]
+finstack-quant-test-utils = { path = "../test-utils", version = "0.8.0" }
 finstack-quant-calibration = { path = "../calibration", version = "0.8.0" }
 time = { workspace = true, features = ["macros"] }
 proptest = "1.11.0"

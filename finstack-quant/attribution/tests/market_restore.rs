@@ -20,7 +20,7 @@ use finstack_quant_core::market_data::surfaces::SabrParameterData;
 use finstack_quant_core::market_data::surfaces::VolCube;
 use finstack_quant_core::market_data::term_structures::{
     BaseCorrelationCurve, BasisSpreadCurve, ForwardCurve, HazardCurve, InflationCurve,
-    NelsonSiegelModel, ParametricCurve, PriceCurve, VolatilityIndexCurve,
+    NelsonSiegelModel, ParametricCurve, PriceCurve, PriceCurveKind,
 };
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
@@ -164,10 +164,11 @@ fn price_curve(spot: f64) -> PriceCurve {
         .expect("price curve should build")
 }
 
-fn vol_index_curve(level: f64) -> VolatilityIndexCurve {
-    VolatilityIndexCurve::builder("VIX")
+fn vol_index_curve(level: f64) -> PriceCurve {
+    PriceCurve::builder("VIX")
+        .kind(PriceCurveKind::VolIndex)
         .base_date(AS_OF_T0)
-        .spot_level(level)
+        .spot_price(level)
         .knots([(0.5, level + 1.0), (1.0, level + 2.0)])
         .build()
         .expect("vol index curve should build")
@@ -362,7 +363,7 @@ fn restore_market_moves_all_nine_curve_storage_families() {
     let level = restored
         .get_vol_index_curve("VIX")
         .expect("vol index curve present")
-        .spot_level();
+        .spot_price();
     assert!(
         (level - 19.0).abs() < 1e-12,
         "VolIndex curve must restore to T1 level 19.0, got {level}"

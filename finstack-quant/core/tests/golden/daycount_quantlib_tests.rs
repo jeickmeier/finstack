@@ -19,15 +19,9 @@
 
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext, Tenor};
 use finstack_quant_test_utils::golden::{load_suite_from_path, GoldenSuite};
+use finstack_quant_test_utils::golden_path;
 use serde::Deserialize;
 use time::Month;
-
-/// Helper macro to get the path to golden test data.
-macro_rules! golden_path {
-    ($file:expr) => {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden/", $file)
-    };
-}
 
 /// Expected values for a single day count test case.
 #[derive(Debug, Deserialize)]

@@ -194,7 +194,7 @@ fn heston_fourier_atm_is_positive_and_sane() {
         pv > 0.0,
         "Heston Fourier ATM call must be positive, got {pv}"
     );
-    assert_in_range(pv, 300.0, 1500.0, "Heston Fourier ATM call PV range");
+    in_range(pv, 300.0, 1500.0, "Heston Fourier ATM call PV range");
 }
 
 /// The Fourier pricer is purely analytical: pricing twice is bit-identical.
@@ -403,7 +403,7 @@ fn rough_heston_fourier_atm_is_positive_and_sane() {
         pv > 0.0,
         "rough Heston Fourier ATM call must be positive, got {pv}"
     );
-    assert_in_range(pv, 300.0, 1500.0, "rough Heston Fourier ATM call PV range");
+    in_range(pv, 300.0, 1500.0, "rough Heston Fourier ATM call PV range");
 }
 
 /// A rough-Heston QE Monte Carlo ATM call is positive and in a sane range
@@ -440,7 +440,7 @@ fn rough_heston_mc_atm_is_positive_and_sane() {
         pv > 0.0,
         "rough Heston MC ATM call must be positive, got {pv}"
     );
-    assert_in_range(pv, 200.0, 1800.0, "rough Heston MC ATM call PV range");
+    in_range(pv, 200.0, 1800.0, "rough Heston MC ATM call PV range");
 }
 
 /// Missing `ROUGH_HESTON_*` scalars must hard-error.

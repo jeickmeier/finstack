@@ -32,6 +32,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve, HazardCurve};
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
+pub use finstack_quant_test_utils::assert::approx_eq;
 use time::macros::date;
 use time::Month;
 
@@ -175,80 +176,6 @@ pub fn scaled_tolerance(base_tol: f64, value: f64, min_abs: f64) -> f64 {
 
 // Assertion Helpers
 
-/// Assert two floats are approximately equal with given tolerance.
-///
-/// # Arguments
-///
-/// * `actual` - Computed value
-/// * `expected` - Expected value
-/// * `tolerance` - Absolute tolerance
-/// * `msg` - Descriptive message for failure
-pub fn assert_approx_eq(actual: f64, expected: f64, tolerance: f64, msg: &str) {
-    let diff = (actual - expected).abs();
-    assert!(
-        diff < tolerance,
-        "{}: expected {}, got {} (diff: {:.6e})",
-        msg,
-        expected,
-        actual,
-        diff
-    );
-}
-
-/// Assert two floats are approximately equal with both relative and absolute tolerance.
-///
-/// Uses relative tolerance for large values and absolute tolerance for near-zero values.
-/// This is the recommended assertion for most financial calculations.
-///
-/// # Arguments
-///
-/// * `actual` - Computed value
-/// * `expected` - Expected value
-/// * `rel_tol` - Relative tolerance (e.g., `tolerances::NUMERICAL`)
-/// * `abs_tol` - Absolute tolerance floor (e.g., 1e-10)
-/// * `msg` - Descriptive message for failure
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// assert_approx_eq_dual(actual, expected, tolerances::NUMERICAL, 1e-10, "NPV calculation");
-/// ```
-pub fn assert_approx_eq_dual(actual: f64, expected: f64, rel_tol: f64, abs_tol: f64, msg: &str) {
-    let diff = (actual - expected).abs();
-    let rel_diff = if expected.abs() > 1e-12 {
-        diff / expected.abs()
-    } else {
-        diff
-    };
-
-    let passes = diff <= abs_tol || rel_diff <= rel_tol;
-    assert!(
-        passes,
-        "{}: expected {}, got {} (abs_diff={:.6e}, rel_diff={:.6e})",
-        msg, expected, actual, diff, rel_diff
-    );
-}
-
-/// Assert two floats are approximately equal with relative tolerance.
-///
-/// Falls back to absolute tolerance for near-zero expected values.
-pub fn assert_relative_eq(actual: f64, expected: f64, rel_tolerance: f64, msg: &str) {
-    if expected.abs() < 1e-10 {
-        // For near-zero values, use absolute tolerance
-        assert_approx_eq(actual, expected, 1e-10, msg);
-    } else {
-        let rel_diff = ((actual - expected) / expected).abs();
-        assert!(
-            rel_diff < rel_tolerance,
-            "{}: expected {}, got {} (relative diff: {:.2}%)",
-            msg,
-            expected,
-            actual,
-            rel_diff * 100.0
-        );
-    }
-}
-
 /// Assert Money values are approximately equal.
 ///
 /// Verifies currency matches and amounts are within tolerance.
@@ -259,19 +186,7 @@ pub fn assert_money_eq(actual: Money, expected: Money, tolerance: f64, msg: &str
         "{}: currency mismatch",
         msg
     );
-    assert_approx_eq(actual.amount(), expected.amount(), tolerance, msg);
-}
-
-/// Assert a value is within a range (inclusive).
-pub fn assert_in_range(value: f64, min: f64, max: f64, msg: &str) {
-    assert!(
-        value >= min && value <= max,
-        "{}: expected value in [{}, {}], got {}",
-        msg,
-        min,
-        max,
-        value
-    );
+    approx_eq(actual.amount(), expected.amount(), tolerance, msg);
 }
 
 // Curve Builders - Discount Curves
@@ -689,20 +604,6 @@ mod tests {
     // Tolerance Tests
 
     #[test]
-    fn test_approx_eq() {
-        assert_approx_eq(1.0001, 1.0, 0.001, "Should be approximately equal");
-    }
-
-    #[test]
-    fn test_approx_eq_dual() {
-        // Large value - uses relative tolerance
-        assert_approx_eq_dual(1000.001, 1000.0, 1e-4, 1e-10, "Large value relative");
-
-        // Small value - falls back to absolute tolerance
-        assert_approx_eq_dual(1e-11, 0.0, 1e-4, 1e-10, "Near-zero absolute");
-    }
-
-    #[test]
     fn test_scaled_tolerance() {
         // For large values, tolerance should scale
         assert!((scaled_tolerance(1e-4, 1000.0, 0.01) - 0.1).abs() < 1e-10);
@@ -724,29 +625,6 @@ mod tests {
             assert!(tolerances::RELATIVE < tolerances::BUMP_VS_ANALYTICAL);
             assert!(tolerances::BUMP_VS_ANALYTICAL < tolerances::STATISTICAL);
         };
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_approx_eq_fails() {
-        assert_approx_eq(1.1, 1.0, 0.01, "Should fail");
-    }
-
-    #[test]
-    fn test_relative_eq() {
-        assert_relative_eq(
-            100.0,
-            99.5,
-            tolerances::RELATIVE,
-            "Within relative tolerance",
-        );
-    }
-
-    #[test]
-    fn test_in_range() {
-        assert_in_range(5.0, 0.0, 10.0, "In range");
-        assert_in_range(0.0, 0.0, 10.0, "At lower bound");
-        assert_in_range(10.0, 0.0, 10.0, "At upper bound");
     }
 
     // Date Tests
@@ -930,7 +808,7 @@ mod tests {
         let lhs = call - put;
         let rhs = spot - strike * (-rate * time).exp();
 
-        assert_approx_eq(lhs, rhs, tolerances::ANALYTICAL, "Put-call parity");
+        approx_eq(lhs, rhs, tolerances::ANALYTICAL, "Put-call parity");
     }
 
     #[test]

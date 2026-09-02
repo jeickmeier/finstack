@@ -29,7 +29,7 @@ fn test_base_amount_default_notional() {
     let mut ctx = create_context(fx, test_date());
 
     let amount = calculate_metric(&mut ctx, MetricId::BaseAmount).unwrap();
-    assert_approx_eq(amount, 1.0, EPSILON, "Default notional");
+    approx_eq(amount, 1.0, EPSILON, "Default notional");
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn test_base_amount_explicit_notional() {
     let mut ctx = create_context(fx, test_date());
 
     let amount = calculate_metric(&mut ctx, MetricId::BaseAmount).unwrap();
-    assert_approx_eq(amount, 1_000_000.0, EPSILON, "Explicit notional");
+    approx_eq(amount, 1_000_000.0, EPSILON, "Explicit notional");
 }
 
 #[test]
@@ -46,7 +46,7 @@ fn test_base_amount_various_currencies() {
     // EUR base
     let eur_fx = eurusd_with_notional(5_000_000.0, 1.20);
     let mut eur_ctx = create_context(eur_fx, test_date());
-    assert_approx_eq(
+    approx_eq(
         calculate_metric(&mut eur_ctx, MetricId::BaseAmount).unwrap(),
         5_000_000.0,
         EPSILON,
@@ -60,7 +60,7 @@ fn test_base_amount_various_currencies() {
         .with_rate(1.40)
         .expect("test rate");
     let mut gbp_ctx = create_context(gbp_fx, test_date());
-    assert_approx_eq(
+    approx_eq(
         calculate_metric(&mut gbp_ctx, MetricId::BaseAmount).unwrap(),
         2_500_000.0,
         EPSILON,
@@ -78,7 +78,7 @@ fn test_base_amount_zero_notional() {
     let mut ctx = create_context(fx, test_date());
 
     let amount = calculate_metric(&mut ctx, MetricId::BaseAmount).unwrap();
-    assert_approx_eq(amount, 0.0, EPSILON, "Zero notional");
+    approx_eq(amount, 0.0, EPSILON, "Zero notional");
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn test_base_amount_large_notional() {
     let mut ctx = create_context(fx, test_date());
 
     let amount = calculate_metric(&mut ctx, MetricId::BaseAmount).unwrap();
-    assert_approx_eq(amount, 1_000_000_000.0, 1.0, "Large notional");
+    approx_eq(amount, 1_000_000_000.0, 1.0, "Large notional");
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn test_base_amount_fractional_notional() {
     let mut ctx = create_context(fx, test_date());
 
     let amount = calculate_metric(&mut ctx, MetricId::BaseAmount).unwrap();
-    assert_approx_eq(amount, 1_234_567.89, EPSILON, "Fractional notional");
+    approx_eq(amount, 1_234_567.89, EPSILON, "Fractional notional");
 }
 
 #[test]
@@ -110,8 +110,8 @@ fn test_base_amount_independent_of_rate() {
     let amount1 = calculate_metric(&mut ctx1, MetricId::BaseAmount).unwrap();
     let amount2 = calculate_metric(&mut ctx2, MetricId::BaseAmount).unwrap();
 
-    assert_approx_eq(amount1, amount2, EPSILON, "Independent of rate");
-    assert_approx_eq(amount1, 1_000_000.0, EPSILON, "Base amount");
+    approx_eq(amount1, amount2, EPSILON, "Independent of rate");
+    approx_eq(amount1, 1_000_000.0, EPSILON, "Base amount");
 }
 
 #[test]
@@ -126,8 +126,8 @@ fn test_base_amount_independent_of_date() {
     let amount2 = calculate_metric(&mut ctx2, MetricId::BaseAmount).unwrap();
     let amount3 = calculate_metric(&mut ctx3, MetricId::BaseAmount).unwrap();
 
-    assert_approx_eq(amount1, amount2, EPSILON, "Date independence 1");
-    assert_approx_eq(amount1, amount3, EPSILON, "Date independence 2");
+    approx_eq(amount1, amount2, EPSILON, "Date independence 1");
+    approx_eq(amount1, amount3, EPSILON, "Date independence 2");
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn test_base_amount_returns_base_currency_amount() {
     let base_amount = calculate_metric(&mut ctx, MetricId::BaseAmount).unwrap();
 
     // Base amount should be 1M EUR (base currency)
-    assert_approx_eq(base_amount, 1_000_000.0, EPSILON, "Base currency amount");
+    approx_eq(base_amount, 1_000_000.0, EPSILON, "Base currency amount");
 
     // Not 1.2M USD (quote currency value)
     assert!((base_amount - 1_200_000.0).abs() > 1.0);

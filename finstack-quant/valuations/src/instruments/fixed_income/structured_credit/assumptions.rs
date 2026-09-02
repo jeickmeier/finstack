@@ -9,17 +9,19 @@ use crate::instruments::fixed_income::structured_credit::types::{
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Tenor;
+use finstack_quant_core::embedded_registry::EmbeddedJsonRegistry;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::{Error, HashMap, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
 
-const EMBEDDED_STRUCTURED_CREDIT_ASSUMPTIONS: &str =
-    include_str!("../../../../data/assumptions/structured_credit_assumptions.v1.json");
-
-static EMBEDDED_REGISTRY: OnceLock<Result<StructuredCreditAssumptionRegistry>> = OnceLock::new();
+static EMBEDDED_REGISTRY: EmbeddedJsonRegistry<StructuredCreditAssumptionRegistry> =
+    EmbeddedJsonRegistry::new(
+        include_str!("../../../../data/assumptions/structured_credit_assumptions.v1.json"),
+        None,
+        "structured-credit assumptions",
+    );
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -809,26 +811,12 @@ enum ConstructorPrepaymentKind {
 }
 
 pub(crate) fn embedded_registry() -> Result<&'static StructuredCreditAssumptionRegistry> {
-    match EMBEDDED_REGISTRY
-        .get_or_init(|| parse_registry_json(EMBEDDED_STRUCTURED_CREDIT_ASSUMPTIONS))
-    {
-        Ok(registry) => Ok(registry),
-        Err(err) => Err(err.clone()),
-    }
+    EMBEDDED_REGISTRY.load(validate_registry)
 }
 
 #[allow(clippy::expect_used)]
 pub(crate) fn embedded_registry_or_panic() -> &'static StructuredCreditAssumptionRegistry {
     embedded_registry().expect("embedded structured-credit assumptions are compile-time assets")
-}
-
-fn parse_registry_json(raw: &str) -> Result<StructuredCreditAssumptionRegistry> {
-    let registry = serde_json::from_str(raw).map_err(|err| {
-        Error::Validation(format!(
-            "failed to parse embedded structured-credit assumptions registry: {err}"
-        ))
-    })?;
-    validate_registry(registry)
 }
 
 fn validate_registry(

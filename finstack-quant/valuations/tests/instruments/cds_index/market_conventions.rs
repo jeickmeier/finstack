@@ -264,7 +264,7 @@ fn test_equal_weight_convention() {
 
     let expected_weight = 1.0 / 125.0;
     for constituent in &idx.constituents {
-        assert_relative_eq(
+        relative_eq(
             constituent.weight,
             expected_weight,
             0.001,

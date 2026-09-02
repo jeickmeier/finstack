@@ -236,7 +236,7 @@ fn test_metrics_registry_implied_vol() {
     let results = registry.compute(&[MetricId::ImpliedVol], &mut ctx).unwrap();
 
     let iv = *results.get(&MetricId::ImpliedVol).unwrap();
-    assert_approx_eq(iv, target_vol, 1e-6, "Implied vol from registry");
+    relative_eq(iv, target_vol, 1e-6, "Implied vol from registry");
 }
 
 #[test]

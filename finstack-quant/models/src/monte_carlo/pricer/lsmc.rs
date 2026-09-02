@@ -266,9 +266,7 @@ impl LsmcConfig {
         exercise_dates.sort_unstable();
         exercise_dates.dedup();
 
-        let defaults = &crate::monte_carlo::registry::embedded_defaults_or_panic()
-            .rust
-            .lsmc;
+        let defaults = &crate::monte_carlo::registry::embedded_defaults()?.rust.lsmc;
         Ok(Self {
             num_paths,
             seed: defaults.seed,

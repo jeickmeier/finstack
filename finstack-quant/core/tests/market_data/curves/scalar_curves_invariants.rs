@@ -1,16 +1,16 @@
-//! Public-API invariants for scalar `PriceCurve` and `VolatilityIndexCurve`.
+//! Public-API invariants for scalar `PriceCurve` (price and vol-index kinds).
 //!
 //! These tests previously lived in `finstack-quant-analytics/tests/api_invariants.rs`
 //! but they only cover `finstack_quant_core` curve types, so they now belong here
 //! as `finstack-quant-core` integration coverage.
 
 use finstack_quant_core::dates::{Date, Duration, Month};
-use finstack_quant_core::market_data::term_structures::{PriceCurve, VolatilityIndexCurve};
+use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
 
 const TOL: f64 = 1e-12;
 
 mod scalar_curve_invariants {
-    use super::{Date, Duration, Month, PriceCurve, VolatilityIndexCurve, TOL};
+    use super::{Date, Duration, Month, PriceCurve, PriceCurveKind, TOL};
     use finstack_quant_core::math::interp::InterpStyle;
 
     fn base_date() -> Date {
@@ -33,10 +33,11 @@ mod scalar_curve_invariants {
             .unwrap()
     }
 
-    fn vol_curve() -> VolatilityIndexCurve {
-        VolatilityIndexCurve::builder("VIX")
+    fn vol_curve() -> PriceCurve {
+        PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(base_date())
-            .spot_level(20.0)
+            .spot_price(20.0)
             .knots([
                 (0.0, 20.0),
                 (0.25, 21.0),
@@ -59,12 +60,12 @@ mod scalar_curve_invariants {
         let bumped_vc = vc.with_parallel_bump(bump).unwrap();
 
         assert!((bumped_pc.spot_price() - (pc.spot_price() + bump)).abs() < TOL);
-        assert!((bumped_vc.spot_level() - (vc.spot_level() + bump)).abs() < TOL);
+        assert!((bumped_vc.spot_price() - (vc.spot_price() + bump)).abs() < TOL);
 
         for (orig, bumped) in pc.prices().iter().zip(bumped_pc.prices().iter()) {
             assert!((bumped - orig - bump).abs() < TOL);
         }
-        for (orig, bumped) in vc.levels().iter().zip(bumped_vc.levels().iter()) {
+        for (orig, bumped) in vc.prices().iter().zip(bumped_vc.prices().iter()) {
             assert!((bumped - orig - bump).abs() < TOL);
         }
     }
@@ -79,7 +80,7 @@ mod scalar_curve_invariants {
 
         for t in [0.0, 0.25, 0.5, 1.0] {
             assert!((bumped_pc.price(t) - pc.price(t)).abs() < TOL);
-            assert!((bumped_vc.forward_level(t) - vc.forward_level(t)).abs() < TOL);
+            assert!((bumped_vc.price(t) - vc.price(t)).abs() < TOL);
         }
     }
 
@@ -103,9 +104,7 @@ mod scalar_curve_invariants {
 
         for t in [0.0, 0.25, 0.5, 1.0] {
             assert!((double_bump_pc.price(t) - single_bump_pc.price(t)).abs() < TOL);
-            assert!(
-                (double_bump_vc.forward_level(t) - single_bump_vc.forward_level(t)).abs() < TOL
-            );
+            assert!((double_bump_vc.price(t) - single_bump_vc.price(t)).abs() < TOL);
         }
     }
 
@@ -122,7 +121,7 @@ mod scalar_curve_invariants {
             .unwrap();
 
         assert!((bumped_pc.spot_price() - pc.spot_price()).abs() < TOL);
-        assert!((bumped_vc.spot_level() - vc.spot_level()).abs() < TOL);
+        assert!((bumped_vc.spot_price() - vc.spot_price()).abs() < TOL);
     }
 
     #[test]
@@ -149,7 +148,7 @@ mod scalar_curve_invariants {
             .unwrap();
 
         assert!((bumped_pc.prices()[idx_pc] - pc.prices()[idx_pc] - 3.0).abs() < TOL);
-        assert!((bumped_vc.levels()[idx_vc] - vc.levels()[idx_vc] - 3.0).abs() < TOL);
+        assert!((bumped_vc.prices()[idx_vc] - vc.prices()[idx_vc] - 3.0).abs() < TOL);
     }
 
     #[test]
@@ -173,7 +172,7 @@ mod scalar_curve_invariants {
         };
 
         assert!((rolled_pc.spot_price() - pc.price(dt_years)).abs() < TOL);
-        assert!((rolled_vc.spot_level() - vc.forward_level(dt_years)).abs() < TOL);
+        assert!((rolled_vc.spot_price() - vc.price(dt_years)).abs() < TOL);
     }
 
     #[test]
@@ -190,11 +189,11 @@ mod scalar_curve_invariants {
     #[test]
     fn vol_curve_serde_roundtrip() {
         let vc = vol_curve();
-        let restored: VolatilityIndexCurve =
+        let restored: PriceCurve =
             serde_json::from_str(&serde_json::to_string(&vc).unwrap()).unwrap();
 
         for t in [0.0, 0.25, 0.5, 1.0, 2.0] {
-            assert!((vc.forward_level(t) - restored.forward_level(t)).abs() < TOL);
+            assert!((vc.price(t) - restored.price(t)).abs() < TOL);
         }
     }
 
@@ -205,15 +204,16 @@ mod scalar_curve_invariants {
             .knots([(0.0, 75.0), (0.25, 76.0), (0.5, 77.0), (1.0, 78.0)])
             .build()
             .unwrap();
-        let vc_inferred = VolatilityIndexCurve::builder("VIX-INF")
+        let vc_inferred = PriceCurve::builder("VIX-INF")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(base_date())
             .knots([(0.0, 18.0), (0.25, 19.0), (0.5, 20.0), (1.0, 21.0)])
             .build()
             .unwrap();
 
         assert!((pc_inferred.spot_price() - 75.0).abs() < TOL);
-        assert!((vc_inferred.spot_level() - 18.0).abs() < TOL);
+        assert!((vc_inferred.spot_price() - 18.0).abs() < TOL);
         assert!((pc_inferred.price(0.0) - pc_inferred.spot_price()).abs() < TOL);
-        assert!((vc_inferred.forward_level(0.0) - vc_inferred.spot_level()).abs() < TOL);
+        assert!((vc_inferred.price(0.0) - vc_inferred.spot_price()).abs() < TOL);
     }
 }

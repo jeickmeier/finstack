@@ -9,6 +9,7 @@ use finstack_quant_core::market_data::term_structures::{
     BaseCorrelationCurve, CreditIndexData, HazardCurve,
 };
 use finstack_quant_core::money::Money;
+pub use finstack_quant_test_utils::assert::{approx_eq, relative_eq};
 use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTrancheParams;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::{
     CDSTranche, TrancheSide,
@@ -294,37 +295,5 @@ pub fn assert_finite_non_negative(value: f64, context: &str) {
         "{}: value should be non-negative, got {}",
         context,
         value
-    );
-}
-
-/// Assertion helper: check value is within expected relative tolerance
-pub fn assert_relative_eq(actual: f64, expected: f64, tolerance: f64, context: &str) {
-    let rel_error = if expected.abs() > 1e-10 {
-        ((actual - expected) / expected).abs()
-    } else {
-        (actual - expected).abs()
-    };
-    assert!(
-        rel_error <= tolerance,
-        "{}: relative error {} exceeds tolerance {} (actual={}, expected={})",
-        context,
-        rel_error,
-        tolerance,
-        actual,
-        expected
-    );
-}
-
-/// Assertion helper: check value is within absolute tolerance
-pub fn assert_absolute_eq(actual: f64, expected: f64, tolerance: f64, context: &str) {
-    let abs_error = (actual - expected).abs();
-    assert!(
-        abs_error <= tolerance,
-        "{}: absolute error {} exceeds tolerance {} (actual={}, expected={})",
-        context,
-        abs_error,
-        tolerance,
-        actual,
-        expected
     );
 }

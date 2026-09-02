@@ -75,7 +75,7 @@ fn test_put_call_parity_atm() {
 
     // Expected value derivation: C - P = (S×e^(-qT) - K×e^(-rT)) × contract_size
     // At ATM (S=K=100), t=1Y, r=5%, q=2%: expected ≈ (100×0.98 - 100×0.951) × 100 = $286
-    assert_approx_eq_tol(
+    approx_eq(
         actual_diff,
         expected_diff,
         parity_tolerances::STANDARD_1Y,
@@ -109,7 +109,7 @@ fn test_put_call_parity_itm_call() {
 
     // Expected value derivation: ITM call (K=90, S=100), q=0, r=5%, t=1Y
     // expected = (100 - 90×0.951) × 100 ≈ $1,441
-    assert_approx_eq_tol(
+    approx_eq(
         actual_diff,
         expected_diff,
         parity_tolerances::STANDARD_1Y,
@@ -143,7 +143,7 @@ fn test_put_call_parity_otm_call() {
 
     // Expected value derivation: OTM call (K=110, S=100), q=0, r=5%, t=1Y
     // expected = (100 - 110×0.951) × 100 ≈ -$461 (negative since K > S adjusted)
-    assert_approx_eq_tol(
+    approx_eq(
         actual_diff,
         expected_diff,
         parity_tolerances::STANDARD_1Y,
@@ -176,7 +176,7 @@ fn test_put_call_parity_short_dated() {
     let actual_diff = call_pv - put_pv;
 
     // Expected value derivation: Short-dated (3M), less discounting effect
-    assert_approx_eq_tol(
+    approx_eq(
         actual_diff,
         expected_diff,
         parity_tolerances::SHORT_DATED,
@@ -209,7 +209,7 @@ fn test_put_call_parity_long_dated() {
     let actual_diff = call_pv - put_pv;
 
     // Expected value derivation: Long-dated (2Y), more numerical drift in discounting
-    assert_approx_eq_tol(
+    approx_eq(
         actual_diff,
         expected_diff,
         parity_tolerances::LONG_DATED,
@@ -242,7 +242,7 @@ fn test_put_call_parity_with_high_dividends() {
     let actual_diff = call_pv - put_pv;
 
     // Expected value derivation: High dividend (8%) reduces forward significantly
-    assert_approx_eq_tol(
+    approx_eq(
         actual_diff,
         expected_diff,
         parity_tolerances::HIGH_DIVIDEND,
@@ -273,7 +273,7 @@ fn test_put_call_parity_zero_rates() {
     let actual_diff = call_pv - put_pv;
 
     // Expected value derivation: Zero rates → no discounting → exact parity
-    assert_approx_eq_tol(
+    approx_eq(
         actual_diff,
         expected_diff,
         parity_tolerances::SHORT_DATED, // Tighter since no discounting
@@ -308,7 +308,7 @@ fn test_put_call_parity_across_volatilities() {
         let actual_diff = call_pv - put_pv;
 
         // Parity should hold regardless of volatility level (it's an arbitrage relationship)
-        assert_approx_eq_tol(
+        approx_eq(
             actual_diff,
             expected_diff,
             parity_tolerances::STANDARD_1Y,
@@ -344,7 +344,7 @@ fn test_put_call_parity_across_spot_levels() {
         let actual_diff = call_pv - put_pv;
 
         // Parity should hold regardless of spot level (it's an arbitrage relationship)
-        assert_approx_eq_tol(
+        approx_eq(
             actual_diff,
             expected_diff,
             parity_tolerances::STANDARD_1Y,

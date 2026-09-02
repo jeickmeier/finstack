@@ -95,7 +95,7 @@ fn test_expected_loss_scales_with_notional() {
         .unwrap();
 
     // Assert
-    assert_relative_eq(
+    relative_eq(
         el_20 / el_10,
         2.0,
         0.001,
@@ -217,7 +217,7 @@ fn test_hetero_spa_matches_homogeneous_when_issuers_identical() {
         .unwrap();
 
     // Assert
-    assert_relative_eq(
+    relative_eq(
         el_hetero,
         el_homo,
         0.0001,
@@ -254,7 +254,7 @@ fn test_hetero_spa_vs_exact_convolution_small_pool() {
         .unwrap();
 
     // Assert: normal approximation and exact should be close for small pools
-    assert_relative_eq(
+    relative_eq(
         el_spa,
         el_exact,
         0.05,
@@ -292,7 +292,7 @@ fn test_exact_convolution_grid_refinement() {
         .unwrap();
 
     // Assert: Finer grid should converge to similar result
-    assert_relative_eq(
+    relative_eq(
         el_coarse,
         el_fine,
         0.02,

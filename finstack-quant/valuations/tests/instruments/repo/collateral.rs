@@ -278,7 +278,7 @@ fn test_special_collateral_rate_adjustment_negative() {
     let effective_rate = repo.effective_rate().expect("effective rate");
 
     // 5% - 25bp = 4.75%
-    assert_approx_eq(effective_rate, 0.0475, 1e-9);
+    approx_eq(effective_rate, 0.0475, 1e-9, "effective_rate");
 }
 
 #[test]
@@ -299,7 +299,7 @@ fn test_special_collateral_rate_adjustment_positive() {
     let effective_rate = repo.effective_rate().expect("effective rate");
 
     // 5% + 10bp = 5.10%
-    assert_approx_eq(effective_rate, 0.0510, 1e-9);
+    approx_eq(effective_rate, 0.0510, 1e-9, "effective_rate");
 }
 
 #[test]
@@ -320,7 +320,7 @@ fn test_general_collateral_effective_rate() {
     let effective_rate = repo.effective_rate().expect("effective rate");
 
     // No adjustment for general collateral
-    assert_approx_eq(effective_rate, 0.05, 1e-9);
+    approx_eq(effective_rate, 0.05, 1e-9, "effective_rate");
 }
 
 #[test]

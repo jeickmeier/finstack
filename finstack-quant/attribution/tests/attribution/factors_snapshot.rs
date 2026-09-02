@@ -441,7 +441,7 @@ fn test_scalars_snapshot_extract() {
 fn test_restore_preserves_families_outside_the_snapshot_model() {
     use finstack_quant_core::market_data::surfaces::SabrParameterData;
     use finstack_quant_core::market_data::surfaces::VolCube;
-    use finstack_quant_core::market_data::term_structures::{PriceCurve, VolatilityIndexCurve};
+    use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
     use finstack_quant_core::types::CurveId;
 
     let as_of = date!(2025 - 01 - 15);
@@ -451,9 +451,10 @@ fn test_restore_preserves_families_outside_the_snapshot_model() {
         .knots([(0.0, 70.0), (1.0, 72.0)])
         .build()
         .unwrap();
-    let vol_index = VolatilityIndexCurve::builder("VIX")
+    let vol_index = PriceCurve::builder("VIX")
+        .kind(PriceCurveKind::VolIndex)
         .base_date(as_of)
-        .spot_level(15.0)
+        .spot_price(15.0)
         .knots([(0.0, 15.0), (1.0, 18.0)])
         .build()
         .unwrap();

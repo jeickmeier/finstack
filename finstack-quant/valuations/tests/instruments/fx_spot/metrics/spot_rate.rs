@@ -29,7 +29,7 @@ fn test_spot_rate_basic() {
     let mut ctx = create_context(fx, test_date());
 
     let rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
-    assert_approx_eq(rate, 1.20, EPSILON, "Spot rate");
+    approx_eq(rate, 1.20, EPSILON, "Spot rate");
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn test_spot_rate_derived_from_pv() {
     let rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
 
     // PV = 2M * 1.22 = 2.44M, so rate = 2.44M / 2M = 1.22
-    assert_approx_eq(rate, 1.22, EPSILON, "Derived spot rate");
+    approx_eq(rate, 1.22, EPSILON, "Derived spot rate");
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn test_spot_rate_default_notional() {
     let mut ctx = create_context(fx, test_date());
 
     let rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
-    assert_approx_eq(rate, 1.18, EPSILON, "Default notional spot rate");
+    approx_eq(rate, 1.18, EPSILON, "Default notional spot rate");
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn test_spot_rate_various_rates() {
         let mut ctx = create_context(fx, test_date());
 
         let calculated_rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
-        assert_approx_eq(
+        approx_eq(
             calculated_rate,
             expected_rate,
             EPSILON,
@@ -98,7 +98,7 @@ fn test_spot_rate_various_currencies() {
         .with_rate(1.40)
         .expect("test rate");
     let mut gbp_ctx = create_context(gbp_fx, test_date());
-    assert_approx_eq(
+    approx_eq(
         calculate_metric(&mut gbp_ctx, MetricId::SpotRate).unwrap(),
         1.40,
         EPSILON,
@@ -112,7 +112,7 @@ fn test_spot_rate_various_currencies() {
         .with_rate(110.0)
         .expect("test rate");
     let mut jpy_ctx = create_context(jpy_fx, test_date());
-    assert_approx_eq(
+    approx_eq(
         calculate_metric(&mut jpy_ctx, MetricId::SpotRate).unwrap(),
         110.0,
         EPSILON,
@@ -131,7 +131,7 @@ fn test_spot_rate_independent_of_notional_size() {
         let mut ctx = create_context(fx, test_date());
 
         let calculated_rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
-        assert_approx_eq(
+        approx_eq(
             calculated_rate,
             rate,
             LARGE_EPSILON,
@@ -150,7 +150,7 @@ fn test_spot_rate_independent_of_date() {
         let mut ctx = create_context(fx.clone(), date);
         let rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
 
-        assert_approx_eq(rate, 1.20, EPSILON, &format!("Rate on {:?}", date));
+        approx_eq(rate, 1.20, EPSILON, &format!("Rate on {:?}", date));
     }
 }
 
@@ -160,7 +160,7 @@ fn test_spot_rate_fractional_values() {
     let mut ctx = create_context(fx, test_date());
 
     let rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
-    assert_approx_eq(rate, 1.23456789, LARGE_EPSILON, "Fractional rate"); // Relaxed for f64 precision
+    approx_eq(rate, 1.23456789, LARGE_EPSILON, "Fractional rate"); // Relaxed for f64 precision
 }
 
 #[test]
@@ -183,5 +183,5 @@ fn test_spot_rate_relationship_with_amounts() {
     let spot_rate = calculate_metric(&mut ctx, MetricId::SpotRate).unwrap();
 
     let derived_rate = quote_amt / base_amt;
-    assert_approx_eq(spot_rate, derived_rate, EPSILON, "Rate relationship");
+    approx_eq(spot_rate, derived_rate, EPSILON, "Rate relationship");
 }

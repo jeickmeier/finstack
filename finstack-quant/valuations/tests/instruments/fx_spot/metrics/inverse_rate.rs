@@ -30,7 +30,7 @@ fn test_inverse_rate_basic() {
 
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     let expected = 1.0 / 1.20;
-    assert_approx_eq(inv_rate, expected, EPSILON, "Inverse rate");
+    approx_eq(inv_rate, expected, EPSILON, "Inverse rate");
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_inverse_rate_reciprocal_relationship() {
     let mut ctx = create_context(fx, test_date());
 
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
-    assert_approx_eq(inv_rate, 0.8333333333, LARGE_EPSILON, "Reciprocal");
+    approx_eq(inv_rate, 0.8333333333, LARGE_EPSILON, "Reciprocal");
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn test_inverse_rate_various_rates() {
         let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
         let expected = 1.0 / rate;
 
-        assert_approx_eq(
+        approx_eq(
             inv_rate,
             expected,
             LARGE_EPSILON,
@@ -90,7 +90,7 @@ fn test_inverse_rate_unity() {
     let mut ctx = create_context(fx, test_date());
 
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
-    assert_approx_eq(inv_rate, 1.0, EPSILON, "Inverse of unity");
+    approx_eq(inv_rate, 1.0, EPSILON, "Inverse of unity");
 }
 
 #[test]
@@ -104,10 +104,10 @@ fn test_inverse_rate_symmetry() {
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
 
     // inverse(spot) should equal inv_rate
-    assert_approx_eq(inv_rate, 1.0 / spot_rate, EPSILON, "Inverse symmetry");
+    approx_eq(inv_rate, 1.0 / spot_rate, EPSILON, "Inverse symmetry");
 
     // inverse(inverse(spot)) should equal spot
-    assert_approx_eq(1.0 / inv_rate, spot_rate, EPSILON, "Double inverse");
+    approx_eq(1.0 / inv_rate, spot_rate, EPSILON, "Double inverse");
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn test_inverse_rate_large_rate() {
     let mut ctx = create_context(fx, test_date());
 
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
-    assert_approx_eq(inv_rate, 1.0 / 110.0, LARGE_EPSILON, "Large rate inverse");
+    approx_eq(inv_rate, 1.0 / 110.0, LARGE_EPSILON, "Large rate inverse");
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn test_inverse_rate_small_rate() {
     let mut ctx = create_context(fx, test_date());
 
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
-    assert_approx_eq(inv_rate, 2.0, EPSILON, "Small rate inverse");
+    approx_eq(inv_rate, 2.0, EPSILON, "Small rate inverse");
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn test_inverse_rate_independent_of_notional_size() {
         let mut ctx = create_context(fx, test_date());
 
         let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
-        assert_approx_eq(
+        approx_eq(
             inv_rate,
             expected_inv,
             LARGE_EPSILON,
@@ -166,7 +166,7 @@ fn test_inverse_rate_independent_of_date() {
         let mut ctx = create_context(fx.clone(), date);
         let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
 
-        assert_approx_eq(
+        approx_eq(
             inv_rate,
             expected_inv,
             EPSILON,
@@ -185,7 +185,7 @@ fn test_inverse_rate_product_equals_unity() {
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
 
     let product = spot_rate * inv_rate;
-    assert_approx_eq(product, 1.0, EPSILON, "Product equals unity");
+    approx_eq(product, 1.0, EPSILON, "Product equals unity");
 }
 
 #[test]
@@ -195,5 +195,5 @@ fn test_inverse_rate_fractional_precision() {
 
     let inv_rate = calculate_metric(&mut ctx, MetricId::InverseRate).unwrap();
     let expected = 1.0 / 1.23456789;
-    assert_approx_eq(inv_rate, expected, EPSILON, "Fractional precision");
+    approx_eq(inv_rate, expected, EPSILON, "Fractional precision");
 }

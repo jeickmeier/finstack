@@ -80,14 +80,12 @@ pub use checks::{
 };
 
 pub use ecl::{
-    classify_stage, compute_ecl_single, compute_ecl_weighted, compute_waterfall,
-    default_cecl_config_from_config, default_ecl_config_from_config,
-    default_staging_config_from_config, CeclConfig, CeclEngine, CeclMethodology, CeclResult,
-    EclBucket, EclConfig, EclConfigBuilder, EclEngine, EclRequest, EclResult, EclStageRequest,
-    Exposure, ExposureEclResult, LgdType, MacroScenario, PdTermStructure, PortfolioEclResult,
-    ProvisionWaterfall, QualitativeFlags, RatingPdMap, RawPdCurve, ReversionMethod, Stage,
-    StageResult, StagingConfig, StagingTrigger, WeightedEclResult, DEFAULT_REVOLVER_CCF,
-    ECL_POLICY_EXTENSION_KEY,
+    classify_stage, compute_ecl_single, compute_ecl_weighted, compute_waterfall, CeclConfig,
+    CeclEngine, CeclMethodology, CeclResult, EclBucket, EclConfig, EclConfigBuilder, EclEngine,
+    EclRequest, EclResult, EclStageRequest, Exposure, ExposureEclResult, LgdType, MacroScenario,
+    PdTermStructure, PortfolioEclResult, ProvisionWaterfall, QualitativeFlags, RatingPdMap,
+    RawPdCurve, ReversionMethod, Stage, StageResult, StagingConfig, StagingTrigger,
+    WeightedEclResult, DEFAULT_REVOLVER_CCF,
 };
 
 pub use comps::{

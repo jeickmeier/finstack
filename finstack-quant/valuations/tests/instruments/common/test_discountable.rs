@@ -159,5 +159,5 @@ fn test_npv_zero_rate() {
         .filter(|cf| cf.date > curve.base_date())
         .map(|cf| cf.amount.amount())
         .sum();
-    assert_approx_eq(pv.amount(), expected, 1.0, "PV equals cashflow sum at 0%");
+    approx_eq(pv.amount(), expected, 1.0, "PV equals cashflow sum at 0%");
 }

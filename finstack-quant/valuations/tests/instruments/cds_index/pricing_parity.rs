@@ -67,7 +67,7 @@ fn test_npv_parity_equal_hazards() {
 
     // With identical hazard rates and recovery, expect very close results
     // Market standard: 1% for same-data different-path calculation
-    assert_relative_eq(
+    relative_eq(
         npv_single.amount(),
         npv_constituents.amount(),
         0.01,
@@ -94,7 +94,7 @@ fn test_par_spread_parity_equal_hazards() {
     let par_constituents = metric_value(&idx_constituents, &ctx, as_of, MetricId::ParSpread);
 
     // Par spread is a ratio (protection PV / annuity), errors cancel
-    assert_relative_eq(par_single, par_constituents, 0.005, "Par spread parity");
+    relative_eq(par_single, par_constituents, 0.005, "Par spread parity");
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn test_risky_pv01_parity_equal_hazards() {
     let rpv01_constituents = metric_value(&idx_constituents, &ctx, as_of, MetricId::RiskyPv01);
 
     // Annuity is sum of discounted survival - tight for identical hazards
-    assert_relative_eq(rpv01_single, rpv01_constituents, 0.01, "Risky PV01 parity");
+    relative_eq(rpv01_single, rpv01_constituents, 0.01, "Risky PV01 parity");
 }
 
 #[test]
@@ -142,7 +142,7 @@ fn test_hazard_cs01_parity_equal_hazards() {
     let cs01_constituents = metric_value(&idx_constituents, &ctx, as_of, MetricId::Cs01Hazard);
 
     // CS01 uses same bump size in both modes - tight for identical hazards
-    assert_relative_eq(cs01_single, cs01_constituents, 0.01, "CS01 parity");
+    relative_eq(cs01_single, cs01_constituents, 0.01, "CS01 parity");
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn test_protection_leg_parity_equal_hazards() {
     let prot_constituents = metric_value(&idx_constituents, &ctx, as_of, MetricId::ProtectionLegPv);
 
     // Protection leg integral - tight for identical hazards/recovery
-    assert_relative_eq(
+    relative_eq(
         prot_single,
         prot_constituents,
         0.01,
@@ -191,7 +191,7 @@ fn test_premium_leg_parity_equal_hazards() {
     let prem_constituents = metric_value(&idx_constituents, &ctx, as_of, MetricId::PremiumLegPv);
 
     // Premium leg = spread × annuity - tight for identical hazards
-    assert_relative_eq(prem_single, prem_constituents, 0.01, "Premium leg parity");
+    relative_eq(prem_single, prem_constituents, 0.01, "Premium leg parity");
 }
 
 #[test]
@@ -236,7 +236,7 @@ fn test_parity_with_different_constituent_counts() {
 
         let msg = format!("NPV parity with {} constituents", count);
         // Constituent count shouldn't affect parity with identical hazards
-        assert_relative_eq(npv_single.amount(), npv_const.amount(), 0.01, &msg);
+        relative_eq(npv_single.amount(), npv_const.amount(), 0.01, &msg);
     }
 }
 
@@ -265,7 +265,7 @@ fn test_parity_across_maturities() {
 
         let msg = format!("NPV parity for {} maturity", label);
         // Short maturities have more interpolation error between curve knots
-        assert_relative_eq(npv_single.amount(), npv_const.amount(), 0.02, &msg);
+        relative_eq(npv_single.amount(), npv_const.amount(), 0.02, &msg);
     }
 }
 
@@ -288,7 +288,7 @@ fn test_parity_with_different_notionals() {
 
         let msg = format!("NPV parity for ${:.0} notional", notional);
         // Notional scales linearly, shouldn't affect relative parity
-        assert_relative_eq(npv_single.amount(), npv_const.amount(), 0.01, &msg);
+        relative_eq(npv_single.amount(), npv_const.amount(), 0.01, &msg);
     }
 }
 

@@ -79,7 +79,6 @@ use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::market_data::term_structures::InflationCurve;
 use finstack_quant_core::market_data::term_structures::ParametricCurve;
 use finstack_quant_core::market_data::term_structures::PriceCurve;
-use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
 use finstack_quant_core::money::fx::FxMatrix;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::HashMap;
@@ -237,7 +236,7 @@ pub struct MarketSnapshot {
     pub parametric_curves: HashMap<CurveId, Arc<ParametricCurve>>,
     /// Volatility-index curves indexed by curve ID (populated when the `VOL`
     /// flag is set).
-    pub vol_index_curves: HashMap<CurveId, Arc<VolatilityIndexCurve>>,
+    pub vol_index_curves: HashMap<CurveId, Arc<PriceCurve>>,
     /// Commodity/price curves indexed by curve ID (populated when the
     /// `SCALARS` flag is set).
     pub price_curves: HashMap<CurveId, Arc<PriceCurve>>,

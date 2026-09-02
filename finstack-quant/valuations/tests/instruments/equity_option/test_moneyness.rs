@@ -178,7 +178,7 @@ fn test_otm_call_is_all_time_value() {
     let intrinsic = (spot - strike).max(0.0) * call.notional.amount();
 
     // OTM intrinsic is zero
-    assert_approx_eq_tol(intrinsic, 0.0, TIGHT_TOL, "OTM intrinsic");
+    approx_eq(intrinsic, 0.0, TIGHT_TOL, "OTM intrinsic");
     // PV is all time value
     assert_positive(pv, "OTM call time value");
 }

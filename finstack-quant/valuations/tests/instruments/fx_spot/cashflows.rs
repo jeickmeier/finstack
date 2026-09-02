@@ -21,7 +21,7 @@ fn test_settlement_explicit_date() {
 
     assert_eq!(cashflows.len(), 1);
     assert_eq!(cashflows[0].0, settlement);
-    assert_approx_eq(
+    approx_eq(
         cashflows[0].1.amount(),
         1_200_000.0,
         EPSILON,
@@ -96,7 +96,7 @@ fn test_settlement_from_fx_matrix() {
 
     assert_eq!(cashflows.len(), 1);
     assert_eq!(cashflows[0].1.currency(), Currency::USD);
-    assert_approx_eq(
+    approx_eq(
         cashflows[0].1.amount(),
         1_200_000.0,
         LARGE_EPSILON,
@@ -113,7 +113,7 @@ fn test_settlement_explicit_rate_overrides_matrix() {
 
     assert_eq!(cashflows.len(), 1);
     // Should use explicit rate 1.25, not matrix rate 1.20
-    assert_approx_eq(
+    approx_eq(
         cashflows[0].1.amount(),
         1_250_000.0,
         EPSILON,
@@ -188,7 +188,7 @@ fn test_settlement_zero_notional() {
     let cashflows = fx.dated_cashflows(&market, test_date()).unwrap();
 
     assert_eq!(cashflows.len(), 1);
-    assert_approx_eq(
+    approx_eq(
         cashflows[0].1.amount(),
         0.0,
         EPSILON,
@@ -211,8 +211,8 @@ fn test_multiple_instruments_independent_settlement() {
     assert_eq!(cf2.len(), 1);
     assert_eq!(cf1[0].0, d(2025, 1, 17));
     assert_eq!(cf2[0].0, d(2025, 1, 20));
-    assert_approx_eq(cf1[0].1.amount(), 1_200_000.0, EPSILON, "FX1 amount");
-    assert_approx_eq(cf2[0].1.amount(), 2_440_000.0, EPSILON, "FX2 amount");
+    approx_eq(cf1[0].1.amount(), 1_200_000.0, EPSILON, "FX1 amount");
+    approx_eq(cf2[0].1.amount(), 2_440_000.0, EPSILON, "FX2 amount");
 }
 
 #[test]
@@ -245,7 +245,7 @@ fn test_value_matches_provider_flows() {
                     .expect("flow sum should remain in a single currency")
             });
 
-    assert_approx_eq(
+    approx_eq(
         value.amount(),
         provider_total.amount(),
         EPSILON,
@@ -337,7 +337,7 @@ fn cashflow_uses_valuation_date_spot_not_settlement_date_rate() {
         .dated_cashflows(&market, as_of)
         .expect("cashflow schedule");
     assert_eq!(cashflows.len(), 1);
-    assert_approx_eq(
+    approx_eq(
         cashflows[0].1.amount(),
         1_100_000.0,
         EPSILON,

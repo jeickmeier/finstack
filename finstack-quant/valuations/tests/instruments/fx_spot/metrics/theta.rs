@@ -42,7 +42,7 @@ fn test_theta_settled_position() {
     let theta = theta_for(fx, &market, test_date());
 
     // Settled position has zero theta
-    assert_approx_eq(theta, 0.0, EPSILON, "Theta zero for settled position");
+    approx_eq(theta, 0.0, EPSILON, "Theta zero for settled position");
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn test_theta_zero_notional() {
         .with_settlement(d(2025, 1, 17));
     let market = market_full();
     let theta = theta_for(fx, &market, test_date());
-    assert_approx_eq(theta, 0.0, EPSILON, "Theta zero for zero notional");
+    approx_eq(theta, 0.0, EPSILON, "Theta zero for zero notional");
 }
 
 #[test]

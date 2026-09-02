@@ -22,7 +22,7 @@ fn test_expired_itm_call_equals_intrinsic() {
     let pv = call.value(&market, as_of).unwrap();
     let expected = (spot - strike) * call.notional.amount();
 
-    assert_approx_eq_tol(
+    approx_eq(
         pv.amount(),
         expected,
         TIGHT_TOL,
@@ -43,7 +43,7 @@ fn test_expired_otm_call_is_worthless() {
 
     let pv = call.value(&market, as_of).unwrap();
 
-    assert_approx_eq_tol(pv.amount(), 0.0, TIGHT_TOL, "Expired OTM call");
+    approx_eq(pv.amount(), 0.0, TIGHT_TOL, "Expired OTM call");
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn test_expired_itm_put_equals_intrinsic() {
     let pv = put.value(&market, as_of).unwrap();
     let expected = (strike - spot) * put.notional.amount();
 
-    assert_approx_eq_tol(
+    approx_eq(
         pv.amount(),
         expected,
         TIGHT_TOL,
@@ -81,7 +81,7 @@ fn test_expired_otm_put_is_worthless() {
 
     let pv = put.value(&market, as_of).unwrap();
 
-    assert_approx_eq_tol(pv.amount(), 0.0, TIGHT_TOL, "Expired OTM put");
+    approx_eq(pv.amount(), 0.0, TIGHT_TOL, "Expired OTM put");
 }
 
 #[test]
@@ -119,12 +119,12 @@ fn test_expired_option_greeks_are_static() {
     let rho = *result.measures.get("rho").unwrap();
 
     // A fixed cash-settlement payoff has no remaining equity delta.
-    assert_approx_eq_tol(delta, 0.0, TIGHT_TOL, "Expired cash-settled call delta");
+    approx_eq(delta, 0.0, TIGHT_TOL, "Expired cash-settled call delta");
     // All other Greeks should be zero
-    assert_approx_eq_tol(gamma, 0.0, TIGHT_TOL, "Expired gamma");
-    assert_approx_eq_tol(vega, 0.0, TIGHT_TOL, "Expired vega");
-    assert_approx_eq_tol(theta, 0.0, TIGHT_TOL, "Expired theta");
-    assert_approx_eq_tol(rho, 0.0, TIGHT_TOL, "Expired rho");
+    approx_eq(gamma, 0.0, TIGHT_TOL, "Expired gamma");
+    approx_eq(vega, 0.0, TIGHT_TOL, "Expired vega");
+    approx_eq(theta, 0.0, TIGHT_TOL, "Expired theta");
+    approx_eq(rho, 0.0, TIGHT_TOL, "Expired rho");
 }
 
 // ==================== EXTREME STRIKES ====================

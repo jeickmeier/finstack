@@ -39,7 +39,7 @@ fn test_risky_pv01_positive() {
     let rpv01 = *result.measures.get("risky_pv01").unwrap();
 
     assert_positive(rpv01, "Risky PV01");
-    assert_in_range(rpv01, 3_500.0, 5_500.0, "Risky PV01 for $10MM, 5Y");
+    in_range(rpv01, 3_500.0, 5_500.0, "Risky PV01 for $10MM, 5Y");
 }
 
 #[test]
@@ -253,7 +253,7 @@ fn test_risky_pv01_single_vs_constituents() {
     let rpv01_single = *result_single.measures.get("risky_pv01").unwrap();
     let rpv01_const = *result_const.measures.get("risky_pv01").unwrap();
 
-    assert_relative_eq(rpv01_single, rpv01_const, 0.05, "Risky PV01 parity");
+    relative_eq(rpv01_single, rpv01_const, 0.05, "Risky PV01 parity");
 }
 
 #[test]
@@ -295,7 +295,7 @@ fn test_cs01_single_vs_constituents() {
     let cs01_const = *result_const.measures.get("cs01_hazard").unwrap();
 
     // 5% tolerance: aggregation of per-constituent CS01 vs single curve
-    assert_relative_eq(cs01_single, cs01_const, 0.05, "CS01 parity");
+    relative_eq(cs01_single, cs01_const, 0.05, "CS01 parity");
 }
 
 #[test]
@@ -375,7 +375,7 @@ fn bucketed_cs01_quote_single_curve_uses_each_off_grid_replay_quote_once() {
             .any(|(key, _)| key.as_str() == "bucketed_cs01::HZ-INDEX::4y"),
         "off-grid 4Y index quote must be represented: {buckets:?}"
     );
-    assert_relative_eq(
+    relative_eq(
         bucket_sum,
         result.measures[MetricId::Cs01.as_str()],
         0.02,
@@ -464,7 +464,7 @@ fn bucketed_cs01_quote_constituents_use_each_off_grid_replay_quote_once() {
     assert!(hz2_buckets
         .iter()
         .any(|(key, _)| key.as_str() == "bucketed_cs01::HZ2::4y"));
-    assert_relative_eq(
+    relative_eq(
         bucket_sum,
         result.measures[MetricId::Cs01.as_str()],
         0.02,
@@ -503,7 +503,7 @@ fn test_bucketed_cs01_reconciles_to_parallel_constituents() {
         cs01.is_finite() && bucketed.is_finite(),
         "CS01 metrics must be finite (cs01={cs01}, bucketed={bucketed})"
     );
-    assert_relative_eq(
+    relative_eq(
         bucketed,
         cs01,
         0.02,
@@ -516,7 +516,7 @@ fn test_bucketed_cs01_reconciles_to_parallel_constituents() {
         .filter(|(k, _)| k.as_str().starts_with("bucketed_cs01_hazard::"))
         .map(|(_, v)| *v)
         .sum();
-    assert_relative_eq(
+    relative_eq(
         series_sum,
         cs01,
         0.02,
@@ -598,13 +598,13 @@ fn bucketed_hazard_cs01_reports_each_distinct_constituent_curve() {
         "distinct constituent curves must retain distinct bucket values: \
          HZ1={hz1_total}, HZ2={hz2_total}"
     );
-    assert_relative_eq(
+    relative_eq(
         bucketed,
         hz1_total + hz2_total,
         1e-12,
         "bucketed aggregate vs constituent curve totals",
     );
-    assert_relative_eq(
+    relative_eq(
         bucketed,
         parallel,
         0.02,
@@ -655,13 +655,13 @@ fn bucketed_hazard_cs01_uses_each_non_aligned_curve_node_once() {
         3,
         "three hazard nodes must produce exactly three effective buckets: {constituent_buckets:?}"
     );
-    assert_relative_eq(
+    relative_eq(
         result.measures[MetricId::BucketedCs01Hazard.as_str()],
         bucket_sum,
         1e-12,
         "non-aligned bucket aggregate vs series",
     );
-    assert_relative_eq(
+    relative_eq(
         bucket_sum,
         result.measures[MetricId::Cs01Hazard.as_str()],
         0.02,
@@ -705,7 +705,7 @@ fn bucketed_hazard_cs01_single_node_is_not_repeated() {
         1,
         "one hazard node must produce one bucket, not repeated parallel bumps: {buckets:?}"
     );
-    assert_relative_eq(
+    relative_eq(
         result.measures[MetricId::BucketedCs01Hazard.as_str()],
         result.measures[MetricId::Cs01Hazard.as_str()],
         1e-12,
@@ -768,7 +768,7 @@ fn constituent_using_index_curve_id_is_included_once() {
     );
     assert_eq!(other_buckets.len(), 3);
     assert!(shared_buckets.iter().any(|(_, value)| value.abs() > 1.0));
-    assert_relative_eq(
+    relative_eq(
         bucket_sum,
         result.measures[MetricId::Cs01Hazard.as_str()],
         0.02,

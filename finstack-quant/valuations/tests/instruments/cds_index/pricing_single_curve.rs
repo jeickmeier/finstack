@@ -128,7 +128,7 @@ fn test_single_curve_par_spread() {
     assert_positive(par_spread, "Par spread");
     // Flat hazard approximation: spread ≈ hazard × (1 - recovery) × 10,000
     let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
-    assert_in_range(
+    in_range(
         par_spread,
         expected * 0.85,
         expected * 1.15,
@@ -150,7 +150,7 @@ fn test_single_curve_risky_pv01() {
 
     assert_positive(rpv01, "Risky PV01");
     // For $10MM, 5Y: expect $4,000-$5,000
-    assert_in_range(rpv01, 3_500.0, 5_500.0, "Risky PV01 magnitude");
+    in_range(rpv01, 3_500.0, 5_500.0, "Risky PV01 magnitude");
 }
 
 #[test]
@@ -289,7 +289,7 @@ fn test_single_curve_par_spread_independent_of_notional() {
     let par_1mm = metric_value(&idx_1mm, &ctx, as_of, MetricId::ParSpread);
     let par_100mm = metric_value(&idx_100mm, &ctx, as_of, MetricId::ParSpread);
 
-    assert_relative_eq(
+    relative_eq(
         par_1mm,
         par_100mm,
         0.001,

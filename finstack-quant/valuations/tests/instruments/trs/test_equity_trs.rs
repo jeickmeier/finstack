@@ -119,7 +119,7 @@ fn test_equity_trs_npv_pay_vs_receive_symmetry() {
     let npv_pay = trs_pay.value(&market, as_of).unwrap();
 
     // Assert - NPVs should be opposite
-    assert_approx_eq(
+    approx_eq(
         npv_receive.amount() + npv_pay.amount(),
         0.0,
         1.0, // $1 tolerance
@@ -334,7 +334,7 @@ fn test_equity_trs_financing_leg_matches_provider_schedule() {
 
     // 1bp of the 10M notional: wide enough for the documented projection-
     // convention gap, far too tight for a structural break.
-    assert_approx_eq(
+    approx_eq(
         financing_pv.amount(),
         expected_pv,
         1_000.0,
@@ -663,7 +663,7 @@ fn test_equity_trs_notional_scaling() {
     let npv_10m = trs_10m.value(&market, as_of).unwrap();
 
     // Assert - NPV should scale approximately linearly with notional
-    assert_approx_eq(
+    approx_eq(
         npv_10m.amount() / npv_1m.amount(),
         10.0,
         0.01, // 1% tolerance for rounding

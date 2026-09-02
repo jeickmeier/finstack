@@ -79,7 +79,7 @@ fn rbergomi_atm_call_is_positive_and_sane() {
 
     // 1Y ATM call, ~20% vol, contract size 100: roughly 7–9/share ⇒ 700–900.
     assert!(pv > 0.0, "rBergomi ATM call PV must be positive, got {pv}");
-    assert_in_range(pv, 300.0, 1500.0, "rBergomi ATM call PV range");
+    in_range(pv, 300.0, 1500.0, "rBergomi ATM call PV range");
 }
 
 /// As the vol-of-vol `η → 0` the rBergomi model collapses to Black-Scholes at

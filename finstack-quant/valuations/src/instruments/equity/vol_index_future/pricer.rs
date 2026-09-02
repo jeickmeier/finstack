@@ -55,7 +55,7 @@ pub(crate) fn forward_vol(
             finstack_quant_core::dates::DayCountContext::default(),
         )?
         .max(0.0);
-    Ok(vol_curve.forward_level(t))
+    Ok(vol_curve.price(t))
 }
 
 pub(crate) fn delta_vol(future: &VolatilityIndexFuture) -> f64 {
@@ -70,7 +70,9 @@ mod tests {
     use crate::instruments::Position;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
-    use finstack_quant_core::market_data::term_structures::{DiscountCurve, VolatilityIndexCurve};
+    use finstack_quant_core::market_data::term_structures::{
+        DiscountCurve, PriceCurve, PriceCurveKind,
+    };
     use finstack_quant_core::types::{CurveId, InstrumentId};
     use time::Month;
 
@@ -81,9 +83,10 @@ mod tests {
             .knots([(0.0, 1.0), (1.0, 0.96)])
             .build()
             .expect("valid discount curve");
-        let vix = VolatilityIndexCurve::builder("VIX")
+        let vix = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(base_date)
-            .spot_level(18.0)
+            .spot_price(18.0)
             .knots([(0.0, 18.0), (0.25, 20.0), (0.5, 21.0), (1.0, 22.0)])
             .build()
             .expect("valid VIX curve");
@@ -123,7 +126,7 @@ mod tests {
     /// Convention golden: on a FLAT vol-index curve the fair future equals the
     /// quoted forward level EXACTLY (the curve IS the futures strip — no
     /// convexity term is added or removed; see the module docs on
-    /// `VolatilityIndexCurve` for why variance-derived inputs are forbidden),
+    /// `PriceCurve` for why variance-derived inputs are forbidden),
     /// and the MTM is undiscounted variation margin
     /// `(F − quoted) × multiplier × contracts × sign` in exact dollars.
     /// Also pins the CBOE VIX contract multiplier ($1000/point) from the spec
@@ -136,9 +139,10 @@ mod tests {
             .knots([(0.0, 1.0), (1.0, 0.97)])
             .build()
             .expect("disc");
-        let vix = VolatilityIndexCurve::builder("VIX")
+        let vix = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(base_date)
-            .spot_level(21.5)
+            .spot_price(21.5)
             .knots([(0.0, 21.5), (1.0, 21.5)]) // flat futures strip at 21.5
             .build()
             .expect("curve");

@@ -44,7 +44,7 @@ fn test_cashflow_amount_matches_npv() {
         .df_between_dates(BASE_DATE, fra.start_date)
         .expect("discount factor should exist");
 
-    assert_approx_equal(
+    approx_eq(
         amount.amount() * df,
         npv,
         5e-3,

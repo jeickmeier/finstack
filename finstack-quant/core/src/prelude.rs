@@ -30,7 +30,7 @@ pub use crate::market_data::{
     surfaces::VolSurface,
     term_structures::{
         BaseCorrelationCurve, DiscountCurve, ForwardCurve, HazardCurve, InflationCurve, PriceCurve,
-        VolatilityIndexCurve,
+        PriceCurveKind,
     },
 };
 

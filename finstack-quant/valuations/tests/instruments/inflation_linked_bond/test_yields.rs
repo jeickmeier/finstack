@@ -160,7 +160,7 @@ fn test_real_yield_uses_quoted_price_when_available() {
     let y_from_breakeven_annual = (1.0 + nominal_yield) / (1.0 + be) - 1.0;
 
     // Assert - both in annual compounding, should be consistent
-    assert_approx_eq(
+    relative_eq(
         y_explicit_annual,
         y_from_breakeven_annual,
         0.001,
@@ -294,7 +294,7 @@ fn test_breakeven_inflation_fisher_equation() {
     // (1 + nominal_annual) = (1 + real_annual) × (1 + breakeven)
     // So: breakeven = (1 + nominal_annual) / (1 + real_annual) - 1
     let expected_breakeven = (1.0 + nominal_yield) / (1.0 + real_yield_annual) - 1.0;
-    assert_approx_eq(
+    relative_eq(
         breakeven,
         expected_breakeven,
         0.0001,

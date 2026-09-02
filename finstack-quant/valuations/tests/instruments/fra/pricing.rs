@@ -48,7 +48,7 @@ fn test_at_market_fra_near_zero_pv() {
     let implied = fwd
         .rate_between(t_start, t_end)
         .expect("contractual FRA forward");
-    assert_approx_equal(
+    approx_eq(
         implied,
         0.05,
         1e-14,
@@ -57,8 +57,9 @@ fn test_at_market_fra_near_zero_pv() {
 
     let pv = fra.value(&market, BASE_DATE).unwrap();
 
-    assert_near_zero(
+    approx_eq(
         pv.amount(),
+        0.0,
         1e-8,
         "At-market contractual-grid FRA should have zero PV",
     );
@@ -147,7 +148,7 @@ fn test_pv_scales_with_notional() {
     let pv_1m = fra_1m.value(&market, BASE_DATE).unwrap().amount();
     let pv_10m = fra_10m.value(&market, BASE_DATE).unwrap().amount();
 
-    assert_approx_equal(
+    approx_eq(
         pv_10m,
         pv_1m * 10.0,
         1.0,
@@ -262,8 +263,9 @@ fn test_negative_rate_environment() {
     let fra = TestFraBuilder::new().fixed_rate(-0.01).build();
     let pv = fra.value(&market, BASE_DATE).unwrap();
 
-    assert_near_zero(
+    approx_eq(
         pv.amount(),
+        0.0,
         1.0,
         "At-market FRA should have near-zero PV in negative rates",
     );
@@ -280,8 +282,9 @@ fn test_high_rate_environment() {
     let pv = fra.value(&market, BASE_DATE).unwrap();
 
     // Market standard: At-market FRA should have PV < $1 even at high rates
-    assert_near_zero(
+    approx_eq(
         pv.amount(),
+        0.0,
         1.0,
         "At-market high rates should have near-zero PV",
     );

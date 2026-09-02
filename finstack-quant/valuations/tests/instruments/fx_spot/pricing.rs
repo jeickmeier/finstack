@@ -13,7 +13,7 @@ fn test_npv_with_explicit_rate() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     assert_eq!(pv.currency(), Currency::USD);
-    assert_approx_eq(pv.amount(), 1_200_000.0, EPSILON, "NPV with explicit rate");
+    approx_eq(pv.amount(), 1_200_000.0, EPSILON, "NPV with explicit rate");
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn test_npv_with_default_notional() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     assert_eq!(pv.currency(), Currency::USD);
-    assert_approx_eq(pv.amount(), 1.18, EPSILON, "NPV with default notional");
+    approx_eq(pv.amount(), 1.18, EPSILON, "NPV with default notional");
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn test_npv_from_fx_matrix() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     assert_eq!(pv.currency(), Currency::USD);
-    assert_approx_eq(
+    approx_eq(
         pv.amount(),
         1_200_000.0,
         LARGE_EPSILON,
@@ -51,7 +51,7 @@ fn test_npv_explicit_rate_overrides_matrix() {
 
     // Explicit rate should override matrix
     assert_eq!(pv.currency(), Currency::USD);
-    assert_approx_eq(
+    approx_eq(
         pv.amount(),
         1_250_000.0,
         EPSILON,
@@ -77,7 +77,7 @@ fn test_value_method() {
     let value = fx.value(&market, test_date()).unwrap();
 
     assert_eq!(value.currency(), Currency::USD);
-    assert_approx_eq(value.amount(), 2_440_000.0, EPSILON, "Value method");
+    approx_eq(value.amount(), 2_440_000.0, EPSILON, "Value method");
 }
 
 #[test]
@@ -89,7 +89,7 @@ fn test_gbpusd_pricing() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     assert_eq!(pv.currency(), Currency::USD);
-    assert_approx_eq(pv.amount(), 700_000.0, LARGE_EPSILON, "GBP/USD pricing");
+    approx_eq(pv.amount(), 700_000.0, LARGE_EPSILON, "GBP/USD pricing");
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn test_usdjpy_pricing() {
     let pv = fx.value(&market, test_date()).unwrap();
 
     assert_eq!(pv.currency(), Currency::JPY);
-    assert_approx_eq(pv.amount(), 11_000_000.0, LARGE_EPSILON, "USD/JPY pricing");
+    approx_eq(pv.amount(), 11_000_000.0, LARGE_EPSILON, "USD/JPY pricing");
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn test_zero_notional() {
     let market = MarketContext::new();
     let pv = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(pv.amount(), 0.0, EPSILON, "Zero notional");
+    approx_eq(pv.amount(), 0.0, EPSILON, "Zero notional");
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn test_large_notional_pricing() {
     let market = MarketContext::new();
     let pv = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(pv.amount(), 1_180_000_000.0, 1.0, "Large notional");
+    approx_eq(pv.amount(), 1_180_000_000.0, 1.0, "Large notional");
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn test_very_small_rate() {
     let market = MarketContext::new();
     let pv = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(pv.amount(), 100.0, EPSILON, "Very small rate");
+    approx_eq(pv.amount(), 100.0, EPSILON, "Very small rate");
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn test_very_large_rate() {
     let market = MarketContext::new();
     let pv = fx.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(pv.amount(), 1_000_000.0, EPSILON, "Very large rate");
+    approx_eq(pv.amount(), 1_000_000.0, EPSILON, "Very large rate");
 }
 
 #[test]
@@ -154,13 +154,13 @@ fn test_pricing_consistency_across_dates() {
     let pv3 = fx.value(&market, d(2026, 1, 15)).unwrap();
 
     // With explicit rate, PV should be independent of date
-    assert_approx_eq(
+    approx_eq(
         pv1.amount(),
         pv2.amount(),
         EPSILON,
         "PV consistency date1 vs date2",
     );
-    assert_approx_eq(
+    approx_eq(
         pv1.amount(),
         pv3.amount(),
         EPSILON,
@@ -184,7 +184,7 @@ fn test_price_with_metrics_base_value() {
         .unwrap();
 
     assert_eq!(result.instrument_id, "EURUSD");
-    assert_approx_eq(result.value.amount(), 1_200_000.0, EPSILON, "Base value");
+    approx_eq(result.value.amount(), 1_200_000.0, EPSILON, "Base value");
 }
 
 #[test]
@@ -199,7 +199,7 @@ fn test_triangulated_rate() {
 
     assert_eq!(pv.currency(), Currency::GBP);
     let expected = 1_000_000.0 * (1.20 / 1.40);
-    assert_approx_eq(pv.amount(), expected, LARGE_EPSILON, "Triangulated rate");
+    approx_eq(pv.amount(), expected, LARGE_EPSILON, "Triangulated rate");
 }
 
 #[test]
@@ -214,7 +214,7 @@ fn test_inverse_pair() {
 
     assert_eq!(pv.currency(), Currency::EUR);
     let expected = 1_000_000.0 / 1.20; // Inverse of EUR/USD rate
-    assert_approx_eq(pv.amount(), expected, LARGE_EPSILON, "Inverse pair");
+    approx_eq(pv.amount(), expected, LARGE_EPSILON, "Inverse pair");
 }
 
 #[test]
@@ -231,6 +231,6 @@ fn test_multiple_currencies_independence() {
     let pv_eur = eurusd.value(&market, test_date()).unwrap();
     let pv_gbp = gbpusd.value(&market, test_date()).unwrap();
 
-    assert_approx_eq(pv_eur.amount(), 1_200_000.0, EPSILON, "EUR/USD PV");
-    assert_approx_eq(pv_gbp.amount(), 700_000.0, EPSILON, "GBP/USD PV");
+    approx_eq(pv_eur.amount(), 1_200_000.0, EPSILON, "EUR/USD PV");
+    approx_eq(pv_gbp.amount(), 700_000.0, EPSILON, "GBP/USD PV");
 }

@@ -172,7 +172,7 @@ fn price_strike_implied_vol_round_trips() {
         let recovered = option
             .implied_vol(&market, as_of, target, None)
             .expect("implied vol");
-        assert_approx_eq(recovered, VOL, 1e-6, "implied-vol round trip");
+        relative_eq(recovered, VOL, 1e-6, "implied-vol round trip");
     }
 }
 

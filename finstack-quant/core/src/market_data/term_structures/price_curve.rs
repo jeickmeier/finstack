@@ -40,6 +40,19 @@
 //! - **Commodity option pricing**: Forward level for Black-76
 //! - **Risk management**: Delta and scenario analysis
 //!
+//! # Volatility index curves
+//!
+//! The same type also carries volatility-index term structures (CBOE VIX,
+//! VXN, VSTOXX) when built with [`PriceCurveKind::VolIndex`]: knot values are
+//! then expected futures/forward *levels* of the index and must be
+//! non-negative. Downstream pricers (e.g. `VolatilityIndexFuture` in
+//! `valuations`) treat `F(t)` as the fair futures level `E[VIX_t]` with **no
+//! convexity adjustment**, which is exact only when the knots are quoted
+//! futures/forward levels. Feeding vols derived from variance-swap strikes or
+//! option replication supplies `√(E[VIX_t²])`, which by Jensen's inequality
+//! overstates every future by the vol-of-vol convexity (roughly +8–28% for
+//! typical VIX vol-of-vol); apply the concavity adjustment first.
+//!
 //! # Examples
 //!
 //! ```rust
@@ -65,11 +78,14 @@
 //!   Financial Economics, 3(1-2), 167-179. `docs/REFERENCES.md#black-1976`
 //! - Schwartz, E. S. (1997). "The Stochastic Behavior of Commodity Prices."
 //!   Journal of Finance, 52(3), 923-973.
+//! - Whaley, R. E. (2009). "Understanding the VIX." *Journal of Portfolio Management*,
+//!   35(3), 98-105. `docs/REFERENCES.md#whaley-2009-vix`
+//! - CBOE (2019). "VIX White Paper." CBOE Global Markets. `docs/REFERENCES.md#cboe-vix-white-paper`
 
 use super::common::{
     build_interp_allow_any_values, bump_knots_parallel, bump_knots_percentage,
     bump_knots_triangular, default_curve_base_date, infer_spot_from_knots, roll_knots,
-    split_points, year_fraction_to,
+    split_points, validate_non_negative_knots, year_fraction_to,
 };
 use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::{
@@ -79,16 +95,36 @@ use crate::{
     types::CurveId,
 };
 
-/// Forward price curve for commodities and other price-based assets.
+/// Level family a [`PriceCurve`] represents.
+///
+/// The kind selects the validation contract, the wire field carrying the spot
+/// value, and the [`super::super::context::CurveStorage`] variant a curve is
+/// inserted under (`Price` versus `VolIndex`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum PriceCurveKind {
+    /// Signed forward prices (commodities, power). Any finite value is valid;
+    /// serialised as `spot_price`.
+    #[default]
+    Price,
+    /// Volatility-index forward levels (VIX, VXN, VSTOXX). Knot levels and
+    /// spot must be non-negative; serialised as `spot_level`.
+    VolIndex,
+}
+
+/// Forward price curve for commodities, other price-based assets and
+/// volatility indices.
 ///
 /// Represents expected future price levels. Stores forward prices at
-/// knot times and interpolates between them.
+/// knot times and interpolates between them. A [`PriceCurveKind::VolIndex`]
+/// curve holds volatility-index levels with a non-negativity contract; see the
+/// module docs for the convexity caveat on vol-index inputs.
 ///
 /// # Price Characteristics
 ///
 /// - **Spot price**: Current market price at t=0
 /// - **Forward prices**: Expected future prices
-/// - **Units**: Absolute prices (e.g., USD per barrel, USD per MMBtu)
+/// - **Units**: Absolute prices (e.g., USD per barrel, USD per MMBtu) or
+///   index points for volatility indices
 ///
 /// # Thread Safety
 ///
@@ -98,6 +134,7 @@ use crate::{
 #[serde(try_from = "RawPriceCurve", into = "RawPriceCurve")]
 pub struct PriceCurve {
     id: CurveId,
+    kind: PriceCurveKind,
     base: Date,
     /// Day-count basis used for time calculations.
     day_count: DayCount,
@@ -110,7 +147,10 @@ pub struct PriceCurve {
     interp: Interp,
 }
 
-/// Raw serializable state of PriceCurve
+/// Raw serializable state of PriceCurve.
+///
+/// Exactly one of `spot_price` (kind `Price`) or `spot_level` (kind
+/// `VolIndex`) is present on the wire; the field name carries the kind.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -123,8 +163,12 @@ struct RawPriceCurve {
     pub base: Date,
     /// Day count convention
     pub day_count: DayCount,
-    /// Spot price
-    pub spot_price: f64,
+    /// Spot price (signed price curves)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spot_price: Option<f64>,
+    /// Spot index level (volatility index curves)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spot_level: Option<f64>,
     /// Time/value pairs used to construct the curve
     pub knot_points: Vec<(f64, f64)>,
     /// Interpolation style
@@ -142,11 +186,16 @@ impl From<PriceCurve> for RawPriceCurve {
             .map(|(&t, &price)| (t, price))
             .collect();
 
+        let (spot_price, spot_level) = match curve.kind {
+            PriceCurveKind::Price => (Some(curve.spot_price), None),
+            PriceCurveKind::VolIndex => (None, Some(curve.spot_price)),
+        };
         RawPriceCurve {
             id: curve.id.to_string(),
             base: curve.base,
             day_count: curve.day_count,
-            spot_price: curve.spot_price,
+            spot_price,
+            spot_level,
             knot_points,
             interp_style: curve.interp.style(),
             extrapolation: curve.interp.extrapolation(),
@@ -158,10 +207,20 @@ impl TryFrom<RawPriceCurve> for PriceCurve {
     type Error = crate::Error;
 
     fn try_from(state: RawPriceCurve) -> crate::Result<Self> {
+        let (kind, spot) = match (state.spot_price, state.spot_level) {
+            (Some(spot), None) => (PriceCurveKind::Price, spot),
+            (None, Some(spot)) => (PriceCurveKind::VolIndex, spot),
+            _ => {
+                return Err(crate::Error::Validation(
+                    "PriceCurve requires exactly one of `spot_price` or `spot_level`".to_string(),
+                ))
+            }
+        };
         PriceCurve::builder(state.id)
+            .kind(kind)
             .base_date(state.base)
             .day_count(state.day_count)
-            .spot_price(state.spot_price)
+            .spot_price(spot)
             .knots(state.knot_points)
             .interp(state.interp_style)
             .extrapolation(state.extrapolation)
@@ -172,12 +231,15 @@ impl TryFrom<RawPriceCurve> for PriceCurve {
 impl PriceCurve {
     /// Start building a price curve for the given `id`.
     ///
-    /// **Defaults:** Linear interpolation with Flat extrapolation maintains
-    /// stable tail prices consistent with typical commodity curve behavior.
+    /// **Defaults:** [`PriceCurveKind::Price`], linear interpolation with Flat
+    /// extrapolation maintains stable tail prices consistent with typical
+    /// commodity curve behavior. Use [`PriceCurveBuilder::kind`] to build a
+    /// volatility-index curve.
     #[must_use]
     pub fn builder(id: impl Into<CurveId>) -> PriceCurveBuilder {
         PriceCurveBuilder {
             id: id.into(),
+            kind: PriceCurveKind::Price,
             base: default_curve_base_date(),
             base_is_set: false,
             day_count: DayCount::Act365F,
@@ -219,11 +281,18 @@ impl PriceCurve {
         Ok(self.price(t))
     }
 
-    /// Current spot price.
+    /// Current spot price (or spot index level for a vol-index curve).
     #[must_use]
     #[inline]
     pub fn spot_price(&self) -> f64 {
         self.spot_price
+    }
+
+    /// Level family of this curve.
+    #[must_use]
+    #[inline]
+    pub fn kind(&self) -> PriceCurveKind {
+        self.kind
     }
 
     /// Day-count convention used for this curve.
@@ -285,6 +354,7 @@ impl PriceCurve {
     /// Create a builder pre-populated with this curve's data but a new ID.
     pub fn to_builder_with_id(&self, new_id: impl Into<CurveId>) -> PriceCurveBuilder {
         PriceCurve::builder(new_id)
+            .kind(self.kind)
             .base_date(self.base)
             .day_count(self.day_count)
             .spot_price(self.spot_price)
@@ -318,6 +388,7 @@ impl PriceCurve {
         let new_id = crate::market_data::bumps::id_bump_bp(self.id.as_str(), bump * 100.0);
 
         PriceCurve::builder(new_id)
+            .kind(self.kind)
             .base_date(self.base)
             .day_count(self.day_count)
             .spot_price((self.spot_price + bump).max(0.0))
@@ -352,6 +423,7 @@ impl PriceCurve {
         let new_id = format!("{}+{:.2}%", self.id.as_str(), pct * 100.0);
 
         PriceCurve::builder(new_id)
+            .kind(self.kind)
             .base_date(self.base)
             .day_count(self.day_count)
             .spot_price((self.spot_price * (1.0 + pct)).max(0.0))
@@ -405,6 +477,7 @@ impl PriceCurve {
         );
         let new_id = crate::market_data::bumps::id_bump_bp(self.id.as_str(), bump * 100.0);
         PriceCurve::builder(new_id)
+            .kind(self.kind)
             .base_date(self.base)
             .day_count(self.day_count)
             .spot_price(self.spot_price) // Spot typically not bumped in key-rate
@@ -444,6 +517,7 @@ impl PriceCurve {
         let new_spot = self.price(dt_years);
 
         PriceCurve::builder(self.id.clone())
+            .kind(self.kind)
             .base_date(new_base)
             .day_count(self.day_count)
             .spot_price(new_spot)
@@ -474,6 +548,7 @@ impl PriceCurve {
 /// ```
 pub struct PriceCurveBuilder {
     id: CurveId,
+    kind: PriceCurveKind,
     base: Date,
     base_is_set: bool,
     day_count: DayCount,
@@ -484,6 +559,12 @@ pub struct PriceCurveBuilder {
 }
 
 impl PriceCurveBuilder {
+    /// Select the level family (signed prices or non-negative vol-index levels).
+    pub fn kind(mut self, kind: PriceCurveKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
     /// Set the curve's valuation **base date**.
     pub fn base_date(mut self, d: Date) -> Self {
         self.base = d;
@@ -532,14 +613,17 @@ impl PriceCurveBuilder {
     /// finite time knots measured in years, and one finite forward price per
     /// knot; prices may be signed because some commodity/power markets trade
     /// through zero. If spot is omitted, the first knot must be exactly at
-    /// `t = 0` so the builder can infer it without extrapolation.
+    /// `t = 0` so the builder can infer it without extrapolation. A
+    /// [`PriceCurveKind::VolIndex`] curve additionally rejects negative knot
+    /// levels and a negative spot (zero is permitted).
     ///
     /// # Errors
     ///
-    /// Returns an input or interpolation error if the base date was not set,
-    /// fewer than two points were supplied, knots are non-finite or not strictly
-    /// increasing, any price/spot is non-finite, spot cannot be inferred, or
-    /// the selected interpolation/extrapolation combination rejects the grid.
+    /// Returns an input, validation, or interpolation error if the base date
+    /// was not set, fewer than two points were supplied, knots are non-finite
+    /// or not strictly increasing, any price/spot is non-finite (or negative
+    /// for a vol-index curve), spot cannot be inferred, or the selected
+    /// interpolation/extrapolation combination rejects the grid.
     pub fn build(self) -> crate::Result<PriceCurve> {
         if !self.base_is_set {
             return Err(InputError::Invalid.into());
@@ -565,6 +649,16 @@ impl PriceCurveBuilder {
             return Err(InputError::Invalid.into());
         }
 
+        if self.kind == PriceCurveKind::VolIndex {
+            validate_non_negative_knots(&kvec, &pvec, "Volatility index level")?;
+            if spot_price < 0.0 {
+                return Err(crate::Error::Validation(format!(
+                    "Spot level must be non-negative: {:.8}",
+                    spot_price
+                )));
+            }
+        }
+
         let knots = kvec.into_boxed_slice();
         let prices = pvec.into_boxed_slice();
 
@@ -577,6 +671,7 @@ impl PriceCurveBuilder {
 
         Ok(PriceCurve {
             id: self.id,
+            kind: self.kind,
             base: self.base,
             day_count: self.day_count,
             spot_price,
@@ -686,6 +781,69 @@ mod tests {
         assert_eq!(curve.id(), recovered.id());
         assert!((curve.spot_price() - recovered.spot_price()).abs() < 1e-10);
         assert!((curve.price(0.5) - recovered.price(0.5)).abs() < 1e-10);
+    }
+
+    fn sample_vix_curve() -> PriceCurve {
+        PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
+            .base_date(
+                Date::from_calendar_date(2025, time::Month::January, 1).expect("Valid test date"),
+            )
+            .knots([(0.0, 18.5), (0.25, 20.0), (0.5, 21.5), (1.0, 22.0)])
+            .spot_price(18.5)
+            .build()
+            .expect("vol-index PriceCurve builder should succeed with valid test data")
+    }
+
+    #[test]
+    fn vol_index_rejects_negative_levels() {
+        let base = Date::from_calendar_date(2025, time::Month::January, 1).unwrap();
+        let result = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
+            .base_date(base)
+            .knots([(0.0, 18.5), (0.5, -5.0)])
+            .build();
+        assert!(result.is_err());
+        let result = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
+            .base_date(base)
+            .spot_price(-1.0)
+            .knots([(0.0, 18.5), (0.5, 20.0)])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn vol_index_serde_uses_spot_level_and_round_trips() {
+        let curve = sample_vix_curve();
+        let json = serde_json::to_value(&curve).expect("Serialize should succeed");
+        assert!((json["spot_level"].as_f64().unwrap() - 18.5).abs() < 1e-12);
+        assert!(json.get("spot_price").is_none());
+        let recovered: PriceCurve =
+            serde_json::from_value(json).expect("Deserialize should succeed");
+        assert_eq!(recovered.kind(), PriceCurveKind::VolIndex);
+        assert!((curve.price(0.5) - recovered.price(0.5)).abs() < 1e-10);
+
+        let price_json = serde_json::to_value(sample_wti_curve()).unwrap();
+        assert!(price_json.get("spot_level").is_none());
+        assert!(price_json.get("spot_price").is_some());
+        let both = serde_json::json!({
+            "id": "X", "base": "2025-01-01", "day_count": "act_365f",
+            "spot_price": 1.0, "spot_level": 1.0,
+            "knot_points": [[0.0, 1.0], [1.0, 1.0]],
+            "interp_style": "linear", "extrapolation": "flat_zero"
+        });
+        assert!(serde_json::from_value::<PriceCurve>(both).is_err());
+    }
+
+    #[test]
+    fn vol_index_bumps_preserve_kind() {
+        let curve = sample_vix_curve();
+        let bumped = curve.with_parallel_bump(2.0).expect("Bump should succeed");
+        assert_eq!(bumped.kind(), PriceCurveKind::VolIndex);
+        assert!((bumped.spot_price() - 20.5).abs() < 1e-10);
+        assert!((bumped.price(0.25) - 22.0).abs() < 1e-10);
+        assert!(curve.with_parallel_bump(-30.0).is_err());
     }
 
     #[test]

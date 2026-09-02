@@ -70,7 +70,7 @@ fn test_typical_tranche_widths() {
 
     for (name, lower, upper, expected_width) in tranches {
         let width = upper - lower;
-        assert_absolute_eq(
+        approx_eq(
             width,
             expected_width,
             0.01,
@@ -111,7 +111,7 @@ fn test_standard_recovery_rate() {
     let standard_recovery = 0.40;
     let index_data = standard_credit_index();
 
-    assert_absolute_eq(
+    approx_eq(
         index_data.recovery_rate,
         standard_recovery,
         0.01,
@@ -155,7 +155,7 @@ fn test_standard_tranche_derives_contractual_effective_date_for_seasoned_trade()
         .expect("derived tranche price")
         .amount();
 
-    assert_absolute_eq(
+    approx_eq(
         derived_pv,
         explicit_pv,
         1e-6,
@@ -205,7 +205,7 @@ fn test_binomial_probability_known_values() {
 
     for (n, k, p, expected) in test_cases {
         let result = binomial_probability(n, k, p);
-        assert_absolute_eq(
+        approx_eq(
             result,
             expected,
             1e-6,
@@ -228,8 +228,8 @@ fn test_binomial_probability_edge_cases() {
 #[test]
 fn test_log_factorial_accuracy() {
     // Test small values (exact calculation)
-    assert_absolute_eq(log_factorial(1), 0.0, 1e-12, "log(1!)");
-    assert_absolute_eq(
+    approx_eq(log_factorial(1), 0.0, 1e-12, "log(1!)");
+    approx_eq(
         log_factorial(5),
         2.0_f64.ln() + 3.0_f64.ln() + 4.0_f64.ln() + 5.0_f64.ln(),
         1e-12,
@@ -307,8 +307,8 @@ fn test_equity_tranche_parameters() {
         1000.0,
     );
 
-    assert_absolute_eq(params.attach_pct, 0.0, 0.01, "Equity attachment");
-    assert_absolute_eq(params.detach_pct, 3.0, 0.01, "Equity detachment");
+    approx_eq(params.attach_pct, 0.0, 0.01, "Equity attachment");
+    approx_eq(params.detach_pct, 3.0, 0.01, "Equity detachment");
 }
 
 #[test]
@@ -326,8 +326,8 @@ fn test_mezzanine_tranche_parameters() {
         500.0,
     );
 
-    assert_absolute_eq(params.attach_pct, 3.0, 0.01, "Mezzanine attachment");
-    assert_absolute_eq(params.detach_pct, 7.0, 0.01, "Mezzanine detachment");
+    approx_eq(params.attach_pct, 3.0, 0.01, "Mezzanine attachment");
+    approx_eq(params.detach_pct, 7.0, 0.01, "Mezzanine detachment");
 }
 
 // ==================== Gaussian Copula Methodology Tests ====================

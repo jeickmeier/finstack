@@ -70,7 +70,7 @@ fn test_forward_points_with_contract_rates() {
     let forward_points = *result.measures.get("forward_points").unwrap();
 
     // Should be exactly 0.05 when contract rates are explicit
-    assert_approx_eq(
+    approx_eq(
         forward_points,
         0.05,
         1e-10,

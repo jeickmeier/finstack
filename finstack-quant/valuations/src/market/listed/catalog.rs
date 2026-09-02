@@ -107,9 +107,13 @@ const CATALOG_SCHEMA: &str = "finstack_quant.listed_product_catalog/1";
 const EMBEDDED_LISTED_PRODUCT_CATALOG: &str =
     include_str!("../../../data/listed/listed_product_catalog.v1.json");
 
-static EMBEDDED_CATALOG: std::sync::OnceLock<
-    finstack_quant_core::Result<ListedProductCatalogFile>,
-> = std::sync::OnceLock::new();
+static EMBEDDED_CATALOG: finstack_quant_core::embedded_registry::EmbeddedJsonRegistry<
+    ListedProductCatalogFile,
+> = finstack_quant_core::embedded_registry::EmbeddedJsonRegistry::new(
+    EMBEDDED_LISTED_PRODUCT_CATALOG,
+    None,
+    "listed-product catalog",
+);
 
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -191,21 +195,25 @@ fn validate_nonblank(index: usize, field: &str, value: &str) -> finstack_quant_c
     }
 }
 
-fn parse_catalog_json(raw: &str) -> finstack_quant_core::Result<ListedProductCatalogFile> {
-    let catalog = serde_json::from_str::<ListedProductCatalogFile>(raw).map_err(|error| {
-        finstack_quant_core::Error::Validation(format!(
-            "failed to parse embedded listed-product catalog: {error}"
-        ))
-    })?;
+fn validate_catalog(
+    catalog: ListedProductCatalogFile,
+) -> finstack_quant_core::Result<ListedProductCatalogFile> {
     catalog.validate()?;
     Ok(catalog)
 }
 
+#[cfg(test)]
+fn parse_catalog_json(raw: &str) -> finstack_quant_core::Result<ListedProductCatalogFile> {
+    let catalog = serde_json::from_str::<ListedProductCatalogFile>(raw).map_err(|error| {
+        finstack_quant_core::Error::Validation(format!(
+            "failed to parse listed-product catalog: {error}"
+        ))
+    })?;
+    validate_catalog(catalog)
+}
+
 fn embedded_catalog() -> finstack_quant_core::Result<&'static ListedProductCatalogFile> {
-    match EMBEDDED_CATALOG.get_or_init(|| parse_catalog_json(EMBEDDED_LISTED_PRODUCT_CATALOG)) {
-        Ok(catalog) => Ok(catalog),
-        Err(error) => Err(error.clone()),
-    }
+    EMBEDDED_CATALOG.load(validate_catalog)
 }
 
 /// Return the maintained coverage map for liquid CME, Eurex, Montréal, and SGX products.

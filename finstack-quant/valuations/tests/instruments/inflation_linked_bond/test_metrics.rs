@@ -258,7 +258,7 @@ fn test_metrics_consistency_with_direct_calls() {
     let duration_direct = ilb.real_duration(&ctx, as_of).unwrap();
 
     // Assert - should be identical
-    assert_approx_eq(
+    relative_eq(
         duration_via_framework,
         duration_direct,
         EPSILON,
@@ -290,7 +290,7 @@ fn test_metrics_real_yield_consistency() {
     let yield_direct = ilb.real_yield(clean_price, &ctx, as_of).unwrap();
 
     // Assert - should be identical since both call the same real_yield method
-    assert_approx_eq(
+    relative_eq(
         yield_via_framework,
         yield_direct,
         EPSILON, // Both use the same calculation path
@@ -320,7 +320,7 @@ fn test_metrics_index_ratio_consistency() {
     let ratio_direct = ilb.index_ratio_from_market(as_of, &ctx).unwrap();
 
     // Assert - should be identical
-    assert_approx_eq(
+    relative_eq(
         ratio_via_framework,
         ratio_direct,
         EPSILON,
@@ -461,7 +461,7 @@ fn test_breakeven_inflation_metric_consistency() {
     let breakeven_direct = ilb.breakeven_inflation(nominal_yield, &ctx, as_of).unwrap();
 
     // Assert - should be identical since both use the same calculation path
-    assert_approx_eq(
+    relative_eq(
         breakeven_via_framework,
         breakeven_direct,
         EPSILON, // Both use the same calculation path

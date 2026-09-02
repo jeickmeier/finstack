@@ -97,7 +97,7 @@ fn test_implied_vol_recovers_surface_vol() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(
+    approx_eq(
         implied_vol,
         vol,
         1e-4,
@@ -147,7 +147,7 @@ fn test_implied_vol_atm_option() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(implied_vol, vol, 1e-5, "ATM implied vol");
+    approx_eq(implied_vol, vol, 1e-5, "ATM implied vol");
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn test_implied_vol_itm_option() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(implied_vol, vol, 1e-5, "ITM implied vol");
+    approx_eq(implied_vol, vol, 1e-5, "ITM implied vol");
 }
 
 #[test]
@@ -237,7 +237,7 @@ fn test_implied_vol_otm_option() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(implied_vol, vol, 1e-5, "OTM implied vol");
+    approx_eq(implied_vol, vol, 1e-5, "OTM implied vol");
 }
 
 #[test]
@@ -282,7 +282,7 @@ fn test_implied_vol_short_dated() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(implied_vol, vol, 1e-5, "Short dated implied vol");
+    approx_eq(implied_vol, vol, 1e-5, "Short dated implied vol");
 }
 
 #[test]
@@ -327,7 +327,7 @@ fn test_implied_vol_long_dated() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(implied_vol, vol, 1e-5, "Long dated implied vol");
+    approx_eq(implied_vol, vol, 1e-5, "Long dated implied vol");
 }
 
 #[test]
@@ -373,7 +373,7 @@ fn test_implied_vol_high_volatility() {
         implied_vol
     );
     // Solver uses 1e-8 tolerance internally; 1e-4 is achievable for high vol
-    assert_approx_eq_tol(implied_vol, vol, 1e-4, "High vol implied vol");
+    approx_eq(implied_vol, vol, 1e-4, "High vol implied vol");
 }
 
 #[test]
@@ -418,7 +418,7 @@ fn test_implied_vol_low_volatility() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(implied_vol, vol, 1e-5, "Low vol implied vol");
+    approx_eq(implied_vol, vol, 1e-5, "Low vol implied vol");
 }
 
 #[test]
@@ -463,7 +463,7 @@ fn test_implied_vol_returns_zero_for_expired() {
     let implied_vol = *result.measures.get("implied_vol").unwrap();
 
     // Expired option should return 0 implied vol
-    assert_approx_eq_tol(implied_vol, 0.0, TIGHT_TOL, "Expired implied vol");
+    approx_eq(implied_vol, 0.0, TIGHT_TOL, "Expired implied vol");
 }
 
 /// A malformed `market_price` attribute must surface as an error, not be
@@ -550,5 +550,5 @@ fn test_implied_vol_with_dividends() {
         "Implied vol solver failed to converge (returned {})",
         implied_vol
     );
-    assert_approx_eq_tol(implied_vol, vol, 1e-5, "Implied vol with dividends");
+    approx_eq(implied_vol, vol, 1e-5, "Implied vol with dividends");
 }

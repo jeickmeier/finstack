@@ -224,7 +224,7 @@ impl MertonMcConfig {
     /// outside `[0, 1]`.
     pub fn new(merton: MertonModel, recovery_rate: f64) -> finstack_quant_core::Result<Self> {
         validate_recovery_rate(recovery_rate)?;
-        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
+        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults()?
             .rust
             .merton_pik_bond;
         let barrier_crossing = match merton.barrier_type() {

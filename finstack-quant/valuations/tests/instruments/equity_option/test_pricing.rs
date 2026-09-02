@@ -19,7 +19,7 @@ fn test_atm_call_has_positive_value() {
     assert_positive(pv.amount(), "ATM call PV");
     // ATM call with 1Y expiry, 25% vol, 5% rate, 100 contract size
     // Should be roughly 10-15 per share * 100 = 1000-1500 total
-    assert_in_range(pv.amount(), 500.0, 2000.0, "ATM call PV range");
+    in_range(pv.amount(), 500.0, 2000.0, "ATM call PV range");
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn test_atm_put_has_positive_value() {
     let pv = put.value(&market, as_of).unwrap();
 
     assert_positive(pv.amount(), "ATM put PV");
-    assert_in_range(pv.amount(), 500.0, 2000.0, "ATM put PV range");
+    in_range(pv.amount(), 500.0, 2000.0, "ATM put PV range");
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn test_contract_size_scales_value_linearly() {
     let pv_100 = call_100.value(&market, as_of).unwrap();
     let pv_200 = call_200.value(&market, as_of).unwrap();
 
-    assert_approx_eq_tol(
+    approx_eq(
         pv_200.amount(),
         pv_100.amount() * 2.0,
         0.1, // Allow 10 cent tolerance for rounding

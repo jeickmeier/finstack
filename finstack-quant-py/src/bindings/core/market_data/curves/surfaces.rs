@@ -3,7 +3,7 @@
 use finstack_quant_core::market_data::surfaces::{
     FxDeltaVolSurface, SabrParameterData, VolCube, VolGridOpts, VolInterpolationMode, VolSurface,
 };
-use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
+use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
 use pyo3::types::PyDict;
 
 use std::sync::Arc;
@@ -362,7 +362,8 @@ impl PyVolCube {
 
 /// Volatility index forward curve (e.g. VIX term structure).
 ///
-/// Wraps [`VolatilityIndexCurve`] from `finstack-quant-core`.
+/// Wraps a [`PriceCurve`] with [`PriceCurveKind::VolIndex`] from
+/// `finstack-quant-core`.
 #[pyclass(
     name = "VolatilityIndexCurve",
     module = "finstack_quant.core.market_data.curves",
@@ -372,12 +373,12 @@ impl PyVolCube {
 #[derive(Clone)]
 pub struct PyVolatilityIndexCurve {
     /// Shared Rust curve.
-    pub(crate) inner: Arc<VolatilityIndexCurve>,
+    pub(crate) inner: Arc<PriceCurve>,
 }
 
 impl PyVolatilityIndexCurve {
-    /// Build from an existing `Arc<VolatilityIndexCurve>`.
-    pub(crate) fn from_inner(inner: Arc<VolatilityIndexCurve>) -> Self {
+    /// Build from an existing `Arc<PriceCurve>` stored as a vol-index curve.
+    pub(crate) fn from_inner(inner: Arc<PriceCurve>) -> Self {
         Self { inner }
     }
 }
@@ -415,7 +416,8 @@ impl PyVolatilityIndexCurve {
         let style = parse_interp_style(interp)?;
         let day_count = parse_day_count(day_count)?;
 
-        let curve = VolatilityIndexCurve::builder(id)
+        let curve = PriceCurve::builder(id)
+            .kind(PriceCurveKind::VolIndex)
             .base_date(base)
             .day_count(day_count)
             .knots(knots)
@@ -432,7 +434,7 @@ impl PyVolatilityIndexCurve {
     /// Forward volatility index level at year fraction `t`.
     #[pyo3(text_signature = "(self, t)")]
     fn forward_level(&self, t: f64) -> f64 {
-        self.inner.forward_level(t)
+        self.inner.price(t)
     }
 
     /// Curve identifier string.

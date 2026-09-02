@@ -7,7 +7,8 @@
 
 use finstack_quant_core::{currency::Currency, dates::Date, money::Money, types::CurveId};
 use finstack_quant_margin::{
-    CsaSpec, MarginTenor, RepoMarginSpec, RepoMarginType, VmCalculator, VmParameters,
+    CsaSpec, MarginCallTiming, MarginTenor, RepoMarginSpec, RepoMarginType, VmCalculator,
+    VmParameters,
 };
 use finstack_quant_valuations::instruments::{CollateralSpec, Repo};
 use time::Month;
@@ -141,7 +142,7 @@ fn test_margin_call_with_threshold() {
         vm_params,
         im_params: None,
         eligible_collateral: Default::default(),
-        call_timing: Default::default(),
+        call_timing: MarginCallTiming::regulatory_standard().expect("registry should load"),
         collateral_curve_id: CurveId::new("USD-OIS"),
     };
 
@@ -183,7 +184,7 @@ fn test_margin_call_exceeds_threshold() {
         vm_params,
         im_params: None,
         eligible_collateral: Default::default(),
-        call_timing: Default::default(),
+        call_timing: MarginCallTiming::regulatory_standard().expect("registry should load"),
         collateral_curve_id: CurveId::new("USD-OIS"),
     };
 

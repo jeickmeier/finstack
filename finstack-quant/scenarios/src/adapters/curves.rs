@@ -17,7 +17,7 @@ use finstack_quant_core::market_data::bumps::{
 };
 use finstack_quant_core::market_data::context::{CurveStorage, MarketContext};
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, ForwardCurve, InflationCurve, PriceCurve,
+    DiscountCurve, ForwardCurve, InflationCurve, PriceCurve, PriceCurveKind,
 };
 use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::recalibration::{
@@ -1028,27 +1028,27 @@ pub(crate) fn vol_index_parallel_effects(
 
     check_vol_index_post_shock_positivity(
         curve_id,
-        base_curve.levels(),
-        base_curve.spot_level(),
+        base_curve.prices(),
+        base_curve.spot_price(),
         points,
     )?;
 
     // Rebuild with the original ID so `MarketContext::insert` replaces the
     // existing entry rather than adding a parallel "VIX+...bp" copy.
     let knots: Vec<f64> = base_curve.knots().to_vec();
-    let bumped_levels: Vec<f64> = base_curve.levels().iter().map(|l| l + points).collect();
+    let bumped_levels: Vec<f64> = base_curve.prices().iter().map(|l| l + points).collect();
     let bumped_points: Vec<(f64, f64)> = knots.into_iter().zip(bumped_levels).collect();
-    let new_curve =
-        finstack_quant_core::market_data::term_structures::VolatilityIndexCurve::builder(
-            base_curve.id().as_str(),
-        )
-        .base_date(base_curve.base_date())
-        .day_count(base_curve.day_count())
-        .spot_level(base_curve.spot_level() + points)
-        .interp(base_curve.interp_style())
-        .extrapolation(base_curve.extrapolation())
-        .knots(bumped_points)
-        .build()?;
+    let new_curve = finstack_quant_core::market_data::term_structures::PriceCurve::builder(
+        base_curve.id().as_str(),
+    )
+    .kind(PriceCurveKind::VolIndex)
+    .base_date(base_curve.base_date())
+    .day_count(base_curve.day_count())
+    .spot_price(base_curve.spot_price() + points)
+    .interp(base_curve.interp_style())
+    .extrapolation(base_curve.extrapolation())
+    .knots(bumped_points)
+    .build()?;
 
     Ok(vec![ScenarioEffect::UpdateCurve(CurveStorage::from(
         new_curve,
@@ -1079,7 +1079,7 @@ pub(crate) fn vol_index_node_effects(
         BumpDelivery::Direct,
     )?;
 
-    let mut levels: Vec<f64> = base_curve.levels().to_vec();
+    let mut levels: Vec<f64> = base_curve.prices().to_vec();
 
     for &(idx, pts) in &result.indexed_targets {
         let proposed = levels[idx] + pts;
@@ -1094,23 +1094,23 @@ pub(crate) fn vol_index_node_effects(
         levels[idx] = proposed;
     }
 
-    let mut spot_level = base_curve.spot_level();
+    let mut spot_level = base_curve.spot_price();
     if knots.first().is_some_and(|k| k.abs() < 1e-12) {
         spot_level = levels[0];
     }
 
     let bumped_points: Vec<(f64, f64)> = knots.into_iter().zip(levels).collect();
-    let new_curve =
-        finstack_quant_core::market_data::term_structures::VolatilityIndexCurve::builder(
-            base_curve.id().as_str(),
-        )
-        .base_date(base_curve.base_date())
-        .day_count(base_curve.day_count())
-        .spot_level(spot_level)
-        .interp(base_curve.interp_style())
-        .extrapolation(base_curve.extrapolation())
-        .knots(bumped_points)
-        .build()?;
+    let new_curve = finstack_quant_core::market_data::term_structures::PriceCurve::builder(
+        base_curve.id().as_str(),
+    )
+    .kind(PriceCurveKind::VolIndex)
+    .base_date(base_curve.base_date())
+    .day_count(base_curve.day_count())
+    .spot_price(spot_level)
+    .interp(base_curve.interp_style())
+    .extrapolation(base_curve.extrapolation())
+    .knots(bumped_points)
+    .build()?;
 
     Ok(update_effects(new_curve, result.warnings))
 }
@@ -1123,7 +1123,7 @@ mod tests {
     use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
     use finstack_quant_core::dates::DayCount;
     use finstack_quant_core::market_data::context::MarketContext;
-    use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
+    use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
     use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
     use finstack_quant_statements::FinancialModelSpec;
     use time::macros::date;
@@ -1138,9 +1138,10 @@ mod tests {
     #[test]
     fn vol_index_parallel_uses_absolute_index_points() {
         let as_of = date!(2025 - 01 - 01);
-        let vol_curve = VolatilityIndexCurve::builder("VIX")
+        let vol_curve = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(as_of)
-            .spot_level(18.5)
+            .spot_price(18.5)
             .knots([(0.0, 18.5), (0.25, 20.0), (0.5, 21.5)])
             .build()
             .expect("vol index curve should build");
@@ -1174,16 +1175,17 @@ mod tests {
         let updated = market
             .get_vol_index_curve("VIX")
             .expect("vol index should exist");
-        assert!((updated.spot_level() - 19.5).abs() < 1.0e-12);
-        assert!((updated.forward_level(0.25) - 21.0).abs() < 1.0e-12);
+        assert!((updated.spot_price() - 19.5).abs() < 1.0e-12);
+        assert!((updated.price(0.25) - 21.0).abs() < 1.0e-12);
     }
 
     #[test]
     fn vol_index_node_front_knot_syncs_spot_level() {
         let as_of = date!(2025 - 01 - 01);
-        let vol_curve = VolatilityIndexCurve::builder("VIX")
+        let vol_curve = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(as_of)
-            .spot_level(18.5)
+            .spot_price(18.5)
             .knots([(0.0, 18.5), (0.25, 20.0), (0.5, 21.5)])
             .build()
             .expect("vol index curve should build");
@@ -1213,11 +1215,11 @@ mod tests {
             })
             .expect("vol-index update");
         assert!(
-            (bumped.spot_level() - 19.5).abs() < 1e-12,
+            (bumped.spot_price() - 19.5).abs() < 1e-12,
             "front-knot +1.0 should move spot 18.5 → 19.5, got {}",
-            bumped.spot_level()
+            bumped.spot_price()
         );
-        assert!((bumped.forward_level(0.0) - 19.5).abs() < 1e-12);
+        assert!((bumped.price(0.0) - 19.5).abs() < 1e-12);
     }
 
     #[test]
@@ -1235,10 +1237,11 @@ mod tests {
             .knots([(0.0, 0.02), (0.25, 0.021), (0.5, 0.022)])
             .build()
             .expect("forward curve should build");
-        let vol = VolatilityIndexCurve::builder("VIX")
+        let vol = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(as_of)
             .day_count(DayCount::Act360)
-            .spot_level(18.0)
+            .spot_price(18.0)
             .interp(InterpStyle::LogLinear)
             .extrapolation(ExtrapolationPolicy::FlatForward)
             .knots([(0.0, 18.0), (0.25, 20.0), (0.5, 22.0)])
@@ -1298,9 +1301,10 @@ mod tests {
     #[test]
     fn vol_index_parallel_rejects_non_positive_floor() {
         let as_of = date!(2025 - 01 - 01);
-        let vol_curve = VolatilityIndexCurve::builder("VIX")
+        let vol_curve = PriceCurve::builder("VIX")
+            .kind(PriceCurveKind::VolIndex)
             .base_date(as_of)
-            .spot_level(15.0)
+            .spot_price(15.0)
             .knots([(0.0, 15.0), (0.25, 16.0), (0.5, 18.0)])
             .build()
             .expect("vol index curve should build");

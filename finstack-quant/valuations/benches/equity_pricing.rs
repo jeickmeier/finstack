@@ -18,7 +18,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, ForwardCurve, VolatilityIndexCurve,
+    DiscountCurve, ForwardCurve, PriceCurve, PriceCurveKind,
 };
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
@@ -98,9 +98,10 @@ fn create_equity_market() -> MarketContext {
     .unwrap();
 
     // VIX forward curve: spot at 18.5, mean-reverting to ~22 at 1Y
-    let vix_curve = VolatilityIndexCurve::builder("VIX")
+    let vix_curve = PriceCurve::builder("VIX")
+        .kind(PriceCurveKind::VolIndex)
         .base_date(base)
-        .spot_level(18.5)
+        .spot_price(18.5)
         .knots([(0.0, 18.5), (0.25, 20.0), (0.5, 21.0), (1.0, 22.0)])
         .interp(InterpStyle::Linear)
         .build()

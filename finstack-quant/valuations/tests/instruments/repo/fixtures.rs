@@ -11,6 +11,7 @@ use finstack_quant_valuations::instruments::rates::repo::CollateralSpec;
 
 // Re-export the canonical date helper from shared test utilities.
 pub use crate::test_support::date::date;
+pub use finstack_quant_test_utils::assert::approx_eq;
 
 /// Standard test base date (2025-01-01).
 pub fn base_date() -> Date {
@@ -126,18 +127,6 @@ pub fn assert_money_approx_eq(actual: Money, expected: Money, epsilon: f64) {
         expected.currency(),
         actual.amount(),
         actual.currency(),
-        diff
-    );
-}
-
-/// Verify that two f64 values are approximately equal.
-pub fn assert_approx_eq(actual: f64, expected: f64, epsilon: f64) {
-    let diff = (actual - expected).abs();
-    assert!(
-        diff < epsilon,
-        "Expected ~{}, got {} (diff: {})",
-        expected,
-        actual,
         diff
     );
 }

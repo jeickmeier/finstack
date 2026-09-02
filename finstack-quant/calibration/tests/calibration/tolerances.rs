@@ -114,15 +114,6 @@ pub const BASE_CORR_SOLVER_TOL: f64 = 1e-10;
 /// Swaption normal-vol fit tolerance (decimal). 5bp → 0.0005.
 pub const SWAPTION_VOL_FIT_TOL_NORMAL_DECIMAL: f64 = 0.0005;
 
-/// Assert two f64 values are close in absolute terms with a high-signal error message.
-pub fn assert_close_abs(actual: f64, expected: f64, tol: f64, label: &str) {
-    let diff = (actual - expected).abs();
-    assert!(
-        diff <= tol,
-        "{label}: |actual-expected|={diff:.3e} > tol={tol:.3e} (actual={actual:.12}, expected={expected:.12})"
-    );
-}
-
 /// Convert a basis-point tolerance to a PV tolerance using an instrument DV01 (dollars per bp).
 #[allow(dead_code)]
 #[inline]

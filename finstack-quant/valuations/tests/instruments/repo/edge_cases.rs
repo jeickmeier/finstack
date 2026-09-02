@@ -140,7 +140,7 @@ fn test_zero_rate_repo() {
     let interest = repo.interest_amount().unwrap();
     let total = repo.total_repayment().unwrap();
 
-    assert_approx_eq(interest.amount(), 0.0, 1e-6);
+    approx_eq(interest.amount(), 0.0, 1e-6, "interest");
     assert_money_approx_eq(total, Money::new(1_000_000.0, Currency::USD), 0.01);
 }
 
@@ -306,7 +306,7 @@ fn test_special_collateral_without_rate_adjustment() {
     let effective_rate = repo.effective_rate().expect("effective rate");
 
     // No adjustment, so should equal base rate
-    assert_approx_eq(effective_rate, 0.05, 1e-9);
+    approx_eq(effective_rate, 0.05, 1e-9, "effective_rate");
 }
 
 #[test]

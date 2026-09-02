@@ -154,7 +154,7 @@ fn test_fi_index_trs_npv_pay_vs_receive_symmetry() {
     let npv_pay = trs_pay.value(&market, as_of).unwrap();
 
     // Assert - NPVs should be opposite
-    assert_approx_eq(
+    approx_eq(
         npv_receive.amount() + npv_pay.amount(),
         0.0,
         1.0, // $1 tolerance
@@ -497,7 +497,7 @@ fn test_fi_index_trs_notional_scaling() {
     let npv_25m = trs_25m.value(&market, as_of).unwrap();
 
     // Assert - NPV should scale approximately linearly with notional
-    assert_approx_eq(
+    approx_eq(
         npv_25m.amount() / npv_5m.amount(),
         5.0,
         0.01, // 1% tolerance
@@ -626,14 +626,14 @@ fn test_fi_index_trs_analytical_flat_rate_flat_yield() {
     // from the idealized 0.25Y quarters (due to business day adjustments).
     let tolerance = notional_amount * 0.001; // 0.1% of notional = $10,000
 
-    assert_approx_eq(
+    approx_eq(
         tr_pv.amount(),
         analytical_tr_pv,
         tolerance,
         "Total return leg PV should match analytical (carry model, flat rate)",
     );
 
-    assert_approx_eq(
+    approx_eq(
         fin_pv.amount(),
         analytical_fin_pv,
         tolerance,
@@ -641,7 +641,7 @@ fn test_fi_index_trs_analytical_flat_rate_flat_yield() {
     );
 
     // NPV = TR - Financing (for receive side)
-    assert_approx_eq(
+    approx_eq(
         npv.amount(),
         analytical_tr_pv - analytical_fin_pv,
         tolerance,
@@ -723,7 +723,7 @@ fn test_fi_index_trs_zero_carry_when_yield_id_is_none() {
     let tr_pv = trs.pv_total_return_leg(&market, as_of).unwrap();
 
     // With zero yield, total return leg should be zero (e^{0 * dt} - 1 = 0)
-    assert_approx_eq(
+    approx_eq(
         tr_pv.amount(),
         0.0,
         0.01,
@@ -787,7 +787,7 @@ fn test_fi_index_trs_duration_dv01_defaults_when_duration_id_is_none() {
     let dv01 = *result.measures.get("duration_dv01").unwrap();
     // Expected: -(10_000_000 × 5.0 × 0.0001) = -5_000
     // (negative: default side is ReceiveTotalReturn, i.e. long the bond index)
-    assert_approx_eq(
+    approx_eq(
         dv01,
         -5_000.0,
         1.0, // $1 tolerance

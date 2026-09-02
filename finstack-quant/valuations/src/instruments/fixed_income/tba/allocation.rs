@@ -3,16 +3,17 @@
 //! This module provides simplified CTD allocation using on-the-run
 //! pool characteristics rather than full SIFMA good delivery rules.
 
-use std::sync::OnceLock;
-
 use super::AgencyTba;
 use crate::instruments::fixed_income::mbs_passthrough::AgencyMbsPassthrough;
+use finstack_quant_core::embedded_registry::EmbeddedJsonRegistry;
 use finstack_quant_core::{Error, Result};
 use serde::Deserialize;
 
-const TBA_ASSUMPTIONS: &str = include_str!("../../../../data/assumptions/tba_assumptions.v1.json");
-
-static TBA_DEFAULTS: OnceLock<Result<TbaAssumptions>> = OnceLock::new();
+static TBA_DEFAULTS: EmbeddedJsonRegistry<TbaAssumptions> = EmbeddedJsonRegistry::new(
+    include_str!("../../../../data/assumptions/tba_assumptions.v1.json"),
+    None,
+    "TBA assumptions",
+);
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -203,19 +204,12 @@ impl PoolCharacteristics {
 }
 
 fn embedded_tba_assumptions() -> Result<&'static TbaAssumptions> {
-    match TBA_DEFAULTS.get_or_init(parse_tba_assumptions) {
-        Ok(defaults) => Ok(defaults),
-        Err(err) => Err(err.clone()),
-    }
-}
-
-fn parse_tba_assumptions() -> Result<TbaAssumptions> {
-    let defaults: TbaAssumptions = serde_json::from_str(TBA_ASSUMPTIONS)
-        .map_err(|err| Error::Validation(format!("failed to parse TBA assumptions: {err}")))?;
-    let _schema = &defaults.schema;
-    let _version = defaults.version;
-    validate_tba_assumptions(&defaults)?;
-    Ok(defaults)
+    TBA_DEFAULTS.load(|defaults| {
+        let _schema = &defaults.schema;
+        let _version = defaults.version;
+        validate_tba_assumptions(&defaults)?;
+        Ok(defaults)
+    })
 }
 
 fn validate_tba_assumptions(defaults: &TbaAssumptions) -> Result<()> {

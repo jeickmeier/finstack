@@ -26,7 +26,6 @@
 use super::scalars::{InflationIndex, MarketScalar, ScalarTimeSeries};
 use super::term_structures::{
     BaseCorrelationCurve, DiscountCurve, ForwardCurve, HazardCurve, InflationCurve, PriceCurve,
-    VolatilityIndexCurve,
 };
 use crate::currency::Currency;
 use crate::dates::{Date, DayCount, DayCountContext};
@@ -771,74 +770,6 @@ impl Bumpable for BaseCorrelationCurve {
     }
 }
 
-impl Bumpable for VolatilityIndexCurve {
-    fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self> {
-        use crate::error::InputError;
-
-        match spec.bump_type {
-            BumpType::Parallel => {
-                // Vol index curves support both additive and multiplicative bumps
-                match (spec.mode, spec.units) {
-                    (BumpMode::Additive, BumpUnits::RateBp) => {
-                        let bump = spec.value / 10_000.0;
-                        self.with_parallel_bump(bump)
-                    }
-                    (BumpMode::Additive, BumpUnits::Fraction) => {
-                        self.with_parallel_bump(spec.value)
-                    }
-                    (BumpMode::Additive, BumpUnits::Percent) => {
-                        let frac = spec.value / 100.0;
-                        self.with_parallel_bump(frac)
-                    }
-                    (BumpMode::Multiplicative, BumpUnits::Factor) => {
-                        // spec.value is the target factor (e.g., 1.10 for +10%)
-                        let pct = spec.value - 1.0;
-                        self.with_percentage_bump(pct)
-                    }
-                    (BumpMode::Multiplicative, BumpUnits::Percent) => {
-                        // spec.value is the percentage (e.g., 10 for +10%)
-                        let pct = spec.value / 100.0;
-                        self.with_percentage_bump(pct)
-                    }
-                    _ => Err(InputError::UnsupportedBump {
-                        reason: format!(
-                            "VolatilityIndexCurve parallel bump: unsupported mode/units {:?}/{:?}",
-                            spec.mode, spec.units
-                        ),
-                    }
-                    .into()),
-                }
-            }
-            BumpType::TriangularKeyRate {
-                prev_bucket,
-                target_bucket,
-                next_bucket,
-            } => {
-                let bump = match (spec.mode, spec.units) {
-                    (BumpMode::Additive, BumpUnits::RateBp) => spec.value / 10_000.0,
-                    (BumpMode::Additive, BumpUnits::Fraction) => spec.value,
-                    (BumpMode::Additive, BumpUnits::Percent) => spec.value / 100.0,
-                    _ => {
-                        return Err(InputError::UnsupportedBump {
-                            reason: format!(
-                                "VolatilityIndexCurve key-rate bump requires Additive mode, got {:?}/{:?}",
-                                spec.mode, spec.units
-                            ),
-                        }
-                        .into());
-                    }
-                };
-                self.with_triangular_key_rate_bump_neighbors(
-                    prev_bucket,
-                    target_bucket,
-                    next_bucket,
-                    bump,
-                )
-            }
-        }
-    }
-}
-
 impl Bumpable for MarketScalar {
     fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self> {
         let (raw_val, is_multiplicative) = spec.resolve_standard_values_or_error(
@@ -903,6 +834,12 @@ impl Bumpable for ScalarTimeSeries {
     }
 }
 
+/// Unit convention for price and volatility-index curves (both are
+/// [`PriceCurve`]): the curve's native level unit (USD/bbl, index points, ...)
+/// is the additive unit, so `Additive/Fraction` is an absolute shift,
+/// `Additive/Percent` is a percentage of the current level, and
+/// `Multiplicative/{Factor,Percent}` scale every level. `RateBp` is rejected:
+/// a basis point has no meaning for a price or an index level.
 impl Bumpable for PriceCurve {
     fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self> {
         use crate::error::InputError;

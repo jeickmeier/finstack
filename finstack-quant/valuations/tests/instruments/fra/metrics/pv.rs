@@ -23,7 +23,7 @@ fn test_pv_result_matches_value() {
 
     let result_pv = result.value.amount();
 
-    assert_approx_equal(
+    approx_eq(
         result_pv,
         direct_pv.amount(),
         0.01,
@@ -47,7 +47,7 @@ fn test_pv_at_market() {
 
     let pv = result.value.amount();
 
-    assert_near_zero(pv, 1000.0, "At-market FRA PV should be near zero");
+    approx_eq(pv, 0.0, 1000.0, "At-market FRA PV should be near zero");
 }
 
 #[test]

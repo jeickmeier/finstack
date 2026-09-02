@@ -8,7 +8,7 @@ use crate::market_data::scalars::{InflationIndex, MarketScalar, ScalarTimeSeries
 use crate::market_data::surfaces::{FxDeltaVolSurface, VolCube, VolSurface};
 use crate::market_data::term_structures::{
     BaseCorrelationCurve, BasisSpreadCurve, CreditIndexData, DiscountCurve, ForwardCurve,
-    HazardCurve, InflationCurve, ParametricCurve, PriceCurve, VolatilityIndexCurve,
+    HazardCurve, InflationCurve, ParametricCurve, PriceCurve,
 };
 use crate::market_data::traits::Discounting;
 use crate::types::CurveId;
@@ -147,7 +147,7 @@ impl MarketContext {
     /// # Errors
     ///
     /// Returns an error if the identifier is missing or refers to a different curve type.
-    pub fn get_vol_index_curve(&self, id: impl AsRef<str>) -> Result<Arc<VolatilityIndexCurve>> {
+    pub fn get_vol_index_curve(&self, id: impl AsRef<str>) -> Result<Arc<PriceCurve>> {
         let id_str = id.as_ref();
         self.get_curve_with_type_check(id_str, "VolIndex", |storage| {
             storage.vol_index().map(Arc::clone)

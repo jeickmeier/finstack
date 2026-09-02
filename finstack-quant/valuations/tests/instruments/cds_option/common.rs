@@ -28,6 +28,7 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_core::HashMap;
+pub use finstack_quant_test_utils::assert::relative_eq;
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
     CDSOption, CDSOptionParams, CDSOptionStrike, ProtectionStartConvention,
@@ -402,18 +403,6 @@ pub fn assert_finite(value: f64, msg: &str) {
     );
 }
 
-/// Assert that a value is within expected range
-pub fn assert_in_range(value: f64, min: f64, max: f64, msg: &str) {
-    assert!(
-        value >= min && value <= max,
-        "{}: value {} not in range [{}, {}]",
-        msg,
-        value,
-        min,
-        max
-    );
-}
-
 /// Assert that a value is positive
 pub fn assert_positive(value: f64, msg: &str) {
     assert!(value > 0.0, "{}: value {} should be positive", msg, value);
@@ -426,21 +415,6 @@ pub fn assert_non_negative(value: f64, msg: &str) {
         "{}: value {} should be non-negative",
         msg,
         value
-    );
-}
-
-/// Assert relative tolerance between two values
-pub fn assert_approx_eq(actual: f64, expected: f64, rel_tol: f64, msg: &str) {
-    let diff = (actual - expected).abs();
-    let threshold = expected.abs() * rel_tol;
-    assert!(
-        diff <= threshold,
-        "{}: actual={}, expected={}, diff={}, threshold={}",
-        msg,
-        actual,
-        expected,
-        diff,
-        threshold
     );
 }
 

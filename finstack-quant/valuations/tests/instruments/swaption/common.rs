@@ -6,6 +6,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::money::Money;
+use finstack_quant_test_utils::assert::approx_eq;
 use finstack_quant_valuations::instruments::pricing_overrides::VolSurfaceExtrapolation;
 use finstack_quant_valuations::instruments::rates::irs::{InterestRateSwap, PayReceive};
 use finstack_quant_valuations::instruments::rates::swaption::{Swaption, SwaptionParams};
@@ -161,19 +162,10 @@ pub fn standard_dates() -> (Date, Date, Date, Date) {
     (as_of, expiry, swap_start, swap_end)
 }
 
-/// Assert two floats are approximately equal (relative tolerance)
+/// Assert `actual` is within `rel_tol` of `expected`, scaled by `max(|expected|, 1)`
+/// so the check is relative above unit magnitude and absolute below it.
 pub fn assert_approx_eq(actual: f64, expected: f64, rel_tol: f64, msg: &str) {
-    let diff = (actual - expected).abs();
-    let scale = expected.abs().max(1.0);
-    let rel_err = diff / scale;
-    assert!(
-        rel_err < rel_tol,
-        "{}: actual={:.6}, expected={:.6}, rel_err={:.10}",
-        msg,
-        actual,
-        expected,
-        rel_err
-    );
+    approx_eq(actual, expected, rel_tol * expected.abs().max(1.0), msg);
 }
 
 /// Assert a value is finite and within reasonable bounds

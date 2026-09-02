@@ -28,7 +28,7 @@ fn test_implied_vol_round_trip() {
             .implied_vol(&market, as_of, pv, None)
             .unwrap();
 
-        assert_approx_eq(
+        relative_eq(
             solved_vol,
             vol,
             1e-6,
@@ -56,7 +56,7 @@ fn test_implied_vol_metric() {
 
     let iv_metric = *result.measures.get("implied_vol").unwrap();
 
-    assert_approx_eq(iv_metric, target_vol, 1e-6, "IV from metric");
+    relative_eq(iv_metric, target_vol, 1e-6, "IV from metric");
 }
 
 #[test]
@@ -88,8 +88,8 @@ fn test_implied_vol_call_vs_put() {
         .implied_volatility = None;
     let put_iv = put_solve.implied_vol(&market, as_of, put_pv, None).unwrap();
 
-    assert_approx_eq(call_iv, vol, 1e-6, "Call IV");
-    assert_approx_eq(put_iv, vol, 1e-6, "Put IV");
+    relative_eq(call_iv, vol, 1e-6, "Call IV");
+    relative_eq(put_iv, vol, 1e-6, "Put IV");
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn test_implied_vol_moneyness_independence() {
         } else {
             3e-6
         };
-        assert_approx_eq(
+        relative_eq(
             solved_iv,
             vol,
             tolerance,
@@ -152,7 +152,7 @@ fn test_implied_vol_with_initial_guess() {
             .implied_vol(&market, as_of, pv, Some(guess))
             .unwrap();
 
-        assert_approx_eq(iv, true_vol, 1e-6, &format!("IV with guess {}", guess));
+        relative_eq(iv, true_vol, 1e-6, &format!("IV with guess {}", guess));
     }
 }
 
@@ -173,7 +173,7 @@ fn test_implied_vol_distressed_credit() {
         .implied_vol(&market, as_of, pv, Some(0.30))
         .unwrap();
 
-    assert_approx_eq(iv, true_vol, 1e-6, "distressed-credit IV");
+    relative_eq(iv, true_vol, 1e-6, "distressed-credit IV");
 }
 
 #[test]
@@ -213,7 +213,7 @@ fn test_implied_vol_convergence_atm() {
         .implied_volatility = None;
     let iv = option_solve.implied_vol(&market, as_of, pv, None).unwrap();
 
-    assert_approx_eq(iv, vol, 1e-6, "ATM IV convergence");
+    relative_eq(iv, vol, 1e-6, "ATM IV convergence");
 }
 
 #[test]
@@ -238,7 +238,7 @@ fn test_implied_vol_convergence_itm() {
         .implied_volatility = None;
     let iv = option_solve.implied_vol(&market, as_of, pv, None).unwrap();
 
-    assert_approx_eq(iv, vol, 1e-6, "ITM IV convergence");
+    relative_eq(iv, vol, 1e-6, "ITM IV convergence");
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn test_implied_vol_convergence_otm() {
         .implied_volatility = None;
     let iv = option_solve.implied_vol(&market, as_of, pv, None).unwrap();
 
-    assert_approx_eq(
+    relative_eq(
         iv,
         vol,
         2.5e-4,

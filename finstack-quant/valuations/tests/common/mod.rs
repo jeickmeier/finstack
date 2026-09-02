@@ -9,8 +9,9 @@
 //! # Usage
 //!
 //! ```rust,ignore
+//! use finstack_quant_test_utils::assert::approx_eq;
 //! use crate::common::{
-//!     tolerances, assertions::assert_approx_eq,
+//!     tolerances,
 //!     builders::{test_market, test_option},
 //!     fixtures::base_date,
 //! };
@@ -21,7 +22,7 @@
 //!     .strike(100.0)
 //!     .build();
 //!
-//! assert_approx_eq(result, expected, tolerances::STANDARD);
+//! approx_eq(result, expected, tolerances::STANDARD, "result");
 //! ```
 //!
 //! # Module Organization

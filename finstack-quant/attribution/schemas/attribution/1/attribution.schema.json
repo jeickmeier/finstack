@@ -9912,10 +9912,21 @@
               },
               "type": "array"
             },
-            "spot_price": {
-              "description": "Spot price",
+            "spot_level": {
+              "description": "Spot index level (volatility index curves)",
               "format": "double",
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spot_price": {
+              "description": "Spot price (signed price curves)",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
             },
             "type": {
               "const": "price",
@@ -9927,7 +9938,6 @@
             "id",
             "base",
             "day_count",
-            "spot_price",
             "knot_points",
             "interp_style",
             "extrapolation"
@@ -9978,9 +9988,20 @@
               "type": "array"
             },
             "spot_level": {
-              "description": "Spot index level",
+              "description": "Spot index level (volatility index curves)",
               "format": "double",
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "spot_price": {
+              "description": "Spot price (signed price curves)",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
             },
             "type": {
               "const": "vol_index",
@@ -9992,7 +10013,6 @@
             "id",
             "base",
             "day_count",
-            "spot_level",
             "knot_points",
             "interp_style",
             "extrapolation"

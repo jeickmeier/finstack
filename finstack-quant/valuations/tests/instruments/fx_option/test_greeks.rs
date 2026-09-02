@@ -20,7 +20,7 @@ fn test_delta_atm_call_near_half() {
 
     // Assert: ATM call delta should be around 0.5 per unit * notional
     // With notional 1M EUR, delta should be around 500k
-    assert_in_range(greeks.delta, 300_000.0, 700_000.0, "ATM call delta");
+    in_range(greeks.delta, 300_000.0, 700_000.0, "ATM call delta");
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn test_delta_put_is_negative() {
 
     // Assert: ATM put delta should be negative, around -0.5 * notional
     assert!(greeks.delta < 0.0, "Put delta should be negative");
-    assert_in_range(greeks.delta, -700_000.0, -300_000.0, "ATM put delta");
+    in_range(greeks.delta, -700_000.0, -300_000.0, "ATM put delta");
 }
 
 #[test]

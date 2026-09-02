@@ -22,7 +22,7 @@ fn test_quote_amount_basic() {
 
     // Quote amount is the PV in result.value
     let amount = result.value.amount();
-    assert_approx_eq(amount, 1_200_000.0, EPSILON, "Quote amount");
+    approx_eq(amount, 1_200_000.0, EPSILON, "Quote amount");
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_quote_amount_equals_npv() {
     let direct_npv = fx.value(&market, test_date()).unwrap();
 
     let quote_amt = result.value.amount();
-    assert_approx_eq(quote_amt, direct_npv.amount(), EPSILON, "Equals NPV");
+    approx_eq(quote_amt, direct_npv.amount(), EPSILON, "Equals NPV");
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn test_quote_amount_default_notional() {
         .unwrap();
 
     let amount = result.value.amount();
-    assert_approx_eq(amount, 1.18, EPSILON, "Default notional quote amount");
+    approx_eq(amount, 1.18, EPSILON, "Default notional quote amount");
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn test_quote_amount_various_rates() {
         let quote_amt = result.value.amount();
         let expected = notional * rate;
 
-        assert_approx_eq(
+        approx_eq(
             quote_amt,
             expected,
             EPSILON,
@@ -107,7 +107,7 @@ fn test_quote_amount_various_currencies() {
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
-    assert_approx_eq(
+    approx_eq(
         gbp_result.value.amount(),
         700_000.0,
         EPSILON,
@@ -128,7 +128,7 @@ fn test_quote_amount_various_currencies() {
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
-    assert_approx_eq(
+    approx_eq(
         jpy_result.value.amount(),
         11_000_000.0,
         EPSILON,
@@ -154,7 +154,7 @@ fn test_quote_amount_zero_notional() {
         .unwrap();
 
     let amount = result.value.amount();
-    assert_approx_eq(amount, 0.0, EPSILON, "Zero notional");
+    approx_eq(amount, 0.0, EPSILON, "Zero notional");
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn test_quote_amount_large_notional() {
         .unwrap();
 
     let amount = result.value.amount();
-    assert_approx_eq(amount, 1_200_000_000.0, 1.0, "Large notional");
+    approx_eq(amount, 1_200_000_000.0, 1.0, "Large notional");
 }
 
 #[test]
@@ -209,9 +209,9 @@ fn test_quote_amount_independence_from_date() {
     let amount3 = result3.value.amount();
 
     // With explicit rate, quote amount should be date-independent
-    assert_approx_eq(amount1, amount2, EPSILON, "Date independence 1");
-    assert_approx_eq(amount1, amount3, EPSILON, "Date independence 2");
-    assert_approx_eq(amount1, 1_200_000.0, EPSILON, "Expected value");
+    approx_eq(amount1, amount2, EPSILON, "Date independence 1");
+    approx_eq(amount1, amount3, EPSILON, "Date independence 2");
+    approx_eq(amount1, 1_200_000.0, EPSILON, "Expected value");
 }
 
 #[test]
@@ -235,7 +235,7 @@ fn test_quote_amount_conversion_relationship() {
     let base_amt = fx.notional.amount();
 
     let expected_quote = base_amt * spot_rate;
-    assert_approx_eq(
+    approx_eq(
         quote_amt,
         expected_quote,
         1e-2, // Relaxed tolerance for Decimal arithmetic

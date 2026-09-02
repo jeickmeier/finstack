@@ -99,7 +99,7 @@ fn test_financing_leg_pv_scales_with_notional() {
     .unwrap();
 
     // Assert - Should scale linearly
-    assert_approx_eq(
+    approx_eq(
         pv_5m.amount() / pv_1m.amount(),
         5.0,
         0.01, // 1% tolerance
@@ -195,7 +195,7 @@ fn test_financing_annuity_scales_with_notional() {
     .unwrap();
 
     // Assert
-    assert_approx_eq(
+    approx_eq(
         annuity_10m / annuity_1m,
         10.0,
         0.01, // 1% tolerance
@@ -233,7 +233,7 @@ fn test_financing_annuity_independent_of_spread() {
     .unwrap();
 
     // Assert - Annuity should not depend on spread (only on schedule and discounting)
-    assert_approx_eq(
+    approx_eq(
         annuity_low,
         annuity_high,
         TOLERANCE_CENTS,
@@ -349,7 +349,7 @@ fn test_financing_leg_pv_equals_annuity_times_rate_plus_spread() {
     let spread_contribution = fin_pv.amount() - fin_pv_zero.amount();
     let expected_spread_contribution = annuity * (spread_bp / 10000.0);
 
-    assert_approx_eq(
+    approx_eq(
         spread_contribution,
         expected_spread_contribution,
         1.0, // $1 tolerance

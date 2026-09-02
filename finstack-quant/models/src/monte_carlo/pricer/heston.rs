@@ -271,7 +271,9 @@ mod tests {
 
     #[test]
     fn heston_defaults_stamp_registry_currency() {
-        let defaults = &registry::embedded_defaults_or_panic().convenience;
+        let defaults = &registry::embedded_defaults()
+            .expect("embedded defaults")
+            .convenience;
         let expected = defaults.default_currency.parse().expect("valid currency");
         let estimate = atm_call(7);
         assert_eq!(estimate.mean.currency(), expected);

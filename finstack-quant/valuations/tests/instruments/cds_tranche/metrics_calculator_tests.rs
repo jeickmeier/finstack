@@ -442,7 +442,7 @@ fn test_metrics_with_missing_credit_index() {
     // Assert: Should either succeed with 0.0 values or fail gracefully
     if let Ok(valuation) = result {
         for &metric_value in valuation.measures.values() {
-            assert_absolute_eq(
+            approx_eq(
                 metric_value,
                 0.0,
                 1e-10,
@@ -486,15 +486,15 @@ fn test_metrics_order_independence() {
     // Assert: Results should be consistent regardless of order
     let cs01_1 = *result_1.measures.get("cs01").unwrap();
     let cs01_2 = *result_2.measures.get("cs01").unwrap();
-    assert_relative_eq(cs01_1, cs01_2, 1e-6, "CS01 should be order-independent");
+    relative_eq(cs01_1, cs01_2, 1e-6, "CS01 should be order-independent");
 
     let par_1 = *result_1.measures.get("par_spread").unwrap();
     let par_2 = *result_2.measures.get("par_spread").unwrap();
-    assert_relative_eq(par_1, par_2, 1e-6, "Par spread should be order-independent");
+    relative_eq(par_1, par_2, 1e-6, "Par spread should be order-independent");
 
     let el_1 = *result_1.measures.get("expected_loss").unwrap();
     let el_2 = *result_2.measures.get("expected_loss").unwrap();
-    assert_relative_eq(
+    relative_eq(
         el_1,
         el_2,
         1e-6,
@@ -641,7 +641,7 @@ fn test_metrics_scale_with_notional() {
     // Assert: Dollar metrics should scale with notional
     let el_10 = *result_10.measures.get("expected_loss").unwrap();
     let el_20 = *result_20.measures.get("expected_loss").unwrap();
-    assert_relative_eq(
+    relative_eq(
         el_20 / el_10,
         2.0,
         0.001,
@@ -650,7 +650,7 @@ fn test_metrics_scale_with_notional() {
 
     let jtd_10 = *result_10.measures.get("jump_to_default").unwrap();
     let jtd_20 = *result_20.measures.get("jump_to_default").unwrap();
-    assert_relative_eq(
+    relative_eq(
         jtd_20 / jtd_10,
         2.0,
         0.001,
