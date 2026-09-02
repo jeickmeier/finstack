@@ -38,6 +38,7 @@
 //! negative and `1` otherwise, so a pair of bucket-level gains
 //! cannot reduce the charge from a separate pair of losses.
 
+use super::aggregation::inter_bucket_pairwise;
 use super::params::{commodity, csr, equity, fx, girr};
 use super::types::{CorrelationScenario, FrtbRiskClass, FrtbSensitivities};
 use finstack_quant_core::HashMap;
@@ -236,16 +237,8 @@ fn bucket_k_and_s(pairs: &[(f64, f64)], intra_rho: f64) -> (f64, f64) {
 ///
 /// Also returns the raw (uncapped) sum of cvr_k for this side.
 fn one_side_k(cvrs: &[f64], rho: f64) -> (f64, f64) {
-    let mut inner = 0.0;
-    for (i, c_i) in cvrs.iter().enumerate() {
-        inner += c_i.max(0.0).powi(2);
-        for (j, c_j) in cvrs.iter().enumerate() {
-            if i != j {
-                inner += rho * c_i * c_j * psi(*c_i, *c_j);
-            }
-        }
-    }
-    let k = inner.max(0.0).sqrt();
+    let per_factor: Vec<(f64, f64)> = cvrs.iter().map(|&c| (c.max(0.0), c)).collect();
+    let k = inter_bucket_pairwise(&per_factor, |i, j| rho * psi(cvrs[i], cvrs[j]));
     let s: f64 = cvrs.iter().sum();
     (k, s)
 }
@@ -257,17 +250,10 @@ fn one_side_k(cvrs: &[f64], rho: f64) -> (f64, f64) {
 /// + sum_{b != c} gamma^2 * S_b * S_c * psi(S_b, S_c)) )
 /// ```
 fn curvature_inter_bucket(bucket_results: &[(f64, f64)], gamma: f64) -> f64 {
-    let mut total = 0.0;
     let gamma_sq = gamma * gamma;
-    for (i, &(k_i, s_i)) in bucket_results.iter().enumerate() {
-        total += k_i * k_i;
-        for (j, &(_k_j, s_j)) in bucket_results.iter().enumerate() {
-            if i != j {
-                total += gamma_sq * s_i * s_j * psi(s_i, s_j);
-            }
-        }
-    }
-    total.max(0.0).sqrt()
+    inter_bucket_pairwise(bucket_results, |i, j| {
+        gamma_sq * psi(bucket_results[i].1, bucket_results[j].1)
+    })
 }
 
 #[cfg(test)]

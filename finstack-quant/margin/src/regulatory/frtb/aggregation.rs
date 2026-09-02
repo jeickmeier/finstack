@@ -20,7 +20,91 @@ use finstack_quant_core::HashMap;
 /// (capped at zero). `S_b` is the **uncapped** sum of weighted sensitivities
 /// — the MAR21.6 alternative formula caps `S_b` to `[-K_b, K_b]` on-the-fly,
 /// so we must preserve the raw sum here.
-pub(super) type BucketResult = (f64, f64);
+pub(crate) type BucketResult = (f64, f64);
+
+/// Correlated quadratic-form norm `sqrt(max(0, Σ_i Σ_j ρ(i, j) · ws_i · ws_j))`.
+///
+/// The diagonal is always taken as `1`; `rho` is only consulted for `i != j`.
+/// The reduction runs in index order (`i` outer, `j` inner, diagonal
+/// included in sequence), so callers that need bit-reproducible numbers
+/// must pass `ws` in a canonical order.
+///
+/// This is the single "Σ ρ_ij ws_i ws_j" shape shared by every SIMM risk
+/// class and by the FRTB intra-bucket aggregations.
+///
+/// # Arguments
+///
+/// * `ws` - Weighted sensitivities (already risk-weighted and, where
+///   applicable, concentration-scaled) in the caller's canonical order.
+/// * `rho` - Correlation between positions `i` and `j` (`i != j`), already
+///   scaled for the active correlation scenario.
+pub(crate) fn correlated_norm(ws: &[f64], rho: impl Fn(usize, usize) -> f64) -> f64 {
+    let mut sum = 0.0;
+    for (i, &ws_i) in ws.iter().enumerate() {
+        for (j, &ws_j) in ws.iter().enumerate() {
+            let r = if i == j { 1.0 } else { rho(i, j) };
+            sum += r * ws_i * ws_j;
+        }
+    }
+    sum.max(0.0).sqrt()
+}
+
+/// Intra-bucket aggregation with a pairwise correlation over factor labels.
+///
+/// Returns `(K_b, S_b_uncapped)` where `K_b` is [`correlated_norm`] of the
+/// weighted sensitivities and `S_b` is their raw sum.
+///
+/// # Arguments
+///
+/// * `entries` - `(weighted_sensitivity, factor)` pairs for one bucket.
+/// * `rho` - Correlation between two distinct factors, already scaled for
+///   the active correlation scenario.
+pub(super) fn intra_bucket_pairwise<T>(
+    entries: &[(f64, T)],
+    rho: impl Fn(&T, &T) -> f64,
+) -> BucketResult {
+    let ws: Vec<f64> = entries.iter().map(|(ws, _)| *ws).collect();
+    let k_b = correlated_norm(&ws, |i, j| rho(&entries[i].1, &entries[j].1));
+    let s_b: f64 = ws.iter().sum();
+    (k_b, s_b)
+}
+
+/// Inter-bucket quadratic form `sqrt(max(0, Σ_b K_b² + Σ_{b≠c} γ(b, c) · S_b · S_c))`.
+///
+/// Shared by the FRTB MAR21.4 standard form (uniform `γ`), the FRTB
+/// curvature form (`γ²·ψ`) and the SIMM credit-qualifying sector
+/// aggregation (per-pair `γ_bc`). The reduction runs in index order.
+///
+/// # Arguments
+///
+/// * `bucket_results` - `(K_b, S_b)` per bucket in the caller's canonical order.
+/// * `gamma` - Inter-bucket correlation (or any pairwise weight) for buckets
+///   `b != c`.
+pub(crate) fn inter_bucket_pairwise(
+    bucket_results: &[BucketResult],
+    gamma: impl Fn(usize, usize) -> f64,
+) -> f64 {
+    inter_bucket_quadratic(bucket_results, gamma)
+        .max(0.0)
+        .sqrt()
+}
+
+/// Signed (un-floored) inter-bucket quadratic form `Σ_b K_b² + Σ_{b≠c} γ(b, c) · S_b · S_c`.
+fn inter_bucket_quadratic(
+    bucket_results: &[BucketResult],
+    gamma: impl Fn(usize, usize) -> f64,
+) -> f64 {
+    let mut total = 0.0;
+    for (i, &(k_i, s_i)) in bucket_results.iter().enumerate() {
+        total += k_i * k_i;
+        for (j, &(_, s_j)) in bucket_results.iter().enumerate() {
+            if i != j {
+                total += gamma(i, j) * s_i * s_j;
+            }
+        }
+    }
+    total
+}
 
 /// Intra-bucket aggregation for a single bucket with a uniform correlation.
 ///
@@ -82,34 +166,15 @@ where
 ///
 /// `gamma` must already be scaled for the active correlation scenario.
 pub(super) fn inter_bucket(bucket_results: &[BucketResult], gamma: f64) -> f64 {
-    let compute = |cap: bool| -> f64 {
-        let mut total = 0.0;
-        for (i, &(k_i, s_i_raw)) in bucket_results.iter().enumerate() {
-            total += k_i * k_i;
-            let s_i = if cap {
-                s_i_raw.clamp(-k_i, k_i)
-            } else {
-                s_i_raw
-            };
-            for (j, &(k_j, s_j_raw)) in bucket_results.iter().enumerate() {
-                if i != j {
-                    let s_j = if cap {
-                        s_j_raw.clamp(-k_j, k_j)
-                    } else {
-                        s_j_raw
-                    };
-                    total += gamma * s_i * s_j;
-                }
-            }
-        }
-        total
-    };
-
-    let standard = compute(false);
+    let standard = inter_bucket_quadratic(bucket_results, |_, _| gamma);
     if standard >= 0.0 {
         standard.sqrt()
     } else {
-        compute(true).max(0.0).sqrt()
+        let capped: Vec<BucketResult> = bucket_results
+            .iter()
+            .map(|&(k, s)| (k, s.clamp(-k, k)))
+            .collect();
+        inter_bucket_pairwise(&capped, |_, _| gamma)
     }
 }
 

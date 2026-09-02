@@ -3,7 +3,7 @@
 //! Two-level aggregation (intra-bucket then inter-bucket) with
 //! correlation scenario scaling.
 
-use super::aggregation::{inter_bucket, intra_bucket_uniform_map};
+use super::aggregation::{inter_bucket, intra_bucket_pairwise, intra_bucket_uniform_map};
 use super::params::{commodity, csr, equity, fx, girr};
 use super::types::{CorrelationScenario, FrtbRiskClass, FrtbSensitivities};
 use finstack_quant_core::HashMap;
@@ -131,23 +131,14 @@ fn girr_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     }
 
     // Intra-bucket aggregation per currency.
-    let mut bucket_results: Vec<(f64, f64)> = Vec::new(); // (K_b, S_b uncapped)
-    for entries in by_currency.values() {
-        let mut k_squared = 0.0;
-        for (i, &(ws_i, fac_i)) in entries.iter().enumerate() {
-            for (j, &(ws_j, fac_j)) in entries.iter().enumerate() {
-                let rho = if i == j {
-                    1.0
-                } else {
-                    intra_girr_correlation(fac_i, fac_j, scenario)
-                };
-                k_squared += rho * ws_i * ws_j;
-            }
-        }
-        let k_b = k_squared.max(0.0).sqrt();
-        let s_b: f64 = entries.iter().map(|(ws, _)| ws).sum();
-        bucket_results.push((k_b, s_b));
-    }
+    let bucket_results: Vec<_> = by_currency
+        .values()
+        .map(|entries| {
+            intra_bucket_pairwise(entries, |&fac_i, &fac_j| {
+                intra_girr_correlation(fac_i, fac_j, scenario)
+            })
+        })
+        .collect();
 
     // Inter-bucket aggregation across currencies.
     let gamma = scenario.scale_correlation(girr::GIRR_INTER_BUCKET_CORRELATION);
@@ -334,7 +325,7 @@ fn csr_bucketed_delta(
     scenario: CorrelationScenario,
 ) -> f64 {
     // Group weighted sensitivities by bucket, preserving name + tenor.
-    type Entry = (String, String, f64); // (name, tenor, weighted_sensitivity)
+    type Entry = (f64, (String, String)); // (weighted_sensitivity, (name, tenor))
     let mut by_bucket: HashMap<u8, Vec<Entry>> = HashMap::default();
     for ((name, bucket, tenor), delta) in sensitivities {
         let rw = risk_weight_fn(*bucket);
@@ -342,7 +333,7 @@ fn csr_bucketed_delta(
         by_bucket
             .entry(*bucket)
             .or_default()
-            .push((name.clone(), tenor.clone(), ws));
+            .push((ws, (name.clone(), tenor.clone())));
     }
 
     let scaled_name = scenario.scale_correlation(name_correlation);
@@ -350,29 +341,20 @@ fn csr_bucketed_delta(
     let scaled_inter = scenario.scale_correlation(inter_bucket_gamma);
 
     // Intra-bucket aggregation with factorised rho.
-    let mut bucket_results: Vec<(f64, f64)> = Vec::new();
-    for entries in by_bucket.values() {
-        let mut k_squared = 0.0;
-        for (i, (name_i, tenor_i, ws_i)) in entries.iter().enumerate() {
-            for (j, (name_j, tenor_j, ws_j)) in entries.iter().enumerate() {
-                let rho = if i == j {
+    let bucket_results: Vec<_> = by_bucket
+        .values()
+        .map(|entries| {
+            intra_bucket_pairwise(entries, |(name_i, tenor_i), (name_j, tenor_j)| {
+                let rn = if name_i == name_j { 1.0 } else { scaled_name };
+                let rt = if tenor_i == tenor_j {
                     1.0
                 } else {
-                    let rn = if name_i == name_j { 1.0 } else { scaled_name };
-                    let rt = if tenor_i == tenor_j {
-                        1.0
-                    } else {
-                        scaled_tenor
-                    };
-                    rn * rt
+                    scaled_tenor
                 };
-                k_squared += rho * ws_i * ws_j;
-            }
-        }
-        let k_b = k_squared.max(0.0).sqrt();
-        let s_b: f64 = entries.iter().map(|(_, _, ws)| *ws).sum();
-        bucket_results.push((k_b, s_b));
-    }
+                rn * rt
+            })
+        })
+        .collect();
 
     inter_bucket(&bucket_results, scaled_inter)
 }

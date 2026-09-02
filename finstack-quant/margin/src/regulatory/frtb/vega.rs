@@ -4,7 +4,7 @@
 //! the same two-level (intra-bucket, inter-bucket) formula as delta,
 //! but with vega-specific risk weights and correlations.
 
-use super::aggregation::{inter_bucket, intra_bucket_uniform_map};
+use super::aggregation::{inter_bucket, intra_bucket_pairwise, intra_bucket_uniform_map};
 use super::params::{commodity, csr, equity, fx, girr};
 use super::types::{CorrelationScenario, FrtbRiskClass, FrtbSensitivities};
 use finstack_quant_core::HashMap;
@@ -55,7 +55,7 @@ fn girr_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     // tenor so intra-bucket correlation can reflect both dimensions per
     // MAR21.89.
     // Entry: (ws, option_maturity_years, underlying_tenor_years)
-    type VegaEntry = (f64, f64, f64);
+    type VegaEntry = (f64, (f64, f64)); // (weighted_vega, (option_maturity_years, underlying_tenor_years))
     let mut by_currency: HashMap<_, Vec<VegaEntry>> = HashMap::default();
     for ((ccy, opt_mat, und_tenor), vega) in &sens.girr_vega {
         let ws = vega * girr::GIRR_VEGA_RISK_WEIGHT;
@@ -66,7 +66,7 @@ fn girr_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
         by_currency
             .entry(*ccy)
             .or_default()
-            .push((ws, t_opt, t_und));
+            .push((ws, (t_opt, t_und)));
     }
 
     let inter_gamma = scenario.scale_correlation(girr::GIRR_INTER_BUCKET_CORRELATION);
@@ -77,26 +77,16 @@ fn girr_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     // rho_under_mat = exp(-alpha * |U_k - U_l| / min(U_k, U_l)), alpha=0.03
     // (option-maturity alpha uses the standard Basel value; underlying-
     // tenor alpha reuses the GIRR delta tenor formula.)
-    let mut bucket_results: Vec<(f64, f64)> = Vec::new();
-    for entries in by_currency.values() {
-        let mut k_squared = 0.0;
-        for (i, &(ws_i, t_opt_i, t_und_i)) in entries.iter().enumerate() {
-            for (j, &(ws_j, t_opt_j, t_und_j)) in entries.iter().enumerate() {
-                let base_rho = if i == j {
-                    1.0
-                } else {
-                    let rho_opt = exp_decay_rho(t_opt_i, t_opt_j, 0.01);
-                    let rho_und = girr::girr_tenor_correlation(t_und_i, t_und_j);
-                    (rho_opt * rho_und).min(1.0)
-                };
-                let rho = scenario.scale_correlation(base_rho);
-                k_squared += rho * ws_i * ws_j;
-            }
-        }
-        let k_b = k_squared.max(0.0).sqrt();
-        let s_b: f64 = entries.iter().map(|(ws, _, _)| ws).sum();
-        bucket_results.push((k_b, s_b));
-    }
+    let bucket_results: Vec<_> = by_currency
+        .values()
+        .map(|entries| {
+            intra_bucket_pairwise(entries, |&(t_opt_i, t_und_i), &(t_opt_j, t_und_j)| {
+                let rho_opt = exp_decay_rho(t_opt_i, t_opt_j, 0.01);
+                let rho_und = girr::girr_tenor_correlation(t_und_i, t_und_j);
+                scenario.scale_correlation((rho_opt * rho_und).min(1.0))
+            })
+        })
+        .collect();
 
     inter_bucket(&bucket_results, inter_gamma)
 }

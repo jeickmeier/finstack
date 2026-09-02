@@ -46,6 +46,7 @@ use crate::registry::{
     embedded_registry, margin_registry_from_config, validate_simm_params, MarginRegistry,
     SimmParams,
 };
+use crate::regulatory::frtb::aggregation::{correlated_norm, inter_bucket_pairwise};
 use crate::traits::Marginable;
 use crate::types::ImMethodology;
 use crate::types::{
@@ -450,30 +451,34 @@ impl SimmCalculator {
                 weighted.sort_by_key(|(idx, _)| *idx);
                 let net_ws: f64 = weighted.iter().map(|(_, ws)| *ws).sum();
                 let cf = self.concentration_factor(SimmRiskClass::InterestRate, net_ws);
-                let mut sum = 0.0;
-                for &(idx_i, ws_i) in &weighted {
-                    for &(idx_j, ws_j) in &weighted {
-                        let rho = self.ir_corr_matrix.correlation(idx_i, idx_j);
-                        sum += rho * (ws_i * cf) * (ws_j * cf);
-                    }
+                for (_, ws) in &mut weighted {
+                    *ws *= cf;
                 }
-                sum.max(0.0).sqrt()
+                self.ir_tenor_norm(&weighted)
             })
             .collect();
 
+        self.aggregate_ir_currencies(&k_values)
+    }
+
+    /// `sqrt(Σ ρ_ij ws_i ws_j)` over `(tenor_idx, ws)` pairs with the SIMM IR
+    /// tenor correlation matrix. `indexed` must already be in canonical
+    /// tenor order.
+    fn ir_tenor_norm(&self, indexed: &[(usize, f64)]) -> f64 {
+        let ws: Vec<f64> = indexed.iter().map(|(_, ws)| *ws).collect();
+        correlated_norm(&ws, |i, j| {
+            self.ir_corr_matrix.correlation(indexed[i].0, indexed[j].0)
+        })
+    }
+
+    /// Combine per-currency IR margins with the SIMM inter-currency
+    /// correlation `γ` (uniform off-diagonal).
+    fn aggregate_ir_currencies(&self, k_values: &[f64]) -> f64 {
         if k_values.len() <= 1 {
             return k_values.first().copied().unwrap_or(0.0);
         }
-
         let gamma = self.params.ir_inter_currency_correlation;
-        let mut total = 0.0;
-        for (i, k_i) in k_values.iter().enumerate() {
-            for (j, k_j) in k_values.iter().enumerate() {
-                let corr = if i == j { 1.0 } else { gamma };
-                total += corr * k_i * k_j;
-            }
-        }
-        total.max(0.0).sqrt()
+        correlated_norm(k_values, |_, _| gamma)
     }
 
     /// Calculate IR vega margin with multi-currency aggregation.
@@ -506,19 +511,7 @@ impl SimmCalculator {
             .map(|(_, tenor_map)| self.calculate_ir_vega(tenor_map))
             .collect();
 
-        if k_values.len() <= 1 {
-            return k_values.first().copied().unwrap_or(0.0);
-        }
-
-        let gamma = self.params.ir_inter_currency_correlation;
-        let mut total = 0.0;
-        for (i, k_i) in k_values.iter().enumerate() {
-            for (j, k_j) in k_values.iter().enumerate() {
-                let corr = if i == j { 1.0 } else { gamma };
-                total += corr * k_i * k_j;
-            }
-        }
-        total.max(0.0).sqrt()
+        self.aggregate_ir_currencies(&k_values)
     }
 
     /// Calculate IR delta margin for a single currency from DV01-style sensitivities.
@@ -544,15 +537,7 @@ impl SimmCalculator {
             .collect();
         // Canonical tenor order so the f64 quadratic form is bit-reproducible.
         weighted.sort_by_key(|(idx, _)| *idx);
-
-        let mut sum = 0.0;
-        for &(idx_i, ws_i) in &weighted {
-            for &(idx_j, ws_j) in &weighted {
-                let rho = self.ir_corr_matrix.correlation(idx_i, idx_j);
-                sum += rho * ws_i * ws_j;
-            }
-        }
-        sum.max(0.0).sqrt()
+        self.ir_tenor_norm(&weighted)
     }
 
     /// Calculate credit non-qualifying delta margin from aggregate CS01.
@@ -691,14 +676,7 @@ impl SimmCalculator {
             let mut scaled: Vec<f64> = weighted_sensitivities.iter().map(|ws| ws * cf).collect();
             // Canonical order so the intra-bucket f64 quadratic form is reproducible.
             scaled.sort_by(f64::total_cmp);
-            let mut k_squared = 0.0;
-            for (i, ws_i) in scaled.iter().enumerate() {
-                for (j, ws_j) in scaled.iter().enumerate() {
-                    let corr = if i == j { 1.0 } else { rho };
-                    k_squared += corr * ws_i * ws_j;
-                }
-            }
-            let k_b = k_squared.max(0.0).sqrt();
+            let k_b = correlated_norm(&scaled, |_, _| rho);
 
             // S_b = max(-K_b, min(K_b, sum CR*WS))
             let net_scaled: f64 = scaled.iter().sum();
@@ -713,17 +691,11 @@ impl SimmCalculator {
 
         // Inter-bucket aggregation:
         //   K = sqrt(sum_b K_b^2 + sum_{b != c} gamma_bc * S_b * S_c)
-        let mut total = 0.0;
-        for (i, &(sector_i, k_i, s_i)) in bucket_results.iter().enumerate() {
-            total += k_i * k_i;
-            for (j, &(sector_j, _k_j, s_j)) in bucket_results.iter().enumerate() {
-                if i != j {
-                    let gamma = self.params.cq_inter_bucket_correlation(sector_i, sector_j);
-                    total += gamma * s_i * s_j;
-                }
-            }
-        }
-        total.max(0.0).sqrt()
+        let ks: Vec<(f64, f64)> = bucket_results.iter().map(|&(_, k, s)| (k, s)).collect();
+        inter_bucket_pairwise(&ks, |i, j| {
+            self.params
+                .cq_inter_bucket_correlation(bucket_results[i].0, bucket_results[j].0)
+        })
     }
 
     /// Calculate equity delta margin.
@@ -758,19 +730,8 @@ impl SimmCalculator {
         // regardless of `HashMap` iteration order.
         weighted.sort_by(f64::total_cmp);
 
-        let mut total = 0.0;
-        for (i, ws_i) in weighted.iter().enumerate() {
-            for (j, ws_j) in weighted.iter().enumerate() {
-                let corr = if i == j {
-                    1.0
-                } else {
-                    self.params.fx_intra_bucket_correlation
-                };
-                total += corr * ws_i * ws_j;
-            }
-        }
-
-        total.max(0.0).sqrt()
+        let rho = self.params.fx_intra_bucket_correlation;
+        correlated_norm(&weighted, |_, _| rho)
     }
 
     /// Calculate commodity delta margin using SIMM bucket risk weights.
@@ -827,19 +788,16 @@ impl SimmCalculator {
         // Canonical order so the f64 quadratic form is reproducible.
         weighted_buckets.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)));
 
-        let mut sum = 0.0;
-        for &(bucket_i, weighted_i) in &weighted_buckets {
-            for &(bucket_j, weighted_j) in &weighted_buckets {
-                let rho = if bucket_i == bucket_j {
-                    1.0
-                } else {
-                    self.params
-                        .commodity_inter_bucket_correlation(bucket_i, bucket_j)
-                };
-                sum += rho * weighted_i * weighted_j;
+        let ws: Vec<f64> = weighted_buckets.iter().map(|(_, w)| *w).collect();
+        correlated_norm(&ws, |i, j| {
+            let (bucket_i, bucket_j) = (weighted_buckets[i].0, weighted_buckets[j].0);
+            if bucket_i == bucket_j {
+                1.0
+            } else {
+                self.params
+                    .commodity_inter_bucket_correlation(bucket_i, bucket_j)
             }
-        }
-        sum.max(0.0).sqrt()
+        })
     }
 
     /// Calculate IR vega margin from tenor-bucketed vega sensitivities.
@@ -862,15 +820,7 @@ impl SimmCalculator {
             .collect();
         // Canonical tenor order so the f64 quadratic form is bit-reproducible.
         indexed.sort_by_key(|(idx, _)| *idx);
-
-        let mut sum = 0.0;
-        for &(idx_i, wv_i) in &indexed {
-            for &(idx_j, wv_j) in &indexed {
-                let rho = self.ir_corr_matrix.correlation(idx_i, idx_j);
-                sum += rho * wv_i * wv_j;
-            }
-        }
-        sum.max(0.0).sqrt()
+        self.ir_tenor_norm(&indexed)
     }
 
     /// Calculate equity vega margin from a signed currency vega amount.
@@ -952,18 +902,11 @@ impl SimmCalculator {
         let lambda = (SIMM_CURVATURE_Z * SIMM_CURVATURE_Z - 1.0) * (1.0 + theta) - theta;
 
         // Diversified term using squared correlations (diagonal = 1).
-        let mut quad = 0.0;
-        for (i, (risk_i, cvr_i)) in cvr.iter().enumerate() {
-            for (j, (risk_j, cvr_j)) in cvr.iter().enumerate() {
-                let rho = if i == j {
-                    1.0
-                } else {
-                    self.params.correlation(*risk_i, *risk_j)
-                };
-                quad += rho * rho * cvr_i * cvr_j;
-            }
-        }
-        let k = quad.max(0.0).sqrt();
+        let cvr_values: Vec<f64> = cvr.iter().map(|(_, v)| *v).collect();
+        let k = correlated_norm(&cvr_values, |i, j| {
+            let rho = self.params.correlation(cvr[i].0, cvr[j].0);
+            rho * rho
+        });
 
         (sum_cvr + lambda * k).max(0.0)
     }
@@ -1295,14 +1238,10 @@ impl SimmCalculator {
         let mut margins: Vec<(SimmRiskClass, f64)> =
             risk_class_margins.iter().map(|(rc, m)| (*rc, *m)).collect();
         margins.sort_by_key(|(rc, _)| *rc as u8);
-        let mut sum = 0.0;
-        for &(risk_i, margin_i) in &margins {
-            for &(risk_j, margin_j) in &margins {
-                let rho = self.params.correlation(risk_i, risk_j);
-                sum += rho * margin_i * margin_j;
-            }
-        }
-        sum.max(0.0).sqrt()
+        let ks: Vec<f64> = margins.iter().map(|(_, m)| *m).collect();
+        correlated_norm(&ks, |i, j| {
+            self.params.correlation(margins[i].0, margins[j].0)
+        })
     }
 }
 
