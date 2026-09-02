@@ -23,7 +23,7 @@
 //! let disc = flat_discount_curve_with_day_count(0.05, as_of, "USD-OIS", DayCount::Act365F);
 //!
 //! // Use tolerance presets
-//! assert_approx_eq_with_config(actual, expected, tolerances::NUMERICAL, "test");
+//! approx_eq(actual, expected, tolerances::NUMERICAL, "test");
 //! ```
 
 use finstack_quant_core::currency::Currency;
@@ -60,8 +60,8 @@ use time::Month;
 /// // Use appropriate tolerance for test type
 /// assert!((actual - expected).abs() < tolerances::NUMERICAL);
 ///
-/// // Or use with assert_approx_eq_with_config
-/// assert_approx_eq_with_config(actual, expected, tolerances::ANALYTICAL, "put-call parity");
+/// // Or use the shared test-utils assertion
+/// approx_eq(actual, expected, tolerances::ANALYTICAL, "put-call parity");
 /// ```
 pub mod tolerances {
     /// Analytical calculations (e.g., put-call parity, zero-coupon YTM).
