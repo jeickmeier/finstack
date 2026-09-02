@@ -57,7 +57,6 @@
 //! - [`crate::schema`]: JSON Schema generation for API contracts.
 //! - [`crate::error`]: valuation error types; [`crate::Error`] and [`crate::Result`] are also
 //!   available at the crate root.
-//! - [`crate::prelude`]: convenient re-exports for common pricing and risk workflows.
 //!
 //! # Example
 //!
@@ -107,7 +106,6 @@ pub mod error;
 /// Market quotes and conventions
 pub mod market;
 /// Convenient re-exports for pricing and risk calculations.
-pub mod prelude;
 /// Pricing dispatch and registry infrastructure.
 pub mod pricer;
 /// Contracts for quote-driven market recalibration supplied by the calibration crate.

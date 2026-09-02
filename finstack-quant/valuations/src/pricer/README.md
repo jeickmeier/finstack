@@ -294,16 +294,14 @@ as-of date and model key, dispatch through the standard registry.
 | `parse_model_key` | `ModelKey` |
 | `list_models`, `list_models_grouped` | `Vec<String>` / `BTreeMap<String, Vec<String>>` |
 | `list_standard_metrics`, `list_standard_metrics_grouped` | same shapes |
-| `price_instrument_from_json` | `ValuationResult` |
 | `price_instrument` | `ValuationResult` from a `ParsedInstrument` |
-| `metric_value_from_instrument_json` | `f64` |
-| `present_metric_values_from_instrument_json` | `Vec<(&str, f64)>` |
-| `present_standard_option_greeks_from_instrument_json` | `Vec<(&'static str, f64)>` |
+| `metric_value` | `f64` from a `ParsedInstrument` |
+| `present_standard_option_greeks` | `Vec<(&'static str, f64)>` from a `ParsedInstrument` |
 | `instrument_cashflows_json` | `String` from an instrument envelope |
 | `instrument_cashflows` | `String` from a `ParsedInstrument` |
 
-**The `_json` suffix here means JSON *in*, not JSON *out*.** `price_instrument_from_json`
-returns a typed `ValuationResult`. Only `validate_*`, `pretty_*`, and
+**The `_json` suffix here means JSON *in*, not JSON *out*.** `parse_boxed_instrument_from_json`
+returns a typed `ParsedInstrument` that `price_instrument` prices to a typed `ValuationResult`. Only `validate_*`, `pretty_*`, and
 `instrument_envelope_from_spec` return a JSON string, and each of those is a
 validation/formatting surface rather than a computation. This is consistent
 with the result-return contract in
@@ -328,7 +326,7 @@ Two further conventions:
   which downstream consumers coerce to `0` — a failed computation must not read
   as a valid one.
 
-`price_instrument_from_json` accepts `"default"` for `model`, which resolves to
+`price_instrument` accepts `"default"` for `model`, which resolves to
 `Instrument::default_model()`. The comparison in `resolve_model_key` is exact
 (`model == "default"`), so `"Default"` and other case variants are rejected.
 

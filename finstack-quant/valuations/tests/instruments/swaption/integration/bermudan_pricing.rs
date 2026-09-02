@@ -17,8 +17,8 @@ use finstack_quant_valuations::instruments::rates::swaption::{
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
 };
+use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{OptionType, PricingOptions};
-use finstack_quant_valuations::prelude::Instrument;
 use finstack_quant_valuations::pricer::Pricer;
 use time::Month;
 

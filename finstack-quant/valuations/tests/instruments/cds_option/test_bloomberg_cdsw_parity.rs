@@ -23,7 +23,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
     CdsConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive,
 };
-use finstack_quant_valuations::prelude::Instrument as _;
+use finstack_quant_valuations::instruments::Instrument as _;
 use rust_decimal::Decimal;
 use time::macros::date;
 

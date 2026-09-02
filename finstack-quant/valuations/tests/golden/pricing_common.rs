@@ -7,9 +7,7 @@ use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::instruments::PricingOptions;
-use finstack_quant_valuations::pricer::{
-    price_instrument_from_json as canonical_price_instrument_from_json, JsonPricingRequest,
-};
+use finstack_quant_valuations::pricer::{parse_boxed_instrument_from_json, price_instrument};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -22,17 +20,18 @@ fn price_instrument_from_json(
     instrument_pricing_overrides_json: Option<&str>,
     market_history_json: Option<&str>,
 ) -> finstack_quant_core::Result<finstack_quant_valuations::results::ValuationResult> {
-    canonical_price_instrument_from_json(JsonPricingRequest {
-        instrument_json,
+    let instrument =
+        parse_boxed_instrument_from_json(instrument_json, instrument_pricing_overrides_json)?;
+    price_instrument(
+        &instrument,
         market,
         as_of,
         model,
         metrics,
-        instrument_pricing_overrides_json,
         market_history_json,
-        pricing_options: PricingOptions::default()
+        PricingOptions::default()
             .with_recalibration_provider(Arc::new(CachedRecalibrationProvider::new())),
-    })
+    )
 }
 
 fn metric_base(metric: &str) -> &str {

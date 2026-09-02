@@ -616,7 +616,7 @@ fn waterfall_rules_round_trip_and_price_through_json() {
     use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
         AfcSpec, WaterfallRules,
     };
-    use finstack_quant_valuations::pricer::price_instrument_from_json;
+    use finstack_quant_valuations::pricer::{parse_boxed_instrument_from_json, price_instrument};
 
     let closing = Date::from_calendar_date(2024, Month::January, 1).unwrap();
     let mat = Date::from_calendar_date(2027, Month::January, 1).unwrap();
@@ -686,16 +686,16 @@ fn waterfall_rules_round_trip_and_price_through_json() {
             .build()
             .unwrap(),
     );
-    price_instrument_from_json(finstack_quant_valuations::pricer::JsonPricingRequest {
-        instrument_json: &json,
-        market: &market,
-        as_of: "2024-01-01",
-        model: "default",
-        metrics: &[],
-        instrument_pricing_overrides_json: None,
-        market_history_json: None,
-        pricing_options: finstack_quant_valuations::instruments::PricingOptions::default(),
-    })
+    let instrument = parse_boxed_instrument_from_json(&json, None).expect("parse envelope");
+    price_instrument(
+        &instrument,
+        &market,
+        "2024-01-01",
+        "default",
+        &[],
+        None,
+        finstack_quant_valuations::instruments::PricingOptions::default(),
+    )
     .expect("a waterfall_rules deal must price through the JSON binding path");
 }
 

@@ -16,8 +16,8 @@ use finstack_quant_valuations::instruments::fixed_income::bond_future::{
     BondFuture, BondFutureSpecs, DeliverableBond,
 };
 use finstack_quant_valuations::instruments::Attributes;
+use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::Position;
-use finstack_quant_valuations::prelude::Instrument;
 use finstack_quant_valuations::pricer::{standard_pricer_registry, InstrumentType, ModelKey};
 use time::macros::date;
 

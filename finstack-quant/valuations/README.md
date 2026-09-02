@@ -38,7 +38,6 @@ No crate that valuations depends on may depend back on it.
 | `src/contract_specs.rs` | Embedded exchange contract specs (bond/equity-index/vol-index futures, repo defaults); crate-private, surfaced through the instruments that use them |
 | `src/constants.rs` | Basis-point and percent conversion constants for hot paths |
 | `src/schema.rs` | Accessors and validators for the checked-in JSON Schema artifacts |
-| `src/prelude.rs` | Single-import surface for common pricing and risk types |
 | `src/error.rs` | Crate `Error`/`Result` (re-exported at the crate root) |
 | `src/bin/gen_schemas.rs` | `gen_schemas` binary that writes/checks [`schemas/`](schemas/README.md) |
 
@@ -162,8 +161,8 @@ marker (`finstack_quant.instrument/1`, `finstack_quant.calibration/1`). See
 
 **Result-return contract.** Computation entry points return typed results — a
 Rust struct, a `Py*` wrapper, or a plain JS object — not JSON strings.
-`pricer::price_instrument_from_json` takes JSON input but returns a typed
-`ValuationResult`; only explicit validation and formatting surfaces return JSON
+`pricer::parse_boxed_instrument_from_json` takes JSON input and `pricer::price_instrument`
+returns a typed `ValuationResult`; only explicit validation and formatting surfaces return JSON
 strings. See `.agents/rules/project-rules.md`.
 
 **Model and convention provenance.** Pricing models and market conventions cite

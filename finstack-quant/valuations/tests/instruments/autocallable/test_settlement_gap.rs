@@ -11,7 +11,7 @@
 
 use super::helpers::*;
 use finstack_quant_core::dates::{DayCount, DayCountContext};
-use finstack_quant_valuations::prelude::Instrument;
+use finstack_quant_valuations::instruments::Instrument;
 use time::macros::date;
 
 fn pv(inst: &finstack_quant_valuations::instruments::equity::autocallable::Autocallable) -> f64 {
