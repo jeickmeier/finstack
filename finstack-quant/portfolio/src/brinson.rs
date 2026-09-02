@@ -332,45 +332,25 @@ pub fn carino_link(periods: &[BrinsonPeriodResult]) -> Result<CarinoLinkedAttrib
         }
     }
 
-    // Compounded portfolio/benchmark returns.
-    let mut compounded_p = 1.0_f64;
-    let mut compounded_b = 1.0_f64;
-    for p in periods {
-        if !p.portfolio_return.is_finite() || !p.benchmark_return.is_finite() {
-            return Err(Error::invalid_input(format!(
-                "Carino linking requires finite period returns, got portfolio_return = {}, benchmark_return = {}",
-                p.portfolio_return, p.benchmark_return
-            )));
-        }
-        compounded_p *= 1.0 + p.portfolio_return;
-        compounded_b *= 1.0 + p.benchmark_return;
-    }
-    let r_p_total = compounded_p - 1.0;
-    let r_b_total = compounded_b - 1.0;
-    let big_k = carino_coefficient(r_p_total, r_b_total)?;
-
-    let mut linked_alloc = vec![NeumaierAccumulator::new(); sector_names.len()];
-    let mut linked_sel = vec![NeumaierAccumulator::new(); sector_names.len()];
-    let mut linked_inter = vec![NeumaierAccumulator::new(); sector_names.len()];
-
-    for period in periods {
-        let k_t = carino_coefficient(period.portfolio_return, period.benchmark_return)?;
-        let scale = k_t / big_k;
-        for (i, e) in period.sectors.iter().enumerate() {
-            linked_alloc[i].add(scale * e.allocation);
-            linked_sel[i].add(scale * e.selection);
-            linked_inter[i].add(scale * e.interaction);
-        }
-    }
+    let effect_periods: Vec<CarinoPeriod<3>> = periods
+        .iter()
+        .map(|p| CarinoPeriod {
+            portfolio_return: p.portfolio_return,
+            benchmark_return: p.benchmark_return,
+            rows: p
+                .sectors
+                .iter()
+                .map(|e| [e.allocation, e.selection, e.interaction])
+                .collect(),
+        })
+        .collect();
+    let linked = carino_link_effects(&effect_periods)?;
 
     let mut linked_sectors = Vec::with_capacity(sector_names.len());
     let mut sum_alloc = NeumaierAccumulator::new();
     let mut sum_sel = NeumaierAccumulator::new();
     let mut sum_inter = NeumaierAccumulator::new();
-    for (i, name) in sector_names.into_iter().enumerate() {
-        let alloc = linked_alloc[i].total();
-        let sel = linked_sel[i].total();
-        let inter = linked_inter[i].total();
+    for (name, [alloc, sel, inter]) in sector_names.into_iter().zip(linked.rows) {
         sum_alloc.add(alloc);
         sum_sel.add(sel);
         sum_inter.add(inter);
@@ -385,8 +365,8 @@ pub fn carino_link(periods: &[BrinsonPeriodResult]) -> Result<CarinoLinkedAttrib
 
     Ok(CarinoLinkedAttribution {
         periods: periods.to_vec(),
-        portfolio_return_compounded: r_p_total,
-        benchmark_return_compounded: r_b_total,
+        portfolio_return_compounded: linked.portfolio_return_compounded,
+        benchmark_return_compounded: linked.benchmark_return_compounded,
         linked_sectors,
         linked_allocation: sum_alloc.total(),
         linked_selection: sum_sel.total(),
@@ -416,6 +396,101 @@ pub fn carino_link_from_sector_periods(
         .map(|sectors| brinson_fachler(sectors))
         .collect::<Result<Vec<_>>>()?;
     carino_link(&period_results)
+}
+
+/// One period's returns and per-row effect vector for Carino linking.
+///
+/// `rows` is one `[f64; N]` effect vector per attribution row (sector, or a
+/// single portfolio-level row); every period must carry the same row count.
+pub(crate) struct CarinoPeriod<const N: usize> {
+    /// Period portfolio return (decimal).
+    pub(crate) portfolio_return: f64,
+    /// Period benchmark return (decimal).
+    pub(crate) benchmark_return: f64,
+    /// Per-row effects in the same row order for every period.
+    pub(crate) rows: Vec<[f64; N]>,
+}
+
+/// Carino-linked effects for one horizon.
+pub(crate) struct CarinoLinkedEffects<const N: usize> {
+    /// Geometrically compounded portfolio return.
+    pub(crate) portfolio_return_compounded: f64,
+    /// Geometrically compounded benchmark return.
+    pub(crate) benchmark_return_compounded: f64,
+    /// Linked effects per row, in the input row order.
+    pub(crate) rows: Vec<[f64; N]>,
+}
+
+/// Carino-link per-period effect vectors across the horizon.
+///
+/// Compounds the period returns, computes the horizon coefficient `K` and each
+/// period coefficient `k_t`, and accumulates `k_t / K * effect` into one
+/// Neumaier accumulator per `(row, effect)` in period order. This is the single
+/// implementation behind [`carino_link`],
+/// [`crate::fi_attribution::campisi_carino_link`] and
+/// [`crate::grid_attribution::grid_carino_link`].
+///
+/// # Arguments
+///
+/// * `periods` - Chronologically ordered periods; callers validate effect
+///   finiteness and row ordering before linking.
+///
+/// # Errors
+///
+/// Returns `Error::InvalidInput` if `periods` is empty, a period return is
+/// non-finite, row counts differ across periods, or a return is at or below
+/// −100 % (see [`carino_coefficient`]).
+pub(crate) fn carino_link_effects<const N: usize>(
+    periods: &[CarinoPeriod<N>],
+) -> Result<CarinoLinkedEffects<N>> {
+    let Some(first) = periods.first() else {
+        return Err(Error::invalid_input(
+            "Carino linking requires at least one period",
+        ));
+    };
+    let row_count = first.rows.len();
+
+    let mut compounded_p = 1.0_f64;
+    let mut compounded_b = 1.0_f64;
+    for (index, p) in periods.iter().enumerate() {
+        if !p.portfolio_return.is_finite() || !p.benchmark_return.is_finite() {
+            return Err(Error::invalid_input(format!(
+                "Carino linking requires finite period returns, got portfolio_return = {}, benchmark_return = {}",
+                p.portfolio_return, p.benchmark_return
+            )));
+        }
+        if p.rows.len() != row_count {
+            return Err(Error::invalid_input(format!(
+                "Carino linking requires the same row count in every period (period {index} has {} rows, period 0 has {row_count})",
+                p.rows.len()
+            )));
+        }
+        compounded_p *= 1.0 + p.portfolio_return;
+        compounded_b *= 1.0 + p.benchmark_return;
+    }
+    let r_p_total = compounded_p - 1.0;
+    let r_b_total = compounded_b - 1.0;
+    let big_k = carino_coefficient(r_p_total, r_b_total)?;
+
+    let mut acc: Vec<[NeumaierAccumulator; N]> = vec![[NeumaierAccumulator::new(); N]; row_count];
+    for period in periods {
+        let k_t = carino_coefficient(period.portfolio_return, period.benchmark_return)?;
+        let scale = k_t / big_k;
+        for (row_acc, row) in acc.iter_mut().zip(period.rows.iter()) {
+            for (effect_acc, value) in row_acc.iter_mut().zip(row.iter()) {
+                effect_acc.add(scale * value);
+            }
+        }
+    }
+
+    Ok(CarinoLinkedEffects {
+        portfolio_return_compounded: r_p_total,
+        benchmark_return_compounded: r_b_total,
+        rows: acc
+            .into_iter()
+            .map(|row_acc| row_acc.map(|value| value.total()))
+            .collect(),
+    })
 }
 
 /// Carino smoothing coefficient for a single period or the horizon.

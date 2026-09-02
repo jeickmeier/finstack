@@ -131,7 +131,7 @@
 //!   Performance Measurement*, 3(4), 5–14 — multi-period smoothing applied by
 //!   [`campisi_carino_link`]. `docs/REFERENCES.md#carino-1999`
 
-use crate::brinson::carino_coefficient;
+use crate::brinson::{carino_link_effects, CarinoPeriod};
 use crate::error::{Error, Result};
 use finstack_quant_core::math::summation::NeumaierAccumulator;
 use indexmap::IndexMap;
@@ -1062,38 +1062,38 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
         }
     }
 
-    let mut compounded_p = 1.0_f64;
-    let mut compounded_b = 1.0_f64;
     for (index, p) in periods.iter().enumerate() {
         validate_campisi_link_period(p, index)?;
-        compounded_p *= 1.0 + p.portfolio_return;
-        compounded_b *= 1.0 + p.benchmark_return;
     }
-    let r_p_total = compounded_p - 1.0;
-    let r_b_total = compounded_b - 1.0;
-    let big_k = carino_coefficient(r_p_total, r_b_total)?;
 
     const N_EFFECTS: usize = 5;
-    let mut acc: Vec<[NeumaierAccumulator; N_EFFECTS]> =
-        vec![[NeumaierAccumulator::new(); N_EFFECTS]; sector_names.len()];
-
-    for period in periods {
-        let k_t = carino_coefficient(period.portfolio_return, period.benchmark_return)?;
-        let scale = k_t / big_k;
-        for (sector_acc, e) in acc.iter_mut().zip(period.sectors.iter()) {
-            sector_acc[0].add(scale * e.allocation);
-            sector_acc[1].add(scale * e.active_carry);
-            sector_acc[2].add(scale * e.active_treasury);
-            sector_acc[3].add(scale * e.active_spread);
-            sector_acc[4].add(scale * e.selection);
-        }
-    }
+    let effect_periods: Vec<CarinoPeriod<N_EFFECTS>> = periods
+        .iter()
+        .map(|p| CarinoPeriod {
+            portfolio_return: p.portfolio_return,
+            benchmark_return: p.benchmark_return,
+            rows: p
+                .sectors
+                .iter()
+                .map(|e| {
+                    [
+                        e.allocation,
+                        e.active_carry,
+                        e.active_treasury,
+                        e.active_spread,
+                        e.selection,
+                    ]
+                })
+                .collect(),
+        })
+        .collect();
+    let linked = carino_link_effects(&effect_periods)?;
 
     let mut linked_sectors = Vec::with_capacity(sector_names.len());
     let mut totals = [NeumaierAccumulator::new(); N_EFFECTS];
-    for (name, sector_acc) in sector_names.into_iter().zip(acc) {
-        let [allocation, active_carry, active_treasury, active_spread, selection] =
-            sector_acc.map(|value| value.total());
+    for (name, [allocation, active_carry, active_treasury, active_spread, selection]) in
+        sector_names.into_iter().zip(linked.rows)
+    {
         for (total, value) in totals.iter_mut().zip([
             allocation,
             active_carry,
@@ -1118,8 +1118,8 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
         totals.map(|value| value.total());
     Ok(FiCarinoLinkedResult {
         periods: periods.to_vec(),
-        portfolio_return_compounded: r_p_total,
-        benchmark_return_compounded: r_b_total,
+        portfolio_return_compounded: linked.portfolio_return_compounded,
+        benchmark_return_compounded: linked.benchmark_return_compounded,
         linked_sectors,
         linked_allocation,
         linked_active_carry,

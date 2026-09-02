@@ -147,7 +147,7 @@
 //!   grid decomposition and the out-of-benchmark fallback convention used
 //!   above. `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
 
-use crate::brinson::carino_coefficient;
+use crate::brinson::{carino_link_effects, CarinoPeriod};
 use crate::error::{Error, Result};
 use finstack_quant_core::math::summation::NeumaierAccumulator;
 use indexmap::IndexMap;
@@ -811,36 +811,28 @@ pub fn grid_carino_link(periods: &[GridAttributionResult]) -> Result<GridCarinoL
         ));
     }
 
-    let mut compounded_p = 1.0_f64;
-    let mut compounded_b = 1.0_f64;
     for (index, p) in periods.iter().enumerate() {
         validate_grid_link_period(p, index)?;
-        compounded_p *= 1.0 + p.portfolio_return;
-        compounded_b *= 1.0 + p.benchmark_return;
     }
-    let r_p_total = compounded_p - 1.0;
-    let r_b_total = compounded_b - 1.0;
-    let big_k = carino_coefficient(r_p_total, r_b_total)?;
 
-    let mut linked_curve = NeumaierAccumulator::new();
-    let mut linked_sector = NeumaierAccumulator::new();
-    let mut linked_selection = NeumaierAccumulator::new();
-
-    for period in periods {
-        let k_t = carino_coefficient(period.portfolio_return, period.benchmark_return)?;
-        let scale = k_t / big_k;
-        linked_curve.add(scale * period.total_curve);
-        linked_sector.add(scale * period.total_sector);
-        linked_selection.add(scale * period.total_selection);
-    }
+    let effect_periods: Vec<CarinoPeriod<3>> = periods
+        .iter()
+        .map(|p| CarinoPeriod {
+            portfolio_return: p.portfolio_return,
+            benchmark_return: p.benchmark_return,
+            rows: vec![[p.total_curve, p.total_sector, p.total_selection]],
+        })
+        .collect();
+    let linked = carino_link_effects(&effect_periods)?;
+    let [linked_curve, linked_sector, linked_selection] = linked.rows[0];
 
     Ok(GridCarinoLinkedResult {
         periods: periods.to_vec(),
-        portfolio_return_compounded: r_p_total,
-        benchmark_return_compounded: r_b_total,
-        linked_curve: linked_curve.total(),
-        linked_sector: linked_sector.total(),
-        linked_selection: linked_selection.total(),
+        portfolio_return_compounded: linked.portfolio_return_compounded,
+        benchmark_return_compounded: linked.benchmark_return_compounded,
+        linked_curve,
+        linked_sector,
+        linked_selection,
     })
 }
 
