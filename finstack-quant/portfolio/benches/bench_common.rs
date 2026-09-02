@@ -729,7 +729,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             swap_end,
         )
         .expect("valid benchmark swaption params");
-        let swaption = Swaption::new_payer(
+        let swaption = Swaption::new(
             swaption_id.clone(),
             &params,
             "USD-OIS",

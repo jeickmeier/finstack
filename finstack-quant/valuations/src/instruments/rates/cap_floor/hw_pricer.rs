@@ -1056,12 +1056,14 @@ mod tests {
     #[test]
     fn term_caplet_hw_pricer_uses_exact_zcb_option_formula() {
         let as_of = date(2024, 1, 2);
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "TERM-HW-EXACT",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 4, 2),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-3M",
@@ -1132,12 +1134,14 @@ mod tests {
     #[test]
     fn term_caplet_hw_spread_is_equivalent_to_strike_reduction() {
         let as_of = date(2024, 1, 2);
-        let mut with_spread = CapFloor::new_caplet(
+        let mut with_spread = CapFloor::new(
             "TERM-HW-SPREAD",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 4, 2),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "TEST-TERM-3M",
@@ -1180,12 +1184,14 @@ mod tests {
     #[test]
     fn compounded_moment_match_uses_date_specific_loadings_and_ou_covariance() {
         let as_of = date(2024, 12, 2);
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "SOFR-HW-SENSITIVITY",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 4, 2),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-OIS",
@@ -1289,12 +1295,14 @@ mod tests {
     #[test]
     fn compounded_full_coupon_loading_and_ou_variance_have_independent_cross_checks() {
         let as_of = date(2024, 12, 2);
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "SOFR-HW-FULL-COUPON",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 2, 3),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-OIS",
@@ -1381,12 +1389,14 @@ mod tests {
     #[test]
     fn compounded_hw_pricer_uses_cutoff_coupon_and_payment_delay() {
         let as_of = date(2024, 12, 2);
-        let mut delayed = CapFloor::new_caplet(
+        let mut delayed = CapFloor::new(
             "SOFR-HW-COMPOUNDED",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 4, 2),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-OIS",
@@ -1438,12 +1448,14 @@ mod tests {
         let fixing_date = date(2024, 1, 2);
         let as_of = date(2024, 2, 15);
         let payment_date = date(2024, 4, 2);
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "FIXED-UNPAID-HW",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             fixing_date,
             payment_date,
+            None,
             DayCount::Act360,
             "USD-OIS",
             "TEST-TERM-3M",
@@ -1484,12 +1496,14 @@ mod tests {
         let accrual_start = date(2025, 1, 2);
         let accrual_end = date(2025, 4, 2);
         let as_of = date(2025, 4, 3);
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "FIXED-RFR-DELAYED",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             accrual_start,
             accrual_end,
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-OIS",
@@ -1549,12 +1563,14 @@ mod tests {
         let kappa = 0.05;
         let sigma = 0.012;
         let short_rate = 0.045;
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "SOFR-HW-MC-BENCHMARK",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 4, 2),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-OIS",
@@ -1647,12 +1663,14 @@ mod tests {
     #[test]
     fn constant_sigma_schedule_matches_scalar_hw_price() {
         let as_of = date(2024, 12, 2);
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "SOFR-HW-SCHEDULE",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 4, 2),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-OIS",
@@ -1703,12 +1721,14 @@ mod tests {
     #[test]
     fn persisted_sigma_schedule_resolves_before_legacy_scalar_sigma() {
         let as_of = date(2024, 12, 2);
-        let caplet = CapFloor::new_caplet(
+        let caplet = CapFloor::new(
             "SOFR-HW-PERSISTED-SCHEDULE",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2025, 1, 2),
             date(2025, 4, 2),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-OIS",

@@ -211,12 +211,14 @@ fn compounded_sofr_implied_vol_round_trip_uses_contractual_coupon_and_payment() 
                 .expect("SOFR forward curve"),
         )
         .insert_surface(build_flat_vol_surface(surface_vol, as_of, "USD_CAP_VOL"));
-    let mut caplet = CapFloor::new_caplet(
+    let mut caplet = CapFloor::new(
         "SOFR-IV-ROUNDTRIP",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.04,
         start,
         end,
+        None,
         DayCount::Act360,
         "USD_OIS",
         "USD-SOFR-OIS",
@@ -262,12 +264,14 @@ fn normal_implied_vol_round_trips_non_positive_forward() {
         .insert(build_flat_discount_curve(0.03, as_of, "USD_OIS"))
         .insert(build_flat_forward_curve(-0.005, as_of, "NEGATIVE_TERM"))
         .insert_surface(build_flat_vol_surface(surface_vol, as_of, "USD_CAP_VOL"));
-    let mut caplet = CapFloor::new_caplet(
+    let mut caplet = CapFloor::new(
         "NORMAL-IV-NEGATIVE",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.0,
         date!(2024 - 07 - 02),
         date!(2024 - 10 - 02),
+        None,
         DayCount::Act360,
         "USD_OIS",
         "NEGATIVE_TERM",
@@ -304,12 +308,14 @@ fn shifted_lognormal_implied_vol_round_trips_shifted_domain() {
         .insert(build_flat_discount_curve(0.03, as_of, "USD_OIS"))
         .insert(build_flat_forward_curve(-0.005, as_of, "NEGATIVE_TERM"))
         .insert_surface(build_flat_vol_surface(surface_vol, as_of, "USD_CAP_VOL"));
-    let mut caplet = CapFloor::new_caplet(
+    let mut caplet = CapFloor::new(
         "SHIFTED-IV",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.0,
         date!(2024 - 07 - 02),
         date!(2024 - 10 - 02),
+        None,
         DayCount::Act360,
         "USD_OIS",
         "NEGATIVE_TERM",
@@ -346,12 +352,14 @@ fn same_day_caplet_does_not_synthesize_option_time() {
         .insert(build_flat_discount_curve(0.03, as_of, "USD_OIS"))
         .insert(build_flat_forward_curve(0.12, as_of, "USD_LIBOR_3M"))
         .insert_surface(build_flat_vol_surface(0.30, as_of, "USD_CAP_VOL"));
-    let mut caplet = CapFloor::new_caplet(
+    let mut caplet = CapFloor::new(
         "SAME-DAY-IV",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.05,
         as_of,
         date!(2024 - 06 - 01),
+        None,
         DayCount::Act360,
         "USD_OIS",
         "USD_LIBOR_3M",
@@ -384,12 +392,14 @@ fn auto_implied_vol_round_trips_negative_rate_lognormal_quote() {
         .insert(build_flat_discount_curve(0.03, as_of, "USD_OIS"))
         .insert(build_flat_forward_curve(-0.005, as_of, "NEGATIVE_TERM"))
         .insert_surface(build_flat_vol_surface(surface_vol, as_of, "USD_CAP_VOL"));
-    let mut caplet = CapFloor::new_caplet(
+    let mut caplet = CapFloor::new(
         "AUTO-IV-NEGATIVE",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.0,
         date!(2024 - 07 - 02),
         date!(2024 - 10 - 02),
+        None,
         DayCount::Act360,
         "USD_OIS",
         "NEGATIVE_TERM",

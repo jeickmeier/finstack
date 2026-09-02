@@ -4,7 +4,6 @@ use crate::instruments::rates::irs::PayReceive;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::dates::{DayCount, Tenor};
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::Rate;
 use finstack_quant_core::{Error, Result};
 use rust_decimal::Decimal;
 
@@ -66,34 +65,6 @@ impl SwaptionParams {
         })
     }
 
-    /// Create payer swaption parameters using a typed strike rate.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Validation`] if the typed strike cannot be represented
-    /// as a [`Decimal`].
-    pub fn payer_rate(
-        notional: Money,
-        strike: Rate,
-        expiry: Date,
-        swap_start: Date,
-        swap_end: Date,
-    ) -> Result<Self> {
-        Ok(Self {
-            notional,
-            strike: strike_decimal(strike.as_decimal())?,
-            expiry,
-            swap_start,
-            swap_end,
-            side: PayReceive::Pay,
-            fixed_frequency: None,
-            float_frequency: None,
-            fixed_day_count: None,
-            float_day_count: None,
-            vol_model: None,
-        })
-    }
-
     /// Create receiver swaption parameters.
     ///
     /// # Errors
@@ -110,34 +81,6 @@ impl SwaptionParams {
         Ok(Self {
             notional,
             strike: strike_decimal(strike)?,
-            expiry,
-            swap_start,
-            swap_end,
-            side: PayReceive::Receive,
-            fixed_frequency: None,
-            float_frequency: None,
-            fixed_day_count: None,
-            float_day_count: None,
-            vol_model: None,
-        })
-    }
-
-    /// Create receiver swaption parameters using a typed strike rate.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Validation`] if the typed strike cannot be represented
-    /// as a [`Decimal`].
-    pub fn receiver_rate(
-        notional: Money,
-        strike: Rate,
-        expiry: Date,
-        swap_start: Date,
-        swap_end: Date,
-    ) -> Result<Self> {
-        Ok(Self {
-            notional,
-            strike: strike_decimal(strike.as_decimal())?,
             expiry,
             swap_start,
             swap_end,
@@ -241,25 +184,6 @@ mod tests {
     }
 
     #[test]
-    fn typed_rate_constructors_preserve_decimal_strike() {
-        let (expiry, swap_start, swap_end) = sample_dates();
-        let notional = Money::new(1_250_000.0, Currency::EUR);
-        let strike = Rate::from_bp(275);
-
-        let payer = SwaptionParams::payer_rate(notional, strike, expiry, swap_start, swap_end)
-            .expect("valid payer params");
-        let receiver =
-            SwaptionParams::receiver_rate(notional, strike, expiry, swap_start, swap_end)
-                .expect("valid receiver params");
-
-        let expected = Decimal::new(275, 4);
-        assert_eq!(payer.strike, expected);
-        assert_eq!(payer.side, PayReceive::Pay);
-        assert_eq!(receiver.strike, expected);
-        assert_eq!(receiver.side, PayReceive::Receive);
-    }
-
-    #[test]
     fn fluent_overrides_replace_optional_configuration() {
         let (expiry, swap_start, swap_end) = sample_dates();
         let params = SwaptionParams::payer(
@@ -282,7 +206,7 @@ mod tests {
         assert_eq!(params.float_day_count, Some(DayCount::Act365F));
         assert_eq!(params.vol_model, Some(VolatilityModel::Normal));
 
-        let swaption = Swaption::new_payer(
+        let swaption = Swaption::new(
             "GBP-SONIA-SWAPTION",
             &params,
             "GBP-SONIA-OIS",

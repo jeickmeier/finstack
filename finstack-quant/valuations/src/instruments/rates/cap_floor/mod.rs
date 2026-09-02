@@ -92,11 +92,9 @@
 
 pub(crate) mod hw_pricer;
 pub(crate) mod metrics;
-pub(crate) mod parameters;
 pub(crate) mod pricing;
 mod types;
 
-pub use parameters::CapFloorParams;
 pub use types::{
     CapFloor, CapFloorBuilder, CapFloorVolType, OvernightCouponConvention,
     OvernightSpreadCompounding, RateOptionType,

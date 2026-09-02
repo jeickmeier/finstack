@@ -19,13 +19,14 @@ fn test_cap_creation_basic() {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2030, Month::January, 1).unwrap();
 
-    let cap = CapFloor::new_cap(
+    let cap = CapFloor::new(
         "USD_CAP_3%",
+        RateOptionType::Cap,
         notional,
         0.03,
         start,
         end,
-        Tenor::quarterly(),
+        Some(Tenor::quarterly()),
         DayCount::Act360,
         "USD-OIS",
         "USD-LIBOR-3M",
@@ -50,13 +51,14 @@ fn test_floor_creation_basic() {
     let start = Date::from_calendar_date(2025, Month::March, 15).unwrap();
     let end = Date::from_calendar_date(2028, Month::March, 15).unwrap();
 
-    let floor = CapFloor::new_floor(
+    let floor = CapFloor::new(
         "EUR_FLOOR_1%",
+        RateOptionType::Floor,
         notional,
         0.01,
         start,
         end,
-        Tenor::semi_annual(),
+        Some(Tenor::semi_annual()),
         DayCount::Thirty360,
         "EUR-OIS",
         "EUR-EURIBOR-6M",
@@ -81,13 +83,14 @@ fn test_cap_new_cap_helper() {
     let start = Date::from_calendar_date(2025, Month::June, 1).unwrap();
     let end = Date::from_calendar_date(2027, Month::June, 1).unwrap();
 
-    let cap = CapFloor::new_cap(
+    let cap = CapFloor::new(
         "GBP_CAP",
+        RateOptionType::Cap,
         notional,
         0.04,
         start,
         end,
-        Tenor::quarterly(),
+        Some(Tenor::quarterly()),
         DayCount::Act365F,
         "GBP-OIS",
         "GBP-LIBOR-3M",
@@ -106,13 +109,14 @@ fn test_floor_new_floor_helper() {
     let start = Date::from_calendar_date(2026, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2031, Month::January, 1).unwrap();
 
-    let floor = CapFloor::new_floor(
+    let floor = CapFloor::new(
         "JPY_FLOOR",
+        RateOptionType::Floor,
         notional,
         0.005,
         start,
         end,
-        Tenor::quarterly(),
+        Some(Tenor::quarterly()),
         DayCount::Act360,
         "JPY-OIS",
         "JPY-LIBOR-3M",
@@ -208,13 +212,14 @@ fn test_custom_calendar() {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2030, Month::January, 1).unwrap();
 
-    let mut cap = CapFloor::new_cap(
+    let mut cap = CapFloor::new(
         "CAP_WITH_CALENDAR",
+        RateOptionType::Cap,
         notional,
         0.03,
         start,
         end,
-        Tenor::quarterly(),
+        Some(Tenor::quarterly()),
         DayCount::Act360,
         "USD-OIS",
         "USD-LIBOR-3M",
@@ -240,13 +245,14 @@ fn test_different_day_counts() {
     ];
 
     for day_count in day_counts {
-        let cap = CapFloor::new_cap(
+        let cap = CapFloor::new(
             "CAP_DC_TEST",
+            RateOptionType::Cap,
             notional,
             0.03,
             start,
             end,
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             day_count,
             "USD-OIS",
             "USD-LIBOR-3M",
@@ -272,13 +278,14 @@ fn test_different_frequencies() {
     ];
 
     for frequency in frequencies {
-        let cap = CapFloor::new_cap(
+        let cap = CapFloor::new(
             "CAP_FREQ_TEST",
+            RateOptionType::Cap,
             notional,
             0.03,
             start,
             end,
-            frequency,
+            Some(frequency),
             DayCount::Act360,
             "USD-OIS",
             "USD-LIBOR-3M",
@@ -296,18 +303,20 @@ fn test_new_caplet_rejects_nan_strike() {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2026, Month::January, 1).unwrap();
 
-    let result = CapFloor::new_caplet(
+    let result = CapFloor::new(
         "CAPLET-NAN",
+        RateOptionType::Caplet,
         notional,
         f64::NAN,
         start,
         end,
+        None,
         DayCount::Act360,
         "USD-OIS",
         "USD-SOFR-3M",
         "USD_CAP_VOL",
     );
-    assert!(result.is_err(), "new_caplet should reject NaN strike");
+    assert!(result.is_err(), "CapFloor::new should reject NaN strike");
 }
 
 #[test]
@@ -316,18 +325,23 @@ fn test_new_caplet_rejects_infinite_strike() {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2026, Month::January, 1).unwrap();
 
-    let result = CapFloor::new_caplet(
+    let result = CapFloor::new(
         "CAPLET-INF",
+        RateOptionType::Caplet,
         notional,
         f64::INFINITY,
         start,
         end,
+        None,
         DayCount::Act360,
         "USD-OIS",
         "USD-SOFR-3M",
         "USD_CAP_VOL",
     );
-    assert!(result.is_err(), "new_caplet should reject infinite strike");
+    assert!(
+        result.is_err(),
+        "CapFloor::new should reject infinite strike"
+    );
 }
 
 #[test]
@@ -336,18 +350,20 @@ fn test_new_floorlet_rejects_nan_strike() {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2026, Month::January, 1).unwrap();
 
-    let result = CapFloor::new_floorlet(
+    let result = CapFloor::new(
         "FLOORLET-NAN",
+        RateOptionType::Floorlet,
         notional,
         f64::NAN,
         start,
         end,
+        None,
         DayCount::Act360,
         "USD-OIS",
         "USD-SOFR-3M",
         "USD_CAP_VOL",
     );
-    assert!(result.is_err(), "new_floorlet should reject NaN strike");
+    assert!(result.is_err(), "CapFloor::new should reject NaN strike");
 }
 
 #[test]
@@ -356,12 +372,14 @@ fn test_new_caplet_accepts_valid_strike() {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2026, Month::January, 1).unwrap();
 
-    let result = CapFloor::new_caplet(
+    let result = CapFloor::new(
         "CAPLET-OK",
+        RateOptionType::Caplet,
         notional,
         0.05,
         start,
         end,
+        None,
         DayCount::Act360,
         "USD-OIS",
         "USD-SOFR-3M",
@@ -369,18 +387,20 @@ fn test_new_caplet_accepts_valid_strike() {
     );
     assert!(
         result.is_ok(),
-        "new_caplet should accept a valid finite strike"
+        "CapFloor::new should accept a valid finite strike"
     );
 }
 
 #[test]
 fn term_index_rejects_overnight_coupon_settings() {
-    let mut caplet = CapFloor::new_caplet(
+    let mut caplet = CapFloor::new(
         "TERM-WITH-OVERNIGHT-SETTINGS",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.05,
         Date::from_calendar_date(2025, Month::January, 2).unwrap(),
         Date::from_calendar_date(2025, Month::April, 2).unwrap(),
+        None,
         DayCount::Act360,
         "USD-OIS",
         "USD-LIBOR-3M",
@@ -406,13 +426,14 @@ fn term_index_rejects_overnight_coupon_settings() {
 
 #[test]
 fn legacy_cap_json_defaults_overnight_coupon_to_none() {
-    let cap = CapFloor::new_cap(
+    let cap = CapFloor::new(
         "LEGACY-CAP",
+        RateOptionType::Cap,
         Money::new(1_000_000.0, Currency::USD),
         0.05,
         Date::from_calendar_date(2025, Month::January, 2).unwrap(),
         Date::from_calendar_date(2026, Month::January, 2).unwrap(),
-        Tenor::quarterly(),
+        Some(Tenor::quarterly()),
         DayCount::Act360,
         "USD-OIS",
         "USD-LIBOR-3M",

@@ -180,18 +180,13 @@ impl BermudanSwaption {
             Date::from_calendar_date(2029, time::Month::January, 17).expect("Valid example date");
         let strike = Decimal::try_from(0.03).expect("valid decimal");
         let (underlying_fixed_leg, underlying_float_leg) =
-            vanilla_underlier(VanillaSwaptionUnderlier {
+            vanilla_underlier(VanillaSwaptionUnderlier::standard(
                 strike,
                 swap_start,
                 swap_end,
-                fixed_frequency: Tenor::semi_annual(),
-                float_frequency: Tenor::quarterly(),
-                fixed_day_count: DayCount::Thirty360,
-                float_day_count: DayCount::Act360,
-                discount_curve_id: CurveId::new("USD-OIS"),
-                forward_curve_id: CurveId::new("USD-OIS"),
-                calendar_id: None,
-            });
+                CurveId::new("USD-OIS"),
+                CurveId::new("USD-OIS"),
+            ));
 
         Self {
             id: InstrumentId::new("BERM-10NC2-USD"),
@@ -215,12 +210,31 @@ impl BermudanSwaption {
         }
     }
 
-    /// Create a new Bermudan payer swaption (right to pay fixed).
+    /// Create a co-terminal Bermudan swaption with USD-standard leg conventions
+    /// (semi-annual 30/360 fixed versus quarterly ACT/360 floating).
     ///
-    /// Returns an error if the strike value is not representable as `Decimal` (e.g., NaN or Inf).
+    /// # Arguments
+    ///
+    /// * `id` - Instrument identifier.
+    /// * `option_type` - [`OptionType::Call`] for a payer (right to pay fixed),
+    ///   [`OptionType::Put`] for a receiver (right to receive fixed).
+    /// * `notional` - Swap notional in the instrument currency.
+    /// * `strike` - Fixed rate of the underlying swap as a decimal (0.03 = 3%).
+    /// * `swap_start` - Effective date of the underlying swap.
+    /// * `swap_end` - Maturity of the underlying swap (co-terminal for every exercise).
+    /// * `bermudan_schedule` - Exercise dates.
+    /// * `discount_curve_id` - Discount curve for both legs.
+    /// * `forward_curve_id` - Projection curve for the floating leg.
+    /// * `vol_surface_id` - Swaption volatility cube.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `strike` is not representable as `Decimal` (NaN or
+    /// infinite) or the resulting instrument fails [`BermudanSwaption::validate`].
     #[allow(clippy::too_many_arguments)]
-    pub fn new_payer(
+    pub fn new(
         id: impl Into<InstrumentId>,
+        option_type: OptionType,
         notional: Money,
         strike: f64,
         swap_start: Date,
@@ -232,69 +246,16 @@ impl BermudanSwaption {
     ) -> finstack_quant_core::Result<Self> {
         let strike = finstack_quant_core::decimal::f64_to_decimal(strike)?;
         let (underlying_fixed_leg, underlying_float_leg) =
-            vanilla_underlier(VanillaSwaptionUnderlier {
+            vanilla_underlier(VanillaSwaptionUnderlier::standard(
                 strike,
                 swap_start,
                 swap_end,
-                fixed_frequency: Tenor::semi_annual(),
-                float_frequency: Tenor::quarterly(),
-                fixed_day_count: DayCount::Thirty360,
-                float_day_count: DayCount::Act360,
-                discount_curve_id: discount_curve_id.into(),
-                forward_curve_id: forward_curve_id.into(),
-                calendar_id: None,
-            });
+                discount_curve_id.into(),
+                forward_curve_id.into(),
+            ));
         let swaption = Self {
             id: id.into(),
-            option_type: OptionType::Call,
-            notional,
-            settlement: SwaptionSettlement::Physical,
-            vol_surface_id: vol_surface_id.into(),
-            bermudan_schedule,
-            bermudan_type: BermudanType::CoTerminal,
-            underlying_fixed_leg,
-            underlying_float_leg,
-            instrument_pricing_overrides: Default::default(),
-            metric_pricing_overrides: Default::default(),
-            scenario_pricing_overrides: Default::default(),
-            attributes: Attributes::default(),
-        };
-        swaption.validate()?;
-        Ok(swaption)
-    }
-
-    /// Create a new Bermudan receiver swaption (right to receive fixed).
-    ///
-    /// Returns an error if the strike value is not representable as `Decimal` (e.g., NaN or Inf).
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_receiver(
-        id: impl Into<InstrumentId>,
-        notional: Money,
-        strike: f64,
-        swap_start: Date,
-        swap_end: Date,
-        bermudan_schedule: BermudanSchedule,
-        discount_curve_id: impl Into<CurveId>,
-        forward_curve_id: impl Into<CurveId>,
-        vol_surface_id: impl Into<CurveId>,
-    ) -> finstack_quant_core::Result<Self> {
-        let strike = finstack_quant_core::decimal::f64_to_decimal(strike)?;
-        let (underlying_fixed_leg, underlying_float_leg) =
-            vanilla_underlier(VanillaSwaptionUnderlier {
-                strike,
-                swap_start,
-                swap_end,
-                fixed_frequency: Tenor::semi_annual(),
-                float_frequency: Tenor::quarterly(),
-                fixed_day_count: DayCount::Thirty360,
-                float_day_count: DayCount::Act360,
-                discount_curve_id: discount_curve_id.into(),
-                forward_curve_id: forward_curve_id.into(),
-                calendar_id: None,
-            });
-        let swaption = Self {
-            id: id.into(),
-            option_type: OptionType::Put,
+            option_type,
             notional,
             settlement: SwaptionSettlement::Physical,
             vol_surface_id: vol_surface_id.into(),

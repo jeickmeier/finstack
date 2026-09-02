@@ -2,6 +2,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use finstack_quant_valuations::instruments::OptionType;
+
 use crate::swaption::common::*;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
@@ -137,8 +139,9 @@ fn test_bermudan_pricer_cached_model_sets_measure() {
     let swap_start = as_of;
     let swap_end = date!(2030 - 01 - 01);
     let first_exercise = date!(2026 - 01 - 01);
-    let swaption = BermudanSwaption::new_payer(
+    let swaption = BermudanSwaption::new(
         "BERM-CACHED",
+        OptionType::Call,
         Money::new(1_000_000.0, finstack_quant_core::currency::Currency::USD),
         0.03,
         swap_start,
@@ -183,8 +186,9 @@ fn test_bermudan_pricer_expired_returns_zero() {
     let swap_start = date!(2025 - 01 - 01);
     let swap_end = date!(2030 - 01 - 01);
     let first_exercise = date!(2026 - 01 - 01);
-    let swaption = BermudanSwaption::new_receiver(
+    let swaption = BermudanSwaption::new(
         "BERM-EXPIRED",
+        OptionType::Put,
         Money::new(2_000_000.0, finstack_quant_core::currency::Currency::USD),
         0.04,
         swap_start,
@@ -214,8 +218,9 @@ fn test_bermudan_tree_pricer_rejects_mixed_curves() {
     let swap_start = as_of;
     let swap_end = date!(2030 - 01 - 01);
     let first_exercise = date!(2026 - 01 - 01);
-    let swaption = BermudanSwaption::new_payer(
+    let swaption = BermudanSwaption::new(
         "BERM-MIXED",
+        OptionType::Call,
         Money::new(1_000_000.0, finstack_quant_core::currency::Currency::USD),
         0.03,
         swap_start,

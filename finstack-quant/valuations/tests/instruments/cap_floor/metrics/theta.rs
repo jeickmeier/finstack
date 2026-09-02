@@ -267,12 +267,14 @@ fn test_short_maturity_higher_theta() {
 #[test]
 fn same_day_unpublished_fixing_caps_theta_without_historical_series() {
     let as_of = date!(2024 - 03 - 01);
-    let caplet = CapFloor::new_caplet(
+    let caplet = CapFloor::new(
         "SAME-DAY-THETA",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.05,
         as_of,
         date!(2024 - 06 - 01),
+        None,
         DayCount::Act360,
         "USD_OIS",
         "USD_LIBOR_3M",

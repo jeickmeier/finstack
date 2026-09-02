@@ -577,25 +577,28 @@ fn test_single_period_cap_matches_caplet_with_resolved_lags() {
     let strike = 0.05;
     let notional = Money::new(1_000_000.0, Currency::USD);
 
-    let cap = CapFloor::new_cap(
+    let cap = CapFloor::new(
         "ONE_PERIOD_CAP",
+        RateOptionType::Cap,
         notional,
         strike,
         start,
         end,
-        Tenor::quarterly(),
+        Some(Tenor::quarterly()),
         DayCount::Act360,
         "USD_OIS",
         "USD-SOFR-OIS",
         "USD_CAP_VOL",
     )
     .expect("valid strike");
-    let caplet = CapFloor::new_caplet(
+    let caplet = CapFloor::new(
         "ONE_PERIOD_CAPLET",
+        RateOptionType::Caplet,
         notional,
         strike,
         start,
         end,
+        None,
         DayCount::Act360,
         "USD_OIS",
         "USD-SOFR-OIS",

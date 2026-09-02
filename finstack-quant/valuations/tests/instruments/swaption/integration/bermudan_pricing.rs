@@ -46,8 +46,9 @@ fn test_bermudan_swaption(
     strike: f64,
     option_type: OptionType,
 ) -> BermudanSwaption {
-    let mut swaption = BermudanSwaption::new_payer(
+    let mut swaption = BermudanSwaption::new(
         "TEST-BERM",
+        OptionType::Call,
         Money::new(10_000_000.0, Currency::USD),
         strike,
         swap_start,

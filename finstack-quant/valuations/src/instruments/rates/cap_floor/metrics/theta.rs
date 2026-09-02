@@ -81,6 +81,7 @@ mod tests {
         OvernightCouponConvention, OvernightSpreadCompounding,
     };
     use crate::instruments::rates::irs::FloatingLegCompounding;
+    use crate::instruments::RateOptionType;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::DayCount;
     use finstack_quant_core::market_data::context::MarketContext;
@@ -91,12 +92,14 @@ mod tests {
     #[test]
     fn theta_expiry_uses_shared_rfr_cutoff_fixing() {
         let as_of = date!(2024 - 01 - 02);
-        let mut option = CapFloor::new_caplet(
+        let mut option = CapFloor::new(
             "RFR-THETA-FIXING",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.05,
             date!(2024 - 01 - 03),
             date!(2024 - 04 - 03),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-OIS",
@@ -129,12 +132,14 @@ mod tests {
     #[test]
     fn theta_skips_paid_period_before_resolving_fixing() {
         let as_of = date!(2025 - 04 - 03);
-        let option = CapFloor::new_caplet(
+        let option = CapFloor::new(
             "PAID-THETA",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.05,
             date!(2025 - 01 - 02),
             date!(2025 - 04 - 02),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "TEST-TERM-3M",
@@ -151,12 +156,14 @@ mod tests {
     #[test]
     fn theta_uses_delayed_payment_after_contractual_maturity() {
         let as_of = date!(2025 - 04 - 03);
-        let mut option = CapFloor::new_caplet(
+        let mut option = CapFloor::new(
             "DELAYED-THETA",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.05,
             date!(2025 - 01 - 02),
             date!(2025 - 04 - 02),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-OIS",

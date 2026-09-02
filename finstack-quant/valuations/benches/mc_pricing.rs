@@ -2,6 +2,8 @@
 //!
 //! Benchmarks LSMC Bermudan swaption pricing via the public pricer API.
 
+use finstack_quant_valuations::instruments::OptionType;
+
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Tenor};
@@ -24,8 +26,9 @@ fn build_swaption(as_of: Date) -> BermudanSwaption {
     let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("Valid date");
     let first_exercise = Date::from_calendar_date(2026, Month::January, 1).expect("Valid date");
 
-    let mut swaption = BermudanSwaption::new_payer(
+    let mut swaption = BermudanSwaption::new(
         "BERM-LSMC-BENCH",
+        OptionType::Call,
         Money::new(10_000_000.0, Currency::USD),
         0.03,
         swap_start,

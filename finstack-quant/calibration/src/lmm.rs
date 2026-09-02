@@ -347,6 +347,7 @@ mod tests {
     use finstack_quant_valuations::instruments::rates::swaption::{
         BermudanSchedule, BermudanSwaption,
     };
+    use finstack_quant_valuations::instruments::OptionType;
     use finstack_quant_valuations::pricer::Pricer;
     use time::Month;
 
@@ -360,8 +361,9 @@ mod tests {
         let schedule =
             BermudanSchedule::co_terminal(first_exercise, swap_end, Tenor::semi_annual())
                 .expect("exercise schedule");
-        BermudanSwaption::new_payer(
+        BermudanSwaption::new(
             "BERM-LMM-CAL",
+            OptionType::Call,
             Money::new(10_000_000.0, Currency::USD),
             0.03,
             swap_start,

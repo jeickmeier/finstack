@@ -122,6 +122,32 @@ pub(super) struct VanillaSwaptionUnderlier {
     pub calendar_id: Option<CalendarId>,
 }
 
+impl VanillaSwaptionUnderlier {
+    /// Vanilla underlier with the USD market-standard leg conventions:
+    /// semi-annual 30/360 fixed leg versus quarterly ACT/360 floating leg,
+    /// no holiday calendar.
+    pub(super) fn standard(
+        strike: Decimal,
+        swap_start: Date,
+        swap_end: Date,
+        discount_curve_id: CurveId,
+        forward_curve_id: CurveId,
+    ) -> Self {
+        Self {
+            strike,
+            swap_start,
+            swap_end,
+            fixed_frequency: Tenor::semi_annual(),
+            float_frequency: Tenor::quarterly(),
+            fixed_day_count: DayCount::Thirty360,
+            float_day_count: DayCount::Act360,
+            discount_curve_id,
+            forward_curve_id,
+            calendar_id: None,
+        }
+    }
+}
+
 pub(super) fn vanilla_underlier(
     underlier: VanillaSwaptionUnderlier,
 ) -> (FixedLegSpec, FloatLegSpec) {
@@ -273,18 +299,13 @@ impl Swaption {
             Date::from_calendar_date(2032, time::Month::January, 17).expect("Valid example date");
         let discount_curve_id = CurveId::new("USD-OIS");
         let (underlying_fixed_leg, underlying_float_leg) =
-            vanilla_underlier(VanillaSwaptionUnderlier {
+            vanilla_underlier(VanillaSwaptionUnderlier::standard(
                 strike,
                 swap_start,
                 swap_end,
-                fixed_frequency: Tenor::semi_annual(),
-                float_frequency: Tenor::quarterly(),
-                fixed_day_count: DayCount::Thirty360,
-                float_day_count: DayCount::Act360,
                 discount_curve_id,
-                forward_curve_id: CurveId::new("USD-OIS"),
-                calendar_id: None,
-            });
+                CurveId::new("USD-OIS"),
+            ));
         Self {
             id: InstrumentId::new("SWPN-1Yx5Y-USD"),
             option_type: OptionType::Call,
@@ -323,16 +344,14 @@ impl Swaption {
         let strike = Decimal::try_from(0.035).expect("valid decimal");
         let (underlying_fixed_leg, underlying_float_leg) =
             vanilla_underlier(VanillaSwaptionUnderlier {
-                strike,
-                swap_start,
-                swap_end,
-                fixed_frequency: Tenor::semi_annual(),
-                float_frequency: Tenor::quarterly(),
                 fixed_day_count: DayCount::Act360,
-                float_day_count: DayCount::Act360,
-                discount_curve_id: CurveId::new("USD-OIS"),
-                forward_curve_id: CurveId::new("USD-OIS"),
-                calendar_id: None,
+                ..VanillaSwaptionUnderlier::standard(
+                    strike,
+                    swap_start,
+                    swap_end,
+                    CurveId::new("USD-OIS"),
+                    CurveId::new("USD-OIS"),
+                )
             });
         Self {
             id: InstrumentId::new("SWPN-5NC1-BERM-USD"),
@@ -360,79 +379,49 @@ impl Swaption {
         }
     }
 
-    /// Create a new payer swaption using parameter structs.
-    pub fn new_payer(
+    /// Create a European swaption from a [`SwaptionParams`] specification.
+    ///
+    /// The payer/receiver side comes from `params.side`
+    /// ([`PayReceive::Pay`] → payer, [`OptionType::Call`]; [`PayReceive::Receive`]
+    /// → receiver, [`OptionType::Put`]). Leg conventions default to the USD
+    /// market standard (semi-annual 30/360 fixed versus quarterly ACT/360
+    /// floating) unless overridden on `params`.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Instrument identifier.
+    /// * `params` - Notional, strike, dates, side and optional leg/vol-model overrides.
+    /// * `discount_curve_id` - Discount curve for both legs.
+    /// * `forward_curve_id` - Projection curve for the floating leg; overnight
+    ///   index ids select compounded-in-arrears accrual.
+    /// * `vol_surface_id` - Swaption volatility cube used for pricing.
+    pub fn new(
         id: impl Into<InstrumentId>,
         params: &SwaptionParams,
         discount_curve_id: impl Into<CurveId>,
         forward_curve_id: impl Into<CurveId>,
         vol_surface_id: impl Into<CurveId>,
     ) -> Self {
-        let fixed_frequency = params.fixed_frequency.unwrap_or_else(Tenor::semi_annual);
-        let float_frequency = params.float_frequency.unwrap_or_else(Tenor::quarterly);
-        let fixed_day_count = params.fixed_day_count.unwrap_or(DayCount::Thirty360);
-        let float_day_count = params.float_day_count.unwrap_or(DayCount::Act360);
         let (underlying_fixed_leg, underlying_float_leg) =
             vanilla_underlier(VanillaSwaptionUnderlier {
-                strike: params.strike,
-                swap_start: params.swap_start,
-                swap_end: params.swap_end,
-                fixed_frequency,
-                float_frequency,
-                fixed_day_count,
-                float_day_count,
-                discount_curve_id: discount_curve_id.into(),
-                forward_curve_id: forward_curve_id.into(),
-                calendar_id: None,
+                fixed_frequency: params.fixed_frequency.unwrap_or_else(Tenor::semi_annual),
+                float_frequency: params.float_frequency.unwrap_or_else(Tenor::quarterly),
+                fixed_day_count: params.fixed_day_count.unwrap_or(DayCount::Thirty360),
+                float_day_count: params.float_day_count.unwrap_or(DayCount::Act360),
+                ..VanillaSwaptionUnderlier::standard(
+                    params.strike,
+                    params.swap_start,
+                    params.swap_end,
+                    discount_curve_id.into(),
+                    forward_curve_id.into(),
+                )
             });
         Self {
             id: id.into(),
-            option_type: OptionType::Call,
-            notional: params.notional,
-            expiry: params.expiry,
-            exercise_style: SwaptionExercise::European,
-            settlement: SwaptionSettlement::Physical,
-            cash_settlement_method: CashSettlementMethod::default(),
-            vol_surface_id: vol_surface_id.into(),
-            underlying_fixed_leg,
-            underlying_float_leg,
-            instrument_pricing_overrides: Default::default(),
-            metric_pricing_overrides: Default::default(),
-            scenario_pricing_overrides: Default::default(),
-            sabr_params: None,
-            attributes: Attributes::default(),
-            vol_model: params.vol_model.unwrap_or_default(),
-        }
-    }
-
-    /// Create a new receiver swaption using parameter structs.
-    pub fn new_receiver(
-        id: impl Into<InstrumentId>,
-        params: &SwaptionParams,
-        discount_curve_id: impl Into<CurveId>,
-        forward_curve_id: impl Into<CurveId>,
-        vol_surface_id: impl Into<CurveId>,
-    ) -> Self {
-        let fixed_frequency = params.fixed_frequency.unwrap_or_else(Tenor::semi_annual);
-        let float_frequency = params.float_frequency.unwrap_or_else(Tenor::quarterly);
-        let fixed_day_count = params.fixed_day_count.unwrap_or(DayCount::Thirty360);
-        let float_day_count = params.float_day_count.unwrap_or(DayCount::Act360);
-        let (underlying_fixed_leg, underlying_float_leg) =
-            vanilla_underlier(VanillaSwaptionUnderlier {
-                strike: params.strike,
-                swap_start: params.swap_start,
-                swap_end: params.swap_end,
-                fixed_frequency,
-                float_frequency,
-                fixed_day_count,
-                float_day_count,
-                discount_curve_id: discount_curve_id.into(),
-                forward_curve_id: forward_curve_id.into(),
-                calendar_id: None,
-            });
-        Self {
-            id: id.into(),
-            option_type: OptionType::Put,
+            option_type: match params.side {
+                PayReceive::Pay => OptionType::Call,
+                PayReceive::Receive => OptionType::Put,
+            },
             notional: params.notional,
             expiry: params.expiry,
             exercise_style: SwaptionExercise::European,

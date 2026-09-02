@@ -196,6 +196,7 @@ mod tests {
         CapFloorVolType, OvernightCouponConvention, OvernightSpreadCompounding,
     };
     use crate::instruments::rates::irs::FloatingLegCompounding;
+    use crate::instruments::RateOptionType;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{DayCount, DayCountContext};
     use finstack_quant_core::market_data::context::MarketContext;
@@ -206,12 +207,14 @@ mod tests {
     use time::macros::date;
 
     fn compounded_sofr_caplet() -> CapFloor {
-        let mut caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new(
             "SOFR-CAPLET",
+            RateOptionType::Caplet,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date!(2025 - 01 - 02),
             date!(2025 - 04 - 02),
+            None,
             DayCount::Act360,
             "USD-OIS",
             "USD-SOFR-OIS",

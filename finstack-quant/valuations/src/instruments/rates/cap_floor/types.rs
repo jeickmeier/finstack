@@ -14,7 +14,6 @@ use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 
-use super::parameters::CapFloorParams;
 use crate::impl_instrument_base;
 
 /// Volatility convention for cap/floor pricing.
@@ -376,13 +375,14 @@ impl CapFloor {
             finstack_quant_core::Error::Validation(format!("Invalid example end date: {}", e))
         })?;
 
-        Self::new_cap(
+        Self::new(
             InstrumentId::new("IRCAP-USD-5Y-3PCT"),
+            RateOptionType::Cap,
             Money::new(10_000_000.0, Currency::USD),
             0.03,
             start,
             maturity,
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             CurveId::new("USD-OIS"),
             CurveId::new("USD-SOFR-3M"),
@@ -402,28 +402,58 @@ impl CapFloor {
             .ok_or(finstack_quant_core::InputError::ConversionOverflow.into())
     }
 
-    fn from_params(
+    /// Create a cap, floor, caplet or floorlet with the standard schedule
+    /// conventions (short-front stub, modified-following, no holiday calendar,
+    /// European exercise, cash settlement, zero spread).
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Instrument identifier.
+    /// * `rate_option_type` - Cap, Floor, Caplet or Floorlet.
+    /// * `notional` - Notional in the instrument currency.
+    /// * `strike` - Strike as a decimal rate (0.03 = 3%).
+    /// * `start_date` - Accrual start of the first period.
+    /// * `maturity` - Final payment date.
+    /// * `frequency` - Payment frequency used to generate the period schedule.
+    ///   `None` infers a single period spanning `[start_date, maturity]`
+    ///   (the caplet/floorlet convention).
+    /// * `day_count` - Accrual day-count convention for each period.
+    /// * `discount_curve_id` - Discount curve for payments.
+    /// * `forward_curve_id` - Projection curve for the underlying rate index.
+    /// * `vol_surface_id` - Cap/floor volatility surface.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `strike` is not representable as `Decimal`
+    /// (NaN or infinite).
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
         id: impl Into<InstrumentId>,
-        option_params: &CapFloorParams,
+        rate_option_type: RateOptionType,
+        notional: Money,
+        strike: f64,
         start_date: Date,
         maturity: Date,
+        frequency: Option<Tenor>,
+        day_count: DayCount,
         discount_curve_id: impl Into<CurveId>,
         forward_curve_id: impl Into<CurveId>,
         vol_surface_id: impl Into<CurveId>,
-    ) -> Self {
-        Self {
+    ) -> finstack_quant_core::Result<Self> {
+        Ok(Self {
             id: id.into(),
-            rate_option_type: option_params.rate_option_type,
-            notional: option_params.notional,
-            strike: option_params.strike,
+            rate_option_type,
+            notional,
+            strike: finstack_quant_core::decimal::f64_to_decimal(strike)?,
             spread: Decimal::ZERO,
             start_date,
             maturity,
-            frequency: option_params.frequency,
-            day_count: option_params.day_count,
-            stub: option_params.stub,
-            business_day_convention: option_params.business_day_convention,
-            calendar_id: option_params.calendar_id.map(CalendarId::new),
+            frequency: frequency
+                .unwrap_or_else(|| infer_single_period_frequency(start_date, maturity)),
+            day_count,
+            stub: StubKind::ShortFront,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: None,
             exercise_style: ExerciseStyle::European,
             settlement: SettlementType::Cash,
             discount_curve_id: discount_curve_id.into(),
@@ -437,135 +467,7 @@ impl CapFloor {
             metric_pricing_overrides: Default::default(),
             scenario_pricing_overrides: Default::default(),
             attributes: Attributes::new(),
-        }
-    }
-
-    /// Create a cap instrument using parameter structs.
-    ///
-    /// Returns an error if the strike value is not representable as `Decimal` (e.g., NaN or Inf).
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_cap(
-        id: impl Into<InstrumentId>,
-        notional: Money,
-        strike: f64,
-        start_date: Date,
-        maturity: Date,
-        frequency: Tenor,
-        day_count: DayCount,
-        discount_curve_id: impl Into<CurveId>,
-        forward_curve_id: impl Into<CurveId>,
-        vol_surface_id: impl Into<CurveId>,
-    ) -> finstack_quant_core::Result<Self> {
-        let option_params = CapFloorParams::cap(notional, strike, frequency, day_count)?;
-        Ok(Self::from_params(
-            id,
-            &option_params,
-            start_date,
-            maturity,
-            discount_curve_id.into(),
-            forward_curve_id.into(),
-            vol_surface_id,
-        ))
-    }
-
-    /// Create a floor instrument using parameter structs.
-    ///
-    /// Returns an error if the strike value is not representable as `Decimal` (e.g., NaN or Inf).
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_floor(
-        id: impl Into<InstrumentId>,
-        notional: Money,
-        strike: f64,
-        start_date: Date,
-        maturity: Date,
-        frequency: Tenor,
-        day_count: DayCount,
-        discount_curve_id: impl Into<CurveId>,
-        forward_curve_id: impl Into<CurveId>,
-        vol_surface_id: impl Into<CurveId>,
-    ) -> finstack_quant_core::Result<Self> {
-        let option_params = CapFloorParams::floor(notional, strike, frequency, day_count)?;
-        Ok(Self::from_params(
-            id,
-            &option_params,
-            start_date,
-            maturity,
-            discount_curve_id.into(),
-            forward_curve_id.into(),
-            vol_surface_id,
-        ))
-    }
-
-    /// Create a single-period caplet instrument.
-    ///
-    /// Returns an error if the strike value is not representable as `Decimal` (e.g., NaN or Inf).
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_caplet(
-        id: impl Into<InstrumentId>,
-        notional: Money,
-        strike: f64,
-        start_date: Date,
-        maturity: Date,
-        day_count: DayCount,
-        discount_curve_id: impl Into<CurveId>,
-        forward_curve_id: impl Into<CurveId>,
-        vol_surface_id: impl Into<CurveId>,
-    ) -> finstack_quant_core::Result<Self> {
-        let option_params = CapFloorParams {
-            rate_option_type: RateOptionType::Caplet,
-            notional,
-            strike: finstack_quant_core::decimal::f64_to_decimal(strike)?,
-            frequency: infer_single_period_frequency(start_date, maturity),
-            day_count,
-            stub: StubKind::ShortFront,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: None,
-        };
-        Ok(Self::from_params(
-            id,
-            &option_params,
-            start_date,
-            maturity,
-            discount_curve_id.into(),
-            forward_curve_id.into(),
-            vol_surface_id,
-        ))
-    }
-
-    /// Create a single-period floorlet instrument.
-    ///
-    /// Returns an error if the strike value is not representable as `Decimal` (e.g., NaN or Inf).
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_floorlet(
-        id: impl Into<InstrumentId>,
-        notional: Money,
-        strike: f64,
-        start_date: Date,
-        maturity: Date,
-        day_count: DayCount,
-        discount_curve_id: impl Into<CurveId>,
-        forward_curve_id: impl Into<CurveId>,
-        vol_surface_id: impl Into<CurveId>,
-    ) -> finstack_quant_core::Result<Self> {
-        let option_params = CapFloorParams {
-            rate_option_type: RateOptionType::Floorlet,
-            notional,
-            strike: finstack_quant_core::decimal::f64_to_decimal(strike)?,
-            frequency: infer_single_period_frequency(start_date, maturity),
-            day_count,
-            stub: StubKind::ShortFront,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: None,
-        };
-        Ok(Self::from_params(
-            id,
-            &option_params,
-            start_date,
-            maturity,
-            discount_curve_id.into(),
-            forward_curve_id.into(),
-            vol_surface_id,
-        ))
+        })
     }
 
     pub(crate) fn resolved_schedule_calendar_id(&self) -> finstack_quant_core::Result<&str> {
@@ -706,7 +608,7 @@ impl CapFloor {
     /// # Example
     ///
     /// ```
-    /// use finstack_quant_valuations::instruments::rates::cap_floor::{CapFloor, CapFloorVolType};
+    /// use finstack_quant_valuations::instruments::rates::cap_floor::{CapFloor, CapFloorVolType, RateOptionType};
     /// use finstack_quant_core::currency::Currency;
     /// use finstack_quant_core::dates::{create_date, DayCount, Tenor};
     /// use finstack_quant_core::money::Money;
@@ -716,13 +618,14 @@ impl CapFloor {
     /// # fn main() -> finstack_quant_core::Result<()> {
     /// // Create a floor with normal volatility for EUR market (ACT/360 is the standard day count
     /// // for EUR ESTR/EURIBOR caps and floors per ISDA conventions).
-    /// let floor = CapFloor::new_floor(
+    /// let floor = CapFloor::new(
     ///     InstrumentId::new("EUR-FLOOR-001"),
+    ///     RateOptionType::Floor,
     ///     Money::new(1_000_000.0, Currency::EUR),
     ///     0.02,
     ///     create_date(2026, Month::January, 1)?,
     ///     create_date(2027, Month::January, 1)?,
-    ///     Tenor::quarterly(),
+    ///     Some(Tenor::quarterly()),
     ///     DayCount::Act360,
     ///     CurveId::new("EUR-OIS"),
     ///     CurveId::new("EUR-ESTR-3M"),
@@ -1051,13 +954,14 @@ mod tests {
         let ctx = test_market_context(base_date);
 
         // Create cap and floor with identical parameters
-        let cap = CapFloor::new_cap(
+        let cap = CapFloor::new(
             "TEST-CAP",
+            RateOptionType::Cap,
             notional,
             strike,
             start_date,
             end_date,
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-3M",
@@ -1065,13 +969,14 @@ mod tests {
         )
         .expect("valid strike");
 
-        let floor = CapFloor::new_floor(
+        let floor = CapFloor::new(
             "TEST-FLOOR",
+            RateOptionType::Floor,
             notional,
             strike,
             start_date,
             end_date,
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-3M",
@@ -1160,13 +1065,14 @@ mod tests {
         let strikes = [0.02, 0.04, forward_approx, 0.05, 0.08];
 
         for &strike in &strikes {
-            let cap = CapFloor::new_cap(
+            let cap = CapFloor::new(
                 format!("CAP-{}", strike),
+                RateOptionType::Cap,
                 notional,
                 strike,
                 start_date,
                 end_date,
-                Tenor::quarterly(),
+                Some(Tenor::quarterly()),
                 DayCount::Act360,
                 "TEST-DISC",
                 "USD-SOFR-3M",
@@ -1174,13 +1080,14 @@ mod tests {
             )
             .expect("valid strike");
 
-            let floor = CapFloor::new_floor(
+            let floor = CapFloor::new(
                 format!("FLOOR-{}", strike),
+                RateOptionType::Floor,
                 notional,
                 strike,
                 start_date,
                 end_date,
-                Tenor::quarterly(),
+                Some(Tenor::quarterly()),
                 DayCount::Act360,
                 "TEST-DISC",
                 "USD-SOFR-3M",
@@ -1245,13 +1152,14 @@ mod tests {
         ctx = ctx.insert_surface(normal_vol_surface);
 
         // Build a floorlet with negative forward using normal vol surface.
-        let normal_floorlet = CapFloor::new_floor(
+        let normal_floorlet = CapFloor::new(
             "NORM-FLOORLET",
+            RateOptionType::Floor,
             notional,
             0.0,
             start_date,
             end_date,
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-3M",
@@ -1260,13 +1168,14 @@ mod tests {
         .expect("valid strike")
         .with_vol_type(CapFloorVolType::Normal);
 
-        let black_floorlet = CapFloor::new_floor(
+        let black_floorlet = CapFloor::new(
             "BLACK-FLOORLET",
+            RateOptionType::Floor,
             notional,
             0.0,
             start_date,
             end_date,
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-3M",
@@ -1309,13 +1218,14 @@ mod tests {
 
     #[test]
     fn payment_lag_resolution_uses_convention_or_fallback() {
-        let instrument_with_unknown_index = CapFloor::new_cap(
+        let instrument_with_unknown_index = CapFloor::new(
             "CAP-LAG-UNKNOWN",
+            RateOptionType::Cap,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2024, 3, 1),
             date(2025, 3, 1),
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "DOES-NOT-EXIST",
@@ -1328,13 +1238,14 @@ mod tests {
             "Unknown index should default to zero payment lag"
         );
 
-        let instrument_with_convention = CapFloor::new_cap(
+        let instrument_with_convention = CapFloor::new(
             "CAP-LAG-CONVENTION",
+            RateOptionType::Cap,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2024, 3, 1),
             date(2025, 3, 1),
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-OIS",
@@ -1348,13 +1259,14 @@ mod tests {
     }
     #[test]
     fn expiry_is_last_term_fixing_not_maturity() {
-        let cap = CapFloor::new_cap(
+        let cap = CapFloor::new(
             "CAP-EXPIRY",
+            RateOptionType::Cap,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2024, 3, 1),
             date(2025, 3, 1),
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-3M",
@@ -1373,13 +1285,14 @@ mod tests {
 
     #[test]
     fn overnight_expiry_respects_rate_cutoff() {
-        let mut cap = CapFloor::new_cap(
+        let mut cap = CapFloor::new(
             "RFR-CAP-EXPIRY",
+            RateOptionType::Cap,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2024, 3, 1),
             date(2025, 3, 1),
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "USD-SOFR-OIS",
             "USD-SOFR-OIS",
@@ -1418,13 +1331,14 @@ mod tests {
         let as_of = date(2024, 1, 1);
         let payment_date = date(2024, 2, 1);
         let market = test_market_context(as_of);
-        let mut cap = CapFloor::new_cap(
+        let mut cap = CapFloor::new(
             "CAP-WITH-PREMIUM",
+            RateOptionType::Cap,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2024, 3, 1),
             date(2025, 3, 1),
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-3M",
@@ -1448,13 +1362,14 @@ mod tests {
     fn settled_premium_is_excluded_and_currency_is_validated() {
         let as_of = date(2024, 1, 1);
         let market = test_market_context(as_of);
-        let mut cap = CapFloor::new_cap(
+        let mut cap = CapFloor::new(
             "CAP-PREMIUM-CONTRACT",
+            RateOptionType::Cap,
             Money::new(1_000_000.0, Currency::USD),
             0.04,
             date(2024, 3, 1),
             date(2025, 3, 1),
-            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
             DayCount::Act360,
             "TEST-DISC",
             "USD-SOFR-3M",

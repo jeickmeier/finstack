@@ -153,12 +153,14 @@ fn test_cap_delta_finite() {
 #[test]
 fn same_day_caplet_has_zero_stochastic_delta() {
     let as_of = date!(2024 - 03 - 01);
-    let caplet = CapFloor::new_caplet(
+    let caplet = CapFloor::new(
         "SAME-DAY-FIXED-DELTA",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.05,
         as_of,
         date!(2024 - 06 - 01),
+        None,
         DayCount::Act360,
         "USD_OIS",
         "USD_LIBOR_3M",
@@ -449,12 +451,14 @@ fn test_caplet_delta() {
 #[test]
 fn compounded_sofr_delta_matches_parallel_forward_finite_difference() {
     let as_of = date!(2024 - 12 - 02);
-    let mut caplet = CapFloor::new_caplet(
+    let mut caplet = CapFloor::new(
         "SOFR-DELTA",
+        RateOptionType::Caplet,
         Money::new(1_000_000.0, Currency::USD),
         0.04,
         date!(2025 - 01 - 02),
         date!(2025 - 04 - 02),
+        None,
         DayCount::Act360,
         "USD_OIS",
         "USD-SOFR-OIS",

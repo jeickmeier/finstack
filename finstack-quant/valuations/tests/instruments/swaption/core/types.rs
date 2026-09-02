@@ -2,6 +2,8 @@
 
 #![allow(clippy::unwrap_used)]
 
+use finstack_quant_valuations::instruments::OptionType;
+
 use crate::swaption::common::*;
 use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::dates::{Tenor, TenorUnit};
@@ -215,8 +217,9 @@ fn test_bermudan_swaption_schedule_and_conversion() {
     let swap_end = date!(2030 - 01 - 01);
     let first_ex = date!(2026 - 01 - 01);
 
-    let swaption = BermudanSwaption::new_payer(
+    let swaption = BermudanSwaption::new(
         "BERM-TEST",
+        OptionType::Call,
         finstack_quant_core::money::Money::new(
             1_000_000.0,
             finstack_quant_core::currency::Currency::USD,
@@ -265,8 +268,9 @@ fn test_bermudan_builder_helpers_and_time_accessors() {
     let first_ex = date!(2026 - 01 - 01);
     let schedule = BermudanSchedule::co_terminal(first_ex, swap_end, Tenor::semi_annual()).unwrap();
 
-    let berm = BermudanSwaption::new_receiver(
+    let berm = BermudanSwaption::new(
         "BERM-BUILDER",
+        OptionType::Put,
         finstack_quant_core::money::Money::new(
             2_000_000.0,
             finstack_quant_core::currency::Currency::USD,

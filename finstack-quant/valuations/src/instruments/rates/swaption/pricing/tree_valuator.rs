@@ -419,8 +419,9 @@ mod tests {
         let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("Valid date");
         let first_exercise = Date::from_calendar_date(2026, Month::January, 1).expect("Valid date");
 
-        BermudanSwaption::new_payer(
+        BermudanSwaption::new(
             "TEST-BERM",
+            OptionType::Call,
             Money::new(10_000_000.0, Currency::USD),
             0.03,
             swap_start,

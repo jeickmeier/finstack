@@ -304,7 +304,7 @@ fn calibrated_swaption_surface_is_not_silently_reused_as_strike_surface() {
     .with_fixed_day_count(DayCount::Thirty360)
     .with_float_day_count(DayCount::Act360)
     .with_vol_model(VolatilityModel::Normal);
-    let swaption = Swaption::new_payer("SWPT-1Yx5Y", &params, "USD-OIS", "USD-SOFR-3M", "USD-SWPT");
+    let swaption = Swaption::new("SWPT-1Yx5Y", &params, "USD-OIS", "USD-SOFR-3M", "USD-SWPT");
 
     // With VolCube calibration, the vol cube is stored separately from surfaces.
     // The SimpleSwaptionBlackPricer uses the valuations volatility resolver,

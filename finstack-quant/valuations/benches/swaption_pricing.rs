@@ -46,7 +46,7 @@ fn create_swaption(expiry_months: i64, swap_tenor_years: i32) -> Swaption {
         vol_model: None,
     };
 
-    Swaption::new_payer(
+    Swaption::new(
         format!("SWAPTION-{}Mx{}Y", expiry_months, swap_tenor_years),
         &params,
         "USD-OIS",

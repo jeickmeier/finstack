@@ -82,7 +82,7 @@ pub fn create_standard_payer_swaption(
     .with_float_frequency(Tenor::quarterly())
     .with_fixed_day_count(DayCount::Thirty360)
     .with_float_day_count(DayCount::Act360);
-    let mut swaption = Swaption::new_payer(
+    let mut swaption = Swaption::new(
         "SWAPTION_TEST",
         &params,
         "USD_OIS",

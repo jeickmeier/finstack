@@ -6,6 +6,8 @@ mod test_utils {
     ));
 }
 
+use finstack_quant_valuations::instruments::RateOptionType;
+
 use super::shifts::*;
 use super::*;
 use finstack_quant_core::config::FinstackConfig;
@@ -863,13 +865,14 @@ fn hw1f_cap_surface_shock_does_not_affect_explicit_parameter_pricing() {
 
     let as_of_t0 = date!(2024 - 01 - 01);
     let as_of_t1 = date!(2024 - 01 - 02);
-    let mut cap = CapFloor::new_cap(
+    let mut cap = CapFloor::new(
         "HW-SURFACE-CAP",
+        RateOptionType::Cap,
         Money::new(1_000_000.0, Currency::USD),
         0.05,
         date!(2024 - 04 - 01),
         date!(2029 - 04 - 01),
-        Tenor::quarterly(),
+        Some(Tenor::quarterly()),
         DayCount::Act365F,
         "USD-OIS",
         "USD-LIBOR-3M",

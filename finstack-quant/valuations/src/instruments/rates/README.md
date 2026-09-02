@@ -63,7 +63,7 @@ BermudanSwaptionTreeValuator, SimpleSwaptionBlackPricer, SimpleSwaptionNormalPri
 `xccy_swap::{LegSide, NotionalExchange, ResettingSide,
 XccySwapLeg}`, `cms_swap::{FundingLeg, FundingLegSpec}`,
 `deposit::ConventionDepositParams`, `fra::ConventionFraParams`,
-`ir_future::FutureContractSpecs`, `cap_floor::CapFloorParams`, and `hw1f`.
+`ir_future::FutureContractSpecs`, and `hw1f`.
 Reusable `HullWhiteParams` and Hull-White equations live at
 `finstack_quant_models::rates::hull_white`.
 
