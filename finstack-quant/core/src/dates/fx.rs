@@ -42,8 +42,8 @@
 
 use crate::currency::Currency;
 use crate::dates::{
-    adjust, available_calendars, calendar_by_id, BusinessDayConvention, CompositeCalendar, Date,
-    HolidayCalendar, WEEKENDS_ONLY,
+    adjust, calendar_by_id_strict, BusinessDayConvention, CompositeCalendar, Date, HolidayCalendar,
+    WEEKENDS_ONLY,
 };
 use crate::{Error, Result};
 use time::Duration;
@@ -99,20 +99,11 @@ pub fn fx_standard_spot_lag_days(base: Currency, quote: Currency) -> u32 {
 /// * `cal_id` - Optional canonical calendar ID. `None` explicitly selects the
 ///   weekends-only calendar; an unrecognized ID returns an error.
 pub fn resolve_calendar(cal_id: Option<&str>) -> Result<&'static dyn HolidayCalendar> {
-    if let Some(id) = cal_id {
-        if let Some(resolved) = calendar_by_id(id) {
-            return Ok(resolved);
-        }
-
-        // Error instead of silent fallback
-        return Err(Error::calendar_not_found_with_suggestions(
-            id,
-            available_calendars(),
-        ));
+    match cal_id {
+        Some(id) => calendar_by_id_strict(id),
+        // Only use weekends_only if explicitly None (not as fallback)
+        None => Ok(&WEEKENDS_ONLY),
     }
-
-    // Only use weekends_only if explicitly None (not as fallback)
-    Ok(&WEEKENDS_ONLY)
 }
 
 fn with_joint_calendar<R>(

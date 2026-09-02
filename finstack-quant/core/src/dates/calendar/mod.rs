@@ -124,6 +124,26 @@ mod calendars_generated {
 
 pub use calendars_generated::*;
 
+/// Resolve a calendar ID strictly, naming close matches on a miss.
+///
+/// This is the one resolver behind every optional-calendar API in the
+/// workspace; use it instead of pairing [`calendar_by_id`] with
+/// `Error::calendar_not_found_with_suggestions` by hand.
+///
+/// # Arguments
+///
+/// * `id` - Canonical lowercase calendar identifier (for example `"nyse"` or
+///   `"target2"`); see [`available_calendars`] for the registry.
+///
+/// # Errors
+///
+/// Returns `InputError::CalendarNotFound` carrying fuzzy suggestions drawn
+/// from [`available_calendars`] when `id` is not a built-in calendar.
+pub fn calendar_by_id_strict(id: &str) -> crate::Result<&'static dyn HolidayCalendar> {
+    calendar_by_id(id)
+        .ok_or_else(|| crate::Error::calendar_not_found_with_suggestions(id, available_calendars()))
+}
+
 /// Shared calendar that treats only Saturdays and Sundays as non-business days.
 ///
 /// This is the explicit fallback for APIs whose calendar identifier is optional.
@@ -144,13 +164,6 @@ pub fn calendars_by_ids(
     ids: &[crate::types::CalendarId],
 ) -> crate::Result<Vec<&'static dyn HolidayCalendar>> {
     ids.iter()
-        .map(|id| {
-            calendar_by_id(id.as_str()).ok_or_else(|| {
-                crate::Error::calendar_not_found_with_suggestions(
-                    id.as_str(),
-                    available_calendars(),
-                )
-            })
-        })
+        .map(|id| calendar_by_id_strict(id.as_str()))
         .collect()
 }

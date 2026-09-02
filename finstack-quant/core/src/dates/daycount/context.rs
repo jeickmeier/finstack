@@ -2,7 +2,7 @@
 
 use time::Date;
 
-use crate::dates::{available_calendars, calendar_by_id, HolidayCalendar, Tenor};
+use crate::dates::{calendar_by_id_strict, HolidayCalendar, Tenor};
 
 /// Optional context for day-count year-fraction calculations.
 ///
@@ -98,11 +98,7 @@ impl DayCountContextState {
         let calendar = self
             .calendar_id
             .as_deref()
-            .map(|code| {
-                calendar_by_id(code).ok_or_else(|| {
-                    crate::Error::calendar_not_found_with_suggestions(code, available_calendars())
-                })
-            })
+            .map(calendar_by_id_strict)
             .transpose()?;
         Ok(DayCountContext {
             calendar,

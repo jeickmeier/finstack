@@ -86,7 +86,7 @@ pub use calendar::business_days::{
 
 // The canonical public discovery helper
 pub use calendar::business_days::available_calendars;
-pub use calendar::{calendar_by_id, calendars_by_ids, WEEKENDS_ONLY};
+pub use calendar::{calendar_by_id, calendar_by_id_strict, calendars_by_ids, WEEKENDS_ONLY};
 
 mod schedule;
 

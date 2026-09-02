@@ -4,9 +4,7 @@
 //! a dedicated weekends-only calendar for cases without holiday rules.
 
 use finstack_quant_core::dates::{adjust, BusinessDayConvention, Date};
-use finstack_quant_core::dates::{
-    available_calendars, calendar_by_id, HolidayCalendar, WEEKENDS_ONLY,
-};
+use finstack_quant_core::dates::{calendar_by_id_strict, HolidayCalendar, WEEKENDS_ONLY};
 
 /// Canonical ID for the weekends-only calendar.
 pub const WEEKENDS_ONLY_ID: &str = "weekends_only";
@@ -50,12 +48,7 @@ pub fn resolve_calendar_strict(
     if calendar_id == WEEKENDS_ONLY_ID {
         return Ok(&WEEKENDS_ONLY);
     }
-    calendar_by_id(calendar_id).ok_or_else(|| {
-        finstack_quant_core::Error::calendar_not_found_with_suggestions(
-            calendar_id,
-            available_calendars(),
-        )
-    })
+    calendar_by_id_strict(calendar_id)
 }
 
 /// Adjust a single date using the strict calendar policy.

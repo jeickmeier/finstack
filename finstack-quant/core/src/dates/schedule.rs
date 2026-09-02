@@ -891,7 +891,7 @@ impl<'a> ScheduleBuilder<'a> {
 
     /// Internal implementation of schedule building.
     fn build_impl(self) -> crate::Result<Schedule> {
-        use super::calendar::calendar_by_id;
+        use super::calendar::calendar_by_id_strict;
 
         if self.start > self.end {
             return Err(crate::error::InputError::InvalidDateRange.into());
@@ -902,26 +902,20 @@ impl<'a> ScheduleBuilder<'a> {
         // Resolve pending calendar ID if present, otherwise use directly provided calendar
         let resolved_cal: Option<&dyn HolidayCalendar> =
             if let Some(ref calendar_id) = self.deferred_calendar_id {
-                match calendar_by_id(calendar_id) {
-                    Some(cal) => Some(cal),
-                    None => {
-                        if self.error_policy == ScheduleErrorPolicy::MissingCalendarWarning {
-                            tracing::warn!(
-                                calendar_id,
-                                "schedule build skipped missing calendar due to warning policy"
-                            );
-                            warnings.push(ScheduleWarning::MissingCalendarId {
-                                calendar_id: calendar_id.clone(),
-                            });
-                            None
-                        } else {
-                            // Strict mode: error on missing calendar
-                            return Err(crate::error::Error::calendar_not_found_with_suggestions(
-                                calendar_id.clone(),
-                                super::available_calendars(),
-                            ));
-                        }
+                match calendar_by_id_strict(calendar_id) {
+                    Ok(cal) => Some(cal),
+                    Err(_) if self.error_policy == ScheduleErrorPolicy::MissingCalendarWarning => {
+                        tracing::warn!(
+                            calendar_id,
+                            "schedule build skipped missing calendar due to warning policy"
+                        );
+                        warnings.push(ScheduleWarning::MissingCalendarId {
+                            calendar_id: calendar_id.clone(),
+                        });
+                        None
                     }
+                    // Strict mode: error on missing calendar
+                    Err(err) => return Err(err),
                 }
             } else {
                 self.cal
