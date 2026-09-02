@@ -6,7 +6,7 @@ use super::{
 };
 use crate::constants::DECIMAL_TO_PERCENT;
 use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
-use finstack_quant_core::dates::{BusinessDayConvention, Date};
+use finstack_quant_core::dates::BusinessDayConvention;
 use finstack_quant_core::money::Money;
 use indexmap::IndexMap;
 
@@ -297,11 +297,6 @@ impl StructuredCredit {
                 / original_balance
                 * DECIMAL_TO_PERCENT,
         )
-    }
-
-    /// Calculate expected life of the structure.
-    pub fn expected_life(&self, as_of: Date) -> finstack_quant_core::Result<f64> {
-        Ok(self.pool.weighted_avg_maturity(as_of))
     }
 
     /// Create waterfall from instrument configuration.

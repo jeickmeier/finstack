@@ -210,15 +210,6 @@ impl CoverageTestConfig {
         self.ic_triggers.insert(tranche_id.into(), trigger_level);
         Ok(self)
     }
-
-    /// Set custom haircuts
-    pub fn with_haircuts<I>(mut self, haircuts: I) -> Self
-    where
-        I: IntoIterator<Item = (CreditRating, f64)>,
-    {
-        self.haircuts = haircuts.into_iter().collect();
-        self
-    }
 }
 
 impl Default for CoverageTestConfig {

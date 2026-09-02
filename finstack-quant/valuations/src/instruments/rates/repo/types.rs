@@ -7,7 +7,7 @@ use crate::instruments::common_impl::traits::{Attributes, Instrument};
 use finstack_quant_core::dates::{adjust, BusinessDayConvention, Date, DateExt, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{Bps, CalendarId, CurveId, InstrumentId};
+use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use finstack_quant_core::{Error, Result};
 use finstack_quant_margin::RepoMarginSpec;
 use rust_decimal::Decimal;
@@ -114,25 +114,6 @@ impl CollateralSpec {
             collateral_type: CollateralType::Special {
                 security_id: security_id.into(),
                 rate_adjustment_bp,
-            },
-            instrument_id: instrument_id.into(),
-            quantity,
-            market_value_id: market_value_id.into(),
-        }
-    }
-
-    /// Create special collateral specification using a typed rate adjustment in bp.
-    pub fn special_bp(
-        security_id: impl Into<String>,
-        instrument_id: impl Into<String>,
-        quantity: f64,
-        market_value_id: impl Into<String>,
-        rate_adjustment_bp: Option<Bps>,
-    ) -> Self {
-        Self {
-            collateral_type: CollateralType::Special {
-                security_id: security_id.into(),
-                rate_adjustment_bp: rate_adjustment_bp.map(|bp| bp.as_bp() as f64),
             },
             instrument_id: instrument_id.into(),
             quantity,

@@ -90,24 +90,6 @@ impl PoStripCharacteristics {
     }
 }
 
-/// Calculate IO/PO split from passthrough.
-///
-/// Given a passthrough coupon, splits into IO (interest) and PO (principal).
-///
-/// # Arguments
-///
-/// * `face_amount` - Underlying pool face amount assigned in full to both the
-///   IO interest notional and the PO principal claim.
-///
-/// # Returns
-///
-/// (io_notional, po_face) tuple
-pub fn split_io_po(face_amount: f64) -> (f64, f64) {
-    // IO notional is same as face (interest calculated on this)
-    // PO face is same as original face (receives all principal)
-    (face_amount, face_amount)
-}
-
 /// Scheduled (level-pay) principal for one month of a fully-amortizing pool.
 ///
 /// With a positive monthly mortgage rate this is the standard annuity principal

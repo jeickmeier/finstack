@@ -88,7 +88,7 @@ impl IndexationMethod {
     ///
     /// When pricing UK Index-Linked Gilts, verify the bond's issue date:
     /// - Use [`new_uk_linker`](InflationLinkedBond::new_uk_linker) for legacy (8-month lag)
-    /// - Use [`new_uk_linker_modern`](InflationLinkedBond::new_uk_linker_modern) for modern (3-month lag)
+    /// - Build modern (3-month lag) gilts with [`InflationLinkedBond::builder`]
     pub fn standard_lag(&self) -> InflationLag {
         match self {
             IndexationMethod::Uk => InflationLag::Months(8), // Legacy UK Gilts (pre-Sep 2005)
@@ -528,7 +528,7 @@ impl InflationLinkedBond {
     ///
     /// This constructor creates a linker with the **8-month lag** convention used for
     /// UK Index-Linked Gilts issued **before September 2005**. For gilts issued on or
-    /// after September 2005, use [`new_uk_linker_modern`](Self::new_uk_linker_modern).
+    /// after September 2005, build with a 3-month lag via [`Self::builder`].
     ///
     /// # Market Conventions (Legacy UK Index-Linked Gilt)
     ///
@@ -605,186 +605,6 @@ impl InflationLinkedBond {
             business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
-            discount_curve_id: discount_curve_id.into(),
-            inflation_index_id: inflation_index_id.into(),
-            quoted_clean: None,
-            instrument_pricing_overrides: Default::default(),
-            metric_pricing_overrides: Default::default(),
-            scenario_pricing_overrides: Default::default(),
-            attributes: Attributes::new(),
-        }
-    }
-
-    /// Create a **modern** UK Index-Linked Gilt (September 2005 onwards) using parameter structs.
-    ///
-    /// # Market Conventions (Modern UK Index-Linked Gilt)
-    ///
-    /// UK Index-Linked Gilts issued on or after **September 2005** adopted a new
-    /// indexation methodology aligned with international standards (TIPS, Canadian RRBs):
-    ///
-    /// - **Day Count**: User-specified (typically ACT/ACT ICMA)
-    /// - **Frequency**: User-specified (typically semi-annual)
-    /// - **Indexation Lag**: 3 months (changed from 8 months)
-    /// - **Interpolation**: Linear (daily interpolation between monthly readings)
-    /// - **Deflation Protection**: None (no floor)
-    /// - **Index**: UK RPI (Retail Price Index)
-    ///
-    /// # Why the Change?
-    ///
-    /// The UK Debt Management Office (DMO) changed the indexation methodology to:
-    /// 1. Improve pricing transparency with daily accruals
-    /// 2. Align with international inflation-linked bond standards
-    /// 3. Reduce basis risk vs TIPS and other linkers
-    ///
-    /// # Example Modern Gilts
-    ///
-    /// - 0.125% IL Treasury Gilt 2024 (ISIN: GB00B3LZBF68)
-    /// - 0.125% IL Treasury Gilt 2029 (ISIN: GB00B3Y1JG82)
-    /// - 0.625% IL Treasury Gilt 2040 (ISIN: GB00B3MYD345)
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::fixed_income::inflation_linked_bond::{
-    ///     InflationLinkedBond, InflationLinkedBondParams,
-    /// };
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::dates::{DayCount, Tenor};
-    /// use finstack_quant_core::money::Money;
-    /// use rust_decimal::Decimal;
-    /// use time::macros::date;
-    ///
-    /// let params = InflationLinkedBondParams {
-    ///     notional: Money::new(1_000_000.0, Currency::GBP),
-    ///     real_coupon: Decimal::try_from(0.00125).unwrap(),
-    ///     frequency: Tenor::semi_annual(),
-    ///     day_count: DayCount::ActActIsma,
-    ///     issue: date!(2019-11-22),  // Post-2005 issue
-    ///     maturity: date!(2029-11-22),
-    ///     base_index: 294.318,  // RPI at issue
-    /// };
-    ///
-    /// let gilt = InflationLinkedBond::new_uk_linker_modern(
-    ///     "UKTI-2029",
-    ///     &params,
-    ///     "GBP-NOMINAL",
-    ///     "UK-RPI",
-    /// );
-    /// ```
-    ///
-    /// # Production Note
-    ///
-    /// When pricing modern UK gilts, ensure the inflation index provided uses
-    /// **linear interpolation** (daily), not step interpolation. The pricer will
-    /// validate this at runtime.
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - Stable string identifier used for lookup and serialization of this object
-    /// * `bond_params` - Bond params used by the algorithm, subject to the enclosing type invariants and documented units.
-    /// * `discount_curve_id` - Identifier of the discount curve used for present-value calculations.
-    /// * `inflation_index_id` - Identifier of the inflation index used for fixing lookup.
-    pub fn new_uk_linker_modern(
-        id: impl Into<InstrumentId>,
-        bond_params: &InflationLinkedBondParams,
-        discount_curve_id: impl Into<CurveId>,
-        inflation_index_id: impl Into<CurveId>,
-    ) -> Self {
-        Self {
-            id: id.into(),
-            notional: bond_params.notional,
-            real_coupon: bond_params.real_coupon,
-            frequency: bond_params.frequency,
-            day_count: bond_params.day_count,
-            issue_date: bond_params.issue,
-            maturity: bond_params.maturity,
-            base_index: bond_params.base_index,
-            base_date: bond_params.issue, // Modern gilts use issue date as base
-            indexation_method: IndexationMethod::Uk,
-            lag: IndexationMethod::Uk.standard_lag_modern(), // 3-month lag for modern gilts
-            deflation_protection: DeflationProtection::None,
-            business_day_convention: BusinessDayConvention::Following,
-            stub: StubKind::None,
-            calendar_id: None,
-            discount_curve_id: discount_curve_id.into(),
-            inflation_index_id: inflation_index_id.into(),
-            quoted_clean: None,
-            instrument_pricing_overrides: Default::default(),
-            metric_pricing_overrides: Default::default(),
-            scenario_pricing_overrides: Default::default(),
-            attributes: Attributes::new(),
-        }
-    }
-
-    /// Create a new Japanese Government Inflation-Linked Bond (JGBi) using parameter structs
-    ///
-    /// # Market Conventions (JGBi)
-    ///
-    /// - **Day Count**: ACT/365F (per MOF Japan standards)
-    /// - **Frequency**: Semi-annual
-    /// - **Indexation Lag**: 3 months
-    /// - **Interpolation**: Linear (daily-interpolated reference CPI)
-    /// - **Deflation Protection**: Maturity only (principal floor at par)
-    /// - **Index**: Japan CPI (ex-fresh food)
-    ///
-    /// JGBi issued from March 2004 onward compute a daily-interpolated
-    /// reference CPI with a 3-month lag, the same convention as US TIPS
-    /// (Japan Ministry of Finance, "Inflation-Indexed Bonds" issuance terms).
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - Unique instrument identifier
-    /// * `bond_params` - Bond parameters (notional, coupon, dates, base_index)
-    /// * `discount_curve_id` - Nominal discount curve identifier (the schedule
-    ///   contains inflation-projected nominal cashflows)
-    /// * `inflation_index_id` - Japan CPI index identifier
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::fixed_income::inflation_linked_bond::{
-    ///     InflationLinkedBond, InflationLinkedBondParams,
-    /// };
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::dates::{DayCount, Tenor};
-    /// use finstack_quant_core::money::Money;
-    /// use rust_decimal::Decimal;
-    /// use time::macros::date;
-    ///
-    /// let params = InflationLinkedBondParams {
-    ///     notional: Money::new(100_000_000.0, Currency::JPY),
-    ///     real_coupon: Decimal::try_from(0.001).unwrap(),
-    ///     frequency: Tenor::semi_annual(),
-    ///     day_count: DayCount::Act365F,
-    ///     issue: date!(2024-03-10),
-    ///     maturity: date!(2034-03-10),
-    ///     base_index: 105.0,
-    /// };
-    ///
-    /// let jgbi = InflationLinkedBond::new_jgbi("JGBi-10Y", &params, "JPY-NOMINAL", "JP-CPI");
-    /// ```
-    pub fn new_jgbi(
-        id: impl Into<InstrumentId>,
-        bond_params: &InflationLinkedBondParams,
-        discount_curve_id: impl Into<CurveId>,
-        inflation_index_id: impl Into<CurveId>,
-    ) -> Self {
-        Self {
-            id: id.into(),
-            notional: bond_params.notional,
-            real_coupon: bond_params.real_coupon,
-            frequency: bond_params.frequency,
-            day_count: DayCount::Act365F, // JGB standard day count
-            issue_date: bond_params.issue,
-            maturity: bond_params.maturity,
-            base_index: bond_params.base_index,
-            base_date: bond_params.issue,
-            indexation_method: IndexationMethod::Japanese,
-            lag: IndexationMethod::Japanese.standard_lag(),
-            deflation_protection: DeflationProtection::MaturityOnly,
-            business_day_convention: BusinessDayConvention::Following,
-            stub: StubKind::None,
-            calendar_id: Some("jpto".into()),
             discount_curve_id: discount_curve_id.into(),
             inflation_index_id: inflation_index_id.into(),
             quoted_clean: None,

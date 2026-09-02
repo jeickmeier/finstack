@@ -14,8 +14,7 @@
 //! via the per-pool `payment_lag_days` override on `AgencyMbsPassthrough`.
 
 use crate::instruments::fixed_income::mbs_passthrough::AgencyProgram;
-use finstack_quant_core::dates::calendar::calendar_by_id;
-use finstack_quant_core::dates::{BusinessDayConvention, Date};
+use finstack_quant_core::dates::Date;
 use finstack_quant_core::Result;
 
 /// Get the standard payment delay in days for an agency program.
@@ -96,76 +95,6 @@ pub fn actual_payment_date(
         Ok(payment + Duration::days(adjustment))
     } else {
         Ok(payment)
-    }
-}
-
-/// Calculate payment date with calendar adjustment.
-///
-/// Uses a specific calendar for business day adjustment. The agency stated
-/// delay is measured from the **accrual period start**, so `accrual_start`
-/// should be the first day of the accrual period.
-///
-/// # Arguments
-///
-/// * `accrual_start` - Start (first day) of the accrual period
-/// * `agency` - Agency program (determines delay)
-/// * `calendar_id` - Calendar identifier for business day adjustment
-/// * `business_day_convention` - Business day convention
-///
-/// # Returns
-///
-/// Adjusted payment date
-pub fn payment_date_with_calendar(
-    accrual_start: Date,
-    agency: AgencyProgram,
-    calendar_id: Option<&str>,
-    business_day_convention: BusinessDayConvention,
-) -> Result<Date> {
-    use time::Duration;
-
-    let delay = agency.payment_lag_days();
-    let raw_payment = accrual_start + Duration::days(delay as i64);
-
-    // Use holiday calendar when provided; fall back to weekend-only adjustment.
-    if let Some(cal_id) = calendar_id {
-        if let Some(cal) = calendar_by_id(cal_id) {
-            return finstack_quant_core::dates::adjust(raw_payment, business_day_convention, cal);
-        }
-    }
-
-    // Weekend-only fallback
-    match business_day_convention {
-        BusinessDayConvention::Following => {
-            let weekday = raw_payment.weekday();
-            let adjustment = match weekday {
-                time::Weekday::Saturday => 2,
-                time::Weekday::Sunday => 1,
-                _ => 0,
-            };
-            Ok(raw_payment + Duration::days(adjustment))
-        }
-        BusinessDayConvention::ModifiedFollowing => {
-            // Same as Following, but roll back if crosses month boundary
-            let weekday = raw_payment.weekday();
-            let adjustment = match weekday {
-                time::Weekday::Saturday => 2,
-                time::Weekday::Sunday => 1,
-                _ => 0,
-            };
-            let adjusted = raw_payment + Duration::days(adjustment);
-            if adjusted.month() != raw_payment.month() {
-                // Roll back to previous business day
-                let back_adjustment = match weekday {
-                    time::Weekday::Saturday => -1,
-                    time::Weekday::Sunday => -2,
-                    _ => 0,
-                };
-                Ok(raw_payment + Duration::days(back_adjustment))
-            } else {
-                Ok(adjusted)
-            }
-        }
-        _ => Ok(raw_payment),
     }
 }
 
@@ -283,25 +212,5 @@ mod tests {
 
         // Approximate: exp(-0.05 * 25/365) ≈ 0.9966
         assert!((df - 0.9966).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_payment_date_with_calendar() {
-        // Accrual period start (first day of the accrual month).
-        let accrual_start = Date::from_calendar_date(2024, Month::January, 1).expect("valid");
-
-        // FNMA with Following convention
-        let payment = payment_date_with_calendar(
-            accrual_start,
-            AgencyProgram::Fnma,
-            None,
-            BusinessDayConvention::Following,
-        )
-        .expect("valid");
-
-        // Jan 1 + 55-day stated delay = Feb 25, 2024 (Sunday → Following rolls
-        // to Feb 26, Monday).
-        assert_eq!(payment.month(), Month::February);
-        assert_eq!(payment.day(), 26);
     }
 }

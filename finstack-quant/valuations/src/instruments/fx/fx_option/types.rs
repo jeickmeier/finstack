@@ -346,73 +346,6 @@ impl FxOption {
             .build()
     }
 
-    /// Create a European option from trade date using joint calendar spot roll and tenor.
-    ///
-    /// `spot_lag_days` defaults to T+2 in most markets. The expiry is rolled on the
-    /// joint base/quote calendars using the provided business day convention.
-    #[allow(clippy::too_many_arguments)]
-    pub fn european_from_trade_date(
-        id: impl Into<InstrumentId>,
-        base_currency: Currency,
-        quote_currency: Currency,
-        strike: f64,
-        trade_date: Date,
-        expiry_tenor_days: i64,
-        notional: Money,
-        vol_surface_id: impl Into<CurveId>,
-        base_calendar_id: Option<String>,
-        quote_calendar_id: Option<String>,
-        spot_lag_days: i32,
-        business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
-        option_type: OptionType,
-        delta_convention: FxDeltaConvention,
-    ) -> finstack_quant_core::Result<Self> {
-        use crate::instruments::common_impl::fx_dates::{
-            adjust_joint_calendar, fx_spot_date_for_pair,
-        };
-        // CLS-consistent spot roll: a US holiday on an intermediate day does not
-        // delay a USD pair's spot date (FX spot convention
-        // finding).
-        let spot_settle = fx_spot_date_for_pair(
-            trade_date,
-            spot_lag_days,
-            base_currency,
-            quote_currency,
-            base_calendar_id.as_deref(),
-            quote_calendar_id.as_deref(),
-        )?;
-        let expiry = adjust_joint_calendar(
-            spot_settle + time::Duration::days(expiry_tenor_days),
-            business_day_convention,
-            base_calendar_id.as_deref(),
-            quote_calendar_id.as_deref(),
-        )?;
-
-        let fx_underlying = if quote_currency == Currency::USD && base_currency == Currency::EUR {
-            FxUnderlyingParams::usd_eur()
-        } else if quote_currency == Currency::USD && base_currency == Currency::GBP {
-            FxUnderlyingParams::gbp_usd()
-        } else {
-            super::types::default_fx_underlying(base_currency, quote_currency)
-        };
-
-        Self::builder()
-            .id(id.into())
-            .base_currency(fx_underlying.base_currency)
-            .quote_currency(fx_underlying.quote_currency)
-            .strike(strike)
-            .option_type(option_type)
-            .delta_convention(delta_convention)
-            .expiry(expiry)
-            .day_count(finstack_quant_core::dates::DayCount::Act365F)
-            .notional(notional)
-            .domestic_discount_curve_id(fx_underlying.domestic_discount_curve_id.to_owned())
-            .foreign_discount_curve_id(fx_underlying.foreign_discount_curve_id)
-            .vol_surface_id(vol_surface_id.into())
-            .attributes(Attributes::new())
-            .build()
-    }
-
     /// Compute present value using Garman–Kohlhagen model.
     pub fn base_value(
         &self,
@@ -432,42 +365,6 @@ impl FxOption {
         pricer::implied_vol(self, curves, as_of, target_price)
     }
 
-    /// Calculate the at-the-money forward (ATMF) strike.
-    ///
-    /// The ATMF strike is the forward FX rate, calculated using covered interest
-    /// rate parity:
-    ///
-    /// ```text
-    /// K_ATMF = S × DF_foreign(T) / DF_domestic(T)
-    /// ```
-    ///
-    /// This is **not** the same as the Delta-Neutral Straddle (DNS) strike used
-    /// in professional FX markets. For precise ATM DNS, use [`atm_dns_strike_for_convention`](Self::atm_dns_strike_for_convention).
-    ///
-    /// # Arguments
-    ///
-    /// * `spot` - Current spot FX rate (domestic per foreign)
-    /// * `df_domestic` - Domestic discount factor to expiry
-    /// * `df_foreign` - Foreign discount factor to expiry
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use finstack_quant_valuations::instruments::fx::fx_option::FxOption;
-    ///
-    /// let spot = 1.10; // EUR/USD
-    /// let df_domestic = 0.97; // USD discount factor
-    /// let df_foreign = 0.98; // EUR discount factor
-    ///
-    /// let k_atmf = FxOption::atm_forward_strike(spot, df_domestic, df_foreign);
-    ///
-    /// // Forward premium for EUR vs USD.
-    /// assert!((k_atmf - 1.111).abs() < 1e-3);
-    /// ```
-    pub fn atm_forward_strike(spot: f64, df_domestic: f64, df_foreign: f64) -> f64 {
-        spot * df_foreign / df_domestic
-    }
-
     /// Calculate the Delta-Neutral Straddle (DNS) strike.
     ///
     /// The DNS strike is the strike where the call delta equals the negative of
@@ -485,7 +382,7 @@ impl FxOption {
     ///
     /// # Arguments
     ///
-    /// * `forward` - Forward FX rate (use [`atm_forward_strike`](Self::atm_forward_strike))
+    /// * `forward` - Forward FX rate `S · DF_foreign / DF_domestic`
     /// * `vol` - ATM volatility (decimal, e.g., 0.10 for 10%)
     /// * `time_to_expiry` - Time to expiry in years
     /// * `convention` - ATM delta convention determining the DNS formula variant

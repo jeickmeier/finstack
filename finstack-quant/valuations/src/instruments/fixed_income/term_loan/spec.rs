@@ -86,7 +86,7 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{Bps, CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId};
 
 use super::types::RateSpec;
 
@@ -151,17 +151,7 @@ pub enum OidPolicy {
     SeparateAmount(Money),
 }
 
-impl OidPolicy {
-    /// Create a withheld OID percentage using typed basis points.
-    pub fn withheld_pct_bp(bp: Bps) -> Self {
-        Self::WithheldPct(bp.as_bp())
-    }
-
-    /// Create a separate OID percentage using typed basis points.
-    pub fn separate_pct_bp(bp: Bps) -> Self {
-        Self::SeparatePct(bp.as_bp())
-    }
-}
+impl OidPolicy {}
 
 /// Optional configuration for effective interest rate (EIR) amortization schedules.
 ///
@@ -319,19 +309,7 @@ pub struct DdtlSpec {
     pub oid_policy: Option<OidPolicy>,
 }
 
-impl DdtlSpec {
-    /// Set usage fee using typed basis points.
-    pub fn with_usage_fee_bp(mut self, usage_fee_bp: Bps) -> Self {
-        self.usage_fee_bp = usage_fee_bp.as_bp();
-        self
-    }
-
-    /// Set commitment fee using typed basis points.
-    pub fn with_commitment_fee_bp(mut self, commitment_fee_bp: Bps) -> Self {
-        self.commitment_fee_bp = commitment_fee_bp.as_bp();
-        self
-    }
-}
+impl DdtlSpec {}
 
 /// Margin step-up event (covenant penalty or scheduled increase).
 ///
@@ -352,15 +330,7 @@ pub struct MarginStepUp {
     pub delta_bp: i32,
 }
 
-impl MarginStepUp {
-    /// Create a margin step-up using typed basis points.
-    pub fn new_bp(date: Date, delta_bp: Bps) -> Self {
-        Self {
-            date,
-            delta_bp: delta_bp.as_bp(),
-        }
-    }
-}
+impl MarginStepUp {}
 
 /// Payment-in-kind (PIK) toggle event.
 ///
@@ -498,12 +468,7 @@ pub enum AmortizationSpec {
     ),
 }
 
-impl AmortizationSpec {
-    /// Create a per-period amortization schedule using typed basis points.
-    pub fn percent_per_period_bp(bp: Bps) -> Self {
-        Self::PercentPerPeriod { bp: bp.as_bp() }
-    }
-}
+impl AmortizationSpec {}
 
 /// Complete term loan specification with covenant and DDTL features.
 ///

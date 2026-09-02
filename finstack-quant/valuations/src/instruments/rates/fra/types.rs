@@ -16,7 +16,7 @@ use finstack_quant_core::dates::{adjust, calendar_by_id, BusinessDayConvention, 
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::IndexId;
-use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId, Rate};
+use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use rust_decimal::Decimal;
 use time::macros::date;
 
@@ -460,19 +460,7 @@ impl ForwardRateAgreement {
     }
 }
 
-impl ForwardRateAgreementBuilder {
-    /// Set the fixed rate using a typed rate.
-    pub fn fixed_rate_rate(mut self, rate: Rate) -> Self {
-        self.fixed_rate = Decimal::try_from(rate.as_decimal()).ok();
-        self
-    }
-
-    /// Set the observed fixing using a typed rate.
-    pub fn observed_fixing_rate(mut self, rate: Rate) -> Self {
-        self.observed_fixing = Some(rate.as_decimal());
-        self
-    }
-}
+impl ForwardRateAgreementBuilder {}
 
 // Explicit Instrument trait implementation (replaces macro for better IDE visibility)
 impl crate::instruments::common_impl::traits::Instrument for ForwardRateAgreement {

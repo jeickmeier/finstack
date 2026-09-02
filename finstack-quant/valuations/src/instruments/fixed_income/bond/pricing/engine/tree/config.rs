@@ -3,7 +3,6 @@
 use super::super::super::super::types::Bond;
 use crate::instruments::pricing_overrides::{OasPriceBasis, OasQuoteCompounding};
 use finstack_quant_core::types::CurveId;
-use finstack_quant_core::types::Percentage;
 use finstack_quant_models::trees::TreeCompounding;
 
 /// Choice of short-rate model for the bond pricing tree.
@@ -126,20 +125,19 @@ pub enum TreeModelChoice {
 /// ```rust
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricerConfig;
 ///
+/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreeModelChoice;
+///
 /// // Default configuration using Ho-Lee with 100 bp normal vol
 /// let default = TreePricerConfig::default();
 ///
-/// // Production configuration with calibrated normal volatility
-/// let production = TreePricerConfig::production_ho_lee(0.01); // 100 bp
-///
-/// // BDT model with lognormal volatility
-/// let bdt = TreePricerConfig::production_bdt(0.20); // 20% lognormal
-///
-/// // High-precision configuration for regulatory reporting
-/// let audit = TreePricerConfig::high_precision(0.01);
-///
 /// // Hull-White model (production recommended for callable bonds)
-/// let hw = TreePricerConfig::hull_white(0.03, 0.01);
+/// let hw = TreePricerConfig {
+///     tree_steps: 100,
+///     volatility: 0.01,
+///     mean_reversion: Some(0.03),
+///     tree_model: TreeModelChoice::HullWhite { kappa: 0.03, sigma: 0.01 },
+///     ..Default::default()
+/// };
 /// ```
 #[derive(Debug, Clone)]
 pub struct TreePricerConfig {
@@ -211,7 +209,7 @@ impl Default for TreePricerConfig {
     ///
     /// This is appropriate for normal rate environments (2-5% rates).
     /// For low/negative rate environments, consider lower volatility.
-    /// For BDT model, use [`TreePricerConfig::default_bdt`] instead.
+    /// For BDT model, set `tree_model` to [`TreeModelChoice::BlackDermanToy`] instead.
     fn default() -> Self {
         Self {
             tree_steps: 200,
@@ -363,136 +361,6 @@ pub fn bond_tree_config(bond: &Bond) -> finstack_quant_core::Result<TreePricerCo
 }
 
 impl TreePricerConfig {
-    // Model-Specific Factory Methods
-
-    /// Create a production configuration for Ho-Lee model with normal volatility.
-    ///
-    /// Uses 100 tree steps which provides ~1 bp OAS accuracy for most bonds.
-    /// Suitable for trading and daily risk reporting.
-    ///
-    /// # Arguments
-    ///
-    /// * `normal_vol` - Normal (absolute) volatility in rate units
-    ///   (e.g., 0.01 = 100 bp/yr)
-    ///
-    /// # Typical Values
-    ///
-    /// - Low rates (<2%): 50-80 bp (0.005-0.008)
-    /// - Normal rates (2-5%): 80-120 bp (0.008-0.012)
-    /// - High rates (>5%): 100-150 bp (0.010-0.015)
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricerConfig;
-    ///
-    /// // Use 100 bp normal vol calibrated from swaption market
-    /// let config = TreePricerConfig::production_ho_lee(0.01);
-    /// ```
-    pub fn production_ho_lee(normal_vol: f64) -> Self {
-        Self {
-            tree_steps: 100,
-            volatility: normal_vol,
-            tolerance: 1e-6,
-            max_iterations: 50,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: None,
-            tree_model: TreeModelChoice::HoLee,
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::Simple,
-        }
-    }
-
-    /// Create a production configuration for Ho-Lee model with typed volatility.
-    pub fn production_ho_lee_pct(normal_vol: Percentage) -> Self {
-        Self {
-            tree_steps: 100,
-            volatility: normal_vol.as_decimal(),
-            tolerance: 1e-6,
-            max_iterations: 50,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: None,
-            tree_model: TreeModelChoice::HoLee,
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::Simple,
-        }
-    }
-
-    /// Create a production configuration for BDT model with lognormal volatility.
-    ///
-    /// Uses 100 tree steps which provides ~1 bp OAS accuracy for most bonds.
-    /// BDT is preferred for positive rate environments where lognormal
-    /// distribution better matches market conventions.
-    ///
-    /// # Arguments
-    ///
-    /// * `lognormal_vol` - Lognormal (relative) volatility as proportion
-    ///   (e.g., 0.20 = 20%/yr)
-    ///
-    /// # Typical Values
-    ///
-    /// - Low volatility: 10-15% (0.10-0.15)
-    /// - Normal market: 15-25% (0.15-0.25)
-    /// - High vol/stress: 25-40% (0.25-0.40)
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricerConfig;
-    ///
-    /// // Use 20% lognormal vol (equivalent to ~100 bp at 5% rates)
-    /// let config = TreePricerConfig::production_bdt(0.20);
-    /// ```
-    pub fn production_bdt(lognormal_vol: f64) -> Self {
-        Self {
-            tree_steps: 100,
-            volatility: lognormal_vol,
-            tolerance: 1e-6,
-            max_iterations: 50,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: Some(0.0),
-            tree_model: TreeModelChoice::BlackDermanToy {
-                mean_reversion: 0.0,
-                sigma: lognormal_vol,
-            },
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::default(),
-        }
-    }
-
-    /// Create a production configuration for BDT model with typed volatility.
-    pub fn production_bdt_pct(lognormal_vol: Percentage) -> Self {
-        Self {
-            tree_steps: 100,
-            volatility: lognormal_vol.as_decimal(),
-            tolerance: 1e-6,
-            max_iterations: 50,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: Some(0.0),
-            tree_model: TreeModelChoice::BlackDermanToy {
-                mean_reversion: 0.0,
-                sigma: lognormal_vol.as_decimal(),
-            },
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::default(),
-        }
-    }
-
-    /// Create default configuration for BDT model with 20% lognormal volatility.
-    ///
-    /// This is appropriate for normal positive rate environments.
-    pub fn default_bdt() -> Self {
-        Self::production_bdt(0.20)
-    }
-
     /// Create a high-precision configuration for regulatory/audit purposes.
     ///
     /// Uses 200 tree steps for < 0.5 bp OAS accuracy and tighter convergence
@@ -519,99 +387,6 @@ impl TreePricerConfig {
             initial_bracket_size_bp: Some(1500.0),
             mean_reversion: None,
             tree_model: TreeModelChoice::HoLee,
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::default(),
-        }
-    }
-
-    /// Create a high-precision configuration using typed volatility.
-    pub fn high_precision_pct(calibrated_vol: Percentage) -> Self {
-        Self {
-            tree_steps: 200,
-            volatility: calibrated_vol.as_decimal(),
-            tolerance: 1e-8,
-            max_iterations: 100,
-            initial_bracket_size_bp: Some(1500.0),
-            mean_reversion: None,
-            tree_model: TreeModelChoice::HoLee,
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::default(),
-        }
-    }
-
-    /// Create a fast configuration for screening large portfolios.
-    ///
-    /// Uses 50 tree steps for ~2-5 bp accuracy. Approximately 4x faster
-    /// than production configuration. Suitable for quick screening and
-    /// relative value analysis where precision is less critical.
-    ///
-    /// # Arguments
-    ///
-    /// * `calibrated_vol` - Annualized short rate volatility from market calibration
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricerConfig;
-    ///
-    /// // Fast screening of 10,000 bond universe
-    /// let config = TreePricerConfig::fast(0.012);
-    /// ```
-    pub fn fast(calibrated_vol: f64) -> Self {
-        Self {
-            tree_steps: 50,
-            volatility: calibrated_vol,
-            tolerance: 1e-4,
-            max_iterations: 30,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: None,
-            tree_model: TreeModelChoice::HoLee,
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::default(),
-        }
-    }
-
-    /// Create a fast configuration using typed volatility.
-    pub fn fast_pct(calibrated_vol: Percentage) -> Self {
-        Self {
-            tree_steps: 50,
-            volatility: calibrated_vol.as_decimal(),
-            tolerance: 1e-4,
-            max_iterations: 30,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: None,
-            tree_model: TreeModelChoice::HoLee,
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::default(),
-        }
-    }
-
-    /// Create a configuration using a Hull-White 1-factor tree.
-    ///
-    /// Recommended for production callable bond OAS when swaption calibration
-    /// is not available. Uses the specified (kappa, sigma) directly.
-    ///
-    /// # Arguments
-    ///
-    /// * `kappa` - Mean reversion speed (e.g., 0.03 for 3%)
-    /// * `sigma` - Short rate volatility (e.g., 0.01 for 100bp)
-    pub fn hull_white(kappa: f64, sigma: f64) -> Self {
-        Self {
-            tree_steps: 100,
-            volatility: sigma,
-            tolerance: 1e-6,
-            max_iterations: 50,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: Some(kappa),
-            tree_model: TreeModelChoice::HullWhite { kappa, sigma },
             tree_discount_curve_id: None,
             oas_quote_compounding: OasQuoteCompounding::Continuous,
             oas_price_basis: OasPriceBasis::SettlementDirty,

@@ -285,21 +285,6 @@ pub fn validate_sifma_variance(allocated_face: f64, trade_notional: f64) -> bool
     variance <= 0.0001 // ±0.01% tolerance
 }
 
-/// Calculate value adjustment for a specified pool vs. generic.
-///
-/// Positive adjustment means the specified pool is worth more than generic.
-///
-/// # Arguments
-///
-/// * `tba` - Agency TBA contract identified in the explicit not-implemented
-///   validation error returned by this placeholder.
-pub fn calculate_pay_up(tba: &AgencyTba) -> finstack_quant_core::Result<f64> {
-    Err(finstack_quant_core::Error::Validation(format!(
-        "AgencyTba '{}' specified-pool pay-up model is not implemented; refusing to return a zero adjustment",
-        tba.id
-    )))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

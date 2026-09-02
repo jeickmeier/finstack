@@ -53,28 +53,10 @@ impl CoverageTest {
         }
     }
 
-    /// Create new OC test with explicit ID.
-    pub fn new_oc_with_id(id: impl Into<String>, required_ratio: f64) -> Self {
-        Self::Oc {
-            id: id.into(),
-            required_ratio,
-            include_cash: true,
-            performing_only: true,
-        }
-    }
-
     /// Create new IC test.
     pub fn new_ic(required_ratio: f64) -> Self {
         Self::Ic {
             id: format!("ic_test_{}", (required_ratio * 100.0).round() as u32),
-            required_ratio,
-        }
-    }
-
-    /// Create new IC test with explicit ID.
-    pub fn new_ic_with_id(id: impl Into<String>, required_ratio: f64) -> Self {
-        Self::Ic {
-            id: id.into(),
             required_ratio,
         }
     }

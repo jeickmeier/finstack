@@ -43,7 +43,7 @@ use finstack_quant_core::dates::{
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::InflationLag;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId, Rate};
+use finstack_quant_core::types::{CurveId, InstrumentId};
 use rust_decimal::Decimal;
 
 /// Inflation option type.
@@ -569,13 +569,7 @@ impl InflationCapFloor {
     }
 }
 
-impl InflationCapFloorBuilder {
-    /// Set the strike using a typed rate.
-    pub fn strike_rate(mut self, rate: Rate) -> Self {
-        self.strike = Decimal::try_from(rate.as_decimal()).ok();
-        self
-    }
-}
+impl InflationCapFloorBuilder {}
 
 /// Convexity / timing-adjusted forward YoY inflation rate.
 ///

@@ -43,7 +43,7 @@ use finstack_quant_core::dates::{
     calendar::calendar_by_id, BusinessDayConvention, Date, DateExt, DayCount, StubKind, Tenor,
 };
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{Bps, CurveId, InstrumentId, Rate};
+use finstack_quant_core::types::{CurveId, InstrumentId, Rate};
 use finstack_quant_core::InputError;
 
 use super::spec::{
@@ -131,13 +131,6 @@ pub enum RateSpec {
 }
 
 impl RateSpec {
-    /// Create a fixed-rate spec using typed basis points.
-    pub fn fixed_bp(rate: Bps) -> Self {
-        Self::Fixed {
-            rate_bp: rate.as_bp(),
-        }
-    }
-
     /// Create a fixed-rate spec using a typed rate.
     pub fn fixed_rate(rate: Rate) -> Self {
         Self::Fixed {
@@ -787,79 +780,6 @@ impl TermLoan {
             .instrument_pricing_overrides(InstrumentPricingOverrides::default())
             .oid_eir_opt(None)
             .call_schedule_opt(None)
-            .attributes(Attributes::new())
-            .build()
-    }
-
-    /// Create an example term loan with covenants and call schedule for testing and documentation.
-    ///
-    /// Returns a 5-year USD fixed-rate term loan with:
-    /// - $25M notional, 6% fixed rate
-    /// - Quarterly payments, Act/360
-    /// - Margin step-ups at years 2 and 3 (+25bp each)
-    /// - Cash sweep at year 3
-    /// - Soft call at 102, hard call at 101
-    pub fn example_with_covenants() -> finstack_quant_core::Result<Self> {
-        use finstack_quant_core::dates::BusinessDayConvention;
-        use finstack_quant_core::dates::StubKind;
-        use time::macros::date;
-
-        let covenants = TermLoanCovenantEvents {
-            margin_stepups: vec![
-                super::spec::MarginStepUp {
-                    date: date!(2026 - 01 - 15),
-                    delta_bp: 25,
-                },
-                super::spec::MarginStepUp {
-                    date: date!(2027 - 01 - 15),
-                    delta_bp: 25,
-                },
-            ],
-            pik_toggles: vec![],
-            cash_sweeps: vec![super::spec::CashSweepEvent {
-                date: date!(2027 - 01 - 15),
-                amount: Money::new(2_500_000.0, Currency::USD),
-            }],
-            draw_stop_dates: vec![],
-        };
-
-        let call_schedule = LoanCallSchedule {
-            calls: vec![
-                super::spec::LoanCall {
-                    date: date!(2025 - 07 - 15),
-                    price_pct_of_par: 102.0,
-                    call_type: super::spec::LoanCallType::Soft,
-                },
-                super::spec::LoanCall {
-                    date: date!(2026 - 07 - 15),
-                    price_pct_of_par: 101.0,
-                    call_type: super::spec::LoanCallType::Hard,
-                },
-            ],
-        };
-
-        TermLoan::builder()
-            .id(InstrumentId::new("TL-COVENANT-5Y"))
-            .currency(Currency::USD)
-            .notional_limit(Money::new(25_000_000.0, Currency::USD))
-            .issue_date(date!(2024 - 01 - 15))
-            .maturity(date!(2029 - 01 - 15))
-            .rate(RateSpec::Fixed { rate_bp: 600 })
-            .frequency(Tenor::quarterly())
-            .day_count(DayCount::Act360)
-            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
-            .calendar_id_opt(None)
-            .stub(StubKind::None)
-            .discount_curve_id(CurveId::new("USD-OIS"))
-            .credit_curve_id_opt(None)
-            .amortization(AmortizationSpec::None)
-            .coupon_type(CouponType::Cash)
-            .upfront_fee_opt(None)
-            .ddtl_opt(None)
-            .covenants_opt(Some(covenants))
-            .instrument_pricing_overrides(InstrumentPricingOverrides::default())
-            .oid_eir_opt(None)
-            .call_schedule_opt(Some(call_schedule))
             .attributes(Attributes::new())
             .build()
     }

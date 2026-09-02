@@ -422,68 +422,6 @@ impl CreditDefaultSwap {
         cds
     }
 
-    /// Create a forward-starting CDS example with explicit doc clause.
-    ///
-    /// Returns a 5-year CDS with ISDA EU conventions, Modified-Modified
-    /// Restructuring (MM14) doc clause, deferred protection start (3 months
-    /// after premium start), and a 2% upfront payment.
-    #[allow(clippy::expect_used)] // Example uses hardcoded valid values
-    pub fn example_forward_start() -> Self {
-        let convention = CdsConvention::IsdaEu;
-        let day_count = convention.day_count();
-        let frequency = convention.frequency();
-        let business_day_convention = convention.business_day_convention();
-        let stub = convention.stub_convention();
-
-        let premium_start = date!(2024 - 06 - 20);
-        let premium_end = date!(2029 - 06 - 20);
-        // Protection starts 3 months after premium start
-        let protection_effective = date!(2024 - 09 - 20);
-        // Upfront payment date (T+1 for EU)
-        let upfront_date = date!(2024 - 06 - 21);
-        let notional = Money::new(10_000_000.0, Currency::EUR);
-
-        let spread_bp_decimal = Decimal::try_from(150.0)
-            .expect("Example CDS spread 150bp should always be representable as Decimal");
-
-        let cds = CreditDefaultSwap::builder()
-            .id(InstrumentId::new("CDS-FWD-EU-5Y"))
-            .notional(notional)
-            .side(PayReceive::Pay)
-            .convention(convention)
-            .premium(PremiumLegSpec {
-                start: premium_start,
-                end: premium_end,
-                frequency,
-                stub,
-                business_day_convention,
-                calendar_id: Some(convention.default_calendar().to_string()),
-                day_count,
-                spread_bp: spread_bp_decimal,
-                discount_curve_id: finstack_quant_core::types::CurveId::new("EUR-OIS"),
-            })
-            .protection(ProtectionLegSpec {
-                credit_curve_id: finstack_quant_core::types::CurveId::new("EU-CORP-HAZARD"),
-                recovery_rate: STANDARD_RECOVERY_SENIOR,
-                settlement_delay: convention.settlement_delay(),
-            })
-            .instrument_pricing_overrides(Default::default())
-            .upfront_opt(Some((
-                upfront_date,
-                Money::new(200_000.0, Currency::EUR), // 2% of 10M notional
-            )))
-            .doc_clause_opt(Some(CdsDocClause::Mm14))
-            .protection_effective_date_opt(Some(protection_effective))
-            .attributes(Attributes::new())
-            .build()
-            .expect("Example forward-start CDS construction should not fail");
-
-        cds.validate()
-            .expect("Example forward-start CDS validation should not fail");
-
-        cds
-    }
-
     /// Create a new CDS with standard ISDA conventions using explicit inputs.
     ///
     /// Internal helper used by synthetic CDS creation in `cds_option` and

@@ -508,8 +508,7 @@ pub struct BondFuture {
     /// must be in `deliverable_basket`; an embedded bond must have the same ID.
     ///
     /// [`Self::determine_ctd`] ranks clean prices by gross basis;
-    /// [`Self::determine_ctd_with_accrued`] includes current and delivery accrued
-    /// interest; [`Self::determine_ctd_by_implied_repo`] ranks by highest implied
+    /// [`Self::determine_ctd_by_implied_repo`] ranks by highest implied
     /// repo after coupon income and time to delivery. These helpers return a
     /// candidate and do not update this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -851,72 +850,6 @@ impl BondFuture {
                     }
                     Some((_, current_best_basis)) => {
                         if gross_basis < *current_best_basis {
-                            best_ctd = Some((deliverable.bond_id.clone(), gross_basis));
-                        }
-                    }
-                }
-            }
-        }
-
-        best_ctd.ok_or_else(|| {
-            finstack_quant_core::Error::Validation(
-                "No valid bond prices provided for any bond in the deliverable basket".to_string(),
-            )
-        })
-    }
-
-    /// Determine CTD using gross basis including delivery accrued interest.
-    ///
-    /// Computes the gross basis for each deliverable bond:
-    ///
-    /// ```text
-    /// Gross Basis = (Clean Price + Accrued Today) - (Futures Price × CF + Accrued at Delivery)
-    /// ```
-    ///
-    /// The bond with the lowest gross basis is the CTD.
-    ///
-    /// # Arguments
-    ///
-    /// * `bond_prices_with_accrued` - A slice of `(InstrumentId, f64, f64, f64)` tuples:
-    ///   - `InstrumentId`: Bond identifier
-    ///   - `f64` (position 1): Clean price per 100 face
-    ///   - `f64` (position 2): Accrued interest per 100 face as of today
-    ///   - `f64` (position 3): Projected accrued interest per 100 face at delivery
-    ///
-    /// # Returns
-    ///
-    /// Returns the `InstrumentId` of the CTD bond and its gross basis.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if no basket member has a supplied positive clean price.
-    pub fn determine_ctd_with_accrued(
-        &self,
-        bond_prices_with_accrued: &[(InstrumentId, f64, f64, f64)],
-    ) -> finstack_quant_core::Result<(InstrumentId, f64)> {
-        let mut best_ctd: Option<(InstrumentId, f64)> = None;
-
-        for deliverable in &self.deliverable_basket {
-            if let Some((_, clean_price, accrued_today, accrued_at_delivery)) =
-                bond_prices_with_accrued
-                    .iter()
-                    .find(|(id, _, _, _)| *id == deliverable.bond_id)
-            {
-                if *clean_price <= 0.0 {
-                    continue;
-                }
-
-                let purchase_dirty = clean_price + accrued_today;
-                let invoice_dirty =
-                    self.quoted_price * deliverable.conversion_factor + accrued_at_delivery;
-                let gross_basis = purchase_dirty - invoice_dirty;
-
-                match &best_ctd {
-                    None => {
-                        best_ctd = Some((deliverable.bond_id.clone(), gross_basis));
-                    }
-                    Some((_, current_best)) => {
-                        if gross_basis < *current_best {
                             best_ctd = Some((deliverable.bond_id.clone(), gross_basis));
                         }
                     }

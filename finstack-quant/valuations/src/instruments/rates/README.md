@@ -92,7 +92,7 @@ is `pub(crate)`.
   `rate_period_on_dates`); do not call `disc.df(t)` with an
   instrument-derived `t`.
 - **Leg pricing is shared.** `instruments::pricing::swap_legs` owns
-  `pv_fixed_leg`, `pv_floating_leg`, `leg_annuity` and `schedule_to_periods`;
+  `pv_fixed_leg` and `pv_floating_leg`;
   `common_impl::pricing::overnight` owns compounded-RFR projection (lookback,
   observation shift, cutoff, fixings) for IRS, cap/floor and their risk paths.
   A new swap-like leg reuses these rather than open-coding a period loop.

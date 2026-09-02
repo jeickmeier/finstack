@@ -14,7 +14,7 @@ use finstack_quant_core::dates::{
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::InflationLag;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId, Rate};
+use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use rust_decimal::Decimal;
 
 /// Zero-coupon Inflation Swap instrument.
@@ -488,13 +488,7 @@ impl InflationSwap {
     }
 }
 
-impl InflationSwapBuilder {
-    /// Set the fixed rate using a typed rate.
-    pub fn fixed_rate_rate(mut self, rate: Rate) -> Self {
-        self.fixed_rate = Decimal::try_from(rate.as_decimal()).ok();
-        self
-    }
-}
+impl InflationSwapBuilder {}
 
 impl crate::instruments::common_impl::traits::Instrument for InflationSwap {
     impl_instrument_base!(crate::pricer::InstrumentType::InflationSwap);
@@ -1019,13 +1013,7 @@ impl YoYInflationSwap {
     }
 }
 
-impl YoYInflationSwapBuilder {
-    /// Set the fixed rate using a typed rate.
-    pub fn fixed_rate_rate(mut self, rate: Rate) -> Self {
-        self.fixed_rate = Decimal::try_from(rate.as_decimal()).ok();
-        self
-    }
-}
+impl YoYInflationSwapBuilder {}
 
 impl crate::instruments::common_impl::traits::Instrument for YoYInflationSwap {
     impl_instrument_base!(crate::pricer::InstrumentType::YoYInflationSwap);

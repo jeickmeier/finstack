@@ -9,7 +9,7 @@
 //! Net coupon = WAC - servicing_fee - guarantee_fee
 
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
-use finstack_quant_core::types::{Bps, Rate};
+use finstack_quant_core::types::Bps;
 use rust_decimal::Decimal;
 
 /// Fee specification for MBS servicing or guarantee fees.
@@ -166,19 +166,6 @@ pub fn net_coupon(gross_wac: f64, servicing_rate: f64, guarantee_rate: f64) -> f
     gross_wac - servicing_rate - guarantee_rate
 }
 
-/// Calculate net coupon using typed rate inputs.
-///
-/// # Arguments
-///
-/// * `gross_wac` - Gross weighted-average mortgage coupon as a decimal rate.
-/// * `servicing_rate` - Annual servicing fee as a decimal rate.
-/// * `guarantee_rate` - Annual agency guarantee fee as a decimal rate.
-pub fn net_coupon_rate(gross_wac: Rate, servicing_rate: Rate, guarantee_rate: Rate) -> Rate {
-    Rate::from_decimal(
-        gross_wac.as_decimal() - servicing_rate.as_decimal() - guarantee_rate.as_decimal(),
-    )
-}
-
 /// Calculate gross WAC from net coupon and fees.
 ///
 /// # Arguments
@@ -192,19 +179,6 @@ pub fn net_coupon_rate(gross_wac: Rate, servicing_rate: Rate, guarantee_rate: Ra
 /// Gross weighted average coupon
 pub fn gross_wac(net_rate: f64, servicing_rate: f64, guarantee_rate: f64) -> f64 {
     net_rate + servicing_rate + guarantee_rate
-}
-
-/// Calculate gross WAC using typed rate inputs.
-///
-/// # Arguments
-///
-/// * `net_rate` - Net investor pass-through coupon as a decimal rate.
-/// * `servicing_rate` - Annual servicing fee as a decimal rate.
-/// * `guarantee_rate` - Annual agency guarantee fee as a decimal rate.
-pub fn gross_wac_rate(net_rate: Rate, servicing_rate: Rate, guarantee_rate: Rate) -> Rate {
-    Rate::from_decimal(
-        net_rate.as_decimal() + servicing_rate.as_decimal() + guarantee_rate.as_decimal(),
-    )
 }
 
 /// Standard agency fee rates by program.
@@ -221,14 +195,6 @@ pub struct AgencyFeeRates {
 impl AgencyFeeRates {
     /// Typical FNMA fee rates (25 bp each).
     pub fn fnma_standard() -> Self {
-        Self {
-            servicing_bp: 25.0,
-            guarantee_bp: 25.0,
-        }
-    }
-
-    /// Typical FHLMC fee rates (25 bp each).
-    pub fn fhlmc_standard() -> Self {
         Self {
             servicing_bp: 25.0,
             guarantee_bp: 25.0,

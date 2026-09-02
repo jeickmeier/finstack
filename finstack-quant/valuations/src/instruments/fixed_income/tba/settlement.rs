@@ -138,21 +138,6 @@ pub fn next_settlement_month(as_of: Date) -> Result<(i32, u8)> {
     }
 }
 
-/// Get the roll date between two settlement months.
-///
-/// The roll typically occurs around the notification date of the
-/// front-month settlement.
-///
-/// # Arguments
-///
-/// * `front_year` - Four-digit calendar year of the front settlement month.
-/// * `front_month` - One-based front settlement month from 1 through 12.
-pub fn get_roll_date(front_year: i32, front_month: u8) -> Result<Date> {
-    let front_dates = calculate_settlement_dates(front_year, front_month)?;
-    // Roll typically occurs 2-3 days before notification
-    subtract_business_days(front_dates.notification_date, 3)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -874,21 +874,6 @@ impl WaterfallWorkspace {
         }
     }
 
-    /// Create workspace from a Waterfall and TrancheStructure.
-    pub fn from_engine(engine: &Waterfall, tranches: &super::TrancheStructure) -> Self {
-        let num_tiers = engine.tiers.len();
-        let num_recipients: usize = engine.tiers.iter().map(|t| t.recipients.len()).sum();
-        let num_tranches = tranches.tranches.len();
-
-        let mut workspace = Self::new(num_tiers, num_recipients, num_tranches);
-
-        for (i, t) in tranches.tranches.iter().enumerate() {
-            workspace.tranche_index.insert(t.id.to_string(), i);
-        }
-
-        workspace
-    }
-
     /// Clear all buffers for reuse in the next period.
     pub fn clear(&mut self) {
         self.tier_allocations.clear();

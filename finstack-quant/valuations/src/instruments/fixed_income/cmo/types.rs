@@ -238,11 +238,6 @@ impl CmoWaterfall {
         self.tranches.iter().find(|t| t.id == id)
     }
 
-    /// Get mutable tranche by ID.
-    pub fn get_tranche_mut(&mut self, id: &str) -> Option<&mut CmoTranche> {
-        self.tranches.iter_mut().find(|t| t.id == id)
-    }
-
     /// Get total current face across all tranches (excluding IO).
     pub fn total_current_face(&self) -> Money {
         let total: f64 = self

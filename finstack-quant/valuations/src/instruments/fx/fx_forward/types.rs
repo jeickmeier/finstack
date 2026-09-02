@@ -297,52 +297,6 @@ impl FxForward {
         finstack_quant_core::dates::fx::fx_standard_spot_lag_days(base, quote)
     }
 
-    /// Construct an FX forward from trade date with automatic settlement detection.
-    ///
-    /// This is the recommended constructor for production use. It automatically
-    /// determines the correct spot settlement days based on the currency pair.
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - Instrument identifier
-    /// * `base_currency` - Foreign currency (numerator)
-    /// * `quote_currency` - Domestic currency (denominator)
-    /// * `trade_date` - Trade date
-    /// * `tenor` - Calendar tenor from spot to maturity (for example, 3M).
-    /// * `end_of_month` - Preserve month-end when the spot date is month-end.
-    /// * `notional` - Notional in base currency
-    /// * `domestic_discount_curve_id` - Quote currency discount curve
-    /// * `foreign_discount_curve_id` - Base currency discount curve
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_trade_date_auto(
-        id: impl Into<InstrumentId>,
-        base_currency: Currency,
-        quote_currency: Currency,
-        trade_date: Date,
-        tenor: Tenor,
-        notional: Money,
-        domestic_discount_curve_id: impl Into<CurveId>,
-        foreign_discount_curve_id: impl Into<CurveId>,
-        end_of_month: bool,
-    ) -> finstack_quant_core::Result<Self> {
-        let spot_lag = Self::standard_spot_days(base_currency, quote_currency) as i32;
-        Self::from_trade_date(
-            id,
-            base_currency,
-            quote_currency,
-            trade_date,
-            tenor,
-            notional,
-            domestic_discount_curve_id,
-            foreign_discount_curve_id,
-            None,
-            None,
-            spot_lag,
-            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
-            end_of_month,
-        )
-    }
-
     /// Construct an FX forward from trade date and tenor using joint calendar spot roll.
     ///
     /// # Arguments
@@ -411,41 +365,6 @@ impl FxForward {
             .foreign_discount_curve_id(foreign_discount_curve_id.into())
             .base_calendar_id_opt(base_calendar_id)
             .quote_calendar_id_opt(quote_calendar_id)
-            .attributes(Attributes::new())
-            .build()
-    }
-
-    /// Construct an FX forward with an explicit broken maturity date.
-    ///
-    /// The supplied maturity is contractual and is not tenor-generated or
-    /// business-day-adjusted.
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - Instrument identifier.
-    /// * `base_currency` - Currency received by the long position.
-    /// * `quote_currency` - Currency paid by the long position.
-    /// * `maturity` - Explicit contractual exchange date.
-    /// * `notional` - Positive base-currency notional.
-    /// * `domestic_discount_curve_id` - Quote-currency discount curve.
-    /// * `foreign_discount_curve_id` - Base-currency discount curve.
-    pub fn from_broken_date(
-        id: impl Into<InstrumentId>,
-        base_currency: Currency,
-        quote_currency: Currency,
-        maturity: Date,
-        notional: Money,
-        domestic_discount_curve_id: impl Into<CurveId>,
-        foreign_discount_curve_id: impl Into<CurveId>,
-    ) -> finstack_quant_core::Result<Self> {
-        Self::builder()
-            .id(id.into())
-            .base_currency(base_currency)
-            .quote_currency(quote_currency)
-            .maturity(maturity)
-            .notional(notional)
-            .domestic_discount_curve_id(domestic_discount_curve_id.into())
-            .foreign_discount_curve_id(foreign_discount_curve_id.into())
             .attributes(Attributes::new())
             .build()
     }

@@ -2,9 +2,9 @@
 
 use crate::instruments::fixed_income::bond::Bond;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{Date, DateExt, DayCount};
+use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{Bps, InstrumentId, Percentage, Rate};
+use finstack_quant_core::types::InstrumentId;
 use rust_decimal::prelude::ToPrimitive;
 
 use finstack_quant_core::HashMap;
@@ -206,25 +206,6 @@ impl PoolAsset {
         }
     }
 
-    /// Create a floating rate loan asset using a typed spread in basis points.
-    pub fn floating_rate_loan_bp(
-        id: impl Into<InstrumentId>,
-        balance: Money,
-        index_id: impl Into<String>,
-        spread_bp: Bps,
-        maturity: Date,
-        day_count: DayCount,
-    ) -> Self {
-        Self::floating_rate_loan(
-            id,
-            balance,
-            index_id,
-            spread_bp.as_bp() as f64,
-            maturity,
-            day_count,
-        )
-    }
-
     /// Create a fixed rate bond asset
     ///
     /// For fixed rate assets, spread_bp is None (WAS falls back to rate).
@@ -257,17 +238,6 @@ impl PoolAsset {
         }
     }
 
-    /// Create a fixed rate bond asset using a typed rate.
-    pub fn fixed_rate_bond_rate(
-        id: impl Into<InstrumentId>,
-        balance: Money,
-        rate: Rate,
-        maturity: Date,
-        day_count: DayCount,
-    ) -> Self {
-        Self::fixed_rate_bond(id, balance, rate.as_decimal(), maturity, day_count)
-    }
-
     /// Set credit quality
     pub fn with_rating(mut self, rating: CreditRating) -> Self {
         self.credit_quality = Some(rating);
@@ -284,17 +254,6 @@ impl PoolAsset {
     pub fn with_obligor(mut self, obligor_id: impl Into<String>) -> Self {
         self.obligor_id = Some(obligor_id.into());
         self
-    }
-
-    /// Set day count convention
-    pub fn with_day_count(mut self, day_count: DayCount) -> Self {
-        self.day_count = day_count;
-        self
-    }
-
-    /// Current yield of the asset
-    pub fn get_current_yield(&self) -> f64 {
-        self.rate
     }
 
     /// Get spread component in basis points
@@ -523,33 +482,15 @@ impl RepLine {
         self
     }
 
-    /// Set CPR override using a typed percentage.
-    pub fn with_cpr_pct(mut self, cpr: Percentage) -> Self {
-        self.cpr = Some(cpr.as_decimal());
-        self
-    }
-
     /// Set CDR override
     pub fn with_cdr(mut self, cdr: f64) -> Self {
         self.cdr = Some(cdr);
         self
     }
 
-    /// Set CDR override using a typed percentage.
-    pub fn with_cdr_pct(mut self, cdr: Percentage) -> Self {
-        self.cdr = Some(cdr.as_decimal());
-        self
-    }
-
     /// Set recovery rate override
     pub fn with_recovery_rate(mut self, recovery_rate: f64) -> Self {
         self.recovery_rate = Some(recovery_rate);
-        self
-    }
-
-    /// Set recovery rate override using a typed percentage.
-    pub fn with_recovery_rate_pct(mut self, recovery_rate: Percentage) -> Self {
-        self.recovery_rate = Some(recovery_rate.as_decimal());
         self
     }
 
@@ -578,89 +519,6 @@ impl AssetPool {
             excess_spread_account: zero_money,
             rep_lines: None,
         }
-    }
-
-    /// Aggregate assets into representative lines based on key characteristics.
-    ///
-    /// Groups assets by:
-    /// - Asset Type
-    /// - Index ID (for floating rate)
-    /// - Day Count
-    ///
-    /// Assets within groups are aggregated by summing balances and weighting rates/spreads.
-    /// Maturity is weighted average.
-    pub fn aggregate_to_rep_lines(&mut self, as_of: Date) {
-        if self.assets.is_empty() {
-            return;
-        }
-
-        let mut groups: HashMap<String, Vec<&PoolAsset>> = HashMap::default();
-
-        for asset in &self.assets {
-            let key = format!(
-                "{:?}|{:?}|{:?}",
-                asset.asset_type, asset.index_id, asset.day_count
-            );
-            groups.entry(key).or_default().push(asset);
-        }
-
-        let mut rep_lines = Vec::with_capacity(groups.len());
-        let base_currency = self.get_base_currency();
-
-        for (i, (_, group_assets)) in groups.into_iter().enumerate() {
-            let total_balance: f64 = group_assets.iter().map(|a| a.balance.amount()).sum();
-
-            if total_balance <= 0.0 {
-                continue;
-            }
-
-            let mut weighted_rate = 0.0;
-            let mut weighted_spread = 0.0;
-            let mut weighted_maturity_days = 0.0;
-            let mut weighted_seasoning = 0.0;
-
-            let first = group_assets[0];
-            let index_id = first.index_id.clone();
-            let day_count = first.day_count;
-
-            for asset in &group_assets {
-                let weight = asset.balance.amount() / total_balance;
-                weighted_rate += asset.rate * weight;
-                weighted_spread += asset.spread_bp() * weight;
-
-                let days_to_maturity = (asset.maturity - as_of).whole_days().max(0) as f64;
-                weighted_maturity_days += days_to_maturity * weight;
-
-                if let Some(acq_date) = asset.acquisition_date {
-                    if as_of > acq_date {
-                        let months = acq_date.months_until(as_of) as f64;
-                        weighted_seasoning += months * weight;
-                    }
-                }
-            }
-
-            let maturity_date = as_of + time::Duration::days(weighted_maturity_days as i64);
-            let spread_opt = if index_id.is_some() {
-                Some(weighted_spread)
-            } else {
-                None
-            };
-
-            let rep_line = RepLine::new(
-                format!("REP_{}", i),
-                Money::new(total_balance, base_currency),
-                weighted_rate,
-                spread_opt,
-                index_id,
-                maturity_date,
-                weighted_seasoning.round() as u32,
-                day_count,
-            );
-
-            rep_lines.push(rep_line);
-        }
-
-        self.rep_lines = Some(rep_lines);
     }
 
     /// Add asset from existing bond
@@ -942,13 +800,6 @@ pub struct ConcentrationCheckResult {
     pub violations: Vec<ConcentrationViolation>,
 }
 
-impl ConcentrationCheckResult {
-    /// Check if any limits are violated
-    pub fn has_violations(&self) -> bool {
-        !self.violations.is_empty()
-    }
-}
-
 /// Individual concentration limit violation
 #[derive(Debug, Clone)]
 pub struct ConcentrationViolation {
@@ -973,52 +824,6 @@ mod tests {
         assert_eq!(pool.id.as_str(), "TEST_POOL");
         assert_eq!(pool.deal_type, DealType::Clo);
         assert_eq!(pool.get_base_currency(), Currency::USD);
-    }
-
-    #[test]
-    fn test_rep_line_aggregation() {
-        let mut pool = AssetPool::new("TEST_POOL", DealType::Rmbs, Currency::USD);
-        let as_of = Date::from_calendar_date(2023, time::Month::January, 1).expect("valid date");
-
-        // Add 3 identical assets
-        for i in 0..3 {
-            pool.assets.push(PoolAsset::fixed_rate_bond(
-                format!("ASSET_{}", i),
-                Money::new(100_000.0, Currency::USD),
-                0.05,
-                as_of + time::Duration::days(360 * 10), // 10 years
-                finstack_quant_core::dates::DayCount::Thirty360,
-            ));
-        }
-
-        // Add 2 different assets
-        for i in 3..5 {
-            pool.assets.push(PoolAsset::fixed_rate_bond(
-                format!("ASSET_{}", i),
-                Money::new(200_000.0, Currency::USD),
-                0.06,
-                as_of + time::Duration::days(360 * 5), // 5 years
-                finstack_quant_core::dates::DayCount::Thirty360,
-            ));
-        }
-
-        pool.aggregate_to_rep_lines(as_of);
-
-        assert!(pool.rep_lines.is_some());
-        let rep_lines = pool
-            .rep_lines
-            .as_ref()
-            .expect("rep_lines should be set after aggregation");
-
-        // Should have 1 rep line (grouped by type/index/day_count)
-        assert_eq!(rep_lines.len(), 1);
-        let rep = &rep_lines[0];
-
-        // Total balance: 3*100k + 2*200k = 700k
-        assert_eq!(rep.balance.amount(), 700_000.0);
-
-        // Weighted rate: (300k * 0.05 + 400k * 0.06) / 700k = 0.0557...
-        assert!((rep.rate - 0.055714).abs() < 0.0001);
     }
 }
 

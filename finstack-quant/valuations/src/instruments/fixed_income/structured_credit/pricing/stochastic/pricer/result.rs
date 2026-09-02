@@ -102,22 +102,6 @@ impl StochasticPricingResult {
         self.es_confidence = confidence;
         self
     }
-
-    /// Set tranche results.
-    pub fn with_tranche_results(mut self, results: Vec<TranchePricingResult>) -> Self {
-        self.tranche_results = results;
-        self
-    }
-
-    /// Get loss ratio (EL / notional).
-    pub fn loss_ratio(&self) -> f64 {
-        let npv_val = self.npv.amount();
-        if npv_val.abs() > 1e-10 {
-            self.expected_loss.amount() / npv_val.abs()
-        } else {
-            0.0
-        }
-    }
 }
 
 /// Tranche-level pricing result.
@@ -218,16 +202,6 @@ impl TranchePricingResult {
     /// Get thickness (width of the tranche).
     pub fn thickness(&self) -> f64 {
         self.detachment - self.attachment
-    }
-
-    /// Get loss multiple (EL / thickness).
-    pub fn loss_multiple(&self) -> f64 {
-        let thickness = self.thickness();
-        if thickness.abs() > 1e-10 {
-            self.expected_loss.amount() / thickness
-        } else {
-            0.0
-        }
     }
 }
 

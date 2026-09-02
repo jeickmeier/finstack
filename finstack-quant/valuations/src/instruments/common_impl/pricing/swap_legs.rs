@@ -15,7 +15,7 @@
 use crate::cashflow::builder::rate_helpers::FloatingRateParams;
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use finstack_quant_core::dates::{calendar_by_id, HolidayCalendar};
-use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext, Schedule};
+use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
@@ -714,16 +714,6 @@ impl FloatingLegParams {
 
         Ok(())
     }
-
-    /// Returns true if this leg uses daily compounded rates (OIS).
-    ///
-    /// Simple (term-rate) legs only need a single fixing at the reset date;
-    /// every other compounding method needs a fixing for each day in the
-    /// accrual period.
-    #[must_use]
-    pub fn is_ois_style(&self) -> bool {
-        !matches!(self.compounding_method, CompoundingMethod::Simple)
-    }
 }
 
 /// A period in a swap leg schedule.
@@ -1089,167 +1079,9 @@ where
     Ok(acc.total())
 }
 
-/// Compute discounted annuity (sum of DF × year_fraction) for a leg.
-///
-/// This is useful for DV01 calculations and par rate computations.
-///
-/// # Arguments
-///
-/// * `periods` - Iterator over the leg's accrual periods; it is consumed to
-///   build the discounted accrual-factor sum.
-/// * `disc` - Discount curve used to value each eligible payment date relative
-///   to `as_of`.
-/// * `as_of` - Valuation date and cashflow cutoff: only payment dates after it
-///   contribute to the annuity.
-/// * `payment_lag_days` - Business-day payment delay applied after each
-///   accrual end before discounting.
-/// * `calendar_id` - Optional holiday-calendar identifier used to adjust the
-///   delayed payment date; `None` uses the unadjusted lag calculation.
-///
-/// # Returns
-///
-/// The annuity (discounted year fraction sum) as a raw f64.
-///
-/// # Errors
-///
-/// Returns an error if the annuity is zero or below [`ANNUITY_EPSILON`],
-/// which would cause divide-by-zero in downstream par spread calculations.
-pub fn leg_annuity<I>(
-    periods: I,
-    disc: &DiscountCurve,
-    as_of: Date,
-    payment_lag_days: i32,
-    calendar_id: Option<&str>,
-) -> Result<f64>
-where
-    I: Iterator<Item = LegPeriod>,
-{
-    let mut acc = NeumaierAccumulator::new();
-
-    for period in periods {
-        // Apply payment delay (strict: calendar must resolve if specified)
-        let payment_date = add_payment_delay(period.accrual_end, payment_lag_days, calendar_id)?;
-
-        // Only include future payments
-        if payment_date > as_of {
-            let df = relative_df_discount_curve(disc, as_of, payment_date)?;
-            acc.add(period.year_fraction * df);
-        }
-    }
-
-    let annuity = acc.total();
-
-    // Guard against a near-zero annuity, which would cause divide-by-zero in
-    // par spread / par rate calculations.
-    //
-    // The diagnostic distinguishes two genuinely different failure modes — the
-    // previous single message claimed "periods expired or extreme discounting"
-    // for *every* sub-threshold annuity, which mis-describes a corrupt leg:
-    //
-    //  * `annuity < 0`: discount factors are always strictly positive, so the
-    //    only way the sum `Σ year_fraction · DF` goes negative is a negative
-    //    `year_fraction` — an inverted / malformed accrual period. This is data
-    //    corruption, not expiry (expiry yields exactly 0) and not extreme
-    //    discounting (that yields a tiny *positive* value).
-    //  * `0 <= annuity < ANNUITY_EPSILON`: a legitimately tiny annuity — all
-    //    periods expired (annuity 0) or an extreme-rate / long-horizon scenario
-    //    discounted every coupon to near zero.
-    if annuity < 0.0 {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "Annuity ({:.2e}) is negative. A discounted annuity sums \
-             year_fraction × discount_factor, and discount factors are always \
-             positive, so a negative annuity means at least one period has a \
-             negative year fraction — a corrupt or inverted accrual period \
-             (accrual_end before accrual_start). Check the schedule generation.",
-            annuity
-        )));
-    }
-    if annuity < ANNUITY_EPSILON {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "Annuity ({:.2e}) is below minimum threshold ({:.2e}). \
-             This may indicate all periods have expired or extreme discounting scenarios.",
-            annuity, ANNUITY_EPSILON
-        )));
-    }
-
-    Ok(annuity)
-}
-
-/// Convert a Schedule to an iterator of LegPeriods.
-///
-/// This helper bridges the gap between the core Schedule type and
-/// the LegPeriod type used by the pricing functions.
-///
-/// # Arguments
-///
-/// * `schedule` - The schedule containing period dates
-/// * `day_count` - Day count convention for calculating year fractions
-/// * `reset_lag_days` - Reset lag in business days (for floating legs)
-/// * `calendar_id` - Optional calendar ID for reset date adjustments
-///
-/// # Returns
-///
-/// A vector of LegPeriod structs.
-pub fn schedule_to_periods(
-    schedule: &Schedule,
-    day_count: DayCount,
-    reset_lag_days: Option<i32>,
-    calendar_id: Option<&str>,
-) -> Result<Vec<LegPeriod>> {
-    if schedule.dates.len() < 2 {
-        return Err(finstack_quant_core::Error::Validation(
-            "Schedule must contain at least 2 dates".to_string(),
-        ));
-    }
-
-    let cal = if let Some(id) = calendar_id {
-        Some(calendar_by_id(id).ok_or_else(|| {
-            finstack_quant_core::Error::Validation(format!(
-                "Reset calendar '{}' not found in registry; cannot apply reset lag.",
-                id
-            ))
-        })?)
-    } else {
-        None
-    };
-
-    let mut periods = Vec::with_capacity(schedule.dates.len() - 1);
-
-    for i in 1..schedule.dates.len() {
-        let accrual_start = schedule.dates[i - 1];
-        let accrual_end = schedule.dates[i];
-
-        let year_fraction =
-            day_count.year_fraction(accrual_start, accrual_end, DayCountContext::default())?;
-
-        // Calculate reset date for floating legs
-        let reset_date = if let Some(lag) = reset_lag_days {
-            if lag == 0 {
-                Some(accrual_start)
-            } else if let Some(cal) = cal {
-                Some(accrual_start.add_business_days(-lag, cal)?)
-            } else {
-                Some(accrual_start.add_weekdays(-lag))
-            }
-        } else {
-            None
-        };
-
-        periods.push(LegPeriod {
-            accrual_start,
-            accrual_end,
-            reset_date,
-            year_fraction,
-        });
-    }
-
-    Ok(periods)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_core::dates::{ScheduleBuilder, StubKind, Tenor};
     use finstack_quant_core::market_data::term_structures::ForwardCurve;
     use finstack_quant_core::types::CurveId;
     use time::Month;
@@ -1702,86 +1534,6 @@ mod tests {
             err.to_string().contains("not found"),
             "Error should mention calendar not found: {}",
             err
-        );
-    }
-
-    #[test]
-    fn schedule_to_periods_missing_reset_calendar_errors() {
-        let start = date(2024, 1, 1);
-        let end = date(2024, 4, 1);
-        let schedule = ScheduleBuilder::new(start, end)
-            .expect("schedule builder")
-            .frequency(Tenor::monthly())
-            .stub_rule(StubKind::None)
-            .build()
-            .expect("schedule");
-
-        let result = schedule_to_periods(&schedule, DayCount::Act360, Some(2), Some("missing"));
-        assert!(result.is_err(), "Should error when reset calendar missing");
-        let err = result.expect_err("should error");
-        assert!(
-            err.to_string().contains("Reset calendar"),
-            "Error should mention reset calendar: {}",
-            err
-        );
-    }
-
-    #[test]
-    fn leg_annuity_computation() {
-        let base_date = date(2024, 1, 1);
-        let disc = test_discount_curve(base_date);
-
-        let periods = vec![
-            LegPeriod {
-                accrual_start: date(2024, 1, 1),
-                accrual_end: date(2024, 7, 1),
-                reset_date: None,
-                year_fraction: 0.5,
-            },
-            LegPeriod {
-                accrual_start: date(2024, 7, 1),
-                accrual_end: date(2025, 1, 1),
-                reset_date: None,
-                year_fraction: 0.5,
-            },
-        ];
-
-        let annuity =
-            leg_annuity(periods.into_iter(), &disc, base_date, 0, None).expect("should compute");
-
-        // Should be sum of (yf × df) ≈ 0.5 × 0.975 + 0.5 × 0.95 ≈ 0.9625
-        assert!(
-            annuity > 0.9 && annuity < 1.0,
-            "Annuity should be reasonable: {}",
-            annuity
-        );
-    }
-
-    #[test]
-    fn leg_annuity_rejects_zero() {
-        let base_date = date(2024, 1, 1);
-        let disc = test_discount_curve(base_date);
-
-        // All periods are in the past
-        let periods = vec![
-            LegPeriod {
-                accrual_start: date(2023, 1, 1),
-                accrual_end: date(2023, 7, 1),
-                reset_date: None,
-                year_fraction: 0.5,
-            },
-            LegPeriod {
-                accrual_start: date(2023, 7, 1),
-                accrual_end: date(2024, 1, 1), // Ends exactly on as_of
-                reset_date: None,
-                year_fraction: 0.5,
-            },
-        ];
-
-        let result = leg_annuity(periods.into_iter(), &disc, base_date, 0, None);
-        assert!(
-            result.is_err(),
-            "Should reject zero annuity (all periods expired)"
         );
     }
 
@@ -2589,52 +2341,6 @@ mod tests {
         assert!(
             pv > 0.0,
             "PV of a positive-rate OIS coupon must be positive; got {pv}"
-        );
-    }
-
-    // ==================== ANNUITY GUARD DIAGNOSTIC TEST ====================
-
-    /// Regression for [P3-1] item 6: when `leg_annuity` rejects a corrupt leg,
-    /// the error message must describe the actual failure mode.
-    ///
-    /// A discounted annuity is `Σ year_fraction · DF` and discount factors are
-    /// always strictly positive, so a **negative** annuity can only arise from
-    /// a negative year fraction — i.e. an inverted / malformed accrual period,
-    /// NOT "all periods expired" (that gives exactly zero) and NOT "extreme
-    /// discounting" (that gives a tiny *positive* value). The old message
-    /// claimed the former two causes for every sub-threshold annuity, which
-    /// mis-describes the negative-year-fraction corruption. The error message
-    /// must name the year-fraction corruption when the annuity is negative.
-    #[test]
-    fn leg_annuity_negative_year_fraction_reports_corruption_not_expiry() {
-        let base_date = date(2024, 1, 1);
-        let disc = test_discount_curve(base_date);
-
-        // A future-dated period (so it is NOT skipped as expired) but with a
-        // negative year fraction — a corrupt, inverted accrual period.
-        let corrupt = LegPeriod {
-            accrual_start: date(2024, 7, 1),
-            accrual_end: date(2025, 1, 1),
-            reset_date: Some(date(2024, 7, 1)),
-            year_fraction: -0.5,
-        };
-
-        let err = leg_annuity(vec![corrupt].into_iter(), &disc, base_date, 0, None)
-            .expect_err("a negative-year-fraction leg must be rejected");
-        let msg = err.to_string();
-
-        // The diagnostic must point at the year-fraction corruption, not at
-        // expiry / extreme-discounting (the misdescription being fixed).
-        let lower = msg.to_lowercase();
-        assert!(
-            lower.contains("year fraction") || lower.contains("year-fraction"),
-            "annuity error for a negative-year-fraction leg must name the \
-             year-fraction corruption; got: {msg}"
-        );
-        assert!(
-            !lower.contains("expired"),
-            "annuity error for a NEGATIVE annuity must not claim periods \
-             expired (expiry yields a zero annuity, not a negative one); got: {msg}"
         );
     }
 }

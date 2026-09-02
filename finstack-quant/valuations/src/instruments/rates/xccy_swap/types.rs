@@ -409,15 +409,6 @@ impl XccySwap {
         self
     }
 
-    /// Returns `Some(resetting_side)` if the swap is configured as MtM-resetting,
-    /// `None` otherwise. Convenience over matching on `notional_exchange` directly.
-    pub fn is_mtm_resetting(&self) -> Option<ResettingSide> {
-        match self.notional_exchange {
-            NotionalExchange::MtmResetting { resetting_side } => Some(resetting_side),
-            _ => None,
-        }
-    }
-
     /// Partition the two legs into `(constant_leg, resetting_leg)` based on the
     /// given side. Errors if both legs share a currency (already guarded by
     /// `validate_leg`, but this surfaces the intent explicitly).
@@ -1327,17 +1318,6 @@ mod tests {
         assert_eq!(json, r#"{"mtm_resetting":{"resetting_side":"leg1"}}"#);
         let parsed: NotionalExchange = serde_json::from_str(&json).expect("deserialise");
         assert_eq!(original, parsed);
-    }
-
-    #[test]
-    fn is_mtm_resetting_returns_correct_side() {
-        let mut swap = XccySwap::example();
-        assert_eq!(swap.is_mtm_resetting(), None);
-
-        swap = swap.with_notional_exchange(NotionalExchange::MtmResetting {
-            resetting_side: ResettingSide::Leg2,
-        });
-        assert_eq!(swap.is_mtm_resetting(), Some(ResettingSide::Leg2));
     }
 
     #[test]

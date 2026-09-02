@@ -474,13 +474,6 @@ impl Tranche {
         self.can_reinvest = true;
         self
     }
-
-    /// Set expected maturity date (typically earlier than legal maturity)
-    #[must_use]
-    pub fn with_expected_maturity(mut self, date: Date) -> Self {
-        self.expected_maturity = Some(date);
-        self
-    }
 }
 
 /// Builder for creating tranches with validation

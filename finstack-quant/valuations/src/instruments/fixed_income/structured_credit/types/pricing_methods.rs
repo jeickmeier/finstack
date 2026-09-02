@@ -1,5 +1,4 @@
 use super::{DealType, StructuredCredit, TrancheCashflows, TrancheValuation};
-use crate::cashflow::traits::CashflowProvider;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use crate::instruments::fixed_income::structured_credit::metrics::{
@@ -18,9 +17,8 @@ use crate::instruments::fixed_income::structured_credit::utils::rates::{
     clamped_cdr_to_mdr, clamped_cpr_to_smm,
 };
 use crate::metrics::{MetricContext, MetricId};
-use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
+use finstack_quant_core::dates::{Date, DateExt};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 use finstack_quant_models::correlation::RecoverySpec as StochasticRecoverySpec;
@@ -350,64 +348,6 @@ impl StructuredCredit {
         };
 
         Ok((prepay, default, correlation))
-    }
-
-    /// Calculate Z-Spread given a market price.
-    ///
-    /// Solves for the constant spread over the discount curve that equates the
-    /// present value of deterministic cashflows to the market price.
-    ///
-    /// This uses deterministic cashflows (no prepayment optionality).
-    /// For true OAS with stochastic prepayment, use `StochasticPricer`.
-    pub fn calculate_z_spread(
-        &self,
-        context: &MarketContext,
-        as_of: Date,
-        market_price: f64,
-    ) -> finstack_quant_core::Result<f64> {
-        let flows = self.dated_cashflows(context, as_of)?;
-        let discount_curve = context.get_discount(&self.discount_curve_id)?;
-
-        let price_fn = |spread: f64| -> f64 {
-            let mut pv = finstack_quant_core::math::summation::NeumaierAccumulator::new();
-            for (date, amount) in &flows {
-                // Calculate discount factor with spread
-                // DF = exp(-(r + s) * t)
-                // We assume continuous compounding for the spread application
-
-                let Ok(t) =
-                    DayCount::Act365F.year_fraction(as_of, *date, DayCountContext::default())
-                else {
-                    return f64::NAN; // Solver handles NAN/Inf usually by erroring, but Brent might need finite
-                };
-
-                if t <= 0.0 {
-                    // Flow is today or past, assume full value or ignore?
-                    // Usually ignore past flows, but dated_cashflows may already exclude settled flows.
-                    // If today, DF=1.
-                    pv.add(amount.amount());
-                    continue;
-                }
-
-                let Ok(df_base) = discount_curve.df_between_dates(as_of, *date) else {
-                    return f64::NAN;
-                };
-
-                // Adjustment: df_spread = exp(-spread * t)
-                let df_spread = (-spread * t).exp();
-                let df = df_base * df_spread;
-
-                pv.add(amount.amount() * df);
-            }
-            pv.total() - market_price
-        };
-
-        // Solve for spread
-        // Initial guess: 100 bp (0.01)
-        // Bracket: -10% to +50%?
-        // BrentSolver finds bracket automatically if not provided.
-        let solver = BrentSolver::new().tolerance(1e-6);
-        solver.solve(price_fn, 0.01)
     }
 
     fn prepayment_rate_override(&self, _pay_date: Date, seasoning: u32) -> Option<f64> {

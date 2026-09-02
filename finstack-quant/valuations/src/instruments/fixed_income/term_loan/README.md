@@ -16,7 +16,7 @@ Import path:
 
 | Item | Purpose |
 |------|---------|
-| `TermLoan` | The runtime instrument. Build with `TermLoan::builder()`; examples: `example`, `example_floating_with_ddtl`, `example_with_covenants`, `example_callable`. |
+| `TermLoan` | The runtime instrument. Build with `TermLoan::builder()`; examples: `example`, `example_floating_with_ddtl`, `example_callable`. |
 | `TermLoanSpec` | Serde-stable specification. `spec.try_into()` yields a `TermLoan`. |
 | `RateSpec` | `Fixed { rate_bp }` or `Floating(FloatingRateSpec)` (floors, caps, gearing, reset lag). |
 | `AmortizationSpec` | `None` (bullet), `Linear { start, end }`, `PercentPerPeriod { bp }`, `PercentOfOriginalNotional { .. }`, `Custom(..)`. |
@@ -98,8 +98,7 @@ Notes that bite:
   leaves a required field unset.
 - Rate and fee inputs on the spec types are **integer basis points** (`rate_bp`,
   `usage_fee_bp`, `commitment_fee_bp`, `treasury_spread_bp`,
-  `AmortizationSpec::PercentPerPeriod { bp }`). `RateSpec::fixed_bp(Bps)` takes
-  the typed form.
+  `AmortizationSpec::PercentPerPeriod { bp }`).
 - `notional_limit` is the *commitment*, not the funded balance. Without a
   `DdtlSpec` the loan funds the full commitment at issue.
 - `AmortizationSpec::PercentPerPeriod { bp }` applies to the **declining**

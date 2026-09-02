@@ -23,7 +23,7 @@ Import path: `finstack_quant_valuations::instruments::fixed_income::bond`
 | `BondSettlementConvention` | Settlement days and ex-coupon days. |
 | `AccrualMethod` | `Linear` (default) or `Compounded` (ICMA Rule 251). |
 | `bond_from_cashflows_json` | Build a `Bond` from an explicit cashflow list. |
-| `BondBuilderParams`, `FloatingConventionParams` | Argument structs for `CashflowSpec::from_bond_builder_params` and `::floating_with_conventions`; they flatten the binding-facing builder fields into one parameter. |
+| `FloatingConventionParams` | Argument struct for `CashflowSpec::floating_with_conventions`; it flattens the binding-facing builder fields into one parameter. |
 | `pricing::engine::{discount, hazard, tree, merton_mc}` | Pricing engines and their registry adapters. |
 | `pricing::quote_conversions`, `pricing::ytm_solver` | Price ↔ yield ↔ spread conversions and the YTM root finder. |
 
@@ -41,7 +41,7 @@ bond/
 │   ├── return_floor.rs      # ReturnFloorSpec, ReturnFloorKind, IssuePrice, ProtectionWindow
 │   ├── pricing.rs           # Instrument::base_value and quote-override precedence
 │   └── traits.rs            # Instrument / CashflowProvider impls
-├── cashflow_spec.rs         # CashflowSpec + BondBuilderParams + FloatingConventionParams
+├── cashflow_spec.rs         # CashflowSpec + FloatingConventionParams
 ├── cashflows.rs             # holder-view (Date, Money) projection
 ├── json.rs                  # bond_from_cashflows_json
 ├── pricing/

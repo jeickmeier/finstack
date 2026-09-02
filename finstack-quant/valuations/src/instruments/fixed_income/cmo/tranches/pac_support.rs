@@ -223,16 +223,6 @@ pub fn allocate_pac_support(
     (pac_alloc, support_alloc)
 }
 
-/// Check if PAC collar is "broken" (support depleted).
-///
-/// # Arguments
-///
-/// * `support_balance` - Remaining support-tranche balance; a non-positive
-///   amount means the PAC collar can no longer absorb prepayment variation.
-pub fn is_collar_broken(support_balance: f64) -> bool {
-    support_balance <= 0.0
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
