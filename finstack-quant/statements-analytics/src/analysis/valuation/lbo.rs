@@ -61,7 +61,8 @@ const SOURCES_USES_REL_TOLERANCE: f64 = 1e-9;
 /// Amounts are in the model currency and are the amounts drawn at close, not
 /// commitments. Tranche paydown over the hold period is modelled inside the
 /// statement model (see the module-level note on roll-forwards).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LboTranche {
     /// Tranche label, e.g. `"term_loan_a"` or `"mezzanine"`.
     pub name: String,
@@ -75,7 +76,8 @@ pub struct LboTranche {
 /// Supplying this runs the crate's existing LBO check suite against the same
 /// evaluated statement results used for the transaction arithmetic, so the
 /// report and the returns are guaranteed to describe one evaluation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LboCheckMappings {
     /// Three-statement node mapping (balance sheet, income statement, cash flow).
     pub three_statement: ThreeStatementMapping,
@@ -88,7 +90,8 @@ pub struct LboCheckMappings {
 /// Rates and multiples follow the crate-wide conventions: multiples are plain
 /// scalars (`8.5` means `8.5x`) and monetary inputs are plain `f64` amounts in
 /// the model currency.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LboConfig {
     /// Entry valuation multiple applied to `entry_metric_node`, e.g. `8.5`
     /// for 8.5x EBITDA.
@@ -118,7 +121,7 @@ pub struct LboConfig {
 ///
 /// All monetary fields are in the model currency; `moic` is a plain scalar
 /// (`2.4` means 2.4x the invested equity returned).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LboResult {
     /// Entry enterprise value: `entry_multiple × entry metric`.
     pub entry_enterprise_value: Money,

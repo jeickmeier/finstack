@@ -4,7 +4,7 @@ use finstack_quant_core::{Error, Result};
 use super::{AssetDynamics, MertonModel};
 
 /// Results from Monte Carlo path simulation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SimulatedPaths {
     /// Time grid from 0 to T.
     pub times: Vec<f64>,

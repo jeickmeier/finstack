@@ -24,7 +24,7 @@ use finstack_quant_valuations::instruments::{Attributes, Instrument};
 /// Monetary outputs are returned in the model currency inferred from
 /// `FinancialModelSpec::meta["currency"]`. Ratios such as
 /// `equity_value_per_share` are plain scalars.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CorporateValuationResult {
     /// Equity value (EV - Net Debt, after discounts)
     pub equity_value: Money,
@@ -38,7 +38,11 @@ pub struct CorporateValuationResult {
     pub equity_value_per_share: Option<f64>,
     /// Diluted share count (if shares_outstanding was provided)
     pub diluted_shares: Option<f64>,
-    /// The underlying DCF instrument (for further analysis)
+    /// The underlying DCF instrument (for further analysis).
+    ///
+    /// Not part of the wire form: it is skipped on serialization and
+    /// deserializes as `None`.
+    #[serde(skip)]
     pub dcf_instrument: Option<DiscountedCashFlow>,
 }
 
@@ -46,7 +50,8 @@ pub struct CorporateValuationResult {
 ///
 /// Percentage-style inputs use decimal form, so `0.10` means `10%`.
 /// [`Default`] caps perpetual stable growth at 5%.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DcfOptions {
     /// Enable mid-year discounting convention (default: false).
     pub mid_year_convention: bool,
@@ -131,7 +136,8 @@ impl Default for DcfOptions {
 /// Absolute bumps are in multiple-turn units (e.g. `Absolute(1.0)` is
 /// ±1.0x). Relative bumps are decimal fractions of the base multiple
 /// (e.g. `Relative(0.10)` is ±10%).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ExitMultipleBump {
     /// Absolute bump in turns of the multiple.
     Absolute(f64),
@@ -307,7 +313,7 @@ const SENSITIVITY_CLAMP_EPSILON: f64 = 1e-12;
 /// Monetary fields are expressed in the model currency inferred from
 /// `FinancialModelSpec::meta["currency"]`. Rates are decimal fractions
 /// (`0.10` means `10%`) and multiples are plain scalars (`9.5` means `9.5x`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DcfSensitivityResult {
     /// Unshocked enterprise value the tornado deltas are measured against.
     pub baseline_enterprise_value: Money,

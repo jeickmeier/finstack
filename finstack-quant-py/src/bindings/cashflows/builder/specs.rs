@@ -824,17 +824,6 @@ impl PyStepUpCouponSpec {
         })
     }
 
-    /// Validate that step dates are strictly increasing.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If the step schedule dates are not strictly increasing.
-    #[pyo3(text_signature = "(self)")]
-    fn validate(&self) -> PyResult<()> {
-        self.inner.validate().map_err(core_to_py)
-    }
-
     /// Debug-style representation.
     fn __repr__(&self) -> String {
         format!(

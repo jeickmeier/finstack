@@ -25,7 +25,7 @@ use finstack_quant_statements::error::{Error, Result};
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ForecastMetrics {
     /// Mean Absolute Error: average of |actual - forecast|
     ///

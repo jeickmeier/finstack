@@ -89,7 +89,7 @@ pub struct ScenarioSet {
 }
 
 /// Evaluated results for all scenarios in a [`ScenarioSet`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioResults {
     /// Map of scenario name → evaluated [`StatementResult`] for that scenario.
     pub scenarios: IndexMap<String, StatementResult>,
@@ -99,7 +99,7 @@ pub struct ScenarioResults {
 ///
 /// This is a thin wrapper around [`VarianceReport`] that keeps track of the
 /// baseline and comparison scenario names.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioDiff {
     /// Baseline scenario name.
     pub baseline: String,

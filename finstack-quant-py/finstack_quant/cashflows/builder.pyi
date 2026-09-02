@@ -2987,17 +2987,6 @@ class StepUpCouponSpec:
         """
         ...
 
-    def validate(self) -> None:
-        """
-        Validate that step dates are strictly increasing.
-
-        Raises
-        ------
-        ValueError
-            If the step schedule dates are not strictly increasing.
-        """
-        ...
-
 def merge_cashflow_schedules(
     schedules: list[CashFlowSchedule],
     notional: Notional,

@@ -13,7 +13,7 @@
 use crate::instruments::rates::hw1f::cumulative_coupon::CumulativeCouponTracker;
 
 /// Result of a TARN coupon-profile simulation along a deterministic path.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TarnCouponProfile {
     /// Actual coupon paid at each period (post floor, post target-cap). Zero
     /// for periods after knockout.
