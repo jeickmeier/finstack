@@ -161,7 +161,7 @@ pub use types::result::{
 pub use factors::{MarketRestoreFlags, MarketSnapshot};
 pub use long_rows::{
     pnl_attribution_carry_rows, pnl_attribution_credit_factor_rows, pnl_attribution_long_rows,
-    pnl_attribution_wide_row, LongDetailRow, PnlAttributionWideRow,
+    pnl_attribution_wide_row,
 };
 pub use metrics_based::attribute_pnl_metrics_based;
 pub use return_contribution::{
