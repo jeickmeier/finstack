@@ -40,12 +40,10 @@
 //!
 //! # Model Boundaries
 //!
-//! **Counterparty-posted dynamic IM** is not currently represented: only the
-//! static counterparty-posted
-//!   `independent_amount` on `CsaTerms` reduces EPE. Dynamic
-//!   counterparty-posted SIMM IM does not reduce EPE gap risk, so gap
-//!   risk is overstated for UMR counterparties that carry only a static IA
-//!   rather than dynamic SIMM-based IM.
+//! **Counterparty-posted IM** is not represented: the caller-supplied
+//! [`crate::xva::types::ExposureProfile`] is taken as the net exposure, so
+//! counterparty-posted SIMM IM does not reduce EPE gap risk and gap risk is
+//! overstated for UMR counterparties.
 //!
 //! # References
 //!

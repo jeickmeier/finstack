@@ -23,7 +23,6 @@ computed margin. Every edit needs a source citation and a reviewer.
 | `collateral_schedules.v1.json` | BCBS-IOSCO standardised haircut schedule + market convention | BCBS 261 / d499 Appendix B | Partial |
 | `defaults.v1.json` | Market convention (ISDA CSA practice), **not** a published schedule | Convention, as-of 2026-08-20 | Partial |
 | `ccp_methodologies.v1.json` | **Heuristics.** No published source. | Convention, as-of 2026-08-20 | Partial |
-| `xva_defaults.v1.json` | **Heuristics.** No published source. | Convention, as-of 2026-08-20 | No |
 
 "Test-pinned" means a test asserts the literal value, so an accidental edit
 fails CI rather than silently changing a margin number.
@@ -197,25 +196,6 @@ rates, and the whole `generic_var` parameterisation.
 **Regeneration.** If a real CCP margin model or a published CPMI-IOSCO
 quantitative disclosure becomes available, replace the heuristic and record
 the source here.
-
----
-
-## `xva_defaults.v1.json`
-
-**Source.** **None. These are heuristics.**
-
-`deterministic_exposure` supplies the default exposure time grid (120 points
-at 0.25-year steps, so 30 years quarterly) and a 40% recovery rate. The 40%
-figure is the conventional senior-unsecured recovery assumption used across
-credit modelling; it is not a market quote and not a regulatory value.
-
-**As-of.** 2026-08-20.
-
-**Pinned by.** Nothing. These values reach `XvaConfig` through
-`src/xva/types.rs` with no test asserting them.
-
-**Regeneration.** Desk decision. A caller should override `recovery_rate` with
-a counterparty-specific figure rather than rely on the default.
 
 ---
 

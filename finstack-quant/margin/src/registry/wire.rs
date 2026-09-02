@@ -195,27 +195,6 @@ pub(super) struct CcpRecord {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct XvaDefaultsFile {
-    pub(super) schema: Option<String>,
-    pub(super) version: Option<u32>,
-    pub(super) defaults: XvaDefaultsRecord,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct XvaDefaultsRecord {
-    pub(super) deterministic_exposure: XvaDeterministicExposureRecord,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct XvaDeterministicExposureRecord {
-    pub(super) time_grid_points: usize,
-    pub(super) time_grid_step_years: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct SimmFile {
     pub(super) schema: Option<String>,
     pub(super) version: Option<u32>,

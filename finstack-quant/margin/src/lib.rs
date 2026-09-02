@@ -33,7 +33,7 @@
 //! | [`metrics`] | IM/VM metrics, utilization, excess collateral, funding cost, Haircut01 |
 //! | [`regulatory`] | FRTB sensitivity-based approach and SA-CCR EAD |
 //! | [`constants`] | Shared heuristics |
-//! | [`xva`] | Netting, CVA/DVA/FVA/MVA, and shared XVA types |
+//! | [`xva`] | CVA/DVA/FVA/MVA and shared XVA types |
 //!
 //! # Quick Start
 //!

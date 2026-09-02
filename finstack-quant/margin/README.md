@@ -45,8 +45,8 @@ Consumed by `finstack-quant-valuations`, re-exported from the umbrella crate as
 
 The registry module is `pub(crate)`. Configured defaults are reached through
 public constructors such as `CsaSpec::regulatory_from_config`,
-`SimmCalculator::from_finstack_config`, `ScheduleImCalculator::from_finstack_config`,
-and `ClearingHouseImCalculator::for_ccp_with_config`.
+`SimmCalculator::from_finstack_config`, and
+`ScheduleImCalculator::from_finstack_config`.
 
 ## Quick examples
 
@@ -162,10 +162,8 @@ impl Marginable for ExampleTrade {
 ```
 
 Only `id`, `margin_spec`, `netting_set_id`, `simm_sensitivities`, and
-`mtm_for_vm` are required. `repo_margin_spec`, `im_exposure_base`,
-`simm_sensitivities_incremental`, and `has_margin` have defaults; override
-`simm_sensitivities_incremental` when full-recompute cost dominates a scenario
-sweep, so unchanged curves can reuse a prior snapshot.
+`mtm_for_vm` are required. `repo_margin_spec`, `im_exposure_base`, and
+`has_margin` have defaults.
 
 ## Conventions
 
@@ -216,12 +214,13 @@ generate_margin_interest_cashflows, margin_calls_to_cashflows}` turn calls into
 
 ## Regulatory capital
 
-`FrtbSbaEngine::builder()` builds the SBA engine (optionally restricting
-`scenarios` or `risk_classes`); `calculate(&FrtbSensitivities)` returns an
+`FrtbSbaEngine::default()` runs all scenarios and risk classes;
+`FrtbSbaEngine::new(scenarios, risk_classes)` restricts either.
+`calculate(&FrtbSensitivities)` returns an
 `FrtbSbaResult` with delta/vega/curvature by risk class, DRC, RRAO, the binding
 correlation scenario, per-scenario charges, and stamped `ResultsMeta`.
 
-`SaCcrEngine::builder()` (optional `alpha`) plus
+`SaCcrEngine::default()` (or `SaCcrEngine::with_alpha(alpha)`) plus
 `calculate_ead(&SaCcrNettingSetConfig, &[SaCcrTrade])` returns an `EadResult`
 with replacement cost, PFE, multiplier, add-on breakdown, alpha, and a reporting
 maturity factor. Note that `EadResult::maturity_factor` is a **reporting summary
@@ -235,13 +234,6 @@ from their own simulation or valuation stack, and `xva::cva::{compute_cva,
 compute_dva, compute_fva, compute_bilateral_xva}` and `xva::mva::compute_mva`
 turn it into adjustments. `xva::mva::im_profile_from_simm` builds an IM profile
 from a SIMM amount and an `ImDecayProfile`.
-
-When building a profile by hand, `xva::netting::apply_collateral_mpor` reduces
-the EPE leg and `apply_variation_margin_mpor` the ENE leg. Both take the exposure
-at `t` and the exposure at `t − MPOR` explicitly; the caller supplies the lagged
-value. `apply_collateral_mpor` also subtracts `csa.independent_amount`, which the
-ENE mirror deliberately does not, since counterparty-posted IA does not reduce
-own-default exposure.
 
 Exposure *generation* — rolling curves forward and repricing instruments — is out
 of scope: it needs the pricing stack, which sits above this crate. Wrong-way risk
@@ -258,11 +250,10 @@ Registry JSON is embedded at build time from `data/margin/`:
 | [`data/margin/collateral_schedules.v1.json`](data/margin/collateral_schedules.v1.json) | Eligible collateral and haircuts |
 | [`data/margin/ccp_methodologies.v1.json`](data/margin/ccp_methodologies.v1.json) | CCP proxy rates and MPOR |
 | [`data/margin/simm.v1.json`](data/margin/simm.v1.json) | SIMM weights, correlations, concentration thresholds |
-| [`data/margin/xva_defaults.v1.json`](data/margin/xva_defaults.v1.json) | XVA exposure-grid defaults; recovery is caller-supplied |
 
 Overlays go in the `FinstackConfig` extension key `margin.registry.v1`. The
 overlay is a deep object merge over a root whose sections are `defaults`,
-`schedule_im`, `collateral_schedules`, `ccp`, `simm`, and `xva_defaults` — each
+`schedule_im`, `collateral_schedules`, `ccp`, and `simm` — each
 section mirroring its file, so overriding a VM default nests `defaults` twice:
 
 ```json
@@ -307,9 +298,9 @@ See [`docs/SERDE_STABILITY.md`](../../docs/SERDE_STABILITY.md) and
   (`ImMethodology`, `MarginTenor`, `MarginCallType`, `ClearingStatus`,
   `CollateralAssetClass`, `NettingSetId`), `VmCalculator`/`VmResult`,
   `SimmCalculator`/`SimmSensitivities`, `ScheduleImCalculator`,
-  `HaircutImCalculator`, `ImResult`, the XVA surface (`XvaConfig`, `FundingConfig`,
-  `ExposureProfile`, `ExposureDiagnostics`, `XvaResult`, `CsaTerms`,
-  `XvaNettingSet`, `ImProfile`, `ImDecayProfile`, `MvaResult`,
+  `HaircutImCalculator`, `ImResult`, the XVA surface (`FundingConfig`,
+  `ExposureProfile`, `ExposureDiagnostics`, `XvaResult`,
+  `ImProfile`, `ImDecayProfile`, `MvaResult`,
   `compute_bilateral_xva`, `compute_mva`, `im_profile_from_simm`), the four
   metrics types, `FrtbSensitivities`/`FrtbSbaEngine`/`FrtbSbaResult`/`frtb_sba_charge`,
   `SaCcrTrade`/`SaCcrNettingSetConfig`/`SaCcrEngine`/`EadResult`/`saccr_ead`, `CONSTANTS`,

@@ -30,12 +30,9 @@ SimmCalculator = _margin.SimmCalculator
 ScheduleImCalculator = _margin.ScheduleImCalculator
 HaircutImCalculator = _margin.HaircutImCalculator
 FundingConfig = _margin.FundingConfig
-XvaConfig = _margin.XvaConfig
 ExposureDiagnostics = _margin.ExposureDiagnostics
 ExposureProfile = _margin.ExposureProfile
 XvaResult = _margin.XvaResult
-CsaTerms = _margin.CsaTerms
-XvaNettingSet = _margin.XvaNettingSet
 ImDecayProfile = _margin.ImDecayProfile
 ImProfile = _margin.ImProfile
 MvaResult = _margin.MvaResult
@@ -67,7 +64,6 @@ __all__: list[str] = [
     "ClearingStatus",
     "CollateralAssetClass",
     "CsaSpec",
-    "CsaTerms",
     "EadResult",
     "EligibleCollateralSchedule",
     "ExcessCollateral",
@@ -97,8 +93,6 @@ __all__: list[str] = [
     "SimmSensitivities",
     "VmCalculator",
     "VmResult",
-    "XvaConfig",
-    "XvaNettingSet",
     "XvaResult",
     "compute_bilateral_xva",
     "compute_mva",

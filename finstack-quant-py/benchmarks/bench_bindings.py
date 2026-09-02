@@ -50,7 +50,6 @@ from finstack_quant.margin import (
     MarginUtilization,
     NettingSetId,
     VmCalculator,
-    XvaConfig,
 )
 from finstack_quant.models.correlation import (
     CopulaSpec,
@@ -723,9 +722,6 @@ class TestMarginBenchmarks:
             return b, c
 
         benchmark(_create_ids)
-
-    def test_xva_config(self, benchmark) -> None:
-        benchmark(XvaConfig)
 
     def test_funding_config(self, benchmark) -> None:
         benchmark(FundingConfig, 50.0, 30.0)

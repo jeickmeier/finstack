@@ -17,26 +17,11 @@ from finstack_quant.margin import (
     MvaResult,
     SimmCalculator,
     SimmSensitivities,
-    XvaConfig,
     XvaResult,
     compute_bilateral_xva,
     compute_mva,
     im_profile_from_simm,
 )
-
-
-def test_xva_config_requires_both_recovery_rates() -> None:
-    with pytest.raises(TypeError):
-        XvaConfig()  # type: ignore[call-arg]
-    with pytest.raises(TypeError):
-        XvaConfig(0.40)  # type: ignore[call-arg]
-
-
-@pytest.mark.parametrize("recovery", [0.0, 1.0])
-def test_xva_config_recovery_boundaries_round_trip(recovery: float) -> None:
-    config = XvaConfig(recovery, recovery)
-    assert config.recovery_rate == recovery
-    assert config.own_recovery_rate == recovery
 
 
 def flat_discount_curve() -> DiscountCurve:

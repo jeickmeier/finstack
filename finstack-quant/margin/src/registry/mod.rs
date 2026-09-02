@@ -59,8 +59,6 @@ pub struct MarginRegistry {
     pub ccp_default_params: CcpParams,
     /// Resolved generic VaR fallback metadata for unknown CCP names.
     pub ccp_generic_var_defaults: GenericVarDefaults,
-    /// XVA default configuration assumptions.
-    pub xva: XvaDefaults,
     /// SIMM parameter sets keyed by registry id such as `"v2_6"`.
     pub simm: HashMap<String, SimmParams>,
 }
@@ -202,22 +200,6 @@ struct ParsedCcpRegistry {
     ccp_generic_var_defaults: GenericVarDefaults,
 }
 
-/// Registry-backed XVA defaults.
-#[derive(Debug, Clone)]
-pub struct XvaDefaults {
-    /// Defaults for deterministic exposure profile generation and CVA inputs.
-    pub deterministic_exposure: XvaDeterministicExposureDefaults,
-}
-
-/// Registry-backed deterministic XVA exposure defaults.
-#[derive(Debug, Clone)]
-pub struct XvaDeterministicExposureDefaults {
-    /// Number of points in the default exposure time grid.
-    pub time_grid_points: usize,
-    /// Step between default exposure time-grid points, in years.
-    pub time_grid_step_years: f64,
-}
-
 /// Registry-backed SIMM parameter set.
 #[derive(Debug, Clone)]
 pub struct SimmParams {
@@ -352,7 +334,6 @@ pub fn build_registry(overlay: Option<&Value>) -> Result<MarginRegistry> {
         parse_collateral_schedules(root.get("collateral_schedules"))?;
     let defaults = parse_defaults(root.get("defaults"))?;
     let parsed_ccp = parse_ccp(root.get("ccp"))?;
-    let xva = parse_xva_defaults(root.get("xva_defaults"))?;
     let simm = parse_simm(root.get("simm"))?;
 
     info!(
@@ -372,7 +353,6 @@ pub fn build_registry(overlay: Option<&Value>) -> Result<MarginRegistry> {
         ccp: parsed_ccp.ccp,
         ccp_default_params: parsed_ccp.ccp_default_params,
         ccp_generic_var_defaults: parsed_ccp.ccp_generic_var_defaults,
-        xva,
         simm,
     })
 }
@@ -628,45 +608,6 @@ fn parse_ccp(value: Option<&Value>) -> Result<ParsedCcpRegistry> {
         ccp: map,
         ccp_default_params: default_params,
         ccp_generic_var_defaults: generic_var_defaults,
-    })
-}
-
-fn parse_xva_defaults(value: Option<&Value>) -> Result<XvaDefaults> {
-    let Some(val) = value else {
-        return Err(Error::Validation(
-            "xva_defaults section missing".to_string(),
-        ));
-    };
-    let file: wire::XvaDefaultsFile = serde_json::from_value(val.clone()).map_err(to_validation)?;
-    if file.schema.as_deref() != Some("finstack_quant.margin.xva_defaults.v1")
-        || file.version != Some(1)
-    {
-        return Err(Error::Validation(
-            "xva_defaults requires schema finstack_quant.margin.xva_defaults.v1 and version 1"
-                .to_string(),
-        ));
-    }
-    let deterministic = file.defaults.deterministic_exposure;
-
-    if deterministic.time_grid_points == 0 {
-        return Err(Error::Validation(
-            "xva_defaults deterministic_exposure.time_grid_points must be positive".to_string(),
-        ));
-    }
-    validate_non_negative(
-        "xva_defaults.deterministic_exposure.time_grid_step_years",
-        deterministic.time_grid_step_years,
-    )?;
-    if deterministic.time_grid_step_years == 0.0 {
-        return Err(Error::Validation(
-            "xva_defaults deterministic_exposure.time_grid_step_years must be positive".to_string(),
-        ));
-    }
-    Ok(XvaDefaults {
-        deterministic_exposure: XvaDeterministicExposureDefaults {
-            time_grid_points: deterministic.time_grid_points,
-            time_grid_step_years: deterministic.time_grid_step_years,
-        },
     })
 }
 
@@ -1428,10 +1369,6 @@ mod tests {
         assert!(
             registry.ccp_generic_var_defaults.lookback_days > 0,
             "generic VaR lookback should be resolved"
-        );
-        assert!(
-            registry.xva.deterministic_exposure.time_grid_points > 0,
-            "xva time-grid points should be resolved"
         );
         assert!(
             registry.defaults.im.simm.mpor_days > 0,
