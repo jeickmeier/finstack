@@ -8,9 +8,6 @@
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::cms_spread_option::{CmsSpreadOption, CmsSpreadOptionType};
-use crate::instruments::rates::hw1f::forward_swap_rate::{
-    calculate_forward_swap_rate, ForwardSwapRateInputs,
-};
 use crate::market::resolve_vol_source;
 use crate::metrics::MetricId;
 use crate::pricer::{
@@ -176,41 +173,14 @@ impl CmsSpreadOptionPricer {
             ))
         })?;
         let swap_end = inst.expiry_date.add_months(tenor_months as i32);
-        // Project the CMS forward swap rate on the instrument's actual swap
-        // conventions. Hard-coding USD conventions (semi/30360 fixed,
-        // quarterly/Act360 float) mis-prices the annuity and accrual basis for
-        // non-USD CMS spreads (e.g. EUR: annual/30360 fixed, annual/Act360
-        // float). `resolved_swap_*` falls back to the USD market standard when
-        // neither `swap_convention` nor an explicit field is set.
-        let convention =
-            crate::instruments::rates::hw1f::forward_swap_rate::resolve_reference_swap_convention(
-                inst.swap_convention,
-                inst.notional.currency(),
-            )?;
-        let calendar_id = convention.calendar_id().ok_or_else(|| {
-            finstack_quant_core::Error::Validation(
-                "CMS reference-swap convention has no calendar".to_string(),
-            )
-        })?;
-        let (forward_rate, _) = calculate_forward_swap_rate(ForwardSwapRateInputs {
+        // Project the CMS forward swap rate on the instrument's resolved swap
+        // conventions (explicit fields > swap_convention > currency > USD).
+        let (forward_rate, _) = inst.reference_swap().forward_rate_and_annuity(
             market,
-            discount_curve_id: &inst.discount_curve_id,
-            forward_curve_id: &inst.forward_curve_id,
             as_of,
-            start: inst.expiry_date,
-            end: swap_end,
-            fixed_frequency: inst.resolved_swap_fixed_frequency(),
-            fixed_day_count: inst.resolved_swap_day_count(),
-            float_frequency: inst.resolved_swap_float_frequency(),
-            float_day_count: inst.resolved_swap_float_day_count(),
-            calendar_id: &calendar_id,
-            business_day_convention: convention.business_day_convention(),
-            stub: finstack_quant_core::dates::StubKind::ShortFront,
-            end_of_month: inst.expiry_date.end_of_month() == inst.expiry_date
-                && swap_end.end_of_month() == swap_end,
-            payment_lag_days: convention.payment_lag_days(),
-            enforce_forward_tenor: !convention.uses_daily_compounding(),
-        })?;
+            inst.expiry_date,
+            swap_end,
+        )?;
         if forward_rate <= 0.0 || !forward_rate.is_finite() {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "CmsSpreadOption forward CMS rate must be positive and finite, got {}",
@@ -226,7 +196,7 @@ impl CmsSpreadOptionPricer {
                 time_to_expiry,
                 tenor_years,
                 forward_rate,
-                1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
+                inst.reference_swap().payments_per_year(),
             )
         } else {
             0.0

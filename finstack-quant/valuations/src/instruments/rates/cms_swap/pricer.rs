@@ -284,7 +284,7 @@ impl CmsSwapReplicationPricer {
         let vol_surface = market.get_surface(inst.vol_surface_id.as_str())?;
         // Fixed-leg payments per year of the reference swap, matching the
         // Hagan path's frequency argument.
-        let payments_per_year = 1.0 / inst.resolved_swap_fixed_frequency().to_years_simple();
+        let payments_per_year = inst.reference_swap().payments_per_year();
 
         let mut total_pv = 0.0;
         for (i, &fixing_date) in inst.cms_fixing_dates.iter().enumerate() {
@@ -437,7 +437,7 @@ pub(super) fn cms_coupon_rate(
             time_to_fixing,
             inst.cms_tenor,
             forward_swap_rate,
-            1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
+            inst.reference_swap().payments_per_year(),
         ) * convexity_scale
     } else {
         0.0
@@ -466,42 +466,12 @@ pub(super) fn cms_forward_and_ttf(
     as_of: Date,
     fixing_date: Date,
 ) -> Result<(f64, f64)> {
-    let swap_start = inst.reference_swap_start(fixing_date)?;
+    let reference_swap = inst.reference_swap();
+    let swap_start = reference_swap.reference_swap_start(fixing_date)?;
     let swap_tenor_months = (inst.cms_tenor * 12.0).round() as i32;
     let swap_end = swap_start.add_months(swap_tenor_months);
-    let convention =
-        crate::instruments::rates::hw1f::forward_swap_rate::resolve_reference_swap_convention(
-            inst.swap_convention,
-            inst.notional.currency(),
-        )?;
-    let calendar_id = convention.calendar_id().ok_or_else(|| {
-        finstack_quant_core::Error::Validation(
-            "CMS reference-swap convention has no calendar".to_string(),
-        )
-    })?;
-
     let (forward_swap_rate, _annuity) =
-        crate::instruments::rates::hw1f::forward_swap_rate::calculate_forward_swap_rate(
-            crate::instruments::rates::hw1f::forward_swap_rate::ForwardSwapRateInputs {
-                market,
-                discount_curve_id: &inst.discount_curve_id,
-                forward_curve_id: &inst.forward_curve_id,
-                as_of,
-                start: swap_start,
-                end: swap_end,
-                fixed_frequency: inst.resolved_swap_fixed_frequency(),
-                fixed_day_count: inst.resolved_swap_day_count(),
-                float_frequency: inst.resolved_swap_float_frequency(),
-                float_day_count: inst.resolved_swap_float_day_count(),
-                calendar_id: &calendar_id,
-                business_day_convention: convention.business_day_convention(),
-                stub: finstack_quant_core::dates::StubKind::ShortFront,
-                end_of_month: swap_start.end_of_month() == swap_start
-                    && swap_end.end_of_month() == swap_end,
-                payment_lag_days: convention.payment_lag_days(),
-                enforce_forward_tenor: !convention.uses_daily_compounding(),
-            },
-        )?;
+        reference_swap.forward_rate_and_annuity(market, as_of, swap_start, swap_end)?;
 
     // Calendar time for the vol axis: ACT/365F, not the accrual day count.
     let time_to_fixing =

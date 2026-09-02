@@ -1,0 +1,250 @@
+//! Reference-swap resolution shared by the CMS instruments.
+//!
+//! A CMS fixing observes the par rate of a reference swap. [`CmsOption`],
+//! [`CmsSwap`] and [`CmsSpreadOption`] all carry the same optional
+//! convention overrides; [`CmsReferenceSwap`] resolves them once so the
+//! Hagan, static-replication and spread pricers project the same swap.
+//!
+//! [`CmsOption`]: crate::instruments::rates::cms_option::CmsOption
+//! [`CmsSwap`]: crate::instruments::rates::cms_swap::CmsSwap
+//! [`CmsSpreadOption`]: crate::instruments::rates::cms_spread_option::CmsSpreadOption
+
+use crate::instruments::common_impl::parameters::IRSConvention;
+use crate::instruments::rates::hw1f::forward_swap_rate::{
+    calculate_forward_swap_rate, resolve_reference_swap_convention, ForwardSwapRateInputs,
+};
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::{calendar_by_id, Date, DateExt, DayCount, StubKind, Tenor};
+use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::types::CurveId;
+use finstack_quant_core::Result;
+
+/// Reference swap of a CMS fixing, with its leg conventions resolved.
+///
+/// Resolution order for every leg field is explicit override >
+/// `swap_convention` > currency market convention (EUR, GBP, JPY) > USD
+/// market standard (semi-annual 30/360 fixed versus quarterly ACT/360
+/// floating). USD is deliberately absent from the currency step: the USD CMS
+/// underlying (fixed versus 3M) is not the same swap as
+/// [`IRSConvention::UsdSofr`] (annual/annual OIS).
+#[derive(Debug, Clone, Copy)]
+pub struct CmsReferenceSwap<'a> {
+    /// Instrument label used in error messages (e.g. `CMS option 'ID'`).
+    pub label: &'a str,
+    /// Notional currency, selecting the market convention when no override is given.
+    pub currency: Currency,
+    /// Explicit reference-swap convention override.
+    pub swap_convention: Option<IRSConvention>,
+    /// Explicit fixed-leg payment frequency override.
+    pub swap_fixed_frequency: Option<Tenor>,
+    /// Explicit floating-leg payment frequency override.
+    pub swap_float_frequency: Option<Tenor>,
+    /// Explicit fixed-leg accrual day count override.
+    pub swap_day_count: Option<DayCount>,
+    /// Explicit floating-leg accrual day count override.
+    pub swap_float_day_count: Option<DayCount>,
+    /// Discount curve used for the reference-swap annuity.
+    pub discount_curve_id: &'a CurveId,
+    /// Projection curve for the reference-swap floating leg.
+    pub forward_curve_id: &'a CurveId,
+}
+
+impl CmsReferenceSwap<'_> {
+    fn currency_swap_convention(&self) -> Option<IRSConvention> {
+        match self.currency {
+            Currency::EUR => Some(IRSConvention::EurEstr),
+            Currency::GBP => Some(IRSConvention::GbpSonia),
+            Currency::JPY => Some(IRSConvention::JpyTonar),
+            _ => None,
+        }
+    }
+
+    /// Resolved fixed-leg payment frequency (explicit > convention > currency > semi-annual).
+    pub fn resolved_fixed_frequency(&self) -> Tenor {
+        self.swap_fixed_frequency
+            .or_else(|| self.swap_convention.map(|c| c.fixed_frequency()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_frequency()))
+            .unwrap_or_else(Tenor::semi_annual)
+    }
+
+    /// Resolved floating-leg payment frequency (explicit > convention > currency > quarterly).
+    pub fn resolved_float_frequency(&self) -> Tenor {
+        self.swap_float_frequency
+            .or_else(|| self.swap_convention.map(|c| c.float_frequency()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.float_frequency()))
+            .unwrap_or_else(Tenor::quarterly)
+    }
+
+    /// Resolved fixed-leg day count (explicit > convention > currency > 30/360).
+    pub fn resolved_fixed_day_count(&self) -> DayCount {
+        self.swap_day_count
+            .or_else(|| self.swap_convention.map(|c| c.fixed_day_count()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_day_count()))
+            .unwrap_or(DayCount::Thirty360)
+    }
+
+    /// Resolved floating-leg day count (explicit > convention > currency > ACT/360).
+    pub fn resolved_float_day_count(&self) -> DayCount {
+        self.swap_float_day_count
+            .or_else(|| self.swap_convention.map(|c| c.float_day_count()))
+            .or_else(|| self.currency_swap_convention().map(|c| c.float_day_count()))
+            .unwrap_or(DayCount::Act360)
+    }
+
+    /// Fixed-leg payments per year (see [`Tenor::payments_per_year`]).
+    pub fn payments_per_year(&self) -> f64 {
+        self.resolved_fixed_frequency().payments_per_year()
+    }
+
+    /// Reference-swap convention supplying the calendar, reset lag, business-day
+    /// rule and payment lag.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when no override is set and the currency has
+    /// no market-standard convention.
+    pub fn convention(&self) -> Result<IRSConvention> {
+        resolve_reference_swap_convention(self.swap_convention, self.currency)
+    }
+
+    /// Effective date of the reference swap observed on `fixing_date`: the
+    /// fixing shifted by the convention's reset lag on its calendar.
+    ///
+    /// # Arguments
+    ///
+    /// * `fixing_date` - CMS fixing (observation) date.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when the convention cannot be resolved, has
+    /// no reference calendar, or the calendar is not registered.
+    pub fn reference_swap_start(&self, fixing_date: Date) -> Result<Date> {
+        let convention = self.convention()?;
+        let calendar_id = convention.calendar_id().ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "{} convention has no reference calendar",
+                self.label
+            ))
+        })?;
+        let calendar = calendar_by_id(&calendar_id).ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "{} reference calendar '{}' is not registered",
+                self.label, calendar_id
+            ))
+        })?;
+        fixing_date.add_business_days(convention.reset_lag_days(), calendar)
+    }
+
+    /// Forward par swap rate and market annuity of the reference swap
+    /// `[start, end]` on the resolved conventions.
+    ///
+    /// # Arguments
+    ///
+    /// * `market` - Market supplying the discount and projection curves.
+    /// * `as_of` - Valuation date used for relative discount factors.
+    /// * `start` - Effective date of the reference swap.
+    /// * `end` - Maturity of the reference swap.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when the convention cannot be resolved, a
+    /// curve is missing, the annuity is degenerate, or the projection curve
+    /// tenor does not match the floating-leg frequency.
+    pub fn forward_rate_and_annuity(
+        &self,
+        market: &MarketContext,
+        as_of: Date,
+        start: Date,
+        end: Date,
+    ) -> Result<(f64, f64)> {
+        let convention = self.convention()?;
+        let calendar_id = convention.calendar_id().ok_or_else(|| {
+            finstack_quant_core::Error::Validation(
+                "CMS reference-swap convention has no calendar".to_string(),
+            )
+        })?;
+        calculate_forward_swap_rate(ForwardSwapRateInputs {
+            market,
+            discount_curve_id: self.discount_curve_id,
+            forward_curve_id: self.forward_curve_id,
+            as_of,
+            start,
+            end,
+            fixed_frequency: self.resolved_fixed_frequency(),
+            fixed_day_count: self.resolved_fixed_day_count(),
+            float_frequency: self.resolved_float_frequency(),
+            float_day_count: self.resolved_float_day_count(),
+            calendar_id: &calendar_id,
+            business_day_convention: convention.business_day_convention(),
+            stub: StubKind::ShortFront,
+            end_of_month: start.end_of_month() == start && end.end_of_month() == end,
+            payment_lag_days: convention.payment_lag_days(),
+            enforce_forward_tenor: !convention.uses_daily_compounding(),
+        })
+    }
+}
+
+/// Closed-form par annuity of a bullet fixed-rate swap discounted at its own rate.
+///
+/// ```text
+/// A_par(k) = (1 - (1 + k/m)^(-n·m)) / k      k != 0
+/// A_par(0) = n                                (L'Hôpital limit)
+/// ```
+///
+/// # Arguments
+///
+/// * `rate` - Flat discount/par rate `k` as a decimal.
+/// * `tenor_years` - Swap tenor `n` in years.
+/// * `m` - Fixed-leg payments per year (see [`Tenor::payments_per_year`]).
+pub fn par_annuity(rate: f64, tenor_years: f64, m: f64) -> f64 {
+    if rate.abs() < 1e-9 {
+        return tenor_years;
+    }
+    let discount = (1.0 + rate / m).powf(-tenor_years * m);
+    (1.0 - discount) / rate
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn par_annuity_limit_and_formula() {
+        assert_eq!(par_annuity(0.0, 10.0, 2.0), 10.0);
+        let a = par_annuity(0.05, 10.0, 2.0);
+        let expected = (1.0 - (1.025f64).powf(-20.0)) / 0.05;
+        assert!((a - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn resolution_prefers_explicit_then_convention_then_currency() {
+        let disc = CurveId::new("EUR-OIS");
+        let base = CmsReferenceSwap {
+            label: "test",
+            currency: Currency::EUR,
+            swap_convention: None,
+            swap_fixed_frequency: None,
+            swap_float_frequency: None,
+            swap_day_count: None,
+            swap_float_day_count: None,
+            discount_curve_id: &disc,
+            forward_curve_id: &disc,
+        };
+        assert_eq!(
+            base.resolved_fixed_frequency(),
+            IRSConvention::EurEstr.fixed_frequency()
+        );
+        let explicit = CmsReferenceSwap {
+            swap_fixed_frequency: Some(Tenor::quarterly()),
+            ..base
+        };
+        assert_eq!(explicit.resolved_fixed_frequency(), Tenor::quarterly());
+        let usd = CmsReferenceSwap {
+            currency: Currency::USD,
+            ..base
+        };
+        assert_eq!(usd.resolved_fixed_frequency(), Tenor::semi_annual());
+        assert_eq!(usd.resolved_fixed_day_count(), DayCount::Thirty360);
+        assert_eq!(usd.payments_per_year(), 2.0);
+    }
+}

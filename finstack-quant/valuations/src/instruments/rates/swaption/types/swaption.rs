@@ -864,49 +864,19 @@ impl Swaption {
     /// # Edge Cases
     ///
     /// When `forward_rate ≈ 0`, uses L'Hôpital's limit: `A → N/m` (sum of accruals).
+    /// Payments per year follow [`Tenor::payments_per_year`] (day tenors on a
+    /// 365-day year).
     pub fn cash_annuity_par_yield(&self, forward_rate: f64) -> Result<f64> {
-        let fixed_frequency = self.get_fixed_frequency();
-        let freq_per_year = match fixed_frequency.unit() {
-            finstack_quant_core::dates::TenorUnit::Months if fixed_frequency.count() > 0 => {
-                12.0 / fixed_frequency.count() as f64
-            }
-            finstack_quant_core::dates::TenorUnit::Days if fixed_frequency.count() > 0 => {
-                365.0 / fixed_frequency.count() as f64
-            }
-            finstack_quant_core::dates::TenorUnit::Years if fixed_frequency.count() > 0 => {
-                1.0 / fixed_frequency.count() as f64
-            }
-            finstack_quant_core::dates::TenorUnit::Weeks if fixed_frequency.count() > 0 => {
-                52.0 / fixed_frequency.count() as f64
-            }
-            _ => {
-                return Err(Error::Validation(
-                    "Invalid frequency in cash annuity".into(),
-                ))
-            }
-        };
-
-        if forward_rate.abs() < 1e-8 {
-            // L'Hopital's limit for S -> 0: A = N/m (sum of accruals)
-            // We need number of periods.
-            let tenor = year_fraction(
-                self.get_day_count(),
-                self.get_swap_start(),
-                self.get_swap_end(),
-            )?;
-            let periods = freq_per_year * tenor;
-            return Ok(periods / freq_per_year);
-        }
-
         let tenor_years = year_fraction(
             self.get_day_count(),
             self.get_swap_start(),
             self.get_swap_end(),
         )?;
-        let n_periods = tenor_years * freq_per_year;
-
-        let df_swap = (1.0 + forward_rate / freq_per_year).powf(-n_periods);
-        Ok((1.0 - df_swap) / forward_rate)
+        Ok(crate::instruments::rates::cms_common::par_annuity(
+            forward_rate,
+            tenor_years,
+            self.get_fixed_frequency().payments_per_year(),
+        ))
     }
 
     /// Cash settlement annuity using zero coupon method.

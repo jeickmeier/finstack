@@ -18,8 +18,9 @@ use crate::cashflow::primitives::{CFKind, CashFlow};
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::parameters::IRSConvention;
 use crate::instruments::common_impl::traits::{Attributes, Instrument};
+use crate::instruments::rates::cms_common::CmsReferenceSwap;
 use finstack_quant_core::cashflow::CashFlowAccrual;
-use finstack_quant_core::dates::{calendar_by_id, Date, DateExt, DayCount, Tenor};
+use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
@@ -203,37 +204,19 @@ pub enum FundingLeg {
 }
 
 impl CmsSwap {
-    /// Effective date of the reference swap observed on `fixing_date`.
-    pub(crate) fn reference_swap_start(
-        &self,
-        fixing_date: Date,
-    ) -> finstack_quant_core::Result<Date> {
-        let convention = match (self.swap_convention, self.notional.currency()) {
-            (Some(convention), _) => convention,
-            (None, finstack_quant_core::currency::Currency::USD) => IRSConvention::UsdSofr,
-            (None, finstack_quant_core::currency::Currency::EUR) => IRSConvention::EurEstr,
-            (None, finstack_quant_core::currency::Currency::GBP) => IRSConvention::GbpSonia,
-            (None, finstack_quant_core::currency::Currency::JPY) => IRSConvention::JpyTonar,
-            (None, currency) => {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "CMS swap '{}' requires swap_convention for currency {}",
-                    self.id, currency
-                )))
-            }
-        };
-        let calendar_id = convention.calendar_id().ok_or_else(|| {
-            finstack_quant_core::Error::Validation(format!(
-                "CMS swap '{}' convention has no reference calendar",
-                self.id
-            ))
-        })?;
-        let calendar = calendar_by_id(&calendar_id).ok_or_else(|| {
-            finstack_quant_core::Error::Validation(format!(
-                "CMS swap '{}' reference calendar '{}' is not registered",
-                self.id, calendar_id
-            ))
-        })?;
-        fixing_date.add_business_days(convention.reset_lag_days(), calendar)
+    /// Reference swap observed by this instrument's CMS fixings.
+    pub fn reference_swap(&self) -> CmsReferenceSwap<'_> {
+        CmsReferenceSwap {
+            label: "CMS swap",
+            currency: self.notional.currency(),
+            swap_convention: self.swap_convention,
+            swap_fixed_frequency: self.swap_fixed_frequency,
+            swap_float_frequency: self.swap_float_frequency,
+            swap_day_count: self.swap_day_count,
+            swap_float_day_count: self.swap_float_day_count,
+            discount_curve_id: &self.discount_curve_id,
+            forward_curve_id: &self.forward_curve_id,
+        }
     }
 
     /// Validate CMS and funding leg schedule vectors.
@@ -271,60 +254,6 @@ impl CmsSwap {
         }
 
         Ok(())
-    }
-
-    /// Market convention implied by the instrument's currency, used when
-    /// neither an explicit leg field nor `swap_convention` is supplied.
-    ///
-    /// These accessors previously fell back to hard-coded USD constants
-    /// (semi-annual 30/360 fixed, quarterly Act/360 float) regardless of
-    /// currency, so a EUR, GBP or JPY CMS instrument was projected on USD
-    /// conventions while its calendar came from the correct currency.
-    ///
-    /// USD is deliberately absent: the terminal constants below encode the
-    /// conventional USD CMS underlying (fixed vs 3M), which is not the same
-    /// swap as [`IRSConvention::UsdSofr`] (annual/annual OIS). Changing the
-    /// USD underlying is a separate quant decision, not a legacy removal.
-    fn currency_swap_convention(&self) -> Option<IRSConvention> {
-        use finstack_quant_core::currency::Currency;
-        match self.notional.currency() {
-            Currency::EUR => Some(IRSConvention::EurEstr),
-            Currency::GBP => Some(IRSConvention::GbpSonia),
-            Currency::JPY => Some(IRSConvention::JpyTonar),
-            _ => None,
-        }
-    }
-
-    /// Resolved fixed leg frequency (explicit > convention > default semi-annual).
-    pub fn resolved_swap_fixed_frequency(&self) -> Tenor {
-        self.swap_fixed_frequency
-            .or_else(|| self.swap_convention.map(|c| c.fixed_frequency()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_frequency()))
-            .unwrap_or_else(Tenor::semi_annual)
-    }
-
-    /// Resolved float leg frequency (explicit > convention > default quarterly).
-    pub fn resolved_swap_float_frequency(&self) -> Tenor {
-        self.swap_float_frequency
-            .or_else(|| self.swap_convention.map(|c| c.float_frequency()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.float_frequency()))
-            .unwrap_or_else(Tenor::quarterly)
-    }
-
-    /// Resolved fixed leg day count (explicit > convention > default 30/360).
-    pub fn resolved_swap_day_count(&self) -> DayCount {
-        self.swap_day_count
-            .or_else(|| self.swap_convention.map(|c| c.fixed_day_count()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_day_count()))
-            .unwrap_or(DayCount::Thirty360)
-    }
-
-    /// Resolved float leg day count (explicit > convention > ACT/360).
-    pub fn resolved_swap_float_day_count(&self) -> DayCount {
-        self.swap_float_day_count
-            .or_else(|| self.swap_convention.map(|c| c.float_day_count()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.float_day_count()))
-            .unwrap_or(DayCount::Act360)
     }
 
     /// Create a CMS swap from schedule parameters.

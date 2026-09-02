@@ -33,6 +33,7 @@
 //! - Hull, J. (2018). "Options, Futures, and Other Derivatives." `docs/REFERENCES.md#hull-options-futures`
 
 use crate::instruments::common_impl::traits::Instrument;
+use crate::instruments::rates::cms_common::par_annuity;
 use crate::instruments::rates::cms_option::types::CmsOption;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -112,13 +113,14 @@ impl CmsOptionPricer {
             }
 
             // 1. Calculate Forward Swap Rate
-            let swap_start = inst.reference_swap_start(fixing_date)?;
+            let reference_swap = inst.reference_swap();
+            let swap_start = reference_swap.reference_swap_start(fixing_date)?;
             let swap_tenor_months = (inst.cms_tenor * 12.0).round() as i32;
             let swap_end = swap_start.add_months(swap_tenor_months);
 
             // Calculate annuity and forward rate
             let (forward_swap_rate, _) =
-                self.calculate_forward_swap_rate(inst, curves, as_of, swap_start, swap_end)?;
+                reference_swap.forward_rate_and_annuity(curves, as_of, swap_start, swap_end)?;
 
             // Negative-rate regimes (EUR/JPY/CHF): Black-76 and the Hagan
             // lognormal convexity adjustment are undefined for F ≤ 0. Fall
@@ -214,7 +216,7 @@ impl CmsOptionPricer {
                     time_to_fixing,
                     inst.cms_tenor,
                     forward_swap_rate,
-                    1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
+                    reference_swap.payments_per_year(),
                 )
             } else {
                 0.0
@@ -261,55 +263,6 @@ impl CmsOptionPricer {
         as_of: Date,
     ) -> Result<Money> {
         self.price_internal_with_convexity(inst, curves, as_of, 1.0)
-    }
-
-    /// Calculate forward swap rate and annuity.
-    ///
-    /// # Time Basis
-    ///
-    /// Uses curve-consistent time mapping:
-    /// - Discount factors use `relative_df_discount_curve` (curve's own day_count/base_date)
-    /// - Forward rates use `rate_between_on_dates` (forward curve's own day_count/base_date)
-    /// - Accrual fractions use `swap_day_count` for the fixed leg and
-    ///   `swap_float_day_count` (if provided) for the floating leg.
-    pub(crate) fn calculate_forward_swap_rate(
-        &self,
-        inst: &CmsOption,
-        market: &MarketContext,
-        as_of: Date,
-        start: Date,
-        end: Date,
-    ) -> Result<(f64, f64)> {
-        let convention =
-            crate::instruments::rates::hw1f::forward_swap_rate::resolve_reference_swap_convention(
-                inst.swap_convention,
-                inst.notional.currency(),
-            )?;
-        let calendar_id = convention.calendar_id().ok_or_else(|| {
-            finstack_quant_core::Error::Validation(
-                "CMS reference-swap convention has no calendar".to_string(),
-            )
-        })?;
-        crate::instruments::rates::hw1f::forward_swap_rate::calculate_forward_swap_rate(
-            crate::instruments::rates::hw1f::forward_swap_rate::ForwardSwapRateInputs {
-                market,
-                discount_curve_id: &inst.discount_curve_id,
-                forward_curve_id: &inst.forward_curve_id,
-                as_of,
-                start,
-                end,
-                fixed_frequency: inst.resolved_swap_fixed_frequency(),
-                fixed_day_count: inst.resolved_swap_day_count(),
-                float_frequency: inst.resolved_swap_float_frequency(),
-                float_day_count: inst.resolved_swap_float_day_count(),
-                calendar_id: &calendar_id,
-                business_day_convention: convention.business_day_convention(),
-                stub: finstack_quant_core::dates::StubKind::ShortFront,
-                end_of_month: start.end_of_month() == start && end.end_of_month() == end,
-                payment_lag_days: convention.payment_lag_days(),
-                enforce_forward_tenor: !convention.uses_daily_compounding(),
-            },
-        )
     }
 }
 
@@ -433,7 +386,7 @@ pub fn convexity_adjustment_with_frequency(
         return 0.0;
     }
 
-    let a_par = |k: f64| par_annuity_proxy(k, swap_tenor, payments_per_year);
+    let a_par = |k: f64| par_annuity(k, swap_tenor, payments_per_year);
     let a0 = a_par(forward_rate);
     if a0.abs() < 1e-12 {
         return 0.0;
@@ -445,18 +398,4 @@ pub fn convexity_adjustment_with_frequency(
     let g_log_deriv = -a_prime / a0;
 
     g_log_deriv * forward_rate * forward_rate * volatility * volatility * time_to_fixing
-}
-
-/// Closed-form par annuity for a fixed-rate swap.
-///
-/// `A_par(k) = (1 − (1 + k/m)^(−n·m)) / k` for `k > 0`, with the L'Hôpital
-/// limit `A_par(0) = n`. This is the same closed form used by the CMS
-/// static-replication pricer.
-fn par_annuity_proxy(rate: f64, tenor_years: f64, m: f64) -> f64 {
-    if rate.abs() < 1e-12 {
-        return tenor_years;
-    }
-    let nm = tenor_years * m;
-    let discount = (1.0 + rate / m).powf(-nm);
-    (1.0 - discount) / rate
 }

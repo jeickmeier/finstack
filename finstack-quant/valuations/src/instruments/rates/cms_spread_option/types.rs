@@ -4,6 +4,7 @@ use crate::impl_instrument_base;
 use crate::instruments::common_impl::parameters::IRSConvention;
 use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::common_impl::validation;
+use crate::instruments::rates::cms_common::CmsReferenceSwap;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -180,70 +181,19 @@ impl CmsSpreadOption {
         Ok(())
     }
 
-    /// Market convention implied by the instrument's currency, used when
-    /// neither an explicit leg field nor `swap_convention` is supplied.
-    ///
-    /// These accessors previously fell back to hard-coded USD constants
-    /// (semi-annual 30/360 fixed, quarterly Act/360 float) regardless of
-    /// currency, so a EUR, GBP or JPY CMS instrument was projected on USD
-    /// conventions while its calendar came from the correct currency.
-    ///
-    /// USD is deliberately absent: the terminal constants below encode the
-    /// conventional USD CMS underlying (fixed vs 3M), which is not the same
-    /// swap as [`IRSConvention::UsdSofr`] (annual/annual OIS). Changing the
-    /// USD underlying is a separate quant decision, not a legacy removal.
-    fn currency_swap_convention(&self) -> Option<IRSConvention> {
-        use finstack_quant_core::currency::Currency;
-        match self.notional.currency() {
-            Currency::EUR => Some(IRSConvention::EurEstr),
-            Currency::GBP => Some(IRSConvention::GbpSonia),
-            Currency::JPY => Some(IRSConvention::JpyTonar),
-            _ => None,
+    /// Reference swap observed by this instrument's CMS fixings.
+    pub fn reference_swap(&self) -> CmsReferenceSwap<'_> {
+        CmsReferenceSwap {
+            label: "CMS spread option",
+            currency: self.notional.currency(),
+            swap_convention: self.swap_convention,
+            swap_fixed_frequency: self.swap_fixed_frequency,
+            swap_float_frequency: self.swap_float_frequency,
+            swap_day_count: self.swap_day_count,
+            swap_float_day_count: self.swap_float_day_count,
+            discount_curve_id: &self.discount_curve_id,
+            forward_curve_id: &self.forward_curve_id,
         }
-    }
-
-    /// Resolved fixed leg frequency of the underlying CMS swaps.
-    ///
-    /// Resolution order: explicit `swap_fixed_frequency` > `swap_convention` >
-    /// default semi-annual (USD market standard).
-    pub fn resolved_swap_fixed_frequency(&self) -> Tenor {
-        self.swap_fixed_frequency
-            .or_else(|| self.swap_convention.map(|c| c.fixed_frequency()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_frequency()))
-            .unwrap_or_else(Tenor::semi_annual)
-    }
-
-    /// Resolved floating leg frequency of the underlying CMS swaps.
-    ///
-    /// Resolution order: explicit `swap_float_frequency` > `swap_convention` >
-    /// default quarterly (USD market standard).
-    pub fn resolved_swap_float_frequency(&self) -> Tenor {
-        self.swap_float_frequency
-            .or_else(|| self.swap_convention.map(|c| c.float_frequency()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.float_frequency()))
-            .unwrap_or_else(Tenor::quarterly)
-    }
-
-    /// Resolved fixed leg day count of the underlying CMS swaps.
-    ///
-    /// Resolution order: explicit `swap_day_count` > `swap_convention` >
-    /// default 30/360 (USD market standard).
-    pub fn resolved_swap_day_count(&self) -> DayCount {
-        self.swap_day_count
-            .or_else(|| self.swap_convention.map(|c| c.fixed_day_count()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.fixed_day_count()))
-            .unwrap_or(DayCount::Thirty360)
-    }
-
-    /// Resolved floating leg day count of the underlying CMS swaps.
-    ///
-    /// Resolution order: explicit `swap_float_day_count` > `swap_convention`
-    /// float day count > default Act/360 (USD market standard).
-    pub fn resolved_swap_float_day_count(&self) -> DayCount {
-        self.swap_float_day_count
-            .or_else(|| self.swap_convention.map(|c| c.float_day_count()))
-            .or_else(|| self.currency_swap_convention().map(|c| c.float_day_count()))
-            .unwrap_or(DayCount::Act360)
     }
 
     /// Create a canonical example CMS spread option for testing.
@@ -546,15 +496,27 @@ mod tests {
         // Default (no convention set) -> USD market standard.
         let mut opt = CmsSpreadOption::example();
         opt.swap_convention = None;
-        assert_eq!(opt.resolved_swap_fixed_frequency(), Tenor::semi_annual());
-        assert_eq!(opt.resolved_swap_float_frequency(), Tenor::quarterly());
-        assert_eq!(opt.resolved_swap_day_count(), DayCount::Thirty360);
-        assert_eq!(opt.resolved_swap_float_day_count(), DayCount::Act360);
+        assert_eq!(
+            opt.reference_swap().resolved_fixed_frequency(),
+            Tenor::semi_annual()
+        );
+        assert_eq!(
+            opt.reference_swap().resolved_float_frequency(),
+            Tenor::quarterly()
+        );
+        assert_eq!(
+            opt.reference_swap().resolved_fixed_day_count(),
+            DayCount::Thirty360
+        );
+        assert_eq!(
+            opt.reference_swap().resolved_float_day_count(),
+            DayCount::Act360
+        );
 
         // EUR convention -> annual fixed leg (the case the hard-coded path got wrong).
         opt.swap_convention = Some(IRSConvention::EurEstr);
         assert_eq!(
-            opt.resolved_swap_fixed_frequency(),
+            opt.reference_swap().resolved_fixed_frequency(),
             Tenor::annual(),
             "EUR CMS swap fixed leg must be annual, not the hard-coded semi-annual"
         );
@@ -562,7 +524,7 @@ mod tests {
         // Explicit per-field override beats the convention.
         opt.swap_fixed_frequency = Some(Tenor::new(3, TenorUnit::Months));
         assert_eq!(
-            opt.resolved_swap_fixed_frequency(),
+            opt.reference_swap().resolved_fixed_frequency(),
             Tenor::new(3, TenorUnit::Months)
         );
     }

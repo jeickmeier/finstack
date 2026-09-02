@@ -466,6 +466,36 @@ impl Tenor {
         }
     }
 
+    /// Number of payments per year for a payment-frequency tenor.
+    ///
+    /// Uses the same calendar approximations as [`to_years_simple`](Self::to_years_simple)
+    /// for months and years (`6M` → 2, `1Y` → 1); week and day tenors use the
+    /// market coupon-count conventions `52` weeks and `365` days per year
+    /// (`1W` → 52, `1D` → 365), which is the convention swaption cash-settlement
+    /// annuities use.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_core::dates::Tenor;
+    /// # fn main() -> finstack_quant_core::Result<()> {
+    /// assert_eq!(Tenor::parse("3M")?.payments_per_year(), 4.0);
+    /// assert_eq!(Tenor::parse("2Y")?.payments_per_year(), 0.5);
+    /// assert_eq!(Tenor::parse("1W")?.payments_per_year(), 52.0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn payments_per_year(&self) -> f64 {
+        let count = f64::from(self.count);
+        match self.unit {
+            TenorUnit::Days => 365.0 / count,
+            TenorUnit::Weeks => 52.0 / count,
+            TenorUnit::Months => 12.0 / count,
+            TenorUnit::Years => 1.0 / count,
+        }
+    }
+
     /// Convert tenor to an approximate number of days.
     ///
     /// This uses consistent approximations that align with [`to_years_simple`](Self::to_years_simple):

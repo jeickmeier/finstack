@@ -167,7 +167,6 @@ pub(crate) struct VannaCalculator;
 impl MetricCalculator for VannaCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let inst = context.instrument_as::<CmsOption>()?;
-        let pricer = CmsOptionPricer::new();
         let curves = &context.curves;
         let as_of = context.as_of;
         inst.validate()?;
@@ -187,12 +186,13 @@ impl MetricCalculator for VannaCalculator {
             }
 
             // 1. Calculate Forward Swap Rate
-            let swap_start = inst.reference_swap_start(fixing_date)?;
+            let reference_swap = inst.reference_swap();
+            let swap_start = reference_swap.reference_swap_start(fixing_date)?;
             let swap_tenor_months = (inst.cms_tenor * 12.0).round() as i32;
             let swap_end = swap_start.add_months(swap_tenor_months);
 
             let (forward_swap_rate, _) =
-                pricer.calculate_forward_swap_rate(inst, curves, as_of, swap_start, swap_end)?;
+                reference_swap.forward_rate_and_annuity(curves, as_of, swap_start, swap_end)?;
 
             // 2. Volatility and Time
             // Calendar time for the vol axis: ACT/365F, not the accrual day count.
@@ -221,7 +221,7 @@ impl MetricCalculator for VannaCalculator {
                 time_to_fixing,
                 inst.cms_tenor,
                 forward_swap_rate,
-                1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
+                reference_swap.payments_per_year(),
             );
             let d_conv_d_vol = if vol.abs() > 1e-10 {
                 2.0 * conv_adj / vol

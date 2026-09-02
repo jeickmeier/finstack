@@ -103,6 +103,8 @@
 pub mod basis_swap;
 /// Cap/floor module - Interest rate caps and floors.
 pub mod cap_floor;
+/// Reference-swap resolution shared by the CMS instruments.
+pub mod cms_common;
 /// CMS option module - Constant maturity swap options.
 pub mod cms_option;
 /// CMS spread option module - Option on spread between two CMS rates.

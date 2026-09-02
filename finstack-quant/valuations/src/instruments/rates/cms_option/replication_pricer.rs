@@ -65,13 +65,14 @@
 
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
+use crate::instruments::rates::cms_common::par_annuity;
 use crate::instruments::rates::cms_option::types::CmsOption;
 use crate::instruments::OptionType;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
-use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext, Tenor, TenorUnit};
+use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::gauss_legendre_integrate;
 use finstack_quant_core::money::Money;
@@ -106,40 +107,6 @@ const K_FLOOR: f64 = 1e-4; // 1 basis point
 /// quadrature near k=K to reduce the peaked-integrand error below 0.1%
 /// without increasing global node count.
 const QUAD_ORDER: usize = 16;
-
-/// Closed-form par annuity for a fixed-rate swap.
-///
-/// Computes the present value of receiving 1 unit of coupon per period on a
-/// swap where the discount rate equals `rate`. This is the inverse of the
-/// yield-to-price mapping for a bullet bond.
-///
-/// ```text
-/// A_par(k) = (1 - (1 + k/m)^(-n·m)) / k [k > 0]
-/// A_par(0) = n [L'Hôpital limit]
-/// ```
-#[inline]
-fn par_annuity(rate: f64, tenor_years: f64, m: f64) -> f64 {
-    let nm = tenor_years * m; // total number of coupon periods
-    if rate.abs() < 1e-9 {
-        // L'Hôpital: lim_{r→0} (1 - (1+r/m)^{-nm}) / r = n
-        return tenor_years;
-    }
-    let discount = (1.0 + rate / m).powf(-nm);
-    (1.0 - discount) / rate
-}
-
-/// Convert a payment-frequency `Tenor` to payments per year.
-///
-/// Examples: 6M → 2, 3M → 4, 1Y → 1, 1W → 52.
-#[inline]
-fn tenor_to_m(frequency: Tenor) -> f64 {
-    match frequency.unit() {
-        TenorUnit::Years => 1.0 / frequency.count() as f64,
-        TenorUnit::Months => 12.0 / frequency.count() as f64,
-        TenorUnit::Weeks => 52.0 / frequency.count() as f64,
-        TenorUnit::Days => 360.0 / frequency.count() as f64,
-    }
-}
 
 /// Market/contract inputs for one replicated CMS optionlet, independent of
 /// the instrument type. Shared by the [`CmsOption`] replication pricer and the
@@ -350,7 +317,8 @@ impl CmsReplicationPricer {
 
         // Payments-per-year for the par annuity closed form.
         // Matches the fixed-leg payment frequency of the underlying CMS swap.
-        let m = tenor_to_m(inst.resolved_swap_fixed_frequency());
+        let reference_swap = inst.reference_swap();
+        let m = reference_swap.payments_per_year();
 
         for (i, &fixing_date) in inst.fixing_dates.iter().enumerate() {
             let payment_date = inst.payment_dates[i];
@@ -382,7 +350,7 @@ impl CmsReplicationPricer {
             }
 
             // Forward-starting swap parameters for this fixing
-            let swap_start = inst.reference_swap_start(fixing_date)?;
+            let swap_start = reference_swap.reference_swap_start(fixing_date)?;
             let swap_end = swap_start.add_months((inst.cms_tenor * 12.0).round() as i32);
 
             // F (forward swap rate). The market annuity A₀ is intentionally
@@ -390,7 +358,7 @@ impl CmsReplicationPricer {
             // annuity `A_par(·)` consistently in both `g(k)` and `C_sw(k)`
             // (see the annuity-consistency note at the boundary term below).
             let (forward_rate, _annuity_mkt) =
-                self.calculate_forward_swap_rate(inst, curves, as_of, swap_start, swap_end)?;
+                reference_swap.forward_rate_and_annuity(curves, as_of, swap_start, swap_end)?;
 
             if forward_rate <= 0.0 {
                 return Err(finstack_quant_core::Error::Validation(format!(
@@ -428,50 +396,6 @@ impl CmsReplicationPricer {
             total_pv * inst.notional.amount(),
             inst.notional.currency(),
         ))
-    }
-
-    /// Calculate forward swap rate and market annuity for a given swap period.
-    ///
-    /// Delegates to the shared `forward_swap_rate` module for curve-consistent
-    /// discount factor and forward rate calculations.
-    pub(crate) fn calculate_forward_swap_rate(
-        &self,
-        inst: &CmsOption,
-        market: &MarketContext,
-        as_of: Date,
-        start: Date,
-        end: Date,
-    ) -> Result<(f64, f64)> {
-        let convention =
-            crate::instruments::rates::hw1f::forward_swap_rate::resolve_reference_swap_convention(
-                inst.swap_convention,
-                inst.notional.currency(),
-            )?;
-        let calendar_id = convention.calendar_id().ok_or_else(|| {
-            finstack_quant_core::Error::Validation(
-                "CMS reference-swap convention has no calendar".to_string(),
-            )
-        })?;
-        crate::instruments::rates::hw1f::forward_swap_rate::calculate_forward_swap_rate(
-            crate::instruments::rates::hw1f::forward_swap_rate::ForwardSwapRateInputs {
-                market,
-                discount_curve_id: &inst.discount_curve_id,
-                forward_curve_id: &inst.forward_curve_id,
-                as_of,
-                start,
-                end,
-                fixed_frequency: inst.resolved_swap_fixed_frequency(),
-                fixed_day_count: inst.resolved_swap_day_count(),
-                float_frequency: inst.resolved_swap_float_frequency(),
-                float_day_count: inst.resolved_swap_float_day_count(),
-                calendar_id: &calendar_id,
-                business_day_convention: convention.business_day_convention(),
-                stub: finstack_quant_core::dates::StubKind::ShortFront,
-                end_of_month: start.end_of_month() == start && end.end_of_month() == end,
-                payment_lag_days: convention.payment_lag_days(),
-                enforce_forward_tenor: !convention.uses_daily_compounding(),
-            },
-        )
     }
 }
 
