@@ -7,7 +7,7 @@
 use crate::instruments::commodity::commodity_option::CommodityOption;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
@@ -46,12 +46,7 @@ impl Pricer for CommodityOptionMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let option = instrument
-            .as_any()
-            .downcast_ref::<CommodityOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CommodityOption, instrument.key())
-            })?;
+        let option = expect_inst::<CommodityOption>(instrument, InstrumentType::CommodityOption)?;
 
         // Instrument-level mc_paths override takes precedence over the pricer
         // registration defaults (consistent with autocallable/asian/lookback/etc.).

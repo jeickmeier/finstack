@@ -9,11 +9,7 @@ pub struct AbsChargeOffCalculator;
 
 impl crate::metrics::MetricCalculator for AbsChargeOffCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let abs = context
-            .instrument
-            .as_any()
-            .downcast_ref::<StructuredCredit>()
-            .ok_or(finstack_quant_core::InputError::Invalid)?;
+        let abs = context.instrument_as::<StructuredCredit>()?;
 
         let total_balance = abs.pool.total_balance()?;
         if total_balance.amount() > 0.0 {
@@ -29,11 +25,7 @@ pub struct AbsCreditEnhancementCalculator;
 
 impl crate::metrics::MetricCalculator for AbsCreditEnhancementCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let abs = context
-            .instrument
-            .as_any()
-            .downcast_ref::<StructuredCredit>()
-            .ok_or(finstack_quant_core::InputError::Invalid)?;
+        let abs = context.instrument_as::<StructuredCredit>()?;
 
         // Credit Enhancement = Subordination + OC + Excess Spread
         // Simplified: subordination for most senior tranche

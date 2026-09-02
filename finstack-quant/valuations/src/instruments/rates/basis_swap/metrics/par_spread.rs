@@ -117,11 +117,7 @@ impl MetricCalculator for ParSpreadCalculator {
             )));
         }
 
-        let instrument = std::sync::Arc::clone(&context.instrument);
-        let swap = instrument
-            .as_any()
-            .downcast_ref::<BasisSwap>()
-            .ok_or(Error::Input(finstack_quant_core::InputError::Invalid))?;
+        let swap = context.instrument_as::<BasisSwap>()?;
 
         // Guard against zero/near-zero notional which would cause divide-by-zero
         let notional = swap.notional.amount();
@@ -187,11 +183,7 @@ impl MetricCalculator for IncrementalParSpreadCalculator {
                 )
             })?;
 
-        let instrument = std::sync::Arc::clone(&context.instrument);
-        let swap = instrument
-            .as_any()
-            .downcast_ref::<BasisSwap>()
-            .ok_or(Error::Input(finstack_quant_core::InputError::Invalid))?;
+        let swap = context.instrument_as::<BasisSwap>()?;
 
         // Current spread in bp (convert Decimal to f64 at arithmetic boundary)
         let current_spread_bp = decimal_to_f64(

@@ -5,7 +5,7 @@ use crate::instruments::equity::cliquet_option::monte_carlo::CliquetCallPayoff;
 use crate::instruments::equity::cliquet_option::types::{CliquetOption, CliquetPayoffType};
 use crate::instruments::equity::piecewise_gbm::PiecewiseExactGbm;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -344,12 +344,7 @@ impl Pricer for CliquetOptionMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let cliquet = instrument
-            .as_any()
-            .downcast_ref::<CliquetOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CliquetOption, instrument.key())
-            })?;
+        let cliquet = expect_inst::<CliquetOption>(instrument, InstrumentType::CliquetOption)?;
 
         let (pv, estimate) = self.price_internal(cliquet, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(

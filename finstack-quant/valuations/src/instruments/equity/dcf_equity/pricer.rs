@@ -3,7 +3,7 @@
 use super::DiscountedCashFlow;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::{dates::Date, market_data::context::MarketContext, money::Money};
@@ -92,10 +92,7 @@ impl Pricer for DcfPricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let dcf = instrument
-            .as_any()
-            .downcast_ref::<DiscountedCashFlow>()
-            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::Dcf, instrument.key()))?;
+        let dcf = expect_inst::<DiscountedCashFlow>(instrument, InstrumentType::Dcf)?;
 
         let equity_value = compute_pv(dcf, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(

@@ -6,6 +6,7 @@
 //! future-level financing inputs and therefore uses the CTD bond's discount
 //! curve.
 
+use crate::pricer::expect_inst;
 use crate::pricer::PricingError;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -418,15 +419,10 @@ impl crate::pricer::Pricer for BondFuturePricer {
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<crate::results::ValuationResult, PricingError> {
         // Type-safe downcast to BondFuture
-        let future = instrument
-            .as_any()
-            .downcast_ref::<super::BondFuture>()
-            .ok_or_else(|| {
-                crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::BondFuture,
-                    instrument.key(),
-                )
-            })?;
+        let future = expect_inst::<super::BondFuture>(
+            instrument,
+            crate::pricer::InstrumentType::BondFuture,
+        )?;
 
         let ctx = crate::pricer::PricingErrorContext::new()
             .instrument_id(future.id.as_str())

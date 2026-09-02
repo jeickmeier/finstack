@@ -7,7 +7,7 @@ use crate::instruments::fx::shared::{
     FxSpotSource,
 };
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -264,12 +264,8 @@ impl Pricer for FxBarrierOptionMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let fx_barrier = instrument
-            .as_any()
-            .downcast_ref::<FxBarrierOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::FxBarrierOption, instrument.key())
-            })?;
+        let fx_barrier =
+            expect_inst::<FxBarrierOption>(instrument, InstrumentType::FxBarrierOption)?;
 
         let context = barrier_pricing_context(fx_barrier, ModelKey::MonteCarloGBM);
         validate_monitoring_state(fx_barrier, as_of)
@@ -552,12 +548,8 @@ impl Pricer for FxBarrierOptionAnalyticalPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let fx_barrier = instrument
-            .as_any()
-            .downcast_ref::<FxBarrierOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::FxBarrierOption, instrument.key())
-            })?;
+        let fx_barrier =
+            expect_inst::<FxBarrierOption>(instrument, InstrumentType::FxBarrierOption)?;
 
         let context = barrier_pricing_context(fx_barrier, ModelKey::FxBarrierBSContinuous);
         fx_barrier

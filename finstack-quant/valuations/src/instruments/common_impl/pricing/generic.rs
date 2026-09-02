@@ -14,7 +14,7 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -67,10 +67,7 @@ where
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
         // Type-safe downcasting
-        let typed_instrument = instrument
-            .as_any()
-            .downcast_ref::<I>()
-            .ok_or_else(|| PricingError::type_mismatch(self.instrument_type, instrument.key()))?;
+        let typed_instrument = expect_inst::<I>(instrument, self.instrument_type)?;
 
         // Compute the base (unshocked) present value; scenario shocks are
         // applied by the registry lifecycle exactly once. The registry has
@@ -95,10 +92,7 @@ where
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<f64, PricingError> {
-        let typed_instrument = instrument
-            .as_any()
-            .downcast_ref::<I>()
-            .ok_or_else(|| PricingError::type_mismatch(self.instrument_type, instrument.key()))?;
+        let typed_instrument = expect_inst::<I>(instrument, self.instrument_type)?;
         typed_instrument.base_value_raw(market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),

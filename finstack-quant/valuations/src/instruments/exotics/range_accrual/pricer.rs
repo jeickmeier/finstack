@@ -18,7 +18,7 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::range_accrual::monte_carlo::RangeAccrualPayoff;
 use crate::instruments::exotics::range_accrual::types::RangeAccrual;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -313,12 +313,7 @@ impl Pricer for RangeAccrualMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let range_accrual = instrument
-            .as_any()
-            .downcast_ref::<RangeAccrual>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::RangeAccrual, instrument.key())
-            })?;
+        let range_accrual = expect_inst::<RangeAccrual>(instrument, InstrumentType::RangeAccrual)?;
 
         let pv = self
             .price_internal(range_accrual, market, as_of)
@@ -347,12 +342,7 @@ impl Pricer for RangeAccrualStaticReplicationPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let range_accrual = instrument
-            .as_any()
-            .downcast_ref::<RangeAccrual>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::RangeAccrual, instrument.key())
-            })?;
+        let range_accrual = expect_inst::<RangeAccrual>(instrument, InstrumentType::RangeAccrual)?;
 
         let pv = compute_pv(range_accrual, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())

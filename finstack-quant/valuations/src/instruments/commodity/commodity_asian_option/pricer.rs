@@ -23,7 +23,7 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::asian_option::AveragingMethod;
 use crate::instruments::OptionType;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -527,12 +527,8 @@ impl Pricer for CommodityAsianOptionAnalyticalPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let asian = instrument
-            .as_any()
-            .downcast_ref::<CommodityAsianOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::CommodityAsianOption, instrument.key())
-            })?;
+        let asian =
+            expect_inst::<CommodityAsianOption>(instrument, InstrumentType::CommodityAsianOption)?;
 
         let pv = compute_pv(asian, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())

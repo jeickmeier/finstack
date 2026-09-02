@@ -10,7 +10,7 @@ use crate::instruments::equity::equity_option::pricing::{
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::instruments::ExerciseStyle;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
@@ -194,12 +194,7 @@ impl Pricer for EquityOptionPdePricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let equity_option = instrument
-            .as_any()
-            .downcast_ref::<EquityOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::EquityOption, instrument.key())
-            })?;
+        let equity_option = expect_inst::<EquityOption>(instrument, InstrumentType::EquityOption)?;
 
         let pv = self.price_internal(equity_option, market, as_of)?;
 

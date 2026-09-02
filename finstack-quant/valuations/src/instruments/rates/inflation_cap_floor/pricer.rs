@@ -3,7 +3,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::inflation_cap_floor::InflationCapFloor;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -44,12 +44,8 @@ impl Pricer for SimpleInflationCapFloorPricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let option = instrument
-            .as_any()
-            .downcast_ref::<InflationCapFloor>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::InflationCapFloor, instrument.key())
-            })?;
+        let option =
+            expect_inst::<InflationCapFloor>(instrument, InstrumentType::InflationCapFloor)?;
 
         let pv = option
             .npv_with_model(market, as_of, self.model)

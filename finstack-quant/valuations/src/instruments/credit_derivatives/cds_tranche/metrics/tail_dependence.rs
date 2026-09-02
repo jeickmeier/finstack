@@ -66,13 +66,7 @@ fn credit_index_for_tail_dependence(
 
 impl MetricCalculator for TailDependenceCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
-        let tranche = context
-            .instrument
-            .as_any()
-            .downcast_ref::<CDSTranche>()
-            .ok_or(finstack_quant_core::Error::Input(
-                finstack_quant_core::InputError::Invalid,
-            ))?;
+        let tranche = context.instrument_as::<CDSTranche>()?;
 
         let index_data = credit_index_for_tail_dependence(tranche, &context.curves)?;
         let correlation = index_data

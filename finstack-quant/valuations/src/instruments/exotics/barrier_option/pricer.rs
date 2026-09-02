@@ -2,10 +2,9 @@
 
 // Common imports for all pricers
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::common_impl::two_clock::TwoClockParams;
 use crate::instruments::exotics::barrier_option::types::BarrierOption;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
@@ -70,24 +69,26 @@ impl BarrierOptionMcPricer {
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
         let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
 
-        // Two-clock plumbing: t_vol drives the vol surface / MC time grid,
-        // while the exact curve DF drives both model-clock drift and final
-        // discounting.
-        let clocks = TwoClockParams::from_curve_and_instrument(
-            &disc_curve,
-            inst.day_count,
+        // Two clocks: t_vol (instrument day count) drives the vol surface /
+        // MC time grid, while the exact curve DF drives both the model-clock
+        // drift (`exp(-r * t_vol) = df`) and the final discounting.
+        let t_vol = inst.day_count.year_fraction(
             as_of,
             inst.expiry,
+            finstack_quant_core::dates::DayCountContext::default(),
         )?;
-        let t_vol = clocks.t_vol;
 
         if t_vol <= 0.0 {
             return price_expired_barrier(inst, curves, as_of);
         }
 
-        let discount_factor = clocks.df;
+        let discount_factor = disc_curve.df_between_dates(as_of, inst.expiry)?;
         // Drift annualized on the same clock used by the simulated process.
-        let r = clocks.r_model();
+        let r = crate::instruments::common_impl::helpers::zero_rate_from_df(
+            discount_factor,
+            t_vol,
+            "BarrierOption discount",
+        )?;
 
         let spot_scalar = curves.get_price(&inst.spot_id)?;
         let spot = match spot_scalar {
@@ -222,12 +223,7 @@ impl Pricer for BarrierOptionMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let barrier = instrument
-            .as_any()
-            .downcast_ref::<BarrierOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::BarrierOption, instrument.key())
-            })?;
+        let barrier = expect_inst::<BarrierOption>(instrument, InstrumentType::BarrierOption)?;
 
         let pv = self.price_internal(barrier, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
@@ -361,12 +357,7 @@ impl Pricer for BarrierOptionAnalyticalPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let barrier_opt = instrument
-            .as_any()
-            .downcast_ref::<BarrierOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::BarrierOption, instrument.key())
-            })?;
+        let barrier_opt = expect_inst::<BarrierOption>(instrument, InstrumentType::BarrierOption)?;
 
         if barrier_opt.use_gobet_miri {
             tracing::warn!(

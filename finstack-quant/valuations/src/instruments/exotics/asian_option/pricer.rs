@@ -4,7 +4,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::asian_option::types::AsianOption;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -756,12 +756,7 @@ impl Pricer for AsianOptionMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let asian = instrument
-            .as_any()
-            .downcast_ref::<AsianOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::AsianOption, instrument.key())
-            })?;
+        let asian = expect_inst::<AsianOption>(instrument, InstrumentType::AsianOption)?;
 
         let pv = self.price_internal(asian, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
@@ -813,12 +808,7 @@ impl Pricer for AsianOptionAnalyticalGeometricPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let asian = instrument
-            .as_any()
-            .downcast_ref::<AsianOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::AsianOption, instrument.key())
-            })?;
+        let asian = expect_inst::<AsianOption>(instrument, InstrumentType::AsianOption)?;
 
         // Use standardized input collection
         let (spot, r, q, sigma, t) = collect_black_scholes_inputs(
@@ -963,12 +953,7 @@ impl Pricer for AsianOptionSemiAnalyticalTwPricer {
     ) -> std::result::Result<ValuationResult, PricingError> {
         use crate::instruments::common_impl::helpers::collect_black_scholes_inputs_df;
 
-        let asian = instrument
-            .as_any()
-            .downcast_ref::<AsianOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::AsianOption, instrument.key())
-            })?;
+        let asian = expect_inst::<AsianOption>(instrument, InstrumentType::AsianOption)?;
 
         // Use DF-based input collection for time-consistent discounting
         let bs_inputs = collect_black_scholes_inputs_df(

@@ -22,11 +22,7 @@ impl Default for CmbsDscrCalculator {
 
 impl crate::metrics::MetricCalculator for CmbsDscrCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let cmbs = context
-            .instrument
-            .as_any()
-            .downcast_ref::<StructuredCredit>()
-            .ok_or(finstack_quant_core::InputError::Invalid)?;
+        let cmbs = context.instrument_as::<StructuredCredit>()?;
 
         if cmbs.deal_type != DealType::Cmbs {
             return Err(finstack_quant_core::InputError::Invalid.into());

@@ -26,6 +26,7 @@ use crate::instruments::credit_derivatives::cds::{CreditDefaultSwap, PayReceive}
 use crate::instruments::credit_derivatives::cds_index::{
     CDSIndex, ConstituentResult, IndexParSpreadResult, IndexPricing, IndexResult, ParSpreadMethod,
 };
+use crate::pricer::expect_inst;
 use crate::recalibration::{
     HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump, RecalibrationProvider,
 };
@@ -933,15 +934,10 @@ impl crate::pricer::Pricer for SimpleCdsIndexHazardPricer {
         use crate::instruments::common_impl::traits::Instrument;
 
         // Type-safe downcasting
-        let cds_index = instrument
-            .as_any()
-            .downcast_ref::<crate::instruments::credit_derivatives::cds_index::CDSIndex>()
-            .ok_or_else(|| {
-                crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::CdsIndex,
-                    instrument.key(),
-                )
-            })?;
+        let cds_index = expect_inst::<crate::instruments::credit_derivatives::cds_index::CDSIndex>(
+            instrument,
+            crate::pricer::InstrumentType::CdsIndex,
+        )?;
 
         // Use the provided as_of date for valuation
         // Compute present value using the engine

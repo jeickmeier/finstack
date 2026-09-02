@@ -10,10 +10,8 @@ pub struct CloWarfCalculator;
 impl crate::metrics::MetricCalculator for CloWarfCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
         let clo = context
-            .instrument
-            .as_any()
-            .downcast_ref::<crate::instruments::fixed_income::structured_credit::StructuredCredit>()
-            .ok_or(finstack_quant_core::InputError::Invalid)?;
+            .instrument_as::<crate::instruments::fixed_income::structured_credit::StructuredCredit>(
+            )?;
 
         let mut weighted_sum = 0.0;
         let mut total_balance = 0.0;

@@ -34,7 +34,7 @@ pub use tree_pricer::TreePricer;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::bond::types::Bond;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
@@ -58,10 +58,7 @@ impl Pricer for SimpleBondOasPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let bond = instrument
-            .as_any()
-            .downcast_ref::<Bond>()
-            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::Bond, instrument.key()))?;
+        let bond = expect_inst::<Bond>(instrument, InstrumentType::Bond)?;
 
         let ctx = PricingErrorContext::new()
             .instrument_id(bond.id())

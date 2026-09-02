@@ -7,7 +7,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::asian_option::types::AsianOption;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -238,12 +238,7 @@ impl Pricer for AsianOptionHestonMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let asian = instrument
-            .as_any()
-            .downcast_ref::<AsianOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::AsianOption, instrument.key())
-            })?;
+        let asian = expect_inst::<AsianOption>(instrument, InstrumentType::AsianOption)?;
 
         let (pv, stderr) = self.price_internal(asian, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())

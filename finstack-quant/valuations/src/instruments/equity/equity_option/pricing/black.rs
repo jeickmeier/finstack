@@ -8,6 +8,7 @@ use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::parameters::{OptionMarketParams, OptionType};
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::instruments::{ExerciseStyle, SettlementType};
+use crate::pricer::expect_inst;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
@@ -445,15 +446,10 @@ impl crate::pricer::Pricer for SimpleEquityOptionBlackPricer {
         use crate::instruments::common_impl::traits::Instrument;
 
         // Type-safe downcasting
-        let equity_option = instrument
-            .as_any()
-            .downcast_ref::<crate::instruments::equity::equity_option::EquityOption>()
-            .ok_or_else(|| {
-                crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::EquityOption,
-                    instrument.key(),
-                )
-            })?;
+        let equity_option = expect_inst::<crate::instruments::equity::equity_option::EquityOption>(
+            instrument,
+            crate::pricer::InstrumentType::EquityOption,
+        )?;
 
         // Use the provided as_of date for consistency
         let pv = compute_pv(equity_option, market, as_of).map_err(|e| {

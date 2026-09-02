@@ -2,6 +2,7 @@
 //!
 use super::config::CDSTranchePricer;
 use crate::instruments::common_impl::traits::Instrument;
+use crate::pricer::expect_inst;
 use finstack_quant_core::market_data::context::MarketContext;
 
 /// Result of detailed jump-to-default calculation.
@@ -69,15 +70,9 @@ impl crate::pricer::Pricer for SimpleCDSTrancheHazardPricer {
         use crate::instruments::common_impl::traits::Instrument;
 
         // Type-safe downcasting
-        let cds_tranche = instrument
-            .as_any()
-            .downcast_ref::<crate::instruments::credit_derivatives::cds_tranche::CDSTranche>()
-            .ok_or_else(|| {
-                crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::CdsTranche,
-                    instrument.key(),
-                )
-            })?;
+        let cds_tranche = expect_inst::<
+            crate::instruments::credit_derivatives::cds_tranche::CDSTranche,
+        >(instrument, crate::pricer::InstrumentType::CdsTranche)?;
 
         // Use the provided as_of date for valuation
         // Compute present value using the engine

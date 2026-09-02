@@ -24,6 +24,7 @@ use crate::instruments::credit_derivatives::cds::{
     CdsValuationConvention, CreditDefaultSwap, PayReceive,
 };
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
+use crate::pricer::expect_inst;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::money::Money;
@@ -318,15 +319,8 @@ impl crate::pricer::Pricer for BloombergCdsoPricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<crate::results::ValuationResult, crate::pricer::PricingError> {
-        let option = instrument
-            .as_any()
-            .downcast_ref::<CDSOption>()
-            .ok_or_else(|| {
-                crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::CdsOption,
-                    instrument.key(),
-                )
-            })?;
+        let option =
+            expect_inst::<CDSOption>(instrument, crate::pricer::InstrumentType::CdsOption)?;
 
         let pv = npv(option, market, as_of).map_err(|e| {
             crate::pricer::PricingError::model_failure_with_context(

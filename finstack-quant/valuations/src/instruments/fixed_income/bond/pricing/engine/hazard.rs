@@ -32,7 +32,7 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
@@ -308,10 +308,7 @@ impl Pricer for SimpleBondHazardPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let bond = instrument
-            .as_any()
-            .downcast_ref::<Bond>()
-            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::Bond, instrument.key()))?;
+        let bond = expect_inst::<Bond>(instrument, InstrumentType::Bond)?;
 
         let ctx = PricingErrorContext::new()
             .instrument_id(bond.id())
@@ -331,10 +328,7 @@ impl Pricer for SimpleBondHazardPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<f64, PricingError> {
-        let bond = instrument
-            .as_any()
-            .downcast_ref::<Bond>()
-            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::Bond, instrument.key()))?;
+        let bond = expect_inst::<Bond>(instrument, InstrumentType::Bond)?;
 
         let ctx = PricingErrorContext::new()
             .instrument_id(bond.id())

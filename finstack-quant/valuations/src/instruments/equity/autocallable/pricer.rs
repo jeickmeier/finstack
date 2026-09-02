@@ -5,7 +5,7 @@ use crate::instruments::equity::autocallable::monte_carlo::AutocallablePayoff;
 use crate::instruments::equity::autocallable::types::Autocallable;
 use crate::instruments::equity::piecewise_gbm::{bootstrap_forward_gbm, PiecewiseExactGbm};
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -341,12 +341,7 @@ impl Pricer for AutocallableMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let autocallable = instrument
-            .as_any()
-            .downcast_ref::<Autocallable>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::Autocallable, instrument.key())
-            })?;
+        let autocallable = expect_inst::<Autocallable>(instrument, InstrumentType::Autocallable)?;
 
         let (pv, estimate) = self
             .price_internal(autocallable, market, as_of)

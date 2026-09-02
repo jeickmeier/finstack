@@ -4,7 +4,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::lookback_option::types::{LookbackOption, LookbackType};
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -277,12 +277,7 @@ impl Pricer for LookbackOptionMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let lookback = instrument
-            .as_any()
-            .downcast_ref::<LookbackOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::LookbackOption, instrument.key())
-            })?;
+        let lookback = expect_inst::<LookbackOption>(instrument, InstrumentType::LookbackOption)?;
 
         let pv = self.price_internal(lookback, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
@@ -456,12 +451,7 @@ impl Pricer for LookbackOptionAnalyticalPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let lookback = instrument
-            .as_any()
-            .downcast_ref::<LookbackOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::LookbackOption, instrument.key())
-            })?;
+        let lookback = expect_inst::<LookbackOption>(instrument, InstrumentType::LookbackOption)?;
 
         if as_of >= lookback.expiry {
             let spot = terminal_lookback_spot(lookback, market, as_of).map_err(|e| {

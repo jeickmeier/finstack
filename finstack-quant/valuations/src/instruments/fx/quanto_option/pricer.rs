@@ -7,7 +7,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fx::quanto_option::types::QuantoOption;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DayCountContext};
@@ -155,12 +155,7 @@ impl Pricer for QuantoOptionAnalyticalPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let quanto = instrument
-            .as_any()
-            .downcast_ref::<QuantoOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::QuantoOption, instrument.key())
-            })?;
+        let quanto = expect_inst::<QuantoOption>(instrument, InstrumentType::QuantoOption)?;
 
         if as_of > quanto.expiry {
             return Ok(ValuationResult::stamped(

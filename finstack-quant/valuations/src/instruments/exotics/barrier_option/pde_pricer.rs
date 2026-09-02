@@ -23,7 +23,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::barrier_option::types::BarrierOption;
 use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
+    expect_inst, InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
@@ -472,12 +472,7 @@ impl Pricer for BarrierOptionPdePricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
-        let barrier_opt = instrument
-            .as_any()
-            .downcast_ref::<BarrierOption>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(InstrumentType::BarrierOption, instrument.key())
-            })?;
+        let barrier_opt = expect_inst::<BarrierOption>(instrument, InstrumentType::BarrierOption)?;
 
         let pv = self.price_internal(barrier_opt, market, as_of)?;
 

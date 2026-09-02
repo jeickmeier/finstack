@@ -1,5 +1,6 @@
 //! Registry adapter for convertible tree pricing.
 
+use crate::pricer::expect_inst;
 use finstack_quant_core::market_data::context::MarketContext;
 
 use crate::instruments::common_impl::traits::Instrument;
@@ -36,15 +37,9 @@ impl crate::pricer::Pricer for ConvertibleTreePricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<crate::results::ValuationResult, crate::pricer::PricingError> {
-        let convertible = instrument
-            .as_any()
-            .downcast_ref::<crate::instruments::fixed_income::convertible::ConvertibleBond>()
-            .ok_or_else(|| {
-                crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::Convertible,
-                    instrument.key(),
-                )
-            })?;
+        let convertible = expect_inst::<
+            crate::instruments::fixed_income::convertible::ConvertibleBond,
+        >(instrument, crate::pricer::InstrumentType::Convertible)?;
 
         let pv = price_convertible_bond(convertible, market, ConvertibleTreeType::default(), as_of)
             .map_err(|e| {

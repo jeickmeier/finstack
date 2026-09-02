@@ -15,10 +15,8 @@ pub struct CloWasCalculator;
 impl crate::metrics::MetricCalculator for CloWasCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
         let clo = context
-            .instrument
-            .as_any()
-            .downcast_ref::<crate::instruments::fixed_income::structured_credit::StructuredCredit>()
-            .ok_or(finstack_quant_core::InputError::Invalid)?;
+            .instrument_as::<crate::instruments::fixed_income::structured_credit::StructuredCredit>(
+            )?;
 
         Ok(clo.pool.weighted_avg_spread())
     }

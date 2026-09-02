@@ -12,6 +12,7 @@ use super::pricing::{
 use super::types::EquityOption;
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::traits::Instrument;
+use crate::pricer::expect_inst;
 use crate::pricer::PricingError;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -78,15 +79,8 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<crate::results::ValuationResult, PricingError> {
-        let equity_option = instrument
-            .as_any()
-            .downcast_ref::<EquityOption>()
-            .ok_or_else(|| {
-                crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::EquityOption,
-                    instrument.key(),
-                )
-            })?;
+        let equity_option =
+            expect_inst::<EquityOption>(instrument, crate::pricer::InstrumentType::EquityOption)?;
         if let Some(pv) =
             resolve_lifecycle_value(equity_option, market, as_of).map_err(|error| {
                 crate::pricer::PricingError::model_failure_with_context(
