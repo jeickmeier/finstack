@@ -324,7 +324,7 @@
               "type": "null"
             }
           ],
-          "description": "Selected cheapest-to-deliver (CTD) bond identifier.\n\nResolution is deterministic: this explicit identifier takes precedence,\nfollowed by `ctd_bond.id`, then the sole basket member. A larger basket\nwith neither form of selection fails validation. The resolved identifier\nmust be in `deliverable_basket`; an embedded bond must have the same ID.\n\n[`Self::determine_ctd`] ranks clean prices by gross basis;\n[`Self::determine_ctd_with_accrued`] includes current and delivery accrued\ninterest; [`Self::determine_ctd_by_implied_repo`] ranks by highest implied\nrepo after coupon income and time to delivery. These helpers return a\ncandidate and do not update this field."
+          "description": "Selected cheapest-to-deliver (CTD) bond identifier.\n\nResolution is deterministic: this explicit identifier takes precedence,\nfollowed by `ctd_bond.id`, then the sole basket member. A larger basket\nwith neither form of selection fails validation. The resolved identifier\nmust be in `deliverable_basket`; an embedded bond must have the same ID.\n\n[`Self::determine_ctd`] ranks clean prices by gross basis;\n[`Self::determine_ctd_by_implied_repo`] ranks by highest implied\nrepo after coupon income and time to delivery. These helpers return a\ncandidate and do not update this field."
         },
         "deliverable_basket": {
           "description": "Basket of deliverable bonds with conversion factors",

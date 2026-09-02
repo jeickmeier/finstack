@@ -843,7 +843,11 @@ mod tests {
         assert_eq!(bumped.kind(), PriceCurveKind::VolIndex);
         assert!((bumped.spot_price() - 20.5).abs() < 1e-10);
         assert!((bumped.price(0.25) - 22.0).abs() < 1e-10);
-        assert!(curve.with_parallel_bump(-30.0).is_err());
+        let scaled = curve
+            .with_percentage_bump(0.1)
+            .expect("Bump should succeed");
+        assert_eq!(scaled.kind(), PriceCurveKind::VolIndex);
+        assert!((scaled.spot_price() - 20.35).abs() < 1e-10);
     }
 
     #[test]
