@@ -591,7 +591,7 @@ pub(super) fn cms_embedded_option_value(
 ) -> f64 {
     use crate::instruments::rates::swaption::types::lognormal_to_normal_vol;
     use crate::instruments::OptionType;
-    use finstack_quant_models::d1_d2_black76;
+    use finstack_quant_models::closed_form::{black_call, black_put};
     use finstack_quant_models::volatility::normal::bachelier_price;
 
     let intrinsic = match option_type {
@@ -626,16 +626,9 @@ pub(super) fn cms_embedded_option_value(
         );
     }
 
-    let (d1, d2) = d1_d2_black76(adjusted_forward, strike, vol, time_to_fixing);
     match option_type {
-        OptionType::Call => {
-            adjusted_forward * finstack_quant_core::math::norm_cdf(d1)
-                - strike * finstack_quant_core::math::norm_cdf(d2)
-        }
-        OptionType::Put => {
-            strike * finstack_quant_core::math::norm_cdf(-d2)
-                - adjusted_forward * finstack_quant_core::math::norm_cdf(-d1)
-        }
+        OptionType::Call => black_call(adjusted_forward, strike, vol, time_to_fixing),
+        OptionType::Put => black_put(adjusted_forward, strike, vol, time_to_fixing),
     }
 }
 

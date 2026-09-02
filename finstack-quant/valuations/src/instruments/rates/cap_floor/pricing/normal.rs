@@ -5,9 +5,11 @@
 
 use super::payoff::CapletFloorletInputs;
 use crate::instruments::common_impl::parameters::OptionType;
-use finstack_quant_core::math::{norm_cdf, norm_pdf};
 use finstack_quant_core::money::Money;
-use finstack_quant_models::volatility::normal::{bachelier_price, d_bachelier};
+use finstack_quant_models::closed_form::{
+    bachelier_delta_call, bachelier_delta_put, bachelier_gamma, bachelier_vega,
+};
+use finstack_quant_models::volatility::normal::bachelier_price;
 
 /// Price a caplet/floorlet using Bachelier's normal model.
 pub(crate) fn price_caplet_floorlet(
@@ -98,18 +100,10 @@ pub(crate) fn price_caplet_floorlet(
 ///
 /// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*, Ch. 1. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 pub(crate) fn delta(is_cap: bool, strike: f64, forward: f64, sigma: f64, t_fix: f64) -> f64 {
-    if t_fix <= 0.0 || sigma <= 0.0 {
-        if is_cap {
-            return if forward > strike { 1.0 } else { 0.0 };
-        } else {
-            return if forward < strike { -1.0 } else { 0.0 };
-        }
-    }
-    let d = d_bachelier(forward, strike, sigma, t_fix);
     if is_cap {
-        norm_cdf(d)
+        bachelier_delta_call(forward, strike, sigma, t_fix)
     } else {
-        -norm_cdf(-d)
+        bachelier_delta_put(forward, strike, sigma, t_fix)
     }
 }
 
@@ -120,12 +114,7 @@ pub(crate) fn delta(is_cap: bool, strike: f64, forward: f64, sigma: f64, t_fix: 
 ///
 /// Gamma = n(d) / (σ√T)
 pub(crate) fn gamma(strike: f64, forward: f64, sigma: f64, t_fix: f64) -> f64 {
-    if t_fix <= 0.0 || sigma <= 0.0 {
-        return 0.0;
-    }
-    let d = d_bachelier(forward, strike, sigma, t_fix);
-    let denom = (sigma * t_fix.sqrt()).max(1e-12);
-    norm_pdf(d) / denom
+    bachelier_gamma(forward, strike, sigma, t_fix)
 }
 
 /// Bachelier vega per 1% normal vol.
@@ -137,9 +126,5 @@ pub(crate) fn gamma(strike: f64, forward: f64, sigma: f64, t_fix: f64) -> f64 {
 pub(crate) fn vega_per_pct(strike: f64, forward: f64, sigma: f64, t_fix: f64) -> f64 {
     // A degenerate (extrapolated) zero/negative vol reports zero vega rather
     // than the `n(0)` value an ATM-equivalent `d` would give.
-    if t_fix <= 0.0 || sigma <= 0.0 {
-        return 0.0;
-    }
-    let d = d_bachelier(forward, strike, sigma, t_fix);
-    norm_pdf(d) * t_fix.sqrt() / 100.0
+    bachelier_vega(forward, strike, sigma, t_fix) / 100.0
 }

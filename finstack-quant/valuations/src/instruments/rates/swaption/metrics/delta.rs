@@ -25,6 +25,9 @@ use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::rates::swaption::{Swaption, VolatilityModel};
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;
+use finstack_quant_models::closed_form::{
+    bachelier_delta_call, bachelier_delta_put, black_delta_call, black_delta_put,
+};
 
 /// Minimum time to expiry (in years) for Black/Normal model delta.
 ///
@@ -73,7 +76,6 @@ impl MetricCalculator for DeltaCalculator {
         let normal_by_negative_rate = inputs.forward <= 0.0 || strike <= 0.0;
         let use_normal = normal_by_model || normal_by_negative_rate;
         let delta = if use_normal {
-            use finstack_quant_models::volatility::normal::d_bachelier;
             // When the Normal model is the configured vol model, `inputs.sigma`
             // is already a normal vol. When the fallback is triggered purely by
             // a non-positive forward/strike, `inputs.sigma` is a LOGNORMAL vol
@@ -90,17 +92,25 @@ impl MetricCalculator for DeltaCalculator {
                     inputs.time_to_expiry,
                 )
             };
-            let d = d_bachelier(inputs.forward, strike, normal_sigma, inputs.time_to_expiry);
             match option.option_type {
-                OptionType::Call => finstack_quant_core::math::norm_cdf(d),
-                OptionType::Put => -finstack_quant_core::math::norm_cdf(-d),
+                OptionType::Call => bachelier_delta_call(
+                    inputs.forward,
+                    strike,
+                    normal_sigma,
+                    inputs.time_to_expiry,
+                ),
+                OptionType::Put => {
+                    bachelier_delta_put(inputs.forward, strike, normal_sigma, inputs.time_to_expiry)
+                }
             }
         } else {
-            use finstack_quant_models::d1_black76;
-            let d1 = d1_black76(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry);
             match option.option_type {
-                OptionType::Call => finstack_quant_core::math::norm_cdf(d1),
-                OptionType::Put => -finstack_quant_core::math::norm_cdf(-d1),
+                OptionType::Call => {
+                    black_delta_call(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry)
+                }
+                OptionType::Put => {
+                    black_delta_put(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry)
+                }
             }
         };
 

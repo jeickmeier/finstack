@@ -29,9 +29,10 @@
 //!   *Journal of Financial Economics*, 3(1-2), 167-179. `docs/REFERENCES.md#black-1976`
 
 use super::payoff::CapletFloorletInputs;
-use finstack_quant_core::math::{norm_cdf, norm_pdf};
 use finstack_quant_core::money::Money;
-use finstack_quant_models::{d1_black76, d1_d2_black76};
+use finstack_quant_models::closed_form::{
+    black_call, black_delta_call, black_delta_put, black_gamma, black_put, black_vega,
+};
 
 /// Compute intrinsic value of a caplet/floorlet.
 ///
@@ -106,28 +107,14 @@ pub(crate) fn price_caplet_floorlet(
         );
     }
 
-    let (d1, d2) = d1_d2_black76(forward, strike, sigma, t_fix);
-
-    // Check for NaN in d1/d2 which can happen with extreme inputs
-    if !d1.is_finite() || !d2.is_finite() {
-        // Fall back to intrinsic if Black formula produces NaN
-        tracing::warn!(
-            forward = forward,
-            strike = strike,
-            sigma = sigma,
-            t_fix = t_fix,
-            d1 = d1,
-            d2 = d2,
-            "Black caplet d1/d2 are non-finite; falling back to intrinsic value"
-        );
-        return Ok(Money::new(intrinsic_value(&inputs), ccy));
-    }
-
-    let pv = if is_cap {
-        df * tau * notional * (forward * norm_cdf(d1) - strike * norm_cdf(d2))
+    // The closed forms return intrinsic value in any degenerate domain
+    // (including a non-positive strike), so no separate NaN fallback is needed.
+    let unit = if is_cap {
+        black_call(forward, strike, sigma, t_fix)
     } else {
-        df * tau * notional * (strike * norm_cdf(-d2) - forward * norm_cdf(-d1))
+        black_put(forward, strike, sigma, t_fix)
     };
+    let pv = df * tau * notional * unit;
 
     // Final sanity check
     if !pv.is_finite() {
@@ -157,18 +144,10 @@ pub(crate) fn delta(is_cap: bool, strike: f64, forward: f64, sigma: f64, t_fix: 
     // intrinsic delta rather than a NaN. Callers that want a finite-vol delta on
     // a non-positive forward should route through the Bachelier fallback (see
     // `common::lognormal_delta_with_fallback`).
-    if t_fix <= 0.0 || sigma <= 0.0 || forward <= 0.0 {
-        if is_cap {
-            return if forward > strike { 1.0 } else { 0.0 };
-        } else {
-            return if forward < strike { -1.0 } else { 0.0 };
-        }
-    }
-    let d1 = d1_black76(forward, strike, sigma, t_fix);
     if is_cap {
-        norm_cdf(d1)
+        black_delta_call(forward, strike, sigma, t_fix)
     } else {
-        -norm_cdf(-d1)
+        black_delta_put(forward, strike, sigma, t_fix)
     }
 }
 
@@ -177,12 +156,7 @@ pub(crate) fn delta(is_cap: bool, strike: f64, forward: f64, sigma: f64, t_fix: 
 /// Returns the second derivative of option price with respect to forward rate.
 /// Gamma is always non-negative for long options.
 pub(crate) fn gamma(strike: f64, forward: f64, sigma: f64, t_fix: f64) -> f64 {
-    if t_fix <= 0.0 || sigma <= 0.0 || forward <= 0.0 {
-        return 0.0;
-    }
-    let d1 = d1_black76(forward, strike, sigma, t_fix);
-    let denom = (forward * sigma * t_fix.sqrt()).max(1e-12);
-    norm_pdf(d1) / denom
+    black_gamma(forward, strike, sigma, t_fix)
 }
 
 /// Black vega per 1% vol.
@@ -194,9 +168,5 @@ pub(crate) fn vega_per_pct(strike: f64, forward: f64, sigma: f64, t_fix: f64) ->
     // finite exactly at-the-money; a degenerate (extrapolated) zero vol should
     // report zero vega rather than the `n(0)` value an ATM-equivalent d1 would
     // give, which would overstate vega for ITM/OTM strikes.
-    if t_fix <= 0.0 || forward <= 0.0 || sigma <= 0.0 {
-        return 0.0;
-    }
-    let d1 = d1_black76(forward, strike, sigma, t_fix);
-    forward * norm_pdf(d1) * t_fix.sqrt() / 100.0
+    black_vega(forward, strike, sigma, t_fix) / 100.0
 }

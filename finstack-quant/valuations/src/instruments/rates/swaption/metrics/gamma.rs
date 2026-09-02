@@ -22,6 +22,7 @@
 use crate::instruments::rates::swaption::{Swaption, VolatilityModel};
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::Result;
+use finstack_quant_models::closed_form::{bachelier_gamma, black_gamma};
 
 /// Minimum time to expiry (in years) for valid gamma calculation.
 ///
@@ -52,7 +53,6 @@ impl MetricCalculator for GammaCalculator {
         let normal_by_negative_rate = inputs.forward <= 0.0 || strike <= 0.0;
         let use_normal = normal_by_model || normal_by_negative_rate;
         let gamma = if use_normal {
-            use finstack_quant_models::volatility::normal::d_bachelier;
             // `inputs.sigma` is a normal vol only when the Normal model is
             // configured; for the negative-rate fallback it is a lognormal vol
             // and must be converted before the Bachelier gamma (which also
@@ -69,13 +69,9 @@ impl MetricCalculator for GammaCalculator {
                     inputs.time_to_expiry,
                 )
             };
-            let d = d_bachelier(inputs.forward, strike, normal_sigma, inputs.time_to_expiry);
-            finstack_quant_core::math::norm_pdf(d) / (normal_sigma * inputs.time_to_expiry.sqrt())
+            bachelier_gamma(inputs.forward, strike, normal_sigma, inputs.time_to_expiry)
         } else {
-            use finstack_quant_models::d1_black76;
-            let d1 = d1_black76(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry);
-            finstack_quant_core::math::norm_pdf(d1)
-                / (inputs.forward * inputs.sigma * inputs.time_to_expiry.sqrt())
+            black_gamma(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry)
         };
 
         // Scale by notional and annuity for cash gamma

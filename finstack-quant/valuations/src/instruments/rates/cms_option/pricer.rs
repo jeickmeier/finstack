@@ -42,7 +42,7 @@ use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
-use finstack_quant_models::d1_d2_black76;
+use finstack_quant_models::closed_form::{black_call, black_put};
 
 /// Convexity-adjusted Black pricer for CMS options.
 pub struct CmsOptionPricer;
@@ -231,13 +231,14 @@ impl CmsOptionPricer {
                     crate::instruments::OptionType::Put => (strike - forward_swap_rate).max(0.0),
                 }
             } else {
-                self.black_price(
-                    adjusted_rate,
-                    strike,
-                    strike_vol,
-                    time_to_fixing,
-                    inst.option_type,
-                )
+                match inst.option_type {
+                    crate::instruments::OptionType::Call => {
+                        black_call(adjusted_rate, strike, strike_vol, time_to_fixing)
+                    }
+                    crate::instruments::OptionType::Put => {
+                        black_put(adjusted_rate, strike, strike_vol, time_to_fixing)
+                    }
+                }
             };
 
             // 4. Discount to present using curve-consistent relative DF
@@ -309,36 +310,6 @@ impl CmsOptionPricer {
                 enforce_forward_tenor: !convention.uses_daily_compounding(),
             },
         )
-    }
-
-    fn black_price(
-        &self,
-        forward: f64,
-        strike: f64,
-        vol: f64,
-        t: f64,
-        option_type: crate::instruments::OptionType,
-    ) -> f64 {
-        if t <= 0.0 {
-            return match option_type {
-                crate::instruments::OptionType::Call => (forward - strike).max(0.0),
-                crate::instruments::OptionType::Put => (strike - forward).max(0.0),
-            };
-        }
-
-        // Use combined d1_d2_black76 for efficiency (computes shared intermediates once)
-        let (d1, d2) = d1_d2_black76(forward, strike, vol, t);
-
-        match option_type {
-            crate::instruments::OptionType::Call => {
-                forward * finstack_quant_core::math::norm_cdf(d1)
-                    - strike * finstack_quant_core::math::norm_cdf(d2)
-            }
-            crate::instruments::OptionType::Put => {
-                strike * finstack_quant_core::math::norm_cdf(-d2)
-                    - forward * finstack_quant_core::math::norm_cdf(-d1)
-            }
-        }
     }
 }
 

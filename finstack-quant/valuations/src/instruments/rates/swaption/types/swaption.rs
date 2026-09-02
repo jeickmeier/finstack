@@ -674,32 +674,15 @@ impl Swaption {
         }
 
         self.price_model_base(curves, volatility, as_of, |fwd, strike, vol, t, annuity| {
-            // Use stable handling if volatility is near zero
-            if vol <= 0.0 || !vol.is_finite() {
-                // Intrinsic value
-                let val = match self.option_type {
-                    OptionType::Call => (fwd - strike).max(0.0),
-                    OptionType::Put => (strike - fwd).max(0.0),
-                };
-                return val * annuity;
-            }
-
-            use finstack_quant_models::{d1_black76, d2_black76};
-            let d1 = d1_black76(fwd, strike, vol, t);
-            let d2 = d2_black76(fwd, strike, vol, t);
-
-            match self.option_type {
-                OptionType::Call => {
-                    annuity
-                        * (fwd * finstack_quant_core::math::norm_cdf(d1)
-                            - strike * finstack_quant_core::math::norm_cdf(d2))
-                }
-                OptionType::Put => {
-                    annuity
-                        * (strike * finstack_quant_core::math::norm_cdf(-d2)
-                            - fwd * finstack_quant_core::math::norm_cdf(-d1))
-                }
-            }
+            use finstack_quant_models::closed_form::{black_call, black_put};
+            // A non-finite vol is treated as degenerate (intrinsic), matching
+            // the `vol <= 0` limit the closed forms already return.
+            let vol = if vol.is_finite() { vol } else { 0.0 };
+            let unit = match self.option_type {
+                OptionType::Call => black_call(fwd, strike, vol, t),
+                OptionType::Put => black_put(fwd, strike, vol, t),
+            };
+            unit * annuity
         })
     }
 
