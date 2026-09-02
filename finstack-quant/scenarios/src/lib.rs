@@ -126,14 +126,14 @@ pub use adapters::vol::ArbitrageViolation;
 pub use engine::{
     ApplicationEnvelope, ApplicationReport, ExecutionContext, RollForwardReport, ScenarioEngine,
 };
-pub use envelope::{ScenarioEnvelope, ScenarioSchema, SCENARIO_CONTRACT};
+pub use envelope::ScenarioEnvelope;
 pub use error::{Error, Result};
 pub use horizon::{HorizonAnalysis, HorizonResult};
 pub use spec::{
     Compounding, CurveKind, HazardBumpMode, HierarchyTarget, InstrumentType, NodeId, OperationSpec,
     RateBindingSpec, ScenarioSpec, TenorMatchMode, TimeRollMode,
 };
-pub use templates::{AssetClass, RegisteredTemplate, Severity, TemplateMetadata, TemplateRegistry};
+pub use templates::{AssetClass, Severity, TemplateMetadata, TemplateRegistry};
 pub use warning::Warning;
 
 /// Compiles the crate `README.md` Rust samples as doctests.
