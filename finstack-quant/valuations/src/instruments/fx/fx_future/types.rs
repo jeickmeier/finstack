@@ -183,10 +183,8 @@ impl FxFuture {
     /// * `market` - Market context containing spot and rate inputs.
     /// * `as_of` - Valuation date controlling the contract lifecycle.
     pub fn npv_raw(&self, market: &MarketContext, as_of: Date) -> finstack_quant_core::Result<f64> {
-        if as_of > self.terms.settlement_date {
-            return Ok(0.0);
-        }
-        self.terms.mark_to_market(self.mark_price(market, as_of)?)
+        self.terms
+            .npv_from_model_price(self.id.as_str(), as_of, || self.fair_price(market, as_of))
     }
 
     /// Sensitivity to a one-unit move in the quoted FX futures price.

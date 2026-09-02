@@ -33,7 +33,6 @@ numeric-serde helpers that keep instrument invariants uniform.
 | `helpers.rs` | `ValidatedPricingLifecycle`, metric-context construction, `schedule_pv*`, GBM drift schedules, market-scalar lookups, Black-Scholes input collection, inflation-lag resolution |
 | `validation.rs` | Structural invariant checks (`validate_date_range_strict`, `validate_money_gt`, `validate_recovery_rate`, `validate_rate_magnitude`, …) |
 | `numeric.rs` | `decimal_to_f64` plus the serde adapters that reject non-finite / out-of-range `f64` on the wire |
-| `two_clock.rs` | `TwoClockParams` — keeps a pricer's vol-surface clock and discount-curve clock consistent so `exp(-r·t_vol) = df` holds |
 | `vol_resolution.rs` | `resolve_sigma_at` — the override-then-surface σ lookup precedence |
 | `fx_dates.rs` | `fx_spot_date_for_pair` plus re-exports of the core joint-calendar helpers |
 
@@ -57,7 +56,7 @@ canonical owner.
 
 | File | Visibility | Contents |
 |------|-----------|----------|
-| `swap_legs.rs` | `pub` (reachable as `instruments::pricing::swap_legs`) | `pv_floating_leg`, `pv_fixed_leg`, `leg_annuity`, `schedule_to_periods`, `add_payment_delay`, `FloatingLegParams`, `FixedLegParams`, `LegPeriod`, `CompoundingMethod` |
+| `swap_legs.rs` | `pub` (reachable as `instruments::pricing::swap_legs`) | `pv_floating_leg`, `pv_fixed_leg`, `add_payment_delay`, `FloatingLegParams`, `FixedLegParams`, `LegPeriod`, `CompoundingMethod` |
 | `time.rs` | `pub` | Curve-consistent time mapping: `relative_df_discount_curve`, `relative_df_discounting`, `curve_time`, `rate_between_on_dates`, `rate_period_on_dates` |
 | `variance_replication.rs` | `pub` | `carr_madan_forward_variance` — shared by equity and FX variance swaps |
 | `generic.rs` | private module, `GenericInstrumentPricer` re-exported `#[doc(hidden)]` | Downcasts and calls `Instrument::base_value`; the registry applies scenario shocks around it |
@@ -98,7 +97,7 @@ Everything below is re-exported by `instruments/mod.rs`; the module paths under
 
 Not re-exported, and therefore crate-private: `QuantoSpec`,
 `CommodityConvention`, `parameters::volatility::VolatilityModel`,
-`TwoClockParams`, everything in `helpers.rs`, `validation.rs`, `numeric.rs`,
+everything in `helpers.rs`, `validation.rs`, `numeric.rs`,
 `vol_resolution.rs`, and the `pub(crate)` modules under `pricing/`.
 
 Three of those appear in the type of a `pub` field on a public item and are
@@ -175,7 +174,8 @@ methods.
   and calibration layers; it converts one-way into the core error. No
   `unwrap`/`expect` on user input.
 - **Two clocks.** A pricer that mixes an instrument day count with a curve day
-  count must go through `two_clock.rs` or `pricing::time`, never divide a
+  count must derive the model rate with `helpers::zero_rate_from_df` (so that
+  `exp(-r·t_vol) = df`) or go through `pricing::time`, never divide a
   discount factor's log by an unrelated year fraction.
 - **Volatility precedence.** Surface-driven pricers call
   `vol_resolution::resolve_sigma_at` so the `MarketQuoteOverrides::implied_volatility`

@@ -260,6 +260,32 @@ impl ListedFutureTerms {
         }
     }
 
+    /// Variation-margin P&L for the lifecycle-appropriate mark.
+    ///
+    /// Returns `0.0` once `as_of` is past `settlement_date`; otherwise
+    /// resolves the mark via [`Self::resolve_mark`] and applies
+    /// [`Self::mark_to_market`].
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument_id` - Identifier included in missing-settlement diagnostics.
+    /// * `as_of` - Valuation date controlling the contract lifecycle.
+    /// * `model_mark` - Lazy calculation of the live theoretical mark.
+    pub fn npv_from_model_price<F>(
+        &self,
+        instrument_id: &str,
+        as_of: Date,
+        model_mark: F,
+    ) -> finstack_quant_core::Result<f64>
+    where
+        F: FnOnce() -> finstack_quant_core::Result<f64>,
+    {
+        if as_of > self.settlement_date {
+            return Ok(0.0);
+        }
+        self.mark_to_market(self.resolve_mark(instrument_id, as_of, model_mark)?)
+    }
+
     /// P&L sensitivity to a one-point increase in the futures price.
     pub fn point_delta(&self) -> finstack_quant_core::Result<f64> {
         self.validate()?;

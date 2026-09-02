@@ -226,10 +226,8 @@ impl EquityTotalReturnFuture {
     /// * `market` - Market context containing TRF clearing inputs.
     /// * `as_of` - Valuation date controlling lifecycle and remaining spread accrual.
     pub fn npv_raw(&self, market: &MarketContext, as_of: Date) -> finstack_quant_core::Result<f64> {
-        if as_of > self.terms.settlement_date {
-            return Ok(0.0);
-        }
-        self.terms.mark_to_market(self.mark_price(market, as_of)?)
+        self.terms
+            .npv_from_model_price(self.id.as_str(), as_of, || self.fair_price(market, as_of))
     }
 
     /// P&L sensitivity to a one-point increase in the underlying index level.

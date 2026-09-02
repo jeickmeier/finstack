@@ -354,57 +354,19 @@ impl CommodityForward {
     ///
     /// Returns an error if neither `quoted_price` nor `PriceCurve` is available.
     ///
-    /// # Note on PriceCurve Evaluation
-    ///
-    /// When using a `PriceCurve`, this method uses `price_on_date(maturity)`
-    /// which respects the curve's own day count convention. This avoids hard-coding
-    /// Act365F and ensures consistent time calculation across different curves.
     pub fn forward_price(&self, market: &MarketContext, as_of: Date) -> Result<f64> {
         self.validate()?;
-        // Use quoted price if available
-        if let Some(price) = self.quoted_price {
-            return Ok(price);
-        }
-
-        // At or past settlement, return spot price from curve
-        if self.maturity <= as_of {
-            if let Ok(price_curve) = market.get_price_curve(self.forward_curve_id.as_str()) {
-                return Ok(price_curve.spot_price());
-            }
-        }
-
-        // Primary path: use PriceCurve with date-based evaluation
-        if let Ok(price_curve) = market.get_price_curve(self.forward_curve_id.as_str()) {
-            // Use price_on_date to respect the curve's day count convention
-            return price_curve.price_on_date(self.maturity);
-        }
-
-        // Fallback: if a spot ID is configured, use exact curve carry. Missing
-        // configured market data is an error, not permission to substitute spot.
-        if let Some(spot_id) = &self.spot_id {
-            let spot_scalar = market.get_price(spot_id)?;
-            let spot = match spot_scalar {
-                finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-                finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            };
-            if self.maturity <= as_of {
-                return Ok(spot);
-            }
-            let disc = market.get_discount(self.discount_curve_id.as_str())?;
-            let df = disc.df_between_dates(as_of, self.maturity)?;
-            return Ok(spot / df);
-        }
-
-        // If no PriceCurve and no spot, fail with a clear error
-        Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::error::InputError::NotFound {
-                id: format!(
-                    "PriceCurve '{}' not found. \
-                     Use MarketContext::insert() to add a commodity forward price curve.",
-                    self.forward_curve_id
-                ),
+        super::super::forward_price::resolve_forward_price(
+            super::super::forward_price::ForwardPriceRequest {
+                market,
+                as_of,
+                delivery: self.maturity,
+                quoted: self.quoted_price,
+                forward_curve_id: &self.forward_curve_id,
+                spot_id: self.spot_id.as_deref(),
+                discount_curve_id: &self.discount_curve_id,
             },
-        ))
+        )
     }
 
     /// Get the effective notional value at settlement.

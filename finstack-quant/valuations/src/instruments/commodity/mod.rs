@@ -74,6 +74,7 @@ pub mod commodity_spread_option;
 pub mod commodity_swap;
 /// Commodity swaption module.
 pub mod commodity_swaption;
+pub(crate) mod forward_price;
 
 pub use commodity_asian_option::CommodityAsianOption;
 pub use commodity_forward::CommodityForward;

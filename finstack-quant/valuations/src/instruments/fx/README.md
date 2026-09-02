@@ -16,7 +16,7 @@ leaf `mod.rs` rustdoc.
 | Directory | Prices | Market convention / model |
 |-----------|--------|---------------------------|
 | `fx_spot/` | Spot FX positions | Value in quote currency = base amount × spot; settlement rolled with the CLS-consistent joint-calendar spot rule (T+2 for majors, T+1 for USD/CAD) |
-| `fx_forward/` | Outright forwards | Covered interest parity, `F = S · DF_foreign(T) / DF_domestic(T)`; stable PV `N · (S · DF_foreign − K · DF_domestic)`. Standard constructors take calendar `Tenor`; `from_broken_date` takes an explicit maturity |
+| `fx_forward/` | Outright forwards | Covered interest parity, `F = S · DF_foreign(T) / DF_domestic(T)`; stable PV `N · (S · DF_foreign − K · DF_domestic)`. Standard constructors take calendar `Tenor` |
 | `fx_future/` | Exchange-listed deliverable FX futures | Daily variation-margin P&L. `fair_price` uses the deterministic-rate CIP-forward approximation and does not include stochastic-rate/FX convexity |
 | `fx_future_option/` | Options on listed FX futures | Listed-future option lifecycle and settlement terms |
 | `fx_swap/` | FX swaps with near and far legs | Near leg at spot, far leg at the CIP forward; standard far maturities use calendar `Tenor`, explicit business-day roll and EOM policy |
@@ -74,7 +74,7 @@ reached through the standard metric registry.
   constructors take explicit contractual dates.
 - **Two clocks.** Option pricers combine a vol-surface clock with a
   discount-curve clock; the model rate must satisfy `exp(-r·t_vol) = df`.
-  `common_impl::two_clock` documents the convention and
+  `common_impl::helpers::zero_rate_from_df` derives that rate and
   `instruments::pricing::time` supplies the curve-consistent lookups. Never
   divide `ln(df)` by a year fraction measured on a different day count.
 - **Volatility precedence.** Surface-driven pricers resolve σ through

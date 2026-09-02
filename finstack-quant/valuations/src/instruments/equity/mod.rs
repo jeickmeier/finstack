@@ -89,6 +89,7 @@ pub mod autocallable;
 pub mod cliquet_option;
 /// DCF equity module - Discounted cash flow for equity (renamed from dcf).
 pub mod dcf_equity;
+pub(crate) mod dividend01;
 /// Exchange-listed equity, equity-index, and fixed-currency quanto futures.
 pub mod equity_future;
 /// Exchange-listed options on equity futures.

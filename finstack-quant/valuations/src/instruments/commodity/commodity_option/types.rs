@@ -368,14 +368,9 @@ impl CommodityOption {
 
     /// Get the forward price for this option.
     ///
-    /// Uses `quoted_forward` if provided, otherwise retrieves from the `PriceCurve`
-    /// specified by `forward_curve_id`. If no `PriceCurve` is found but `spot_id`
-    /// is provided, falls back to cost-of-carry model: F = S × exp(r × T).
-    ///
-    /// # Note on PriceCurve Evaluation
-    ///
-    /// When using a `PriceCurve`, this method uses `price_on_date(expiry)` which
-    /// respects the curve's own day count convention rather than hard-coding Act365F.
+    /// Resolves through the shared commodity waterfall
+    /// (`quoted_forward` → `PriceCurve` → cost of carry from `spot_id`) and
+    /// validates the result is a finite positive forward for the lognormal model.
     pub fn forward_price(&self, market: &MarketContext, as_of: Date) -> Result<f64> {
         let validate = |price: f64| {
             if price.is_finite() && price > 0.0 {
@@ -387,44 +382,17 @@ impl CommodityOption {
                 )))
             }
         };
-        // 1. Direct override takes precedence
-        if let Some(price) = self.quoted_forward {
-            return validate(price);
-        }
-
-        // 2. Try to get price from PriceCurve using date-based evaluation
-        if let Ok(price_curve) = market.get_price_curve(self.forward_curve_id.as_str()) {
-            // At or past expiry, return spot price from curve
-            if self.expiry <= as_of {
-                return validate(price_curve.spot_price());
-            }
-            // Use price_on_date to respect the curve's day count convention
-            return validate(price_curve.price_on_date(self.expiry)?);
-        }
-
-        // 3. Fallback: cost-of-carry model if spot is available
-        if let Some(spot) = self.spot_price(market)? {
-            let t = DayCount::Act365F
-                .year_fraction(as_of, self.expiry, DayCountContext::default())?
-                .max(0.0);
-            let disc = market.get_discount(self.discount_curve_id.as_str())?;
-            if t <= 0.0 {
-                return validate(spot);
-            }
-            let df = disc.df_between_dates(as_of, self.expiry)?;
-            return validate(spot / df);
-        }
-
-        // 4. No PriceCurve and no spot - error with helpful message
-        Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::error::InputError::NotFound {
-                id: format!(
-                    "PriceCurve '{}' not found. \
-                     Use MarketContext::insert_price_curve() to add a commodity forward price curve.",
-                    self.forward_curve_id
-                ),
+        validate(super::super::forward_price::resolve_forward_price(
+            super::super::forward_price::ForwardPriceRequest {
+                market,
+                as_of,
+                delivery: self.expiry,
+                quoted: self.quoted_forward,
+                forward_curve_id: &self.forward_curve_id,
+                spot_id: self.spot_id.as_deref(),
+                discount_curve_id: &self.discount_curve_id,
             },
-        ))
+        )?)
     }
 
     /// Get the effective premium settlement lag in business days.
