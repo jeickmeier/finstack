@@ -2,7 +2,7 @@
 //! compliance forecasting.
 //!
 //! [`CovenantEngine`] evaluates [`CovenantSpec`] values from a
-//! [`CovenantMetricSource`]. [`ThresholdSchedule`] supports step-down limits,
+//! [`metric::CovenantMetricSource`]. [`ThresholdSchedule`] supports step-down limits,
 //! [`forecast_covenant_generic`] projects future compliance, and [`templates`]
 //! and [`json`] provide standard packages and the serde-first binding surface.
 //!
@@ -91,7 +91,7 @@ pub use json::{
     cov_lite_json, evaluate_engine_map, lbo_standard_json, project_finance_json, real_estate_json,
     validate_covenant_engine_json, validate_covenant_report_json, validate_covenant_spec_json,
 };
-pub use metric::{CovenantMetricId, CovenantMetricSource, HashMapMetricSource};
+pub use metric::{CovenantMetricId, HashMapMetricSource};
 pub use report::CovenantReport;
 pub use schedule::ThresholdSchedule;
 
