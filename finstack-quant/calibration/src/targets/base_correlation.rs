@@ -10,6 +10,7 @@ use crate::quotes::cds_tranche::CdsTrancheQuote;
 use crate::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use crate::solver::bootstrap::SequentialBootstrapper;
 use crate::solver::traits::BootstrapTarget;
+use crate::targets::util::ContextScratch;
 use crate::CalibrationReport;
 use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -19,7 +20,6 @@ use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTranchePricer;
 use finstack_quant_valuations::market::conventions::ConventionRegistry;
-use std::cell::RefCell;
 use std::sync::Arc;
 
 /// Validate that all detachment points in params are valid.
@@ -133,7 +133,7 @@ pub(crate) struct BaseCorrelationTarget {
     /// Calibration inputs (curve IDs, schedule conventions, detachment points).
     pub params: BaseCorrelationParams,
     /// Reusable sequential bootstrap scratch context.
-    reuse_context: RefCell<MarketContext>,
+    scratch: ContextScratch,
     /// Reusable tranche pricer retaining lazy copula and quadrature caches.
     pricer: CDSTranchePricer,
 }
@@ -141,10 +141,9 @@ pub(crate) struct BaseCorrelationTarget {
 impl BaseCorrelationTarget {
     /// Create a new base correlation bootstrapper.
     pub(crate) fn new(params: BaseCorrelationParams, base_context: MarketContext) -> Self {
-        let reuse_context = RefCell::new(base_context);
         Self {
             params,
-            reuse_context,
+            scratch: ContextScratch::new(base_context),
             pricer: CDSTranchePricer::new(),
         }
     }
@@ -424,14 +423,6 @@ impl BootstrapTarget for BaseCorrelationTarget {
             }
         };
 
-        let mut temp_context = self.reuse_context.borrow_mut();
-        temp_context.insert_mut(curve.clone());
-        if let Ok(idx) = temp_context.get_credit_index(self.params.index_id.as_str()) {
-            let mut updated = idx.as_ref().clone();
-            updated.base_correlation_curve = Arc::new(curve.clone());
-            temp_context.insert_credit_index_mut(self.params.index_id.as_str(), updated);
-        }
-
         let tranche = pq
             .instrument
             .as_any()
@@ -441,13 +432,25 @@ impl BootstrapTarget for BaseCorrelationTarget {
                     "Base correlation calibration requires a CDSTranche instrument".to_string(),
                 )
             })?;
-
-        // Fit to the market upfront quote directly (vendor-style).
-        let model_upfront =
-            self.pricer
-                .calculate_upfront(tranche, &temp_context, self.params.base_date)?;
-        let market_upfront = upfront.as_ref().map(|m| m.amount()).unwrap_or(0.0);
-        Ok((model_upfront - market_upfront) / self.params.notional)
+        let index_id = self.params.index_id.as_str();
+        self.scratch.with_curve_then(
+            curve,
+            |ctx| {
+                if let Ok(idx) = ctx.get_credit_index(index_id) {
+                    let mut updated = idx.as_ref().clone();
+                    updated.base_correlation_curve = Arc::new(curve.clone());
+                    ctx.insert_credit_index_mut(index_id, updated);
+                }
+            },
+            |ctx| {
+                // Fit to the market upfront quote directly (vendor-style).
+                let model_upfront =
+                    self.pricer
+                        .calculate_upfront(tranche, ctx, self.params.base_date)?;
+                let market_upfront = upfront.as_ref().map(|m| m.amount()).unwrap_or(0.0);
+                Ok((model_upfront - market_upfront) / self.params.notional)
+            },
+        )
     }
 
     fn initial_guess(&self, _quote: &Self::Quote, previous_knots: &[(f64, f64)]) -> Result<f64> {

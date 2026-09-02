@@ -2,16 +2,15 @@
 //!
 use crate::api::schema::HazardCurveParams;
 use crate::build::context::BuildCtx;
-use crate::config::{
-    CalibrationConfig, CalibrationMethod, HazardCurveSolveConfig, ResidualWeightingScheme,
-};
-use crate::constants::{TOLERANCE_DUP_KNOTS, WEIGHT_MIN_FLOOR};
+use crate::config::{CalibrationConfig, CalibrationMethod, HazardCurveSolveConfig};
+use crate::constants::WEIGHT_MIN_FLOOR;
 use crate::prepared::CalibrationQuote;
 use crate::quotes::cds::CdsQuote;
 use crate::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use crate::solver::bootstrap::SequentialBootstrapper;
 use crate::solver::global::GlobalFitOptimizer;
 use crate::solver::traits::{BootstrapTarget, GlobalSolveTarget};
+use crate::targets::util::{scheme_factor, sorted_knot_grid, ContextScratch};
 use crate::CalibrationReport;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
@@ -23,7 +22,6 @@ use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsD
 use finstack_quant_valuations::market::conventions::{
     CdsConvention, CdsConventionSpec, ConventionRegistry,
 };
-use std::cell::RefCell;
 use std::str::FromStr;
 
 /// Bootstrapper for hazard curves from CDS quotes.
@@ -48,8 +46,8 @@ pub(crate) struct HazardCurveTarget {
     pub(crate) base_context: MarketContext,
     /// Global calibration settings (used for solver controls and weights).
     pub(crate) config: CalibrationConfig,
-    /// Optional reusable context for sequential solvers to reduce memory pressure.
-    reuse_context: Option<RefCell<MarketContext>>,
+    /// Reusable scratch context (see [`ContextScratch`]).
+    scratch: ContextScratch,
 }
 
 fn convention_key_from_params(
@@ -273,29 +271,6 @@ fn hazard_scan_grid(cfg: &HazardCurveSolveConfig, initial_guess: f64) -> Vec<f64
 }
 
 impl HazardCurveTarget {
-    fn validate_hazard_bounds(
-        params: &HazardCurveParams,
-        config: &CalibrationConfig,
-    ) -> Result<()> {
-        let hazard_min = config.hazard_curve.hazard_hard_min;
-        let hazard_max = config.hazard_curve.hazard_hard_max;
-        if !hazard_min.is_finite()
-            || !hazard_max.is_finite()
-            || hazard_min < 0.0
-            || hazard_max <= 0.0
-            || hazard_min >= hazard_max
-        {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "Invalid hazard bounds for {}: hazard_hard_min={} hazard_hard_max={} (expected finite values with 0 <= min < max)",
-                    params.curve_id, hazard_min, hazard_max
-                ),
-                category: "bootstrapping".to_string(),
-            });
-        }
-        Ok(())
-    }
-
     /// Creates a new hazard curve bootstrapper.
     ///
     /// # Arguments
@@ -319,24 +294,15 @@ impl HazardCurveTarget {
         config: CalibrationConfig,
         quotes: &[CdsQuote],
     ) -> Result<Self> {
-        Self::validate_hazard_bounds(&params, &config)?;
         let quote_refs: Vec<&CdsQuote> = quotes.iter().collect();
         let cds_conventions = resolve_hazard_conventions(&params, &quote_refs)?;
-
-        let reuse_context = if matches!(config.calibration_method, CalibrationMethod::Bootstrap)
-            || !config.use_parallel
-        {
-            Some(RefCell::new(base_context.clone()))
-        } else {
-            None
-        };
 
         Ok(Self {
             params,
             cds_conventions,
+            scratch: ContextScratch::new(base_context.clone()),
             base_context,
             config,
-            reuse_context,
         })
     }
 
@@ -572,27 +538,19 @@ impl HazardCurveTarget {
     where
         F: FnOnce(&MarketContext) -> Result<T>,
     {
-        if let Some(ctx_cell) = &self.reuse_context {
-            let mut ctx = ctx_cell.borrow_mut();
-            ctx.insert_mut(curve.clone());
-            // Sync CreditIndex if it exists (so pricer sees trial curve)
-            if let Ok(idx) = ctx.get_credit_index(self.params.curve_id.as_str()) {
-                let mut updated = idx.as_ref().clone();
-                updated.index_credit_curve = std::sync::Arc::new(curve.clone());
-                ctx.insert_credit_index_mut(self.params.curve_id.as_str(), updated);
-            }
-            op(&ctx)
-        } else {
-            let mut temp_context = self.base_context.clone();
-            temp_context.insert_mut(curve.clone());
-            // Sync CreditIndex if it exists
-            if let Ok(idx) = temp_context.get_credit_index(self.params.curve_id.as_str()) {
-                let mut updated = idx.as_ref().clone();
-                updated.index_credit_curve = std::sync::Arc::new(curve.clone());
-                temp_context.insert_credit_index_mut(self.params.curve_id.as_str(), updated);
-            }
-            op(&temp_context)
-        }
+        let curve_id = self.params.curve_id.as_str();
+        self.scratch.with_curve_then(
+            curve,
+            |ctx| {
+                // Sync the credit index (if any) so the pricer sees the trial curve.
+                if let Ok(idx) = ctx.get_credit_index(curve_id) {
+                    let mut updated = idx.as_ref().clone();
+                    updated.index_credit_curve = std::sync::Arc::new(curve.clone());
+                    ctx.insert_credit_index_mut(curve_id, updated);
+                }
+            },
+            op,
+        )
     }
 }
 
@@ -748,44 +706,10 @@ impl GlobalSolveTarget for HazardCurveTarget {
             entries.push((t, guess, quote.clone()));
         }
 
-        entries.sort_by(|a, b| a.0.total_cmp(&b.0));
-
-        let mut times = Vec::with_capacity(entries.len());
-        let mut initials = Vec::with_capacity(entries.len());
-        let mut active_quotes = Vec::with_capacity(entries.len());
-        let mut last_time: Option<f64> = None;
-
-        for (t, guess, quote) in entries {
-            if let Some(prev) = last_time {
-                if (t - prev).abs() <= TOLERANCE_DUP_KNOTS {
-                    return Err(finstack_quant_core::Error::Calibration {
-                        message: format!(
-                            "Duplicate or unsorted hazard knot times detected (prev={:.10}, new={:.10}). \
-Ensure quotes map to strictly increasing year fractions.",
-                            prev, t
-                        ),
-                        category: "global_solve".to_string(),
-                    });
-                }
-            }
-            last_time = Some(t);
-            times.push(t);
-            initials.push(guess);
-            active_quotes.push(quote);
-        }
-
-        Ok((times, initials, active_quotes))
+        sorted_knot_grid(entries, "hazard")
     }
 
     fn build_curve_from_params(&self, times: &[f64], params: &[f64]) -> Result<Self::Curve> {
-        self.build_curve_for_solver_from_params(times, params)
-    }
-
-    fn build_curve_for_solver_from_params(
-        &self,
-        times: &[f64],
-        params: &[f64],
-    ) -> Result<Self::Curve> {
         if times.len() != params.len() {
             return Err(finstack_quant_core::Error::Calibration {
                 message: format!(
@@ -856,29 +780,12 @@ Global solve requires strictly increasing times.",
     }
 
     fn residual_weights(&self, quotes: &[Self::Quote], weights_out: &mut [f64]) -> Result<()> {
-        if quotes.len() != weights_out.len() {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "Global solve requires weights.len() == quotes.len(); got {} vs {}.",
-                    weights_out.len(),
-                    quotes.len()
-                ),
-                category: "global_solve".to_string(),
-            });
-        }
-
         for (i, quote) in quotes.iter().enumerate() {
             let t = self.quote_time(quote)?.max(1e-6);
 
             // Use hazard-curve-specific weighting scheme, not discount curve's.
-            let weight = match self.config.hazard_curve.weighting_scheme {
-                ResidualWeightingScheme::Equal => 1.0,
-                ResidualWeightingScheme::LinearTime => t,
-                ResidualWeightingScheme::SqrtTime => t.sqrt(),
-                ResidualWeightingScheme::InverseDuration => 1.0 / t.max(0.1),
-            };
-
-            weights_out[i] = weight.max(WEIGHT_MIN_FLOOR);
+            weights_out[i] =
+                scheme_factor(&self.config.hazard_curve.weighting_scheme, t).max(WEIGHT_MIN_FLOOR);
         }
         Ok(())
     }
@@ -938,18 +845,6 @@ mod tests {
             .validate_knot(1.0, hazard_max + 1e-6)
             .expect_err("should reject excessive hazard");
         assert!(err.to_string().to_lowercase().contains("out of bounds"));
-    }
-
-    #[test]
-    fn new_rejects_inverted_hazard_bounds() {
-        let mut config = CalibrationConfig::default();
-        config.hazard_curve.hazard_hard_min = 0.05;
-        config.hazard_curve.hazard_hard_max = 0.01;
-
-        let err = HazardCurveTarget::new(base_params(), MarketContext::default(), config, &[])
-            .err()
-            .expect("inverted hazard bounds should be rejected");
-        assert!(err.to_string().to_lowercase().contains("hazard"));
     }
 
     /// Item 6: the hazard scan grid must give distressed / jump-to-default names

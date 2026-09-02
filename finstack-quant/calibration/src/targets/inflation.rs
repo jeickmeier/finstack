@@ -1,14 +1,15 @@
 //! Calibration target construction and shared input validation.
 //!
 use crate::api::schema::InflationCurveParams;
-use crate::config::{CalibrationConfig, CalibrationMethod, ResidualWeightingScheme};
-use crate::constants::{TOLERANCE_DUP_KNOTS, WEIGHT_MIN_FLOOR};
+use crate::config::{CalibrationConfig, CalibrationMethod};
+use crate::constants::WEIGHT_MIN_FLOOR;
 use crate::prepared::CalibrationQuote;
 use crate::quotes::inflation::InflationQuote;
 use crate::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use crate::solver::bootstrap::SequentialBootstrapper;
 use crate::solver::global::GlobalFitOptimizer;
 use crate::solver::traits::{BootstrapTarget, GlobalSolveTarget};
+use crate::targets::util::{scheme_factor, sorted_knot_grid, ContextScratch};
 use crate::CalibrationReport;
 
 use crate::build::prepared::PreparedQuote;
@@ -25,7 +26,6 @@ use finstack_quant_valuations::instruments::rates::inflation_swap::{
 use finstack_quant_valuations::instruments::PayReceive;
 use finstack_quant_valuations::market::conventions::ConventionRegistry;
 use rust_decimal::Decimal;
-use std::cell::RefCell;
 use std::sync::Arc;
 
 // CPI hard bounds are now configurable via InflationCurveSolveConfig.
@@ -48,8 +48,8 @@ pub(crate) struct InflationCurveTarget {
     pub(crate) base_context: MarketContext,
     /// Global calibration settings (used for solver controls and weights).
     pub(crate) config: CalibrationConfig,
-    /// Optional reusable context for sequential solvers to reduce memory pressure.
-    reuse_context: Option<RefCell<MarketContext>>,
+    /// Reusable scratch context (see [`ContextScratch`]).
+    scratch: ContextScratch,
 }
 
 impl InflationCurveTarget {
@@ -69,18 +69,11 @@ impl InflationCurveTarget {
         base_context: MarketContext,
         config: CalibrationConfig,
     ) -> Self {
-        let reuse_context = if matches!(config.calibration_method, CalibrationMethod::Bootstrap)
-            || !config.use_parallel
-        {
-            Some(RefCell::new(base_context.clone()))
-        } else {
-            None
-        };
         Self {
             params,
+            scratch: ContextScratch::new(base_context.clone()),
             base_context,
             config,
-            reuse_context,
         }
     }
 
@@ -255,21 +248,6 @@ impl InflationCurveTarget {
         Ok(self.params.base_cpi)
     }
 
-    fn with_temp_context<F, T>(&self, curve: &InflationCurve, op: F) -> Result<T>
-    where
-        F: FnOnce(&MarketContext) -> Result<T>,
-    {
-        if let Some(ctx_cell) = &self.reuse_context {
-            let mut ctx = ctx_cell.borrow_mut();
-            ctx.insert_mut(curve.clone());
-            op(&ctx)
-        } else {
-            let mut temp_context = self.base_context.clone();
-            temp_context.insert_mut(curve.clone());
-            op(&temp_context)
-        }
-    }
-
     /// Execute the full calibration for an inflation curve step.
     pub(crate) fn solve(
         params: &InflationCurveParams,
@@ -407,7 +385,7 @@ impl BootstrapTarget for InflationCurveTarget {
     fn calculate_residual(&self, curve: &Self::Curve, quote: &Self::Quote) -> Result<f64> {
         let base_date = self.params.base_date;
         // Context needs the curve being calibrated + discount curve
-        self.with_temp_context(curve, |ctx| {
+        self.scratch.with_curve(curve, |ctx| {
             let pv = quote.calibration_value_raw(ctx, base_date)?;
             Ok(pv / self.params.notional)
         })
@@ -467,45 +445,10 @@ impl GlobalSolveTarget for InflationCurveTarget {
             entries.push((t, clamped_guess, quote.clone()));
         }
 
-        // Sort by time
-        entries.sort_by(|a, b| a.0.total_cmp(&b.0));
-
-        let mut times = Vec::with_capacity(entries.len());
-        let mut initials = Vec::with_capacity(entries.len());
-        let mut active_quotes = Vec::with_capacity(entries.len());
-        let mut last_time: Option<f64> = None;
-
-        for (t, cpi, quote) in entries {
-            if let Some(prev) = last_time {
-                if (t - prev).abs() <= TOLERANCE_DUP_KNOTS {
-                    return Err(finstack_quant_core::Error::Calibration {
-                        message: format!(
-                            "Duplicate or unsorted inflation knot times detected (prev={:.10}, new={:.10}). \
-Ensure quotes map to strictly increasing year fractions.",
-                            prev, t
-                        ),
-                        category: "global_solve".to_string(),
-                    });
-                }
-            }
-            last_time = Some(t);
-            times.push(t);
-            initials.push(cpi);
-            active_quotes.push(quote);
-        }
-
-        Ok((times, initials, active_quotes))
+        sorted_knot_grid(entries, "inflation")
     }
 
     fn build_curve_from_params(&self, times: &[f64], params: &[f64]) -> Result<Self::Curve> {
-        self.build_curve_for_solver_from_params(times, params)
-    }
-
-    fn build_curve_for_solver_from_params(
-        &self,
-        times: &[f64],
-        params: &[f64],
-    ) -> Result<Self::Curve> {
         if times.len() != params.len() {
             return Err(finstack_quant_core::Error::Calibration {
                 message: format!(
@@ -563,7 +506,7 @@ Global solve requires strictly increasing times.",
             });
         }
 
-        self.with_temp_context(curve, |ctx| {
+        self.scratch.with_curve(curve, |ctx| {
             for (i, quote) in quotes.iter().enumerate() {
                 let pv = quote.calibration_value_raw(ctx, self.params.base_date)?;
                 residuals[i] = pv / self.params.notional;
@@ -578,29 +521,12 @@ Global solve requires strictly increasing times.",
     }
 
     fn residual_weights(&self, quotes: &[Self::Quote], weights_out: &mut [f64]) -> Result<()> {
-        if quotes.len() != weights_out.len() {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "Global solve requires weights.len() == quotes.len(); got {} vs {}.",
-                    weights_out.len(),
-                    quotes.len()
-                ),
-                category: "global_solve".to_string(),
-            });
-        }
-
         for (i, quote) in quotes.iter().enumerate() {
             let t = self.quote_time(quote)?.max(1e-6);
 
             // Use inflation-curve-specific weighting scheme, not discount curve's.
-            let weight = match self.config.inflation_curve.weighting_scheme {
-                ResidualWeightingScheme::Equal => 1.0,
-                ResidualWeightingScheme::LinearTime => t,
-                ResidualWeightingScheme::SqrtTime => t.sqrt(),
-                ResidualWeightingScheme::InverseDuration => 1.0 / t.max(0.1),
-            };
-
-            weights_out[i] = weight.max(WEIGHT_MIN_FLOOR);
+            weights_out[i] = scheme_factor(&self.config.inflation_curve.weighting_scheme, t)
+                .max(WEIGHT_MIN_FLOOR);
         }
         Ok(())
     }

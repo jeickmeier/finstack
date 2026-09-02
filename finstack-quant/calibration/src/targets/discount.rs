@@ -1,7 +1,6 @@
 //! Calibration target construction and shared input validation.
 //!
 use crate::api::schema::DiscountCurveParams;
-use crate::config::ResidualWeightingScheme;
 use crate::config::{CalibrationConfig, CalibrationMethod};
 use crate::constants::*;
 use crate::prepared::CalibrationQuote;
@@ -14,7 +13,7 @@ use crate::solver::traits::{BootstrapTarget, GlobalSolveTarget};
 use crate::targets::rate_recipe::recipe_ois_compounding;
 use crate::targets::util::{
     discount_and_forward_curve_ids, prepare_rate_calibration_quotes_with_ois_override,
-    quote_annuity_proxy, ContextScratch,
+    quote_annuity_proxy, scheme_factor, sorted_knot_grid, ContextScratch,
 };
 use crate::validation::RateBoundsPolicy;
 use crate::CalibrationReport;
@@ -50,8 +49,6 @@ pub(crate) struct DiscountCurveTargetParams {
     pub(crate) config: CalibrationConfig,
     /// Day count convention for mapping dates to year fractions on the curve.
     pub(crate) curve_day_count: DayCount,
-    /// Optional spot knot (t_spot, 1.0) if enabled.
-    pub(crate) spot_knot: Option<(f64, f64)>,
     /// Residual normalization notional (used to scale PV residuals to per-unit notional).
     ///
     /// Calibration tolerances are interpreted in **per-notional** residual units, so
@@ -74,29 +71,8 @@ pub(crate) struct DiscountCurveTargetParams {
 /// It acts as a bridge between the numerical solvers and the financial instrument
 /// pricing logic.
 pub(crate) struct DiscountCurveTarget {
-    /// Base date for the curve.
-    pub(crate) base_date: Date,
-    /// Currency of the curve.
-    pub(crate) currency: Currency,
-    /// Identifier for the curve being built.
-    pub(crate) curve_id: CurveId,
-    /// Effective ID for pricing (usually same as curve_id).
-    pub(crate) discount_curve_id: CurveId,
-    /// Interpolation style for solving.
-    pub(crate) solve_interp: InterpStyle,
-    /// Extrapolation policy.
-    pub(crate) extrapolation: ExtrapolationPolicy,
-    /// Calibration configuration.
-    pub(crate) config: CalibrationConfig,
-    /// Day count convention for the curve.
-    pub(crate) curve_day_count: DayCount,
-    /// Optional spot knot (t_spot, 1.0) if enabled.
-    pub(crate) spot_knot: Option<(f64, f64)>,
-    /// Residual normalization notional.
-    pub(crate) residual_notional: f64,
-    /// OIS rate cut-off (business days) the bootstrap-internal swaps are priced
-    /// under. Stamped onto every solver/final curve. `None` for non-cut-off.
-    pub(crate) calibration_ois_cutoff_days: Option<i32>,
+    /// Construction parameters (dates, ids, conventions, config).
+    pub(crate) params: DiscountCurveTargetParams,
     /// Reusable scratch context: holds the base market data plus a slot for the
     /// in-progress curve so each residual evaluation does not have to clone the
     /// full `MarketContext`.
@@ -108,19 +84,9 @@ pub(crate) struct DiscountCurveTarget {
 impl DiscountCurveTarget {
     /// Create a new [`DiscountCurveTarget`] from parameters.
     pub(crate) fn new(params: DiscountCurveTargetParams) -> Self {
-        let scratch = ContextScratch::new(params.base_context);
+        let scratch = ContextScratch::new(params.base_context.clone());
         Self {
-            base_date: params.base_date,
-            currency: params.currency,
-            curve_id: params.curve_id,
-            discount_curve_id: params.discount_curve_id,
-            solve_interp: params.solve_interp,
-            extrapolation: params.extrapolation,
-            config: params.config,
-            curve_day_count: params.curve_day_count,
-            residual_notional: params.residual_notional,
-            calibration_ois_cutoff_days: params.calibration_ois_cutoff_days,
-            spot_knot: params.spot_knot,
+            params,
             scratch,
             initial_curve: None,
         }
@@ -128,7 +94,10 @@ impl DiscountCurveTarget {
 
     /// Compute DF bounds for time t based on rate bounds.
     fn df_bounds_for_time(&self, time: f64) -> (f64, f64) {
-        let bounds = self.config.effective_rate_bounds(self.currency);
+        let bounds = self
+            .params
+            .config
+            .effective_rate_bounds(self.params.currency);
         let df_lo = (-bounds.max_rate * time).exp();
         let df_hi = (-bounds.min_rate * time).exp();
         (df_lo, df_hi)
@@ -277,14 +246,11 @@ impl DiscountCurveTarget {
         let mut knots = Vec::with_capacity(times.len() + 2);
         knots.push((0.0, 1.0));
 
-        if let Some(spot) = self.spot_knot {
-            if spot.0 > 0.0 {
-                knots.push(spot);
-            }
-        }
-
-        let bounds = self.config.effective_rate_bounds(self.currency);
-        let mut last_t = self.spot_knot.map(|spot| spot.0).unwrap_or(0.0);
+        let bounds = self
+            .params
+            .config
+            .effective_rate_bounds(self.params.currency);
+        let mut last_t = 0.0;
 
         for (&t, &z) in times.iter().zip(params.iter()) {
             if t <= last_t {
@@ -301,8 +267,8 @@ Global solve requires strictly increasing times.",
             let clamped_z = z.clamp(bounds.min_rate, bounds.max_rate);
             let mut df = Self::zero_rate_to_df(clamped_z, t);
             df = df.clamp(
-                self.config.discount_curve.df_hard_min,
-                self.config.discount_curve.df_hard_max,
+                self.params.config.discount_curve.df_hard_min,
+                self.params.config.discount_curve.df_hard_max,
             );
             knots.push((t, df));
         }
@@ -387,7 +353,6 @@ Global solve requires strictly increasing times.",
             extrapolation: params.extrapolation,
             config: config.clone(),
             curve_day_count,
-            spot_knot: None,
             residual_notional,
             base_context: context.clone(),
             calibration_ois_cutoff_days: Self::calibration_ois_cutoff_days(
@@ -606,11 +571,14 @@ impl BootstrapTarget for DiscountCurveTarget {
         // The solver curve should respect the same monotonic/no-arbitrage policy as the final
         // curve. Allowing non-monotone solver curves can make bootstrapping converge to
         // an infeasible (arbitrage) shape and then fail only at the end.
-        let config_flag = self.config.discount_curve.allow_non_monotonic_final;
-        let policy_allow = match self.config.rate_bounds_policy {
-            RateBoundsPolicy::Explicit => self.config.rate_bounds.min_rate < 0.0,
+        let config_flag = self.params.config.discount_curve.allow_non_monotonic_final;
+        let policy_allow = match self.params.config.rate_bounds_policy {
+            RateBoundsPolicy::Explicit => self.params.config.rate_bounds.min_rate < 0.0,
             RateBoundsPolicy::AutoCurrency => {
-                matches!(self.currency, Currency::EUR | Currency::JPY | Currency::CHF)
+                matches!(
+                    self.params.currency,
+                    Currency::EUR | Currency::JPY | Currency::CHF
+                )
             }
         };
         let allow_non_monotonic = config_flag.unwrap_or(policy_allow);
@@ -627,17 +595,17 @@ impl BootstrapTarget for DiscountCurveTarget {
             }
         }
 
-        let mut builder = DiscountCurve::builder(self.discount_curve_id.clone())
-            .base_date(self.base_date)
-            .day_count(self.curve_day_count)
+        let mut builder = DiscountCurve::builder(self.params.discount_curve_id.clone())
+            .base_date(self.params.base_date)
+            .day_count(self.params.curve_day_count)
             .knots(knots.iter().copied())
-            .interp(self.solve_interp)
-            .extrapolation(self.extrapolation)
+            .interp(self.params.solve_interp)
+            .extrapolation(self.params.extrapolation)
             // Stamp the calibration cut-off convention so the bootstrap-internal
             // swap repricing takes the same compounded fast-path branch that
             // downstream single-curve OIS pricing will take against the final
             // curve — keeping calibration and pricing self-consistent.
-            .calibration_ois_cutoff_days_opt(self.calibration_ois_cutoff_days);
+            .calibration_ois_cutoff_days_opt(self.params.calibration_ois_cutoff_days);
 
         builder = if allow_non_monotonic {
             builder.validation(
@@ -661,11 +629,14 @@ impl BootstrapTarget for DiscountCurveTarget {
     }
 
     fn build_curve_final(&self, knots: &[(f64, f64)]) -> Result<Self::Curve> {
-        let config_flag = self.config.discount_curve.allow_non_monotonic_final;
-        let policy_allow = match self.config.rate_bounds_policy {
-            RateBoundsPolicy::Explicit => self.config.rate_bounds.min_rate < 0.0,
+        let config_flag = self.params.config.discount_curve.allow_non_monotonic_final;
+        let policy_allow = match self.params.config.rate_bounds_policy {
+            RateBoundsPolicy::Explicit => self.params.config.rate_bounds.min_rate < 0.0,
             RateBoundsPolicy::AutoCurrency => {
-                matches!(self.currency, Currency::EUR | Currency::JPY | Currency::CHF)
+                matches!(
+                    self.params.currency,
+                    Currency::EUR | Currency::JPY | Currency::CHF
+                )
             }
         };
         let allow_non_monotonic = config_flag.unwrap_or(policy_allow);
@@ -675,16 +646,16 @@ impl BootstrapTarget for DiscountCurveTarget {
         // its positivity amelioration (user decision
         // Open Question 10) — so no interpolation-style guard is needed here.
 
-        let mut builder = DiscountCurve::builder(self.curve_id.clone())
-            .base_date(self.base_date)
-            .day_count(self.curve_day_count)
+        let mut builder = DiscountCurve::builder(self.params.curve_id.clone())
+            .base_date(self.params.base_date)
+            .day_count(self.params.curve_day_count)
             .knots(knots.iter().copied())
-            .interp(self.solve_interp)
-            .extrapolation(self.extrapolation)
+            .interp(self.params.solve_interp)
+            .extrapolation(self.params.extrapolation)
             // Carry the calibration cut-off convention onto the final curve so
             // downstream single-curve OIS pricing matches the convention the
             // bootstrap-internal swaps were repriced under.
-            .calibration_ois_cutoff_days_opt(self.calibration_ois_cutoff_days);
+            .calibration_ois_cutoff_days_opt(self.params.calibration_ois_cutoff_days);
 
         if allow_non_monotonic {
             builder = builder.validation(
@@ -709,14 +680,14 @@ impl BootstrapTarget for DiscountCurveTarget {
 
     fn calculate_residual(&self, curve: &Self::Curve, quote: &Self::Quote) -> Result<f64> {
         self.scratch.with_curve(curve, |ctx| {
-            let pv = quote.calibration_value_raw(ctx, self.base_date)?;
-            if !self.residual_notional.is_finite() || self.residual_notional <= 0.0 {
+            let pv = quote.calibration_value_raw(ctx, self.params.base_date)?;
+            if !self.params.residual_notional.is_finite() || self.params.residual_notional <= 0.0 {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "Invalid residual_notional {}: expected finite positive value",
-                    self.residual_notional
+                    self.params.residual_notional
                 )));
             }
-            Ok(pv / self.residual_notional)
+            Ok(pv / self.params.residual_notional)
         })
     }
 
@@ -800,8 +771,8 @@ impl BootstrapTarget for DiscountCurveTarget {
         let (df_lo, df_hi) = self.df_bounds_for_time(time);
         let clamped_initial = initial_guess.clamp(df_lo, df_hi);
 
-        let num_points = self.config.discount_curve.scan_grid_points;
-        let min_points = self.config.discount_curve.min_scan_grid_points;
+        let num_points = self.params.config.discount_curve.scan_grid_points;
+        let min_points = self.params.config.discount_curve.min_scan_grid_points;
         let mut grid = Self::maturity_aware_scan_grid(df_lo, df_hi, clamped_initial, num_points);
 
         if grid.len() < min_points {
@@ -856,7 +827,10 @@ impl GlobalSolveTarget for DiscountCurveTarget {
         &self,
         quotes: &[Self::Quote],
     ) -> Result<(Vec<f64>, Vec<f64>, Vec<Self::Quote>)> {
-        let bounds = self.config.effective_rate_bounds(self.currency);
+        let bounds = self
+            .params
+            .config
+            .effective_rate_bounds(self.params.currency);
         let mut entries = Vec::new();
         let seed_curve = self.initial_curve.as_ref();
 
@@ -878,48 +852,14 @@ impl GlobalSolveTarget for DiscountCurveTarget {
             } else {
                 0.03_f64.clamp(bounds.min_rate, bounds.max_rate)
             };
-            entries.push((t, z, quote));
+            entries.push((t, z, quote.clone()));
         }
 
         // Sort entries by pillar time so the global solver sees a strictly increasing knot grid.
-        entries.sort_by(|a, b| a.0.total_cmp(&b.0));
-
-        let mut times = Vec::with_capacity(entries.len());
-        let mut initials = Vec::with_capacity(entries.len());
-        let mut active_quotes = Vec::with_capacity(entries.len());
-        let mut last_time: Option<f64> = None;
-
-        for (t, z, quote) in entries {
-            if let Some(prev) = last_time {
-                if (t - prev).abs() <= TOLERANCE_DUP_KNOTS {
-                    return Err(finstack_quant_core::Error::Calibration {
-                        message: format!(
-                            "Duplicate or unsorted knot times detected (prev={:.10}, new={:.10}). \
-Ensure quotes map to strictly increasing year fractions.",
-                            prev, t
-                        ),
-                        category: "global_solve".to_string(),
-                    });
-                }
-            }
-            last_time = Some(t);
-            times.push(t);
-            initials.push(z);
-            active_quotes.push(quote.clone());
-        }
-
-        Ok((times, initials, active_quotes))
+        sorted_knot_grid(entries, "discount")
     }
 
     fn build_curve_from_params(&self, times: &[f64], params: &[f64]) -> Result<Self::Curve> {
-        self.build_curve_for_solver_from_params(times, params)
-    }
-
-    fn build_curve_for_solver_from_params(
-        &self,
-        times: &[f64],
-        params: &[f64],
-    ) -> Result<Self::Curve> {
         let knots = self.knots_from_params(times, params)?;
         self.build_curve_for_solver(&knots)
     }
@@ -940,8 +880,8 @@ Ensure quotes map to strictly increasing year fractions.",
                 if i >= residuals.len() {
                     break;
                 }
-                let pv = quote.calibration_value_raw(ctx, self.base_date)?;
-                residuals[i] = pv / self.residual_notional;
+                let pv = quote.calibration_value_raw(ctx, self.params.base_date)?;
+                residuals[i] = pv / self.params.residual_notional;
             }
             Ok(())
         })
@@ -953,17 +893,6 @@ Ensure quotes map to strictly increasing year fractions.",
     }
 
     fn residual_weights(&self, quotes: &[Self::Quote], weights_out: &mut [f64]) -> Result<()> {
-        if quotes.len() != weights_out.len() {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "Global solve requires weights.len() == quotes.len(); got {} vs {}.",
-                    weights_out.len(),
-                    quotes.len()
-                ),
-                category: "global_solve".to_string(),
-            });
-        }
-
         for (i, quote) in quotes.iter().enumerate() {
             let t = self.quote_time(quote)?.max(1e-6);
 
@@ -986,17 +915,8 @@ Ensure quotes map to strictly increasing year fractions.",
             let annuity = quote_annuity_proxy(quote, t);
             let pv01_inverse_sq = 1.0 / (annuity * annuity);
 
-            let scheme_factor = match self.config.discount_curve.weighting_scheme {
-                ResidualWeightingScheme::Equal => 1.0,
-                ResidualWeightingScheme::LinearTime => t,
-                ResidualWeightingScheme::SqrtTime => t.sqrt(),
-                ResidualWeightingScheme::InverseDuration => {
-                    // Extra inverse-duration tilt on top of the PV01 normalisation.
-                    1.0 / t.max(0.1)
-                }
-            };
-
-            let weight = pv01_inverse_sq * scheme_factor;
+            let weight = pv01_inverse_sq
+                * scheme_factor(&self.params.config.discount_curve.weighting_scheme, t);
             weights_out[i] = if weight.is_finite() {
                 weight.max(WEIGHT_MIN_FLOOR)
             } else {
@@ -1063,7 +983,7 @@ Ensure quotes map to strictly increasing year fractions.",
         }
 
         // Central finite differences: O(h^2) accuracy vs O(h) for forward FD.
-        let fd_eps = self.config.discount_curve.jacobian_step_size;
+        let fd_eps = self.params.config.discount_curve.jacobian_step_size;
         let mut params_bumped = params.to_vec();
 
         // The pillar time of each quote is independent of the bumped parameters,
@@ -1080,7 +1000,7 @@ Ensure quotes map to strictly increasing year fractions.",
         // buffer therefore suffices instead of allocating per column.
         let mut vals_plus = vec![0.0_f64; quotes.len()];
         let has_local_interpolation = matches!(
-            self.solve_interp,
+            self.params.solve_interp,
             InterpStyle::Linear | InterpStyle::LogLinear
         );
 
@@ -1100,8 +1020,8 @@ Ensure quotes map to strictly increasing year fractions.",
                     if has_local_interpolation && quote_times[i] < t_cutoff - 1e-4 {
                         continue;
                     }
-                    let pv = quote.calibration_value_raw(ctx_plus, self.base_date)?;
-                    vals_plus[i] = pv / self.residual_notional;
+                    let pv = quote.calibration_value_raw(ctx_plus, self.params.base_date)?;
+                    vals_plus[i] = pv / self.params.residual_notional;
                 }
                 Ok(())
             })?;
@@ -1115,8 +1035,8 @@ Ensure quotes map to strictly increasing year fractions.",
                         jacobian[i][j] = 0.0;
                         continue;
                     }
-                    let pv = quote.calibration_value_raw(ctx_minus, self.base_date)?;
-                    let val_minus = pv / self.residual_notional;
+                    let pv = quote.calibration_value_raw(ctx_minus, self.params.base_date)?;
+                    let val_minus = pv / self.params.residual_notional;
 
                     jacobian[i][j] = (vals_plus[i] - val_minus) / (2.0 * h);
                 }
@@ -1197,7 +1117,6 @@ mod tests {
             extrapolation: ExtrapolationPolicy::FlatZero,
             config: CalibrationConfig::default(),
             curve_day_count: DayCount::Act365F,
-            spot_knot: None,
             residual_notional: 1.0,
             base_context: MarketContext::new(),
             calibration_ois_cutoff_days: None,
@@ -1254,7 +1173,6 @@ mod tests {
             extrapolation: ExtrapolationPolicy::FlatZero,
             config: config.clone(),
             curve_day_count: DayCount::Act365F,
-            spot_knot: None,
             residual_notional: 1.0,
             base_context: MarketContext::new(),
             calibration_ois_cutoff_days: None,
@@ -1329,7 +1247,6 @@ mod tests {
                 extrapolation: ExtrapolationPolicy::FlatZero,
                 config: config.clone(),
                 curve_day_count: DayCount::Act365F,
-                spot_knot: None,
                 residual_notional: notional, // Different notionals
                 base_context: MarketContext::new(),
                 calibration_ois_cutoff_days: None,
@@ -1442,7 +1359,6 @@ mod tests {
             extrapolation: ExtrapolationPolicy::FlatZero,
             config,
             curve_day_count: DayCount::Act365F,
-            spot_knot: None,
             residual_notional: 1.0,
             base_context: MarketContext::new(),
             calibration_ois_cutoff_days: None,

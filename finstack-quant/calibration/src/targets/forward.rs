@@ -3,7 +3,6 @@
 use crate::api::schema::ForwardCurveParams;
 use crate::config::CalibrationConfig;
 use crate::config::CalibrationMethod;
-use crate::config::ResidualWeightingScheme;
 use crate::constants::WEIGHT_MIN_FLOOR;
 use crate::quotes::market_quote::ExtractQuotes;
 use crate::quotes::market_quote::MarketQuote;
@@ -13,7 +12,7 @@ use crate::solver::traits::GlobalSolveTarget;
 use crate::targets::rate_recipe::recipe_ois_compounding;
 use crate::targets::util::{
     discount_and_forward_curve_ids, prepare_rate_calibration_quotes_with_ois_override,
-    quote_annuity_proxy, ContextScratch,
+    quote_annuity_proxy, scheme_factor, ContextScratch,
 };
 use crate::CalibrationReport;
 use finstack_quant_core::currency::Currency;
@@ -60,22 +59,8 @@ pub(crate) struct ForwardCurveTargetParams {
 /// handles knot anchor insertion at t=0 and provides rate-bound-aware scanning
 /// for numerical stability.
 pub(crate) struct ForwardCurveTarget {
-    /// Base date for the curve.
-    pub(crate) base_date: Date,
-    /// Currency of the curve.
-    pub(crate) currency: Currency,
-    /// Identifier for the forward curve being built.
-    pub(crate) fwd_curve_id: CurveId,
-    /// Tenor in years for the forward curve.
-    pub(crate) tenor_years: f64,
-    /// Interpolation style for solving.
-    pub(crate) solve_interp: InterpStyle,
-    /// Calibration configuration.
-    pub(crate) config: CalibrationConfig,
-    /// Day count convention for time calculations.
-    pub(crate) time_day_count: DayCount,
-    /// Residual normalization notional.
-    pub(crate) residual_notional: f64,
+    /// Construction parameters (dates, ids, conventions, config).
+    pub(crate) params: ForwardCurveTargetParams,
     /// Reusable scratch context (see [`ContextScratch`]).
     scratch: ContextScratch,
     /// Actual contractual reset/end times used to build projection DFs.
@@ -87,16 +72,9 @@ pub(crate) struct ForwardCurveTarget {
 impl ForwardCurveTarget {
     /// Create a new `ForwardCurveTarget` from parameters.
     pub(crate) fn new(params: ForwardCurveTargetParams) -> Self {
-        let scratch = ContextScratch::new(params.base_context);
+        let scratch = ContextScratch::new(params.base_context.clone());
         Self {
-            base_date: params.base_date,
-            currency: params.currency,
-            fwd_curve_id: params.fwd_curve_id,
-            tenor_years: params.tenor_years,
-            solve_interp: params.solve_interp,
-            config: params.config,
-            time_day_count: params.time_day_count,
-            residual_notional: params.residual_notional,
+            params,
             scratch,
             projection_grid: RefCell::new(None),
             parameter_count: Cell::new(0),
@@ -226,8 +204,8 @@ impl ForwardCurveTarget {
             category: "global_solve".to_string(),
         })?;
 
-        self.time_day_count.year_fraction(
-            self.base_date,
+        self.params.time_day_count.year_fraction(
+            self.params.base_date,
             parameter_date,
             DayCountContext::default(),
         )
@@ -353,13 +331,13 @@ impl ForwardCurveTarget {
                 }
             };
             for (start, end) in self.reset_intervals(pq)? {
-                let start_time = self.time_day_count.year_fraction(
-                    self.base_date,
+                let start_time = self.params.time_day_count.year_fraction(
+                    self.params.base_date,
                     start,
                     DayCountContext::default(),
                 )?;
-                let end_time = self.time_day_count.year_fraction(
-                    self.base_date,
+                let end_time = self.params.time_day_count.year_fraction(
+                    self.params.base_date,
                     end,
                     DayCountContext::default(),
                 )?;
@@ -407,12 +385,12 @@ impl ForwardCurveTarget {
         if full_knots[0].0 > 1e-12 {
             full_knots.insert(0, (0.0, full_knots[0].1));
         }
-        ForwardCurve::builder(self.fwd_curve_id.clone(), self.tenor_years)
-            .base_date(self.base_date)
+        ForwardCurve::builder(self.params.fwd_curve_id.clone(), self.params.tenor_years)
+            .base_date(self.params.base_date)
             .knots(full_knots)
             .projection_grid(projection_grid)
-            .interp(self.solve_interp)
-            .day_count(self.time_day_count)
+            .interp(self.params.solve_interp)
+            .day_count(self.params.time_day_count)
             .build()
             .map_err(|error| finstack_quant_core::Error::Calibration {
                 message: format!("Failed to build reset-grid forward curve: {error}"),
@@ -453,13 +431,13 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         category: "global_solve".to_string(),
                     }
                 })?;
-                let start_time = self.time_day_count.year_fraction(
-                    self.base_date,
+                let start_time = self.params.time_day_count.year_fraction(
+                    self.params.base_date,
                     start,
                     DayCountContext::default(),
                 )?;
-                let end_time = self.time_day_count.year_fraction(
-                    self.base_date,
+                let end_time = self.params.time_day_count.year_fraction(
+                    self.params.base_date,
                     end,
                     DayCountContext::default(),
                 )?;
@@ -478,8 +456,8 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                             ),
                             category: "global_solve".to_string(),
                         })?;
-                    Some(self.time_day_count.year_fraction(
-                        self.base_date,
+                    Some(self.params.time_day_count.year_fraction(
+                        self.params.base_date,
                         maturity,
                         DayCountContext::default(),
                     )?)
@@ -622,10 +600,10 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         )));
                     }
                 };
-                if !self.residual_notional.is_finite() || self.residual_notional <= 0.0 {
+                if !self.params.residual_notional.is_finite() || self.params.residual_notional <= 0.0 {
                     return Err(finstack_quant_core::Error::Validation(format!(
                         "Invalid residual_notional {}: expected finite positive value",
-                        self.residual_notional
+                        self.params.residual_notional
                     )));
                 }
                 // Deposits price off the discount curve, not the projection curve
@@ -643,13 +621,13 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                                 category: "global_solve".to_string(),
                             }
                         })?;
-                    let start_time = self.time_day_count.year_fraction(
-                        self.base_date,
+                    let start_time = self.params.time_day_count.year_fraction(
+                        self.params.base_date,
                         start,
                         DayCountContext::default(),
                     )?;
-                    let end_time = self.time_day_count.year_fraction(
-                        self.base_date,
+                    let end_time = self.params.time_day_count.year_fraction(
+                        self.params.base_date,
                         end,
                         DayCountContext::default(),
                     )?;
@@ -674,7 +652,7 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         curve.rate_between(start_time, end_time)? * (end_time - start_time);
                     growth - rate * deposit_accrual
                 } else {
-                    pq.instrument.value_raw(ctx, self.base_date)? / self.residual_notional
+                    pq.instrument.value_raw(ctx, self.params.base_date)? / self.params.residual_notional
                 };
             }
             Ok(())
@@ -689,16 +667,6 @@ impl GlobalSolveTarget for ForwardCurveTarget {
     }
 
     fn residual_weights(&self, quotes: &[Self::Quote], weights_out: &mut [f64]) -> Result<()> {
-        if quotes.len() != weights_out.len() {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "Forward global solve requires weights.len() == quotes.len(); got {} vs {}",
-                    weights_out.len(),
-                    quotes.len()
-                ),
-                category: "global_solve".to_string(),
-            });
-        }
         for (quote, weight) in quotes.iter().zip(weights_out.iter_mut()) {
             let time = match quote {
                 crate::prepared::CalibrationQuote::Rates(pq) => pq.pillar_time.max(1e-6),
@@ -711,13 +679,8 @@ impl GlobalSolveTarget for ForwardCurveTarget {
             };
             let annuity = quote_annuity_proxy(quote, time);
             let pv01_inverse_sq = 1.0 / (annuity * annuity);
-            let scheme_factor = match self.config.forward_curve.weighting_scheme {
-                ResidualWeightingScheme::Equal => 1.0,
-                ResidualWeightingScheme::LinearTime => time,
-                ResidualWeightingScheme::SqrtTime => time.sqrt(),
-                ResidualWeightingScheme::InverseDuration => 1.0 / time.max(0.1),
-            };
-            let weight_value = pv01_inverse_sq * scheme_factor;
+            let weight_value = pv01_inverse_sq
+                * scheme_factor(&self.params.config.forward_curve.weighting_scheme, time);
             *weight = if weight_value.is_finite() {
                 weight_value.max(WEIGHT_MIN_FLOOR)
             } else {
@@ -728,12 +691,18 @@ impl GlobalSolveTarget for ForwardCurveTarget {
     }
 
     fn lower_bounds(&self) -> Option<Vec<f64>> {
-        let bounds = self.config.effective_rate_bounds(self.currency);
+        let bounds = self
+            .params
+            .config
+            .effective_rate_bounds(self.params.currency);
         Some(vec![bounds.min_rate; self.parameter_count.get()])
     }
 
     fn upper_bounds(&self) -> Option<Vec<f64>> {
-        let bounds = self.config.effective_rate_bounds(self.currency);
+        let bounds = self
+            .params
+            .config
+            .effective_rate_bounds(self.params.currency);
         Some(vec![bounds.max_rate; self.parameter_count.get()])
     }
 }
@@ -910,8 +879,8 @@ mod tests {
         let (curve, report) = GlobalFitOptimizer::optimize(
             &target,
             &quotes,
-            &target.config,
-            target.config.forward_curve.validation_tolerance,
+            &target.params.config,
+            target.params.config.forward_curve.validation_tolerance,
         )
         .expect("bounded global solve should return its best curve");
         assert!(

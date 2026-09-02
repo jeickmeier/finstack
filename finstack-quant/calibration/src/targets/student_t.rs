@@ -67,22 +67,15 @@ impl StudentTTarget {
         context: &MarketContext,
     ) -> Result<CurveId> {
         if let Some(curve_id) = &params.discount_curve_id {
-            let _ = context.get_discount(curve_id)?;
             return Ok(curve_id.clone());
         }
-
-        let mut discount_curves = context.curves_of_type("Discount");
-        let (discount_curve_id, _) = discount_curves.next().ok_or_else(|| {
-            finstack_quant_core::Error::Input(finstack_quant_core::InputError::NotFound {
-                id: "discount curve".to_string(),
-            })
-        })?;
-        if discount_curves.next().is_some() {
-            return Err(finstack_quant_core::Error::Validation(
-                "Student-t calibration requires discount_curve_id when multiple discount curves are present"
-                    .to_string(),
-            ));
-        }
+        // Preflight has already verified exactly one discount curve is present.
+        let (discount_curve_id, _) =
+            context.curves_of_type("Discount").next().ok_or_else(|| {
+                finstack_quant_core::Error::Input(finstack_quant_core::InputError::NotFound {
+                    id: "discount curve".to_string(),
+                })
+            })?;
         Ok(discount_curve_id.clone())
     }
 

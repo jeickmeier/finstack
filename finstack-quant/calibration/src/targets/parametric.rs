@@ -267,19 +267,6 @@ impl GlobalSolveTarget for ParametricCurveTarget {
             .build()
     }
 
-    fn build_curve_for_solver_from_params(
-        &self,
-        _times: &[f64],
-        params: &[f64],
-    ) -> Result<Self::Curve> {
-        let p = self.clamp_params(params);
-        let model = NelsonSiegelModel::from_params_vec(self.params.variant, &p)?;
-        ParametricCurve::builder(self.params.curve_id.clone())
-            .base_date(self.params.base_date)
-            .model(model)
-            .build()
-    }
-
     fn calculate_residuals(
         &self,
         curve: &Self::Curve,

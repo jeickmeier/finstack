@@ -1015,4 +1015,16 @@ mod fx_and_hierarchy_settings_tests {
             .to_string()
             .contains("RFC3339"));
     }
+
+    #[test]
+    fn validate_rejects_inverted_hazard_bounds() {
+        let mut config = CalibrationConfig::default();
+        config.hazard_curve.hazard_hard_min = 0.05;
+        config.hazard_curve.hazard_hard_max = 0.01;
+
+        let err = config
+            .validate()
+            .expect_err("inverted hazard bounds should be rejected");
+        assert!(err.to_string().to_lowercase().contains("hazard"));
+    }
 }

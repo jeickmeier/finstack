@@ -21,12 +21,13 @@
 //! diagnostic) so any residual arbitrage surfaces as a structured
 //! `Error::Validation` rather than propagating silently into pricing.
 
+use crate::api::schema::SurfaceExtrapolationPolicy;
 use crate::api::schema::SviSurfaceParams;
 use crate::config::CalibrationConfig;
 use crate::constants::OrderedF64;
 use crate::quotes::market_quote::MarketQuote;
 use crate::quotes::vol::VolQuote;
-use crate::targets::util::resolve_equity_forward_inputs;
+use crate::targets::util::{interpolate_total_variance, resolve_equity_forward_inputs};
 use crate::validation::ValidationConfig;
 use crate::CalibrationReport;
 use finstack_quant_core::dates::{DayCount, DayCountContext};
@@ -53,19 +54,6 @@ impl SviSurfaceTarget {
         Ok(())
     }
 
-    fn validate_target_grid(params: &SviSurfaceParams) -> Result<()> {
-        for (idx, expiry) in params.target_expiries.iter().enumerate() {
-            Self::validate_positive_input(&format!("SVI target_expiries[{idx}]"), *expiry)?;
-        }
-        for (idx, strike) in params.target_strikes.iter().enumerate() {
-            Self::validate_positive_input(&format!("SVI target_strikes[{idx}]"), *strike)?;
-        }
-        if let Some(spot_override) = params.spot_override {
-            Self::validate_positive_input("SVI spot_override", spot_override)?;
-        }
-        Ok(())
-    }
-
     /// Calibrate an SVI volatility surface from option vol quotes.
     ///
     /// Groups quotes by expiry, calibrates SVI parameters per expiry slice,
@@ -81,8 +69,6 @@ impl SviSurfaceTarget {
                 finstack_quant_core::InputError::TooFewPoints,
             ));
         }
-        Self::validate_target_grid(params)?;
-
         let option_quotes: Vec<&VolQuote> = quotes
             .iter()
             .filter_map(|quote| match quote {
@@ -368,88 +354,37 @@ fn evaluate_svi_model_vol(
 }
 
 /// Interpolate total variance at a fixed absolute strike, evaluating each SVI
-/// slice in its own forward-moneyness coordinate and extrapolating with the
-/// nearest calibrated slice.
+/// slice in its own forward-moneyness coordinate. Extrapolation always holds
+/// the nearest calibrated slice's total variance flat (`Clamp`).
 fn interpolate_svi_vol(
     target_expiry: f64,
     target_strike: f64,
     forward_fn: &impl Fn(f64) -> Result<f64>,
     params_by_expiry: &BTreeMap<OrderedF64, finstack_quant_models::volatility::svi::SviParams>,
 ) -> Result<f64> {
-    if target_expiry <= 0.0 {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "SVI interpolation target expiry must be positive; got {target_expiry:.6}"
-        )));
-    }
-
-    let slice_log_moneyness = |slice_expiry: f64| -> Result<f64> {
-        let forward = forward_fn(slice_expiry)?;
-        if !forward.is_finite() || forward <= 0.0 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "SVI interpolation: non-positive forward {forward} at T={slice_expiry:.6}"
-            )));
-        }
-        Ok((target_strike / forward).ln())
-    };
-
-    let Some((&first_key, &first_params)) = params_by_expiry.iter().next() else {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::TooFewPoints,
-        ));
-    };
-
-    if params_by_expiry.len() == 1 || target_expiry <= first_key.into_inner() {
-        let k = slice_log_moneyness(first_key.into_inner())?;
-        return first_params.implied_vol(k, target_expiry);
-    }
-
-    let Some((&last_key, &last_params)) = params_by_expiry.iter().next_back() else {
-        let k = slice_log_moneyness(first_key.into_inner())?;
-        return first_params.implied_vol(k, target_expiry);
-    };
-    if target_expiry >= last_key.into_inner() {
-        let k = slice_log_moneyness(last_key.into_inner())?;
-        return last_params.implied_vol(k, target_expiry);
-    }
-
-    let mut lower = (first_key.into_inner(), first_params);
-    let mut upper = (last_key.into_inner(), last_params);
-    for (&expiry_key, &p) in params_by_expiry {
-        let expiry = expiry_key.into_inner();
-        if expiry <= target_expiry {
-            lower = (expiry, p);
-        }
-        if expiry >= target_expiry {
-            upper = (expiry, p);
-            break;
-        }
-    }
-
-    if (upper.0 - lower.0).abs() < f64::EPSILON {
-        let k = slice_log_moneyness(lower.0)?;
-        return lower.1.implied_vol(k, target_expiry);
-    }
-
-    // Total-variance interpolation per Gatheral. Each slice is evaluated at
-    // its OWN forward-moneyness so the interpolated total variance refers to
-    // a fixed absolute strike across `T₁`, `T`, and `T₂`.
-    let k_lower = slice_log_moneyness(lower.0)?;
-    let k_upper = slice_log_moneyness(upper.0)?;
-    let w_lower = lower.1.total_variance(k_lower);
-    let w_upper = upper.1.total_variance(k_upper);
-    if w_lower < 0.0 || w_upper < 0.0 {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "SVI negative total variance at K={target_strike:.4} (k_lower={k_lower:.4}, k_upper={k_upper:.4}): w_lower={w_lower:.6}, w_upper={w_upper:.6}"
-        )));
-    }
-    let tau = (target_expiry - lower.0) / (upper.0 - lower.0);
-    let w_interp = w_lower + tau * (w_upper - w_lower);
-    if !w_interp.is_finite() || w_interp < 0.0 {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "SVI total-variance interpolation produced invalid w={w_interp:.6} at T={target_expiry:.6}, K={target_strike:.4}"
-        )));
-    }
-    Ok((w_interp / target_expiry).sqrt())
+    interpolate_total_variance(
+        "SVI",
+        target_expiry,
+        target_strike,
+        params_by_expiry,
+        |slice_expiry, slice: &finstack_quant_models::volatility::svi::SviParams| {
+            let forward = forward_fn(slice_expiry)?;
+            if !forward.is_finite() || forward <= 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "SVI interpolation: non-positive forward {forward} at T={slice_expiry:.6}"
+                )));
+            }
+            let k = (target_strike / forward).ln();
+            let w = slice.total_variance(k);
+            if w < 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "SVI negative total variance at K={target_strike:.4}, T={slice_expiry:.6} (k={k:.4}): w={w:.6}"
+                )));
+            }
+            Ok(w)
+        },
+        SurfaceExtrapolationPolicy::Clamp,
+    )
 }
 
 #[cfg(test)]

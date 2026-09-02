@@ -1,6 +1,9 @@
 //! Calibration target construction and shared input validation.
 //!
+use crate::api::schema::SurfaceExtrapolationPolicy;
 use crate::build::context::BuildCtx;
+use crate::config::ResidualWeightingScheme;
+use crate::constants::{OrderedF64, TOLERANCE_DUP_KNOTS};
 use crate::prepared::CalibrationQuote;
 use crate::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use crate::quotes::rates::RateQuote;
@@ -13,6 +16,7 @@ use finstack_quant_core::Result;
 use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
 use finstack_quant_valuations::market::conventions::ConventionRegistry;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub(crate) struct EquityForwardInputs {
@@ -311,50 +315,202 @@ pub(crate) fn quote_annuity_proxy(quote: &CalibrationQuote, t: f64) -> f64 {
     annuity.max(1e-6)
 }
 
-/// Reusable scratch context for sequential bootstrap targets.
+/// Reusable scratch context for calibration targets.
 ///
-/// Holds a `RefCell<MarketContext>` that gets mutated in place with the candidate
-/// curve before each residual evaluation, avoiding a full `MarketContext::clone()` per call.
-/// Bootstrap is inherently sequential per-pillar; the `RefCell` itself is `!Sync`,
-/// which prevents accidental cross-thread reuse.
+/// Holds a `RefCell<MarketContext>` that is mutated in place with the trial
+/// curve before each residual evaluation, avoiding a full
+/// `MarketContext::clone()` per call. Targets are constructed per step and never
+/// shared across threads; the `RefCell` itself is `!Sync`, which prevents
+/// accidental cross-thread reuse.
 pub(crate) struct ContextScratch {
-    base_context: MarketContext,
-    reuse: Option<RefCell<MarketContext>>,
+    scratch: RefCell<MarketContext>,
 }
 
 impl ContextScratch {
-    /// Create a new scratch. Always reuses a single `RefCell<MarketContext>` via
-    /// `insert_mut` to avoid `MarketContext::clone()` per residual evaluation.
+    /// Create a scratch seeded with `base_context`.
     pub(crate) fn new(base_context: MarketContext) -> Self {
-        let reuse = Some(RefCell::new(base_context.clone()));
         Self {
-            base_context,
-            reuse,
+            scratch: RefCell::new(base_context),
         }
     }
 
     /// Run `op` against a `MarketContext` containing `curve` plus the base context's data.
-    /// Reuses internal scratch (no clone) when configured single-threaded.
     pub(crate) fn with_curve<C, F, T>(&self, curve: &C, op: F) -> Result<T>
     where
         C: Clone + Into<finstack_quant_core::market_data::context::CurveStorage>,
         F: FnOnce(&MarketContext) -> Result<T>,
     {
-        if let Some(cell) = &self.reuse {
-            // Use `insert_mut` (in-place) rather than the consuming `insert` + `mem::take`
-            // pattern. The old code briefly left `Default::default()` inside the cell while
-            // `.insert(curve.clone())` ran; a panic in `curve.clone()` or `insert` would
-            // poison the scratch with an empty MarketContext (missing the base data) on
-            // every subsequent call. `insert_mut` keeps the existing storage intact and
-            // only overwrites the single curve entry.
-            let mut ctx = cell.borrow_mut();
-            ctx.insert_mut(curve.clone());
-            op(&ctx)
-        } else {
-            let temp = self.base_context.clone().insert(curve.clone());
-            op(&temp)
+        self.with_curve_then(curve, |_| {}, op)
+    }
+
+    /// Like [`Self::with_curve`], but runs `after_insert` on the scratch context
+    /// once the trial curve is in place — used to sync derived market objects
+    /// (e.g. a credit index holding its own copy of the curve) before pricing.
+    pub(crate) fn with_curve_then<C, S, F, T>(&self, curve: &C, after_insert: S, op: F) -> Result<T>
+    where
+        C: Clone + Into<finstack_quant_core::market_data::context::CurveStorage>,
+        S: FnOnce(&mut MarketContext),
+        F: FnOnce(&MarketContext) -> Result<T>,
+    {
+        // `insert_mut` keeps the existing storage intact and only overwrites the
+        // single curve entry, so a panic mid-insert cannot leave an empty context
+        // behind for subsequent calls.
+        let mut ctx = self.scratch.borrow_mut();
+        ctx.insert_mut(curve.clone());
+        after_insert(&mut ctx);
+        op(&ctx)
+    }
+}
+
+/// Relative time emphasis applied by a residual weighting scheme at pillar `t`.
+///
+/// # Arguments
+///
+/// * `scheme` - Weighting scheme selected for the curve family being solved.
+/// * `t` - Pillar time in years (positive).
+pub(crate) fn scheme_factor(scheme: &ResidualWeightingScheme, t: f64) -> f64 {
+    match scheme {
+        ResidualWeightingScheme::Equal => 1.0,
+        ResidualWeightingScheme::LinearTime => t,
+        ResidualWeightingScheme::SqrtTime => t.sqrt(),
+        ResidualWeightingScheme::InverseDuration => 1.0 / t.max(0.1),
+    }
+}
+
+/// Sort `(time, initial_guess, quote)` entries by time and split them into the
+/// strictly increasing knot grid the global solver requires.
+///
+/// # Arguments
+///
+/// * `entries` - Unordered `(pillar time, initial parameter guess, quote)` triples.
+/// * `label` - Curve family name used in the duplicate-knot error message.
+///
+/// # Errors
+///
+/// Returns `Error::Calibration` when two entries fall within
+/// [`TOLERANCE_DUP_KNOTS`] of each other.
+pub(crate) fn sorted_knot_grid<Q>(
+    mut entries: Vec<(f64, f64, Q)>,
+    label: &str,
+) -> Result<(Vec<f64>, Vec<f64>, Vec<Q>)> {
+    entries.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut times: Vec<f64> = Vec::with_capacity(entries.len());
+    let mut initials = Vec::with_capacity(entries.len());
+    let mut active_quotes = Vec::with_capacity(entries.len());
+    for (t, guess, quote) in entries {
+        if let Some(&prev) = times.last() {
+            if (t - prev).abs() <= TOLERANCE_DUP_KNOTS {
+                return Err(finstack_quant_core::Error::Calibration {
+                    message: format!(
+                        "Duplicate or unsorted {label} knot times detected (prev={prev:.10}, new={t:.10}). \
+Ensure quotes map to strictly increasing year fractions."
+                    ),
+                    category: "global_solve".to_string(),
+                });
+            }
+        }
+        times.push(t);
+        initials.push(guess);
+        active_quotes.push(quote);
+    }
+    Ok((times, initials, active_quotes))
+}
+
+/// Interpolate implied volatility in expiry by linear interpolation of total
+/// variance `w = σ²T` at a fixed absolute strike (Gatheral).
+///
+/// Each neighbouring slice is evaluated by `total_variance` in its own
+/// forward-moneyness coordinate, so the interpolated `w` refers to the same
+/// absolute strike across `T₁`, `T`, and `T₂`. Linear interpolation of `w` in
+/// `T` is calendar-safe whenever the calibrated slices are calendar-monotone.
+/// Extrapolation holds the nearest slice's `w` flat (`Clamp`) or rejects the
+/// target (`Error`).
+///
+/// # Arguments
+///
+/// * `label` - Model name used in error messages (e.g. `"SABR"`, `"SVI"`).
+/// * `target_expiry` - Target expiry in years; must be positive.
+/// * `target_strike` - Absolute strike the grid cell is evaluated at.
+/// * `slices` - Calibrated per-expiry slice parameters keyed by expiry.
+/// * `total_variance` - `(slice_expiry, slice_params) -> w` evaluator; must
+///   return a finite, non-negative total variance at `target_strike`.
+/// * `extrapolation` - Policy applied when `target_expiry` lies outside the
+///   calibrated expiry range.
+///
+/// # Errors
+///
+/// Returns `Error::Validation` for a non-positive target expiry, an
+/// out-of-range target under `Error`, or an invalid interpolated variance, and
+/// `Error::Calibration` when `slices` is empty.
+pub(crate) fn interpolate_total_variance<S>(
+    label: &str,
+    target_expiry: f64,
+    target_strike: f64,
+    slices: &BTreeMap<OrderedF64, S>,
+    total_variance: impl Fn(f64, &S) -> Result<f64>,
+    extrapolation: SurfaceExtrapolationPolicy,
+) -> Result<f64> {
+    if target_expiry <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{label} interpolation target expiry must be positive; got {target_expiry:.6}"
+        )));
+    }
+
+    let (Some((&min_key, _)), Some((&max_key, _))) =
+        (slices.iter().next(), slices.iter().next_back())
+    else {
+        return Err(finstack_quant_core::Error::Calibration {
+            message: format!("No calibrated {label} parameters"),
+            category: "vol_surface".to_string(),
+        });
+    };
+    let min_t = min_key.into_inner();
+    let max_t = max_key.into_inner();
+
+    if extrapolation == SurfaceExtrapolationPolicy::Error
+        && (target_expiry < min_t || target_expiry > max_t)
+    {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Target expiry t={target_expiry:.6} is out of bounds for calibrated expiries \
+[{min_t:.6}, {max_t:.6}]. Set params.expiry_extrapolation='clamp' to allow flat \
+total-variance extrapolation."
+        )));
+    }
+
+    let mut before = None;
+    let mut after = None;
+    for (&kt, p) in slices {
+        let kt_f = kt.into_inner();
+        if kt_f <= target_expiry {
+            before = Some((kt_f, p));
+        }
+        if kt_f >= target_expiry && after.is_none() {
+            after = Some((kt_f, p));
         }
     }
+
+    let w = match (before, after) {
+        (Some((t1, p1)), Some((t2, p2))) if (t2 - t1).abs() > 1e-12 => {
+            let w1 = total_variance(t1, p1)?;
+            let w2 = total_variance(t2, p2)?;
+            let tau = ((target_expiry - t1) / (t2 - t1)).clamp(0.0, 1.0);
+            w1 + tau * (w2 - w1)
+        }
+        (Some((t, p)), _) | (_, Some((t, p))) => total_variance(t, p)?,
+        (None, None) => {
+            return Err(finstack_quant_core::Error::Calibration {
+                message: format!("No {label} expiry neighbours for target t={target_expiry:.6}"),
+                category: "vol_surface".to_string(),
+            });
+        }
+    };
+    if !w.is_finite() || w < 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{label} total-variance interpolation produced invalid w={w:.6} at \
+T={target_expiry:.6}, K={target_strike:.4}"
+        )));
+    }
+    Ok((w / target_expiry).sqrt())
 }
 
 #[cfg(test)]

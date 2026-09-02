@@ -263,15 +263,6 @@ impl BootstrapTarget for XccyBasisTarget {
             .build_for_solver()
     }
 
-    fn build_curve_final(&self, knots: &[(f64, f64)]) -> Result<Self::Curve> {
-        DiscountCurve::builder(self.params.curve_id.clone())
-            .base_date(self.params.base_date)
-            .knots(knots.to_vec())
-            .interp(self.params.solve_interp)
-            .extrapolation(self.params.extrapolation)
-            .build()
-    }
-
     fn calculate_residual(&self, curve: &Self::Curve, quote: &Self::Quote) -> Result<f64> {
         // Normalize the instrument PV to a per-unit-notional residual.
         self.scratch.with_curve(curve, |ctx| {

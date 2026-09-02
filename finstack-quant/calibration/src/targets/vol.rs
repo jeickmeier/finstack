@@ -5,7 +5,7 @@ use crate::api::schema::VolSurfaceParams;
 use crate::config::CalibrationConfig;
 use crate::quotes::market_quote::MarketQuote;
 use crate::quotes::vol::VolQuote;
-use crate::targets::util::resolve_equity_forward_inputs;
+use crate::targets::util::{interpolate_total_variance, resolve_equity_forward_inputs};
 use crate::validation::ValidationConfig;
 use crate::CalibrationReport;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -326,37 +326,6 @@ impl VolSurfaceTarget {
         params: &BTreeMap<OrderedF64, SabrParameters>,
         extrapolation: SurfaceExtrapolationPolicy,
     ) -> Result<f64> {
-        if target_expiry <= 0.0 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "SABR interpolation target expiry must be positive; got {target_expiry:.6}"
-            )));
-        }
-
-        let Some((&min_key, _)) = params.iter().next() else {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: "No calibrated SABR parameters".to_string(),
-                category: "vol_surface".to_string(),
-            });
-        };
-        let Some((&max_key, _)) = params.iter().next_back() else {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: "No calibrated SABR parameters".to_string(),
-                category: "vol_surface".to_string(),
-            });
-        };
-        let min_t = min_key.into_inner();
-        let max_t = max_key.into_inner();
-
-        if extrapolation == SurfaceExtrapolationPolicy::Error
-            && (target_expiry < min_t || target_expiry > max_t)
-        {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Target expiry t={target_expiry:.6} is out of bounds for calibrated expiries \
-[{min_t:.6}, {max_t:.6}]. Set params.expiry_extrapolation='clamp' to allow flat \
-total-variance extrapolation."
-            )));
-        }
-
         let slice_total_variance = |slice_expiry: f64,
                                     slice_params: &SabrParameters|
          -> Result<f64> {
@@ -378,40 +347,14 @@ total-variance extrapolation."
             Ok(w)
         };
 
-        let mut before = None;
-        let mut after = None;
-        for (&kt, p) in params {
-            let kt_f = kt.into_inner();
-            if kt_f <= target_expiry {
-                before = Some((kt_f, p));
-            }
-            if kt_f >= target_expiry && after.is_none() {
-                after = Some((kt_f, p));
-            }
-        }
-
-        let w = match (before, after) {
-            (Some((t1, p1)), Some((t2, p2))) if (t2 - t1).abs() > 1e-12 => {
-                let w1 = slice_total_variance(t1, p1)?;
-                let w2 = slice_total_variance(t2, p2)?;
-                let tau = ((target_expiry - t1) / (t2 - t1)).clamp(0.0, 1.0);
-                w1 + tau * (w2 - w1)
-            }
-            (Some((t, p)), _) | (_, Some((t, p))) => slice_total_variance(t, p)?,
-            (None, None) => {
-                return Err(finstack_quant_core::Error::Calibration {
-                    message: format!("No SABR expiry neighbours for target t={target_expiry:.6}"),
-                    category: "vol_surface".to_string(),
-                });
-            }
-        };
-        if !w.is_finite() || w < 0.0 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "SABR total-variance interpolation produced invalid w={w:.6} at \
-T={target_expiry:.6}, K={target_strike:.4}"
-            )));
-        }
-        Ok((w / target_expiry).sqrt())
+        interpolate_total_variance(
+            "SABR",
+            target_expiry,
+            target_strike,
+            params,
+            slice_total_variance,
+            extrapolation,
+        )
     }
 }
 
