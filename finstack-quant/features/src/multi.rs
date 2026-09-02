@@ -5,8 +5,11 @@
 //! on more than one aligned column.
 
 use crate::cross_sectional::apply_cross_sectional_op;
-use crate::types::{bool_param, finite, usize_param, validate_lengths, ZERO_TOLERANCE};
-use crate::{transform_cross_sectional, CrossSectionalOp};
+use crate::index::{sorted_indices, try_for_each_entity, try_for_each_trailing_window};
+use crate::types::{
+    bool_param, finite, op_from_str, usize_param, validate_lengths, ZERO_TOLERANCE,
+};
+use crate::{transform_cross_sectional, transform_cross_sectional_with_op, CrossSectionalOp};
 use finstack_quant_core::math::linalg::{cholesky_decomposition, cholesky_solve};
 use finstack_quant_core::math::stats::{covariance, variance};
 use finstack_quant_core::{Error, Result};
@@ -27,30 +30,11 @@ pub enum PairwiseOp {
     RollingBeta,
 }
 
-impl PairwiseOp {
-    /// Return the canonical snake_case operation name.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::RollingCov => "rolling_cov",
-            Self::RollingCorr => "rolling_corr",
-            Self::RollingBeta => "rolling_beta",
-        }
-    }
-}
-
 impl FromStr for PairwiseOp {
     type Err = Error;
 
     fn from_str(op: &str) -> Result<Self> {
-        match op {
-            "rolling_cov" => Ok(Self::RollingCov),
-            "rolling_corr" => Ok(Self::RollingCorr),
-            "rolling_beta" => Ok(Self::RollingBeta),
-            _ => Err(Error::Validation(format!(
-                "unsupported pairwise time-series transform op '{op}'"
-            ))),
-        }
+        op_from_str(op, "pairwise time-series")
     }
 }
 
@@ -240,24 +224,24 @@ pub fn transform_timeseries_pairwise_with_op(
     let min_periods = usize_param(params, "min_periods", window)?;
     let required = min_periods.max(2);
     let mut output = vec![None; values.len()];
-    for indices in entity_slices(entity, order) {
-        for (pos, &idx) in indices.iter().enumerate() {
-            let start = pos.saturating_sub(window - 1);
+    let indices = sorted_indices(entity, order);
+    try_for_each_entity(entity, &indices, |entity_indices| {
+        try_for_each_trailing_window(entity_indices, window, |idx, window_indices| {
             let mut left = Vec::new();
             let mut right = Vec::new();
-            for &window_idx in &indices[start..=pos] {
+            for &window_idx in window_indices {
                 if let (Some(y), Some(x)) = (finite(values[window_idx]), finite(other[window_idx]))
                 {
                     left.push(y);
                     right.push(x);
                 }
             }
-            if left.len() < required {
-                continue;
+            if left.len() >= required {
+                output[idx] = pairwise_value(&left, &right, op);
             }
-            output[idx] = pairwise_value(&left, &right, op);
-        }
-    }
+            Ok(())
+        })
+    })?;
     Ok(output)
 }
 
@@ -300,19 +284,18 @@ pub fn rolling_regression_residual(
     let min_periods = usize_param(params, "min_periods", window)?;
     let fit_intercept = bool_param(params, "fit_intercept", true)?;
     let mut output = vec![None; values.len()];
-    for indices in entity_slices(entity, order) {
-        for (pos, &idx) in indices.iter().enumerate() {
-            let start = pos.saturating_sub(window - 1);
-            let window_indices = &indices[start..=pos];
+    let indices = sorted_indices(entity, order);
+    try_for_each_entity(entity, &indices, |entity_indices| {
+        try_for_each_trailing_window(entity_indices, window, |idx, window_indices| {
             if count_complete_rows(values, exposures, window_indices) < min_periods {
-                continue;
+                return Ok(());
             }
-            let Some(beta) = fit_ols(values, exposures, window_indices, fit_intercept) else {
-                continue;
-            };
-            output[idx] = residual_for_idx(values, exposures, idx, fit_intercept, &beta);
-        }
-    }
+            if let Some(beta) = fit_ols(values, exposures, window_indices, fit_intercept) {
+                output[idx] = residual_for_idx(values, exposures, idx, fit_intercept, &beta);
+            }
+            Ok(())
+        })
+    })?;
     Ok(output)
 }
 
@@ -353,7 +336,7 @@ pub fn risk_scaled_weights(
             _ => None,
         })
         .collect::<Vec<_>>();
-    demean_and_gross_normalize(&scaled, time_key)
+    transform_cross_sectional_with_op(&scaled, time_key, CrossSectionalOp::LongShortWeights, None)
 }
 
 /// Apply the default signal cleaning pass: cross-sectional quantile clipping.
@@ -418,7 +401,7 @@ pub fn normalize_signal(
 /// Returns a validation error when input lengths differ.
 pub fn rank_to_weights(values: &[Option<f64>], time_key: &[String]) -> Result<Vec<Option<f64>>> {
     let ranks = transform_cross_sectional(values, time_key, "rank", None)?;
-    demean_and_gross_normalize(&ranks, time_key)
+    transform_cross_sectional_with_op(&ranks, time_key, CrossSectionalOp::LongShortWeights, None)
 }
 
 /// Neutralize a signal against exposures and z-score the residuals.
@@ -457,41 +440,6 @@ fn string_param<'a>(params: Option<&'a Value>, key: &str, default: &'a str) -> R
     }
 }
 
-fn demean_and_gross_normalize(
-    values: &[Option<f64>],
-    time_key: &[String],
-) -> Result<Vec<Option<f64>>> {
-    validate_lengths(values.len(), &[("time_key", time_key.len())])?;
-    let partitions = crate::index::partition_by_key(time_key);
-
-    let mut output = vec![None; values.len()];
-    for indices in partitions.values() {
-        let finite_rows = indices
-            .iter()
-            .filter_map(|idx| finite(values[*idx]).map(|value| (*idx, value)))
-            .collect::<Vec<_>>();
-        if finite_rows.is_empty() {
-            continue;
-        }
-        let mean =
-            finite_rows.iter().map(|(_, value)| *value).sum::<f64>() / finite_rows.len() as f64;
-        let gross = finite_rows
-            .iter()
-            .map(|(_, value)| (*value - mean).abs())
-            .sum::<f64>();
-        if gross <= ZERO_TOLERANCE {
-            for (idx, _) in finite_rows {
-                output[idx] = Some(0.0);
-            }
-            continue;
-        }
-        for (idx, value) in finite_rows {
-            output[idx] = Some((value - mean) / gross);
-        }
-    }
-    Ok(output)
-}
-
 fn validate_exposures(primary_len: usize, exposures: &[Vec<Option<f64>>]) -> Result<()> {
     for (idx, exposure) in exposures.iter().enumerate() {
         if exposure.len() != primary_len {
@@ -502,28 +450,6 @@ fn validate_exposures(primary_len: usize, exposures: &[Vec<Option<f64>>]) -> Res
         }
     }
     Ok(())
-}
-
-fn entity_slices(entity: &[String], order: &[String]) -> Vec<Vec<usize>> {
-    let mut indices = (0..entity.len()).collect::<Vec<_>>();
-    indices.sort_by(|left, right| {
-        entity[*left]
-            .cmp(&entity[*right])
-            .then(order[*left].cmp(&order[*right]))
-            .then(left.cmp(right))
-    });
-
-    let mut groups = Vec::new();
-    let mut start = 0;
-    while start < indices.len() {
-        let mut end = start + 1;
-        while end < indices.len() && entity[indices[end]] == entity[indices[start]] {
-            end += 1;
-        }
-        groups.push(indices[start..end].to_vec());
-        start = end;
-    }
-    groups
 }
 
 fn pairwise_value(left: &[f64], right: &[f64], op: PairwiseOp) -> Option<f64> {

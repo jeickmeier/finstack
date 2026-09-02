@@ -33,14 +33,13 @@ pub(super) fn rolling_advanced(
         AdvancedRollingOp::Slope | AdvancedRollingOp::Sharpe => min_periods.max(2),
         _ => min_periods,
     };
-    for (pos, &idx) in indices.iter().enumerate() {
-        let start = pos.saturating_sub(window - 1);
-        let mut finite_values = indices[start..=pos]
+    crate::index::try_for_each_trailing_window(indices, window, |idx, window_indices| {
+        let mut finite_values = window_indices
             .iter()
             .filter_map(|window_idx| finite(values[*window_idx]))
             .collect::<Vec<_>>();
         if finite_values.len() < required {
-            continue;
+            return Ok(());
         }
         output[idx] = match op {
             AdvancedRollingOp::Rank => rolling_rank_value(finite(values[idx]), &mut finite_values),
@@ -81,8 +80,8 @@ pub(super) fn rolling_advanced(
                 hampel_value(finite(values[idx]), &mut finite_values, params)?
             }
         };
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 pub(super) fn drawdown(

@@ -33,6 +33,22 @@ pub(crate) fn try_for_each_entity(
     Ok(())
 }
 
+/// Visit each trailing window of at most `window` rows ending at every row.
+///
+/// `visit` receives the row index at the window end and the window's row
+/// indices (in `indices` order).
+pub(crate) fn try_for_each_trailing_window(
+    indices: &[usize],
+    window: usize,
+    mut visit: impl FnMut(usize, &[usize]) -> Result<()>,
+) -> Result<()> {
+    for (pos, &idx) in indices.iter().enumerate() {
+        let start = pos.saturating_sub(window - 1);
+        visit(idx, &indices[start..=pos])?;
+    }
+    Ok(())
+}
+
 /// Partition row indices by a single opaque key.
 pub(crate) fn partition_by_key(keys: &[String]) -> BTreeMap<&str, Vec<usize>> {
     let mut partitions: BTreeMap<&str, Vec<usize>> = BTreeMap::new();

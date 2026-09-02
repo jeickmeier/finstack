@@ -207,8 +207,7 @@ impl PanelOperation {
     }
 
     /// Return the requested source column name, if any.
-    #[must_use]
-    pub fn input(&self) -> Option<&str> {
+    fn input(&self) -> Option<&str> {
         match self {
             Self::Timeseries { input, .. } | Self::CrossSectional { input, .. } => input.as_deref(),
         }

@@ -37,9 +37,9 @@ order and length; element `i` of the output corresponds to element `i` of
 `values`. The string/JSON entry points are retained for Python and WASM
 bindings. Rust callers can use `TimeSeriesOp`, `CrossSectionalOp`, `PairwiseOp`,
 `PanelTransformSpec`, `PanelOperation`, `PanelTransformResult`, and
-`PanelTransformColumn` to avoid string dispatch. Each op enum exposes
-`as_str()`, returning the canonical snake_case name accepted by the string
-entry points.
+`PanelTransformColumn` to avoid string dispatch. Each op enum implements
+`FromStr` for the canonical snake_case names accepted by the string entry
+points.
 
 ## Time-series operations
 

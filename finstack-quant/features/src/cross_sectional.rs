@@ -1,8 +1,8 @@
 //! Cross-sectional panel transforms partitioned by timestamp.
 
 use crate::types::{
-    f64_param, finite, mean, population_std, quantile_cont, usize_param, validate_lengths,
-    ZERO_TOLERANCE,
+    f64_param, finite, mean, op_from_str, population_std, quantile_cont, usize_param,
+    validate_lengths, ZERO_TOLERANCE,
 };
 use finstack_quant_core::math::standard_normal_inv_cdf;
 use finstack_quant_core::{Error, Result};
@@ -50,56 +50,11 @@ pub enum CrossSectionalOp {
     Winsorize,
 }
 
-impl CrossSectionalOp {
-    /// Return the canonical snake_case operation name.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Zscore => "zscore",
-            Self::Rank => "rank",
-            Self::PercentileRank => "percentile_rank",
-            Self::QuantileBucket => "quantile_bucket",
-            Self::Demean => "demean",
-            Self::RobustZscore => "robust_zscore",
-            Self::MinmaxScale => "minmax_scale",
-            Self::Clip => "clip",
-            Self::ClipBySigma => "clip_by_sigma",
-            Self::NormalScoreTransform => "normal_score_transform",
-            Self::LongShortWeights => "long_short_weights",
-            Self::CapWeights => "cap_weights",
-            Self::FillMissing => "fill_missing",
-            Self::IsFinite => "is_finite",
-            Self::NanMask => "nan_mask",
-            Self::Winsorize => "winsorize",
-        }
-    }
-}
-
 impl FromStr for CrossSectionalOp {
     type Err = Error;
 
     fn from_str(op: &str) -> Result<Self> {
-        match op {
-            "zscore" => Ok(Self::Zscore),
-            "rank" => Ok(Self::Rank),
-            "percentile_rank" => Ok(Self::PercentileRank),
-            "quantile_bucket" => Ok(Self::QuantileBucket),
-            "demean" => Ok(Self::Demean),
-            "robust_zscore" => Ok(Self::RobustZscore),
-            "minmax_scale" => Ok(Self::MinmaxScale),
-            "clip" => Ok(Self::Clip),
-            "clip_by_sigma" => Ok(Self::ClipBySigma),
-            "normal_score_transform" => Ok(Self::NormalScoreTransform),
-            "long_short_weights" => Ok(Self::LongShortWeights),
-            "cap_weights" => Ok(Self::CapWeights),
-            "fill_missing" => Ok(Self::FillMissing),
-            "is_finite" => Ok(Self::IsFinite),
-            "nan_mask" => Ok(Self::NanMask),
-            "winsorize" => Ok(Self::Winsorize),
-            _ => Err(Error::Validation(format!(
-                "unsupported cross-sectional transform op '{op}'"
-            ))),
-        }
+        op_from_str(op, "cross-sectional")
     }
 }
 

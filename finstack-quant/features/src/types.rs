@@ -1,7 +1,14 @@
 //! Shared transform parameter helpers.
 
 use finstack_quant_core::{Error, Result};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
+
+/// Parse a snake_case operation name through the enum's serde representation.
+pub(crate) fn op_from_str<T: DeserializeOwned>(op: &str, kind: &str) -> Result<T> {
+    serde_json::from_value(Value::String(op.to_owned()))
+        .map_err(|_| Error::Validation(format!("unsupported {kind} transform op '{op}'")))
+}
 
 /// Numerical tolerance used for zero-denominator checks.
 pub(crate) const ZERO_TOLERANCE: f64 = 1e-12;

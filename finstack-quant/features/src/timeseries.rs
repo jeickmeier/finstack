@@ -3,7 +3,8 @@
 mod advanced;
 
 use crate::types::{
-    finite, required_f64_param, sample_std, usize_param, validate_lengths, ZERO_TOLERANCE,
+    finite, op_from_str, required_f64_param, sample_std, usize_param, validate_lengths,
+    ZERO_TOLERANCE,
 };
 use advanced::{drawdown, exponential_decay_weights, rolling_advanced, AdvancedRollingOp};
 use finstack_quant_core::{Error, Result};
@@ -68,70 +69,11 @@ pub enum TimeSeriesOp {
     EwmaZscore,
 }
 
-impl TimeSeriesOp {
-    /// Return the canonical snake_case operation name.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Returns => "returns",
-            Self::LogReturns => "log_returns",
-            Self::Diff => "diff",
-            Self::Lag => "lag",
-            Self::RollingMean => "rolling_mean",
-            Self::RollingSum => "rolling_sum",
-            Self::RollingStd => "rolling_std",
-            Self::RollingMin => "rolling_min",
-            Self::RollingMax => "rolling_max",
-            Self::RollingZscore => "rolling_zscore",
-            Self::RollingRank => "rolling_rank",
-            Self::RollingQuantile => "rolling_quantile",
-            Self::RollingSkew => "rolling_skew",
-            Self::RollingKurtosis => "rolling_kurtosis",
-            Self::RollingSlope => "rolling_slope",
-            Self::RollingSharpe => "rolling_sharpe",
-            Self::RollingWinsorize => "rolling_winsorize",
-            Self::Drawdown => "drawdown",
-            Self::HampelFilter => "hampel_filter",
-            Self::ExponentialDecayWeights => "exponential_decay_weights",
-            Self::EwmaMean => "ewma_mean",
-            Self::EwmaVol => "ewma_vol",
-            Self::EwmaZscore => "ewma_zscore",
-        }
-    }
-}
-
 impl FromStr for TimeSeriesOp {
     type Err = Error;
 
     fn from_str(op: &str) -> Result<Self> {
-        match op {
-            "returns" => Ok(Self::Returns),
-            "log_returns" => Ok(Self::LogReturns),
-            "diff" => Ok(Self::Diff),
-            "lag" => Ok(Self::Lag),
-            "rolling_mean" => Ok(Self::RollingMean),
-            "rolling_sum" => Ok(Self::RollingSum),
-            "rolling_std" => Ok(Self::RollingStd),
-            "rolling_min" => Ok(Self::RollingMin),
-            "rolling_max" => Ok(Self::RollingMax),
-            "rolling_zscore" => Ok(Self::RollingZscore),
-            "rolling_rank" => Ok(Self::RollingRank),
-            "rolling_quantile" => Ok(Self::RollingQuantile),
-            "rolling_skew" => Ok(Self::RollingSkew),
-            "rolling_kurtosis" => Ok(Self::RollingKurtosis),
-            "rolling_slope" => Ok(Self::RollingSlope),
-            "rolling_sharpe" => Ok(Self::RollingSharpe),
-            "rolling_winsorize" => Ok(Self::RollingWinsorize),
-            "drawdown" => Ok(Self::Drawdown),
-            "hampel_filter" => Ok(Self::HampelFilter),
-            "exponential_decay_weights" => Ok(Self::ExponentialDecayWeights),
-            "ewma_mean" => Ok(Self::EwmaMean),
-            "ewma_vol" => Ok(Self::EwmaVol),
-            "ewma_zscore" => Ok(Self::EwmaZscore),
-            _ => Err(Error::Validation(format!(
-                "unsupported time-series transform op '{op}'"
-            ))),
-        }
+        op_from_str(op, "time-series")
     }
 }
 
@@ -360,19 +302,18 @@ fn rolling(
 ) -> Result<()> {
     let window = usize_param(params, "window", 1)?;
     let min_periods = usize_param(params, "min_periods", window)?;
-    for (pos, &idx) in indices.iter().enumerate() {
-        let start = pos.saturating_sub(window - 1);
-        let finite_values = indices[start..=pos]
+    let required = match op {
+        RollingOp::Std | RollingOp::Zscore => min_periods.max(2),
+        _ => min_periods,
+    };
+    crate::index::try_for_each_trailing_window(indices, window, |idx, window_indices| {
+        let finite_values = window_indices
             .iter()
             .filter_map(|window_idx| finite(values[*window_idx]))
             .collect::<Vec<_>>();
-        let required = match op {
-            RollingOp::Std | RollingOp::Zscore => min_periods.max(2),
-            _ => min_periods,
-        };
         if finite_values.len() < required {
             output[idx] = None;
-            continue;
+            return Ok(());
         }
         output[idx] = match op {
             RollingOp::Mean => Some(finite_values.iter().sum::<f64>() / finite_values.len() as f64),
@@ -393,8 +334,8 @@ fn rolling(
                 }
             }
         };
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 fn ewma_alpha(params: Option<&Value>) -> Result<f64> {
