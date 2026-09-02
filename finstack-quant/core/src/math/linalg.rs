@@ -648,6 +648,25 @@ pub fn symmetric_eigen(
 
 // ─── Generic (unpivoted) Cholesky — solver path ────────────────────────────────
 
+/// Reshape a row-major flat buffer of length `n * n` into `n` nested rows.
+///
+/// # Arguments
+///
+/// * `flat` - Row-major square matrix storage; `flat.len()` must equal `n * n`
+///   (extra trailing elements are ignored, a short buffer panics on slicing).
+/// * `n` - Matrix dimension (rows == columns).
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_core::math::linalg::unflatten_square;
+/// assert_eq!(unflatten_square(&[1.0, 2.0, 3.0, 4.0], 2), vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+/// ```
+#[must_use]
+pub fn unflatten_square(flat: &[f64], n: usize) -> Vec<Vec<f64>> {
+    (0..n).map(|i| flat[i * n..(i + 1) * n].to_vec()).collect()
+}
+
 /// Cholesky decomposition of a correlation/covariance matrix.
 ///
 /// Computes L such that Σ = L L^T, where Σ is the correlation matrix.

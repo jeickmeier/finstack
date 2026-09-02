@@ -59,11 +59,6 @@ fn extract_square_matrix(matrix: &Bound<'_, PyAny>) -> PyResult<(Vec<f64>, usize
     flatten_matrix(matrix.extract()?)
 }
 
-/// Unflatten a row-major `Vec<f64>` of length `n*n` into `Vec<Vec<f64>>`.
-fn unflatten_matrix(flat: Vec<f64>, n: usize) -> Vec<Vec<f64>> {
-    flat.chunks(n).map(|c| c.to_vec()).collect()
-}
-
 /// Compute the Cholesky decomposition L of a symmetric positive-definite matrix
 /// such that A = L L^T.
 ///
@@ -80,7 +75,7 @@ fn cholesky_decomposition(py: Python<'_>, matrix: &Bound<'_, PyAny>) -> PyResult
     let result = py
         .detach(|| linalg::cholesky_decomposition(&flat, n))
         .map_err(cholesky_err)?;
-    Ok(unflatten_matrix(result, n))
+    Ok(linalg::unflatten_square(&result, n))
 }
 
 /// Solve a symmetric positive-definite linear system A x = b given the Cholesky

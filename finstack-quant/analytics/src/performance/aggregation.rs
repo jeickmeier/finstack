@@ -11,6 +11,7 @@ use crate::correlation::{
 use crate::dates::{Date, FiscalConfig, PeriodKind};
 use crate::drawdown::{drawdown_details, to_drawdown_series, DrawdownEpisode};
 use crate::lookback;
+use crate::math::linalg::unflatten_square;
 use crate::math::stats::{correlation, mean_var};
 use crate::returns::{comp_sum, comp_total, excess_returns};
 
@@ -343,10 +344,6 @@ fn flatten_matrix(matrix: &[Vec<f64>]) -> Vec<f64> {
     matrix.iter().flatten().copied().collect()
 }
 
-fn unflatten_matrix(flat: &[f64], n: usize) -> Vec<Vec<f64>> {
-    (0..n).map(|i| flat[i * n..(i + 1) * n].to_vec()).collect()
-}
-
 fn finalize_correlation_matrix(matrix: Vec<Vec<f64>>) -> crate::Result<Vec<Vec<f64>>> {
     let n = matrix.len();
     for (i, row) in matrix.iter().enumerate() {
@@ -379,7 +376,7 @@ fn finalize_correlation_matrix(matrix: Vec<Vec<f64>>) -> crate::Result<Vec<Vec<f
         }
         .into());
     }
-    Ok(unflatten_matrix(&repaired, n))
+    Ok(unflatten_square(&repaired, n))
 }
 
 #[cfg(test)]

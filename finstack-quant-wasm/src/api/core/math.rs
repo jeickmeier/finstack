@@ -24,7 +24,7 @@ pub fn cholesky_decomposition(matrix: JsValue) -> Result<JsValue, JsValue> {
     let n = rows.len();
     let flat = flatten_matrix(&rows, n)?;
     let result = linalg::cholesky_decomposition(&flat, n).map_err(to_js_err)?;
-    let nested = unflatten_matrix(&result, n);
+    let nested = linalg::unflatten_square(&result, n);
     crate::utils::to_js_value(&nested)
 }
 
@@ -417,11 +417,6 @@ fn flatten_matrix(rows: &[Vec<f64>], n: usize) -> Result<Vec<f64>, JsValue> {
     Ok(flat)
 }
 
-/// Unflatten a row-major `Vec<f64>` of length `n*n` into nested rows.
-fn unflatten_matrix(flat: &[f64], n: usize) -> Vec<Vec<f64>> {
-    flat.chunks(n).map(|c| c.to_vec()).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,7 +457,7 @@ mod tests {
         let rows = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
         let flat = flatten_matrix(&rows, 2).expect("square 2x2 matrix");
         assert_eq!(flat, vec![1.0, 0.0, 0.0, 1.0]);
-        let back = unflatten_matrix(&flat, 2);
+        let back = linalg::unflatten_square(&flat, 2);
         assert_eq!(back, rows);
     }
 

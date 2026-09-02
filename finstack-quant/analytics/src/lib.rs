@@ -89,9 +89,6 @@ pub mod regression;
 pub(crate) mod returns;
 pub(crate) mod risk_metrics;
 
-#[cfg(test)]
-mod fixture_test;
-
 pub use aggregation::PeriodStats;
 pub use benchmark::{beta, BetaResult, GreeksResult, MultiFactorResult, ReturnKind, RollingGreeks};
 pub use drawdown::DrawdownEpisode;
