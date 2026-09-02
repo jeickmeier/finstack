@@ -73,35 +73,11 @@ pub fn optimize_from_spec(
     config: &FinstackConfig,
 ) -> Result<PortfolioOptimizationResult> {
     let portfolio = Portfolio::from_spec(spec.portfolio.clone())?;
-    optimize_from_parts(
-        &portfolio,
-        &spec.objective,
-        &spec.constraints,
-        spec.weighting,
-        spec.missing_metric_policy,
-        spec.label.as_deref(),
-        market,
-        config,
-    )
-}
-
-/// Run portfolio optimization against an already-built `Portfolio`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn optimize_from_parts(
-    portfolio: &Portfolio,
-    objective: &Objective,
-    constraints: &[Constraint],
-    weighting: WeightingScheme,
-    missing_metric_policy: MissingMetricPolicy,
-    label: Option<&str>,
-    market: &MarketContext,
-    config: &FinstackConfig,
-) -> Result<PortfolioOptimizationResult> {
-    let mut problem = PortfolioOptimizationProblem::new(portfolio.clone(), objective.clone());
-    problem.weighting = weighting;
-    problem.missing_metric_policy = missing_metric_policy;
-    problem.label = label.map(str::to_string);
-    problem = problem.with_constraints(constraints.to_vec());
+    let mut problem = PortfolioOptimizationProblem::new(portfolio, spec.objective.clone());
+    problem.weighting = spec.weighting;
+    problem.missing_metric_policy = spec.missing_metric_policy;
+    problem.label = spec.label.clone();
+    problem.constraints.extend(spec.constraints.iter().cloned());
 
     let optimizer = DefaultLpOptimizer;
     optimizer.optimize(&problem, market, config)

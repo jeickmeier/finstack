@@ -58,13 +58,7 @@ mod result;
 mod types;
 mod universe;
 
-pub(crate) mod tolerances {
-    pub use super::types::{
-        GROSS_BASE_TOL, MIN_WEIGHT_TOL, PV_PER_UNIT_TOL, SLACK_TOL, WEIGHT_TOL,
-    };
-}
-
-pub use constraints::{Constraint, ConstraintValidationError, Inequality};
+pub use constraints::{Constraint, Inequality};
 pub use helpers::{optimize_from_spec, PortfolioOptimizationSpec};
 pub use lp_solver::DefaultLpOptimizer;
 pub use problem::PortfolioOptimizationProblem;

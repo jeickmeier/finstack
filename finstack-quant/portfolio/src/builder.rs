@@ -371,8 +371,6 @@ impl PortfolioBuilder {
             positions: self.positions,
             position_index: finstack_quant_core::HashMap::default(),
             dependency_index: crate::dependencies::DependencyIndex::default(),
-            entity_index: finstack_quant_core::HashMap::default(),
-            attribute_key_index: finstack_quant_core::HashMap::default(),
             books: self.books,
             tags: self.tags,
             meta: self.meta,
@@ -444,7 +442,7 @@ mod tests {
             .expect("test should succeed");
 
         // Dummy entity should be auto-created
-        assert!(portfolio.has_dummy_entity());
+        assert!(portfolio.entities.contains_key(DUMMY_ENTITY_ID));
         assert_eq!(portfolio.positions.len(), 1);
     }
 

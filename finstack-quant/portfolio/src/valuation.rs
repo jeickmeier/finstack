@@ -144,15 +144,6 @@ impl PortfolioValuation {
     pub fn has_degraded_risk(&self) -> bool {
         !self.degraded_positions.is_empty()
     }
-
-    /// Borrow the list of position ids whose valuation fell back to PV-only.
-    ///
-    /// Returns a `&[PositionId]` rather than exposing the raw `Vec` so the
-    /// public API does not commit to vector semantics (size, order, growth)
-    /// that internal aggregation may want to change.
-    pub fn degraded_positions(&self) -> &[PositionId] {
-        &self.degraded_positions
-    }
 }
 
 /// Which metric set to request for every position in the portfolio.

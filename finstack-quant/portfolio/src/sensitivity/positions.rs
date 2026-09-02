@@ -4,7 +4,7 @@ use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope};
 use serde::Deserialize;
 
 /// A parsed factor-model position ready for repricing or sensitivity analysis.
-pub struct ParsedPosition {
+pub(crate) struct ParsedPosition {
     /// Position identifier.
     pub id: String,
     /// Boxed instrument parsed from its canonical v1 envelope.
@@ -37,7 +37,7 @@ struct PositionInput {
 ///
 /// Returns validation errors for malformed position or instrument JSON, and
 /// propagates unsupported-instrument and instrument-construction errors.
-pub fn parse_positions_json(
+pub(crate) fn parse_positions_json(
     positions_json: &str,
 ) -> finstack_quant_core::Result<Vec<ParsedPosition>> {
     let specs: Vec<PositionInput> = serde_json::from_str(positions_json).map_err(|e| {
@@ -64,7 +64,9 @@ pub fn parse_positions_json(
 ///
 /// * `positions` - Parsed positions whose owned instruments remain borrowed by
 ///   the returned engine tuples; callers must keep this slice alive.
-pub fn pricing_positions(positions: &[ParsedPosition]) -> Vec<(String, &dyn Instrument, f64)> {
+pub(crate) fn pricing_positions(
+    positions: &[ParsedPosition],
+) -> Vec<(String, &dyn Instrument, f64)> {
     positions
         .iter()
         .map(|position| {

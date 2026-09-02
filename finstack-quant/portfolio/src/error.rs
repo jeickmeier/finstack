@@ -118,20 +118,6 @@ impl Error {
         }
     }
 
-    /// Create an FX conversion error.
-    ///
-    /// # Arguments
-    ///
-    /// * `from` - Source currency.
-    /// * `to` - Target currency.
-    ///
-    /// # Returns
-    ///
-    /// [`Error::FxConversionFailed`] for the requested currency pair.
-    pub fn fx_conversion(from: Currency, to: Currency) -> Self {
-        Self::FxConversionFailed { from, to }
-    }
-
     /// Create an invalid input error.
     ///
     /// # Arguments
@@ -185,8 +171,11 @@ mod tests {
 
     #[test]
     fn converts_portfolio_errors_to_core_error() {
-        let core: finstack_quant_core::Error =
-            Error::fx_conversion(Currency::USD, Currency::EUR).into();
+        let core: finstack_quant_core::Error = Error::FxConversionFailed {
+            from: Currency::USD,
+            to: Currency::EUR,
+        }
+        .into();
         assert!(matches!(core, finstack_quant_core::Error::Validation(_)));
     }
 }

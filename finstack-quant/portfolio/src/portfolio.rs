@@ -8,7 +8,7 @@ use crate::book::{Book, BookId};
 use crate::dependencies::DependencyIndex;
 use crate::error::{Error, Result};
 use crate::position::Position;
-use crate::types::{AttributeValue, Entity, EntityId, PositionId, DUMMY_ENTITY_ID};
+use crate::types::{Entity, EntityId, PositionId};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::HashMap;
@@ -64,16 +64,6 @@ pub struct Portfolio {
     /// Rebuilt together with `position_index` via [`rebuild_index`].
     /// Enables selective repricing when only a subset of market data changes.
     pub(crate) dependency_index: DependencyIndex,
-
-    /// Index mapping entity ID → owned position indices, so `positions_for_entity`
-    /// avoids a full O(N) scan. Rebuilt via [`rebuild_index`].
-    pub(crate) entity_index: HashMap<EntityId, Vec<usize>>,
-
-    /// Index mapping attribute key → position indices carrying that key. Narrows
-    /// `positions_with_attribute` to the positions that actually have the key;
-    /// the value comparison still runs over that reduced set. Rebuilt via
-    /// [`rebuild_index`].
-    pub(crate) attribute_key_index: HashMap<String, Vec<usize>>,
 
     /// Optional hierarchical book organization
     pub books: IndexMap<BookId, Book>,
@@ -172,20 +162,6 @@ impl Portfolio {
             .map(|(i, p)| (p.position_id.clone(), i))
             .collect();
         self.dependency_index = DependencyIndex::build(&self.positions);
-
-        let mut entity_index: HashMap<EntityId, Vec<usize>> = HashMap::default();
-        let mut attribute_key_index: HashMap<String, Vec<usize>> = HashMap::default();
-        for (i, position) in self.positions.iter().enumerate() {
-            entity_index
-                .entry(position.entity_id.clone())
-                .or_default()
-                .push(i);
-            for key in position.attributes.keys() {
-                attribute_key_index.entry(key.clone()).or_default().push(i);
-            }
-        }
-        self.entity_index = entity_index;
-        self.attribute_key_index = attribute_key_index;
         self.evaluation_state_id = next_evaluation_state_id();
     }
 
@@ -226,16 +202,6 @@ impl Portfolio {
         self.position_index
             .insert(position.position_id.clone(), idx);
         self.dependency_index.add_position(idx, &position);
-        self.entity_index
-            .entry(position.entity_id.clone())
-            .or_default()
-            .push(idx);
-        for key in position.attributes.keys() {
-            self.attribute_key_index
-                .entry(key.clone())
-                .or_default()
-                .push(idx);
-        }
         self.positions.push(position);
         self.evaluation_state_id = next_evaluation_state_id();
         Ok(())
@@ -282,52 +248,6 @@ impl Portfolio {
         self.position_index
             .get(position_id)
             .and_then(|&idx| self.positions.get(idx))
-    }
-
-    /// Get all positions for a given entity.
-    ///
-    /// # Arguments
-    ///
-    /// * `entity_id` - Entity identifier used for filtering (accepts &str or &EntityId).
-    ///
-    /// # Returns
-    ///
-    /// All positions owned by the requested entity.
-    pub fn positions_for_entity(&self, entity_id: &str) -> Vec<&Position> {
-        self.entity_index
-            .get(entity_id)
-            .map(|indices| {
-                indices
-                    .iter()
-                    .filter_map(|&i| self.positions.get(i))
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    /// Filter positions whose attribute matches the supplied key/value.
-    ///
-    /// All positions whose attribute matches the supplied key/value pair.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - Attribute key to inspect.
-    /// * `value` - Desired attribute value.
-    ///
-    /// # Returns
-    ///
-    /// All positions whose attribute matches the supplied key/value pair.
-    pub fn positions_with_attribute(&self, key: &str, value: &AttributeValue) -> Vec<&Position> {
-        self.attribute_key_index
-            .get(key)
-            .map(|indices| {
-                indices
-                    .iter()
-                    .filter_map(|&i| self.positions.get(i))
-                    .filter(|p| p.attributes.get(key) == Some(value))
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     /// Read-only access to the dependency index for inspection and testing.
@@ -459,15 +379,6 @@ impl Portfolio {
         Ok(())
     }
 
-    /// Check if the portfolio uses the dummy entity.
-    ///
-    /// # Returns
-    ///
-    /// `true` when the canonical standalone-positions entity is present.
-    pub fn has_dummy_entity(&self) -> bool {
-        self.entities.contains_key(DUMMY_ENTITY_ID)
-    }
-
     /// Convert this portfolio to a serializable specification.
     ///
     /// Converts all positions to `PositionSpec` by extracting their instrument
@@ -525,8 +436,6 @@ impl Portfolio {
             position_index: HashMap::default(),
             dependency_index: DependencyIndex::default(),
             evaluation_state_id: 0,
-            entity_index: HashMap::default(),
-            attribute_key_index: HashMap::default(),
             books: spec.books,
             tags: spec.tags,
             meta: spec.meta,

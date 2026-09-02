@@ -1,21 +1,19 @@
-//! Template registry for stress test metadata and scenario builders.
+//! Template registry for stress test metadata and scenario specs.
 
-use super::{
-    json::JsonTemplateDocument, register_builtins, AssetClass, ScenarioSpecBuilder, Severity,
-    TemplateMetadata,
-};
+use super::{json::JsonTemplateDocument, register_builtins, TemplateMetadata};
 use crate::{Error, Result, ScenarioSpec};
 use indexmap::IndexMap;
 
-/// Registered template entry containing metadata and clonable builders.
+/// Registered template entry containing metadata and clonable, already
+/// validated [`ScenarioSpec`] values.
 ///
-/// Use [`RegisteredTemplate::builder`] to build the full composite template, or
-/// [`RegisteredTemplate::component`] to access an individual component builder
-/// by identifier when a historical scenario is decomposed into reusable parts.
+/// Use [`RegisteredTemplate::build`] to get the full composite scenario, or
+/// [`RegisteredTemplate::component`] to access an individual component by
+/// identifier when a historical scenario is decomposed into reusable parts.
 pub struct RegisteredTemplate {
     metadata: TemplateMetadata,
-    builder: ScenarioSpecBuilder,
-    components: IndexMap<String, ScenarioSpecBuilder>,
+    composite: ScenarioSpec,
+    components: IndexMap<String, ScenarioSpec>,
 }
 
 impl RegisteredTemplate {
@@ -43,28 +41,26 @@ impl RegisteredTemplate {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let components = ordered_component_specs
-            .iter()
-            .cloned()
-            .map(|(component_id, spec)| (component_id, scenario_spec_to_builder(spec)))
-            .collect();
+        let components: IndexMap<String, ScenarioSpec> =
+            ordered_component_specs.iter().cloned().collect();
         let composite_operations = ordered_component_specs
             .iter()
             .flat_map(|(_, spec)| spec.operations.iter().cloned())
             .collect::<Vec<_>>();
-        let mut builder = ScenarioSpecBuilder::new(composite.id())
-            .with_operations(composite_operations)
-            .priority(composite.priority());
-        if let Some(name) = composite.name() {
-            builder = builder.name(name);
-        }
-        if let Some(description) = composite.description() {
-            builder = builder.description(description);
-        }
+        let composite_spec = ScenarioSpec {
+            id: composite.id().to_string(),
+            name: composite.name().map(str::to_string),
+            description: composite.description().map(str::to_string),
+            operations: composite_operations,
+            priority: composite.priority(),
+            resolution_mode: finstack_quant_core::market_data::hierarchy::ResolutionMode::default(),
+            hazard_bump_mode: crate::HazardBumpMode::default(),
+        };
+        composite_spec.validate()?;
 
         Ok(Self {
             metadata,
-            builder,
+            composite: composite_spec,
             components,
         })
     }
@@ -79,17 +75,18 @@ impl RegisteredTemplate {
         &self.metadata
     }
 
-    /// Clone a fresh scenario builder from the registered template.
+    /// Clone the full composite scenario spec from the registered template.
     ///
     /// # Returns
     ///
-    /// A new [`ScenarioSpecBuilder`] for the full registered template.
+    /// A validated, independently owned [`ScenarioSpec`] for the full
+    /// registered template.
     #[must_use]
-    pub fn builder(&self) -> ScenarioSpecBuilder {
-        self.builder.clone()
+    pub fn build(&self) -> ScenarioSpec {
+        self.composite.clone()
     }
 
-    /// Build a fresh component builder by component identifier.
+    /// Clone one component scenario spec by component identifier.
     ///
     /// # Arguments
     ///
@@ -97,9 +94,9 @@ impl RegisteredTemplate {
     ///
     /// # Returns
     ///
-    /// `Some(builder)` when a matching component exists, otherwise `None`.
+    /// `Some(spec)` when a matching component exists, otherwise `None`.
     #[must_use]
-    pub fn component(&self, id: &str) -> Option<ScenarioSpecBuilder> {
+    pub fn component(&self, id: &str) -> Option<ScenarioSpec> {
         self.components.get(id).cloned()
     }
 
@@ -115,7 +112,7 @@ impl RegisteredTemplate {
     }
 }
 
-/// Registry of template metadata and clonable scenario builders.
+/// Registry of template metadata and clonable scenario specs.
 ///
 /// The registry preserves insertion order for listing and filtering operations
 /// so discovery APIs remain deterministic across runs.
@@ -185,14 +182,12 @@ impl TemplateRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Validation`] when `template_id` is unknown or the
-    /// registered builder fails scenario validation.
+    /// Returns [`Error::Validation`] when `template_id` is unknown.
     pub fn build(&self, template_id: &str) -> Result<ScenarioSpec> {
         self.entries
             .get(template_id)
-            .ok_or_else(|| Error::validation(format!("Unknown template: '{template_id}'")))?
-            .builder()
-            .build()
+            .ok_or_else(|| Error::validation(format!("Unknown template: '{template_id}'")))
+            .map(RegisteredTemplate::build)
     }
 
     /// Build one component of a registered scenario template.
@@ -210,21 +205,17 @@ impl TemplateRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Validation`] when either identifier is unknown or the
-    /// component builder fails scenario validation.
+    /// Returns [`Error::Validation`] when either identifier is unknown.
     pub fn build_component(&self, template_id: &str, component_id: &str) -> Result<ScenarioSpec> {
         let entry = self
             .entries
             .get(template_id)
             .ok_or_else(|| Error::validation(format!("Unknown template: '{template_id}'")))?;
-        entry
-            .component(component_id)
-            .ok_or_else(|| {
-                Error::validation(format!(
-                    "Unknown component '{component_id}' in template '{template_id}'"
-                ))
-            })?
-            .build()
+        entry.component(component_id).ok_or_else(|| {
+            Error::validation(format!(
+                "Unknown component '{component_id}' in template '{template_id}'"
+            ))
+        })
     }
 
     /// List component identifiers for a registered template.
@@ -256,73 +247,6 @@ impl TemplateRegistry {
     pub fn list(&self) -> Vec<&TemplateMetadata> {
         self.entries.values().map(|entry| &entry.metadata).collect()
     }
-
-    /// Filter registered templates by tag in deterministic insertion order.
-    ///
-    /// # Arguments
-    ///
-    /// - `tag`: Exact tag to match.
-    ///
-    /// # Returns
-    ///
-    /// Matching templates in registry insertion order.
-    #[must_use]
-    pub fn filter_by_tag(&self, tag: &str) -> Vec<&TemplateMetadata> {
-        self.entries
-            .values()
-            .filter(|entry| entry.metadata.tags.iter().any(|candidate| candidate == tag))
-            .map(|entry| &entry.metadata)
-            .collect()
-    }
-
-    /// Filter registered templates by asset class in deterministic insertion order.
-    ///
-    /// # Arguments
-    ///
-    /// - `asset_class`: Asset-class label to match.
-    ///
-    /// # Returns
-    ///
-    /// Matching templates in registry insertion order.
-    #[must_use]
-    pub fn filter_by_asset_class(&self, asset_class: AssetClass) -> Vec<&TemplateMetadata> {
-        self.entries
-            .values()
-            .filter(|entry| entry.metadata.asset_classes.contains(&asset_class))
-            .map(|entry| &entry.metadata)
-            .collect()
-    }
-
-    /// Filter registered templates by severity in deterministic insertion order.
-    ///
-    /// # Arguments
-    ///
-    /// - `severity`: Severity level to match.
-    ///
-    /// # Returns
-    ///
-    /// Matching templates in registry insertion order.
-    #[must_use]
-    pub fn filter_by_severity(&self, severity: Severity) -> Vec<&TemplateMetadata> {
-        self.entries
-            .values()
-            .filter(|entry| entry.metadata.severity == severity)
-            .map(|entry| &entry.metadata)
-            .collect()
-    }
-}
-
-fn scenario_spec_to_builder(spec: ScenarioSpec) -> ScenarioSpecBuilder {
-    let mut builder = ScenarioSpecBuilder::new(spec.id)
-        .with_operations(spec.operations)
-        .priority(spec.priority);
-    if let Some(name) = spec.name {
-        builder = builder.name(name);
-    }
-    if let Some(description) = spec.description {
-        builder = builder.description(description);
-    }
-    builder
 }
 
 #[cfg(test)]
@@ -580,33 +504,45 @@ mod tests {
     }
 
     #[test]
-    fn filter_by_tag() {
+    fn filter_by_tag_equivalent_via_list() {
         let registry = registry_with_templates();
 
-        assert_eq!(
-            collected_ids(registry.filter_by_tag("systemic")),
-            vec!["rates_shock", "hybrid_shock"]
+        let ids = collected_ids(
+            registry
+                .list()
+                .into_iter()
+                .filter(|metadata| metadata.tags.iter().any(|tag| tag == "systemic"))
+                .collect(),
         );
+        assert_eq!(ids, vec!["rates_shock", "hybrid_shock"]);
     }
 
     #[test]
-    fn filter_by_asset_class() {
+    fn filter_by_asset_class_equivalent_via_list() {
         let registry = registry_with_templates();
 
-        assert_eq!(
-            collected_ids(registry.filter_by_asset_class(AssetClass::Equity)),
-            vec!["equity_shock"]
+        let ids = collected_ids(
+            registry
+                .list()
+                .into_iter()
+                .filter(|metadata| metadata.asset_classes.contains(&AssetClass::Equity))
+                .collect(),
         );
+        assert_eq!(ids, vec!["equity_shock"]);
     }
 
     #[test]
-    fn filter_by_severity() {
+    fn filter_by_severity_equivalent_via_list() {
         let registry = registry_with_templates();
 
-        assert_eq!(
-            collected_ids(registry.filter_by_severity(Severity::Severe)),
-            vec!["rates_shock"]
+        let ids = collected_ids(
+            registry
+                .list()
+                .into_iter()
+                .filter(|metadata| metadata.severity == Severity::Severe)
+                .collect(),
         );
+        assert_eq!(ids, vec!["rates_shock"]);
     }
 
     #[test]
@@ -691,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn register_json_document_composite_builder_uses_component_order_and_top_level_fields() {
+    fn register_json_document_composite_uses_component_order_and_top_level_fields() {
         let mut registry = TemplateRegistry::new();
         registry
             .register_json_document(json_document())
@@ -700,7 +636,7 @@ mod tests {
             .get("json_template")
             .expect("json template should exist");
 
-        let scenario = entry.builder().build().expect("composite should build");
+        let scenario = entry.build();
 
         assert_eq!(scenario.id, "json_template");
         assert_eq!(scenario.name.as_deref(), Some("Composite From JSON"));
@@ -738,7 +674,7 @@ mod tests {
             .get("priority_order_conflict")
             .expect("json template should exist");
 
-        let scenario = entry.builder().build().expect("composite should build");
+        let scenario = entry.build();
 
         assert_eq!(scenario.operations.len(), 2);
 
@@ -767,7 +703,7 @@ mod tests {
             .get("no_composite_name")
             .expect("json template should exist");
 
-        let scenario = entry.builder().build().expect("composite should build");
+        let scenario = entry.build();
 
         assert_eq!(scenario.id, "no_composite_name");
         assert_eq!(scenario.name, None);

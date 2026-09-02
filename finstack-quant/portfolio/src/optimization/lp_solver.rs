@@ -11,7 +11,7 @@ use super::types::{
     MetricExpr, MissingMetricPolicy, PerPositionMetric, WeightingScheme, PV_PER_UNIT_TOL,
 };
 use crate::error::{Error, Result};
-use crate::types::{EntityId, PositionId};
+use crate::types::PositionId;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::summation::NeumaierAccumulator;
@@ -50,12 +50,6 @@ struct LpConstraint {
     /// (so `LpConstraint::rhs` is 0), and this value is used post-solve to
     /// report the slack back in metric units.
     vwa_rhs: Option<f64>,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct WeightVarSpec {
-    var: good_lp::Variable,
-    offset: f64,
 }
 
 impl DefaultLpOptimizer {
@@ -110,11 +104,6 @@ impl DefaultLpOptimizer {
         }
 
         metrics
-    }
-
-    /// Resolve the entity ID for a decision item.
-    fn decision_entity_id(item: &DecisionItem) -> &EntityId {
-        &item.entity_id
     }
 
     /// Resolve a `PerPositionMetric` to its raw per‑decision value, if present.
@@ -178,11 +167,7 @@ impl DefaultLpOptimizer {
             | MetricExpr::ValueWeightedAverage { metric, filter } => {
                 for (item, feat) in items.iter().zip(feats) {
                     if let Some(f) = filter {
-                        if !f.matches(
-                            Self::decision_entity_id(item),
-                            &item.position_id,
-                            &feat.attributes,
-                        ) {
+                        if !f.matches(&item.entity_id, &item.position_id, &feat.attributes) {
                             coeffs.push(0.0);
                             continue;
                         }
@@ -250,11 +235,7 @@ impl DefaultLpOptimizer {
         let mut mask = Vec::with_capacity(feats.len());
         for (item, feat) in items.iter().zip(feats) {
             if let Some(f) = filter {
-                if !f.matches(
-                    Self::decision_entity_id(item),
-                    &item.position_id,
-                    &feat.attributes,
-                ) {
+                if !f.matches(&item.entity_id, &item.position_id, &feat.attributes) {
                     coeffs.push(0.0);
                     mask.push(false);
                     continue;
@@ -304,11 +285,11 @@ struct LpRows {
 }
 
 /// A solved LP model together with the bookkeeping needed to reconstruct the
-/// portfolio-level result (decision variables, their offsets, and turnover
+/// portfolio-level result (decision variables and turnover
 /// auxiliary variables).
 struct AssembledModel {
     solution: Box<dyn Solution>,
-    w_vars: Vec<WeightVarSpec>,
+    w_vars: Vec<good_lp::Variable>,
 }
 
 impl DefaultLpOptimizer {
@@ -541,12 +522,9 @@ impl DefaultLpOptimizer {
                 )));
             }
 
-            let (var_min, var_max, offset) = (min_w, max_w, 0.0);
+            let (var_min, var_max) = (min_w, max_w);
 
-            w_vars.push(WeightVarSpec {
-                var: vars.add(variable().min(var_min).max(var_max)),
-                offset,
-            });
+            w_vars.push(vars.add(variable().min(var_min).max(var_max)));
         }
 
         // Auxiliary variables for turnover t_i (|w_i - w0_i|) if needed.
@@ -565,10 +543,7 @@ impl DefaultLpOptimizer {
 
         let mut objective_expr: Expression = 0.0.into();
         for (var, coef) in w_vars.iter().zip(&rows.coeffs_objective) {
-            objective_expr += (*coef) * var.var;
-            if var.offset != 0.0 {
-                objective_expr += (*coef) * var.offset;
-            }
+            objective_expr += (*coef) * *var;
         }
 
         let mut problem_model = if maximise {
@@ -579,10 +554,8 @@ impl DefaultLpOptimizer {
         .using(default_solver);
 
         // NOTE: effective-weight bounds are implicit: each variable is
-        // declared on `[var_min, var_max] = [0, max_w - min_w]` with
-        // offset `min_w`, so `effective_weight = var + offset` always
-        // lies in `[min_w, max_w]`. No additional constraints are
-        // needed — they would be algebraically redundant.
+        // declared directly on `[min_w, max_w]`. No additional constraints
+        // are needed — they would be algebraically redundant.
 
         // Add primary constraints
         for lc in &rows.lp_constraints {
@@ -592,10 +565,7 @@ impl DefaultLpOptimizer {
 
             let mut lhs: Expression = 0.0.into();
             for (var, coef) in w_vars.iter().zip(&lc.coefficients) {
-                lhs += (*coef) * var.var;
-                if var.offset != 0.0 {
-                    lhs += (*coef) * var.offset;
-                }
+                lhs += (*coef) * *var;
             }
 
             problem_model = match lc.relation {
@@ -620,11 +590,11 @@ impl DefaultLpOptimizer {
                     .copied()
                     .unwrap_or(0.0);
 
-                let lhs1: Expression = t_var - w_var.var;
-                problem_model = problem_model.with(constraint!(lhs1 >= w_var.offset - w0));
+                let lhs1: Expression = t_var - *w_var;
+                problem_model = problem_model.with(constraint!(lhs1 >= -w0));
 
-                let lhs2: Expression = t_var + w_var.var;
-                problem_model = problem_model.with(constraint!(lhs2 >= w0 - w_var.offset));
+                let lhs2: Expression = t_var + *w_var;
+                problem_model = problem_model.with(constraint!(lhs2 >= w0));
             }
 
             let mut lhs_turnover: Expression = 0.0.into();
@@ -687,7 +657,7 @@ impl DefaultLpOptimizer {
         let mut weight_deltas: IndexMap<PositionId, f64> = IndexMap::new();
 
         for (item, w_var) in decision_items.iter().zip(w_vars) {
-            let w_star = solution.value(w_var.var) + w_var.offset;
+            let w_star = solution.value(*w_var);
             let w0 = current_weights
                 .get(&item.position_id)
                 .copied()
@@ -741,7 +711,7 @@ impl DefaultLpOptimizer {
         // Objective value at solution: a · w*
         let mut objective_acc = NeumaierAccumulator::new();
         for (coef, w_var) in rows.coeffs_objective.iter().zip(w_vars) {
-            let w_star = solution.value(w_var.var) + w_var.offset;
+            let w_star = solution.value(*w_var);
             objective_acc.add(*coef * w_star);
         }
         let objective_value = objective_acc.current();
@@ -773,7 +743,7 @@ impl DefaultLpOptimizer {
                         if !matched {
                             continue;
                         }
-                        let w = solution.value(var.var) + var.offset;
+                        let w = solution.value(*var);
                         numerator += w * (*coef + bound_rhs);
                         filtered_weight_sum += w;
                     }
@@ -790,7 +760,7 @@ impl DefaultLpOptimizer {
                 } else {
                     let mut lhs_val = 0.0;
                     for (var, coef) in w_vars.iter().zip(&lc.coefficients) {
-                        lhs_val += *coef * (solution.value(var.var) + var.offset);
+                        lhs_val += *coef * solution.value(*var);
                     }
 
                     match lc.relation {
@@ -994,7 +964,7 @@ impl DefaultLpOptimizer {
                 .iter()
                 .zip(mask)
                 .filter(|(_, matched)| **matched)
-                .map(|(w, _)| model.solution.value(w.var) + w.offset)
+                .map(|(w, _)| model.solution.value(*w))
                 .sum();
             if filtered_weight_sum < -1e-9 {
                 return Err(Error::invalid_input(format!(

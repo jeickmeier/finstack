@@ -492,7 +492,6 @@ pub fn validate_cashflow_schedule_json(schedule_json: &str) -> Result<String> {
     serialize_json(&schedule, "cashflow schedule")
 }
 
-
 /// Extract dated amounts from a schedule JSON payload.
 ///
 /// The returned JSON is an array of [`DatedFlowJson`] values. Each entry

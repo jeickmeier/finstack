@@ -59,21 +59,6 @@ pub enum Constraint {
     },
 }
 
-/// Error returned when constraint parameters are invalid.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ConstraintValidationError {
-    /// Description of the validation failure.
-    pub message: String,
-}
-
-impl std::fmt::Display for ConstraintValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Constraint validation error: {}", self.message)
-    }
-}
-
-impl std::error::Error for ConstraintValidationError {}
-
 impl Constraint {
     /// Get the constraint label (for diagnostics).
     #[must_use]
@@ -111,16 +96,16 @@ impl Constraint {
     ///
     /// # Errors
     ///
-    /// Returns [`ConstraintValidationError`] if `max_share` is not in `[0, 1]`.
+    /// Returns [`crate::error::Error::InvalidInput`] if `max_share` is not in `[0, 1]`.
     pub fn exposure_limit(
         key: impl Into<String>,
         value: impl Into<String>,
         max_share: f64,
-    ) -> Result<Self, ConstraintValidationError> {
+    ) -> crate::error::Result<Self> {
         if !(0.0..=1.0).contains(&max_share) {
-            return Err(ConstraintValidationError {
-                message: format!("max_share must be in [0, 1], got {max_share}"),
-            });
+            return Err(crate::error::Error::invalid_input(format!(
+                "max_share must be in [0, 1], got {max_share}"
+            )));
         }
         Ok(Self::MetricBound {
             label: None,
@@ -139,16 +124,16 @@ impl Constraint {
     ///
     /// # Errors
     ///
-    /// Returns [`ConstraintValidationError`] if `min_share` is not in `[0, 1]`.
+    /// Returns [`crate::error::Error::InvalidInput`] if `min_share` is not in `[0, 1]`.
     pub fn exposure_minimum(
         key: impl Into<String>,
         value: impl Into<String>,
         min_share: f64,
-    ) -> Result<Self, ConstraintValidationError> {
+    ) -> crate::error::Result<Self> {
         if !(0.0..=1.0).contains(&min_share) {
-            return Err(ConstraintValidationError {
-                message: format!("min_share must be in [0, 1], got {min_share}"),
-            });
+            return Err(crate::error::Error::invalid_input(format!(
+                "min_share must be in [0, 1], got {min_share}"
+            )));
         }
         Ok(Self::MetricBound {
             label: None,
@@ -173,16 +158,12 @@ impl Constraint {
     ///
     /// # Errors
     ///
-    /// Returns [`ConstraintValidationError`] if `min > max`.
-    pub fn weight_bounds(
-        filter: PositionFilter,
-        min: f64,
-        max: f64,
-    ) -> Result<Self, ConstraintValidationError> {
+    /// Returns [`crate::error::Error::InvalidInput`] if `min > max`.
+    pub fn weight_bounds(filter: PositionFilter, min: f64, max: f64) -> crate::error::Result<Self> {
         if min > max {
-            return Err(ConstraintValidationError {
-                message: format!("weight bounds min ({}) must be <= max ({})", min, max),
-            });
+            return Err(crate::error::Error::invalid_input(format!(
+                "weight bounds min ({min}) must be <= max ({max})"
+            )));
         }
         Ok(Self::WeightBounds {
             label: None,
@@ -200,12 +181,12 @@ impl Constraint {
     ///
     /// # Errors
     ///
-    /// Returns [`ConstraintValidationError`] if `max_turnover` is negative.
-    pub fn max_turnover(max_turnover: f64) -> Result<Self, ConstraintValidationError> {
+    /// Returns [`crate::error::Error::InvalidInput`] if `max_turnover` is negative.
+    pub fn max_turnover(max_turnover: f64) -> crate::error::Result<Self> {
         if max_turnover < 0.0 {
-            return Err(ConstraintValidationError {
-                message: format!("max_turnover must be non-negative, got {}", max_turnover),
-            });
+            return Err(crate::error::Error::invalid_input(format!(
+                "max_turnover must be non-negative, got {max_turnover}"
+            )));
         }
         Ok(Self::MaxTurnover {
             label: None,
@@ -221,12 +202,12 @@ impl Constraint {
     ///
     /// # Errors
     ///
-    /// Returns [`ConstraintValidationError`] if `rhs` is NaN, infinite, or negative.
-    pub fn budget(rhs: f64) -> Result<Self, ConstraintValidationError> {
+    /// Returns [`crate::error::Error::InvalidInput`] if `rhs` is NaN, infinite, or negative.
+    pub fn budget(rhs: f64) -> crate::error::Result<Self> {
         if !rhs.is_finite() || rhs < 0.0 {
-            return Err(ConstraintValidationError {
-                message: format!("budget rhs must be finite and non-negative, got {rhs}"),
-            });
+            return Err(crate::error::Error::invalid_input(format!(
+                "budget rhs must be finite and non-negative, got {rhs}"
+            )));
         }
         Ok(Self::Budget { rhs })
     }

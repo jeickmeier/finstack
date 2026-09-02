@@ -1,8 +1,6 @@
 //! Tests for the surrounding crate component and its documented behavior.
 //!
-use finstack_quant_scenarios::{
-    AssetClass, OperationSpec, ScenarioSpec, ScenarioSpecBuilder, TemplateRegistry,
-};
+use finstack_quant_scenarios::{AssetClass, OperationSpec, ScenarioSpec, TemplateRegistry};
 
 fn builtin_ids() -> Vec<&'static str> {
     vec![
@@ -30,10 +28,7 @@ fn embedded_registry_contains_all_five_builtins_end_to_end() {
         let entry = registry
             .get(template_id)
             .unwrap_or_else(|| panic!("missing builtin template: {template_id}"));
-        let scenario = entry
-            .builder()
-            .build()
-            .unwrap_or_else(|error| panic!("failed to build builtin {template_id}: {error}"));
+        let scenario = entry.build();
 
         assert_eq!(scenario.id, template_id);
         assert!(!scenario.operations.is_empty());
@@ -42,11 +37,7 @@ fn embedded_registry_contains_all_five_builtins_end_to_end() {
         for component_id in entry.component_ids() {
             let component = entry
                 .component(component_id)
-                .unwrap_or_else(|| panic!("missing component {component_id}"))
-                .build()
-                .unwrap_or_else(|error| {
-                    panic!("failed to build component {component_id}: {error}")
-                });
+                .unwrap_or_else(|| panic!("missing component {component_id}"));
             assert_eq!(component.id, component_id);
             assert!(!component.operations.is_empty());
         }
@@ -59,13 +50,15 @@ fn embedded_registry_filters_historical_cross_asset_builtins() {
         .unwrap_or_else(|error| panic!("failed to load embedded templates: {error}"));
 
     let historical_ids: Vec<_> = registry
-        .filter_by_tag("historical")
+        .list()
         .into_iter()
+        .filter(|metadata| metadata.tags.iter().any(|tag| tag == "historical"))
         .map(|metadata| metadata.id.as_str())
         .collect();
     let fx_ids: Vec<_> = registry
-        .filter_by_asset_class(AssetClass::FX)
+        .list()
         .into_iter()
+        .filter(|metadata| metadata.asset_classes.contains(&AssetClass::FX))
         .map(|metadata| metadata.id.as_str())
         .collect();
 
@@ -77,30 +70,23 @@ fn embedded_registry_filters_historical_cross_asset_builtins() {
 fn cross_template_component_composition_still_works() {
     let registry = TemplateRegistry::with_embedded_builtins()
         .unwrap_or_else(|error| panic!("failed to load embedded templates: {error}"));
-    let rate_builder = registry
+    let rate_spec = registry
         .get("rate_shock_2022")
         .unwrap_or_else(|| panic!("missing rate_shock_2022"))
         .component("rate_shock_2022_rates")
         .unwrap_or_else(|| panic!("missing rate_shock_2022_rates"));
-    let svb_credit_builder = registry
+    let svb_credit_spec = registry
         .get("svb_2023")
         .unwrap_or_else(|| panic!("missing svb_2023"))
         .component("svb_2023_credit")
         .unwrap_or_else(|| panic!("missing svb_2023_credit"));
 
-    let rate_spec = rate_builder
-        .clone()
-        .build()
-        .unwrap_or_else(|error| panic!("failed to build rate component: {error}"));
-    let svb_credit_spec = svb_credit_builder
-        .clone()
-        .build()
-        .unwrap_or_else(|error| panic!("failed to build svb credit component: {error}"));
-    let composed = ScenarioSpecBuilder::compose(vec![rate_builder, svb_credit_builder])
-        .unwrap_or_else(|error| panic!("failed to compose scenarios: {error}"))
-        .id("cross_template")
-        .build()
-        .unwrap_or_else(|error| panic!("failed to build composed scenario: {error}"));
+    let mut composed = ScenarioSpec::compose(vec![rate_spec.clone(), svb_credit_spec.clone()])
+        .unwrap_or_else(|error| panic!("failed to compose scenarios: {error}"));
+    composed.id = "cross_template".to_string();
+    composed
+        .validate()
+        .unwrap_or_else(|error| panic!("failed to validate composed scenario: {error}"));
 
     assert_eq!(composed.id, "cross_template");
     assert_eq!(
@@ -117,9 +103,7 @@ fn embedded_registry_svb_credit_component_contains_attr_spread_shock() {
         .get("svb_2023")
         .unwrap_or_else(|| panic!("missing svb_2023"))
         .component("svb_2023_credit")
-        .unwrap_or_else(|| panic!("missing svb_2023_credit"))
-        .build()
-        .unwrap_or_else(|error| panic!("failed to build svb credit component: {error}"));
+        .unwrap_or_else(|| panic!("missing svb_2023_credit"));
 
     assert!(credit.operations.iter().any(|operation| {
         matches!(
@@ -138,9 +122,7 @@ fn embedded_registry_built_scenario_roundtrips_through_serde_and_validation() {
     let scenario = registry
         .get("ltcm_1998")
         .unwrap_or_else(|| panic!("missing ltcm_1998"))
-        .builder()
-        .build()
-        .unwrap_or_else(|error| panic!("failed to build ltcm_1998: {error}"));
+        .build();
 
     let json = serde_json::to_string(&scenario)
         .unwrap_or_else(|error| panic!("failed to serialize scenario: {error}"));

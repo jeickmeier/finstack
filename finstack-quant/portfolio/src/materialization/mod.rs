@@ -41,6 +41,8 @@ pub use report::{MaterializationPhases, MaterializationReport};
 pub const PORTFOLIO_MATERIALIZATION_CONTRACT: ContractDescriptor =
     ContractDescriptor::new("finstack_quant.portfolio_materialization");
 
+type MaterializationInput = PortfolioMaterializationEnvelope;
+
 struct PreparedArtifact {
     input_index: usize,
     artifact_id: String,
@@ -61,8 +63,6 @@ struct ValidatedInput {
     cache_hits: usize,
     dependency_count: usize,
 }
-
-type MaterializationInput = PortfolioMaterializationEnvelope;
 
 /// Allocation-free preflight counts for the two resource-bounded arrays.
 ///
@@ -161,7 +161,7 @@ impl Portfolio {
         } = validate_and_decode(bytes, cache, limits)?;
 
         let build_started = report::start_timer();
-        let book_by_position = position_book_index(&bundle, limits, &mut diagnostics);
+        let book_by_position = position_book_index(&bundle);
         let mut positions = Vec::with_capacity(bundle.positions.len());
         for (index, materialized) in bundle.positions.iter().enumerate() {
             let Some(artifact) = decoded.get(&materialized.artifact_id) else {
@@ -170,27 +170,7 @@ impl Portfolio {
                 diagnostics.push_bounded(limits, missing_artifact_diagnostic(index, materialized));
                 continue;
             };
-            if artifact.instrument.id() != materialized.instrument_id {
-                diagnostics.push_bounded(
-                    limits,
-                    Diagnostic::new(
-                        "portfolio/instrument-id-mismatch",
-                        LoadPhase::Semantic,
-                        Severity::Error,
-                        format!(
-                            "position '{}' names instrument '{}' but artifact '{}' contains '{}'",
-                            materialized.id,
-                            materialized.instrument_id,
-                            materialized.artifact_id,
-                            artifact.instrument.id()
-                        ),
-                    )
-                    .with_pointer(format!("/positions/{index}/instrument_id"))
-                    .with_position_id(materialized.id.to_string())
-                    .with_instrument_id(materialized.instrument_id.clone())
-                    .with_revision_id(materialized.artifact_id.clone()),
-                );
-            }
+            validate_position_semantics(index, materialized, artifact, limits, &mut diagnostics);
 
             match Position::new(
                 materialized.id.clone(),
@@ -235,8 +215,6 @@ impl Portfolio {
             positions,
             position_index: HashMap::default(),
             dependency_index: DependencyIndex::default(),
-            entity_index: HashMap::default(),
-            attribute_key_index: HashMap::default(),
             books: bundle.portfolio.books,
             tags: bundle.portfolio.tags,
             meta: bundle.portfolio.meta,
@@ -323,7 +301,7 @@ impl Portfolio {
             dependency_count,
         } = validate_and_decode(bytes, cache, limits)?;
         let semantic_started = report::start_timer();
-        let _book_by_position = position_book_index(&bundle, limits, &mut diagnostics);
+        let _book_by_position = position_book_index(&bundle);
         for (index, position) in bundle.positions.iter().enumerate() {
             let Some(artifact) = decoded.get(&position.artifact_id) else {
                 diagnostics.push_bounded(limits, missing_artifact_diagnostic(index, position));
@@ -990,9 +968,7 @@ fn prepare_artifacts(
 }
 
 fn position_book_index(
-    bundle: &MaterializationInput,
-    _limits: &LoadLimits,
-    _report: &mut ValidationReport,
+    bundle: &PortfolioMaterializationEnvelope,
 ) -> HashMap<PositionId, crate::book::BookId> {
     let mut by_position = HashMap::default();
     for (book_id, book) in &bundle.portfolio.books {

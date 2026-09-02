@@ -244,7 +244,7 @@ fn strict_and_best_effort_profiles_remain_distinct() {
         },
     )
     .expect("best-effort valuation should retain PV");
-    assert_eq!(best_effort.degraded_positions().len(), 1);
+    assert_eq!(best_effort.degraded_positions.len(), 1);
     assert!(!best_effort.position_values["POSITION_0000"].risk_metrics_complete);
 
     let strict_error = value_portfolio(

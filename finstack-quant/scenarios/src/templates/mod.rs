@@ -1,10 +1,10 @@
-//! Historical stress-template metadata, builders, and registry APIs.
+//! Historical stress-template metadata and registry APIs.
 //!
 //! This module provides the reusable template layer that sits above raw
 //! [`ScenarioSpec`] values. Most callers start with
-//! [`TemplateRegistry`] to discover the built-in templates and then use
-//! [`ScenarioSpecBuilder`] to override identifiers before building a concrete
-//! scenario.
+//! [`TemplateRegistry`] to discover the built-in templates and then call
+//! [`TemplateRegistry::build`] (or [`TemplateRegistry::build_component`]) to
+//! get a concrete, validated scenario.
 //!
 //! Built-in templates are embedded JSON documents shipped with the crate and
 //! are loaded through [`TemplateRegistry::with_embedded_builtins`].
@@ -12,12 +12,10 @@
 //! For template discovery metadata, see [`TemplateMetadata`]. For scenario
 //! execution, continue to [`crate::ScenarioEngine`].
 
-mod builder;
 mod json;
 mod metadata;
 mod registry;
 
-pub use builder::ScenarioSpecBuilder;
 pub use metadata::{AssetClass, Severity, TemplateMetadata};
 pub use registry::{RegisteredTemplate, TemplateRegistry};
 

@@ -52,7 +52,7 @@ pub struct FactorPnlProfileJson {
 ///
 /// Returns [`Error::Validation`] when `json` is not a valid factor-definition
 /// array or does not match its serialized field and enum shapes.
-pub fn parse_factor_definitions_json(json: &str) -> Result<Vec<FactorDefinition>> {
+pub(crate) fn parse_factor_definitions_json(json: &str) -> Result<Vec<FactorDefinition>> {
     serde_json::from_str(json)
         .map_err(|e| Error::Validation(format!("invalid factor definitions JSON: {e}")))
 }
@@ -71,7 +71,7 @@ pub fn parse_factor_definitions_json(json: &str) -> Result<Vec<FactorDefinition>
 ///
 /// Returns [`Error::Validation`] when a supplied string cannot be deserialized
 /// as [`BumpSizeConfig`].
-pub fn parse_bump_config_json(json: Option<&str>) -> Result<BumpSizeConfig> {
+pub(crate) fn parse_bump_config_json(json: Option<&str>) -> Result<BumpSizeConfig> {
     match json {
         Some(json) => serde_json::from_str(json)
             .map_err(|e| Error::Validation(format!("invalid bump config JSON: {e}"))),

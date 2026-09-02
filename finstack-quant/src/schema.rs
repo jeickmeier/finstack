@@ -128,7 +128,10 @@ pub fn documents_by_id() -> Result<BTreeMap<String, Value>> {
 /// resolution and union-failure expansion that depends on it.
 fn corpus() -> Result<&'static BTreeMap<String, Value>> {
     static CACHE: std::sync::OnceLock<Result<BTreeMap<String, Value>>> = std::sync::OnceLock::new();
-    CACHE.get_or_init(documents_by_id).as_ref().map_err(Clone::clone)
+    CACHE
+        .get_or_init(documents_by_id)
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 /// Every corpus document as a compiled, in-process resolvable resource.
@@ -147,9 +150,7 @@ fn resources() -> Result<&'static [(String, jsonschema::Resource)]> {
                 .map(|(id, document)| {
                     jsonschema::Resource::from_contents(document.clone())
                         .map(|resource| (id.clone(), resource))
-                        .map_err(|error| {
-                            Error::Internal(format!("compile resource {id}: {error}"))
-                        })
+                        .map_err(|error| Error::Internal(format!("compile resource {id}: {error}")))
                 })
                 .collect()
         })

@@ -245,39 +245,6 @@ impl TradeUniverse {
         self
     }
 
-    /// Add multiple candidate positions.
-    ///
-    /// # Arguments
-    ///
-    /// * `candidates` - Candidates to append to the universe.
-    ///
-    /// # Returns
-    ///
-    /// The updated trade universe for fluent chaining.
-    #[must_use]
-    pub fn with_candidates(
-        mut self,
-        candidates: impl IntoIterator<Item = CandidatePosition>,
-    ) -> Self {
-        self.candidates.extend(candidates);
-        self
-    }
-
-    /// Set positions to hold constant (not trade).
-    ///
-    /// # Arguments
-    ///
-    /// * `filter` - Filter selecting positions that must keep their current weights.
-    ///
-    /// # Returns
-    ///
-    /// The updated trade universe for fluent chaining.
-    #[must_use]
-    pub fn with_held_positions(mut self, filter: PositionFilter) -> Self {
-        self.held_filter = Some(filter);
-        self
-    }
-
     /// Allow short selling of candidate positions.
     ///
     /// # Returns

@@ -643,8 +643,7 @@ pub fn aggregate_metrics(
     let ccy: finstack_quant_core::currency::Currency = base_currency.parse().map_err(to_js_err)?;
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
-    let format = time::format_description::well_known::Iso8601::DEFAULT;
-    let date = time::Date::parse(as_of, &format).map_err(to_js_err)?;
+    let date = crate::utils::parse_iso_date(as_of)?;
     let metrics =
         finstack_quant_portfolio::metrics::aggregate_metrics(&valuation, ccy, &market, date)
             .map_err(to_js_err)?;

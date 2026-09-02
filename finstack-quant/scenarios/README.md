@@ -29,7 +29,7 @@ instrument effects — live in `finstack-quant-statements-analytics` instead.
 | `ApplicationEnvelope` | JSON envelope of the mutated market/model plus the report (used by bindings) |
 | `RateBindingSpec` | Links a statement `NodeId` to a curve tenor, used by `OperationSpec::RateBinding` |
 | `HorizonAnalysis` / `HorizonResult` | Scenario + attribution for one instrument's decomposed total return |
-| `templates` | `TemplateRegistry`, `RegisteredTemplate`, `TemplateMetadata`, `ScenarioSpecBuilder` |
+| `templates` | `TemplateRegistry`, `RegisteredTemplate`, `TemplateMetadata` |
 | `envelope` | `ScenarioEnvelope`, `ScenarioSchema`, `SCENARIO_CONTRACT` for strict versioned persistence |
 | `Warning`, `Error`, `Result` | Structured non-fatal warnings and the crate error type |
 

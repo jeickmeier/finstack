@@ -61,8 +61,8 @@
 use std::sync::Arc;
 
 use finstack_quant_attribution::{
-    attribute_pnl_metrics_based, attribute_pnl_parallel, attribute_pnl_taylor,
-    attribute_pnl_waterfall, default_attribution_metrics, ExecutionPolicy,
+    attribute_pnl, attribute_pnl_metrics_based, default_attribution_metrics, AttributionRequest,
+    ExecutionPolicy,
 };
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::dates::{calendars_by_ids, Date, HolidayCalendar};
@@ -336,27 +336,22 @@ impl HorizonAnalysis {
         as_of_t0: Date,
         as_of_t1: Date,
     ) -> crate::Result<PnlAttribution> {
+        let request = AttributionRequest {
+            execution_policy: ExecutionPolicy::Parallel,
+            strict_validation: false,
+            ..AttributionRequest::new(
+                instrument,
+                market_t0,
+                market_t1,
+                as_of_t0,
+                as_of_t1,
+                &self.config,
+            )
+        };
         let result = match &self.attribution_method {
-            AttributionMethod::Parallel => attribute_pnl_parallel(
-                instrument,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                &self.config,
-                ExecutionPolicy::Parallel,
-            ),
-            AttributionMethod::Waterfall(order) => attribute_pnl_waterfall(
-                instrument,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                &self.config,
-                order.clone(),
-                false,
-                None,
-            ),
+            AttributionMethod::Parallel
+            | AttributionMethod::Waterfall(_)
+            | AttributionMethod::Taylor(_) => attribute_pnl(&self.attribution_method, &request),
             AttributionMethod::MetricsBased => {
                 let metrics = default_attribution_metrics();
                 let val_t0 = instrument.price_with_metrics(
@@ -375,15 +370,6 @@ impl HorizonAnalysis {
                     instrument, market_t0, market_t1, &val_t0, &val_t1, as_of_t0, as_of_t1,
                 )
             }
-            AttributionMethod::Taylor(config) => attribute_pnl_taylor(
-                instrument,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                config,
-                ExecutionPolicy::Parallel,
-            ),
         };
         Ok(result?)
     }

@@ -27,29 +27,60 @@ pub use types::{
 
 use crate::adapters::traits::ScenarioEffect;
 use crate::error::Result;
-use crate::spec::{HazardBumpMode, OperationSpec, ScenarioSpec};
+use crate::spec::{OperationSpec, RateBindingSpec, ScenarioSpec};
 use crate::warning::Warning;
 use effects::{
     apply_generated_effects, flush_pending_bumps, generate_replace_curve_effects_parallel,
     independent_replace_curve_run_len, process_effects, should_parallel_replace_curves, EffectSink,
 };
+use finstack_quant_core::dates::HolidayCalendar;
 use finstack_quant_core::market_data::bumps::MarketBump;
-use finstack_quant_core::market_data::hierarchy::ResolutionMode;
+use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_statements::FinancialModelSpec;
 use finstack_quant_valuations::recalibration::RecalibrationProvider;
 use hierarchy::{expand_hierarchy_operations, ExpansionOutcome};
 use std::sync::Arc;
+
+/// Apply one rate binding to `model`, recording a warning instead of a hard
+/// error when the update produces no forecast values or fails.
+///
+/// Shared by the engine's Phase 2 (context-configured bindings) and Phase 3
+/// (`ScenarioEffect::RateBinding` operations) so the update-and-warn logic is
+/// written once. Returns `true` when [`update_rate_from_binding`] returned
+/// `Ok(_)` (regardless of whether values were produced), `false` on error.
+///
+/// [`update_rate_from_binding`]: crate::adapters::statements::update_rate_from_binding
+fn apply_rate_binding(
+    binding: &RateBindingSpec,
+    model: &mut FinancialModelSpec,
+    market: &mut MarketContext,
+    calendar: Option<&dyn HolidayCalendar>,
+    warnings: &mut Vec<Warning>,
+) -> bool {
+    match crate::adapters::statements::update_rate_from_binding(binding, model, market, calendar) {
+        Ok(true) => true,
+        Ok(false) => {
+            warnings.push(Warning::RateBindingNoForecastValues {
+                node_id: binding.node_id.as_str().to_string(),
+                curve_id: binding.curve_id.as_str().to_string(),
+            });
+            true
+        }
+        Err(e) => {
+            warnings.push(Warning::RateBindingFailed {
+                node_id: binding.node_id.as_str().to_string(),
+                curve_id: binding.curve_id.as_str().to_string(),
+                reason: e.to_string(),
+            });
+            false
+        }
+    }
+}
 
 fn results_stamp(
     config: &finstack_quant_core::config::FinstackConfig,
 ) -> Option<finstack_quant_core::config::ResultsMeta> {
     Some(finstack_quant_core::config::results_meta(config))
-}
-
-const fn hazard_bump_mode_name(mode: HazardBumpMode) -> &'static str {
-    match mode {
-        HazardBumpMode::SolveToPar => "solve_to_par",
-        HazardBumpMode::FirstOrderShift => "first_order_shift",
-    }
 }
 
 /// Orchestrates the deterministic application of a [`ScenarioSpec`].
@@ -127,68 +158,13 @@ impl ScenarioEngine {
         self
     }
 
-    fn compose_inner(&self, mut scenarios: Vec<ScenarioSpec>) -> ScenarioSpec {
-        // Stable sort by priority (lower = higher priority)
-        scenarios.sort_by_key(|s| s.priority);
-
-        let composed_id = if scenarios.is_empty() {
-            "composed".to_string()
-        } else {
-            scenarios
-                .iter()
-                .map(|scenario| scenario.id.as_str())
-                .collect::<Vec<_>>()
-                .join("+")
-        };
-        let composed_name = if scenarios.is_empty() {
-            Some("Composed Scenario".to_string())
-        } else {
-            Some(
-                scenarios
-                    .iter()
-                    .map(|scenario| scenario.name.as_deref().unwrap_or(scenario.id.as_str()))
-                    .collect::<Vec<_>>()
-                    .join(" + "),
-            )
-        };
-        let mut all_operations = Vec::new();
-        let resolution_mode = if scenarios.is_empty() {
-            ResolutionMode::default()
-        } else if scenarios
-            .iter()
-            .all(|scenario| scenario.resolution_mode == scenarios[0].resolution_mode)
-        {
-            scenarios[0].resolution_mode
-        } else {
-            ResolutionMode::Cumulative
-        };
-        let hazard_bump_mode = scenarios
-            .first()
-            .map_or_else(HazardBumpMode::default, |scenario| {
-                scenario.hazard_bump_mode
-            });
-
-        for scenario in scenarios {
-            all_operations.extend(scenario.operations);
-        }
-
-        ScenarioSpec {
-            id: composed_id,
-            name: composed_name,
-            description: None,
-            operations: all_operations,
-            priority: 0,
-            resolution_mode,
-            hazard_bump_mode,
-        }
-    }
-
     /// Strict composition: returns an error at compose time when the
     /// concatenated operations would be rejected at apply time.
     ///
-    /// Composition rejects scenarios with different [`HazardBumpMode`] values
-    /// and scenarios that contain more than one [`OperationSpec::TimeRollForward`].
-    /// Production callers should prefer this method.
+    /// Delegates to [`ScenarioSpec::compose`]; kept as a method so existing
+    /// callers holding a [`ScenarioEngine`] do not need a throwaway instance
+    /// replaced. Production callers should prefer
+    /// [`ScenarioSpec::compose`] directly.
     ///
     /// # Errors
     ///
@@ -206,39 +182,7 @@ impl ScenarioEngine {
         &self,
         scenarios: Vec<ScenarioSpec>,
     ) -> std::result::Result<ScenarioSpec, crate::error::Error> {
-        if let Some(first) = scenarios.first() {
-            if let Some(conflicting) = scenarios
-                .iter()
-                .skip(1)
-                .find(|scenario| scenario.hazard_bump_mode != first.hazard_bump_mode)
-            {
-                return Err(crate::error::Error::validation(format!(
-                    "Cannot compose scenarios '{}' (hazard_bump_mode '{}') and '{}' \
-                     (hazard_bump_mode '{}'): all scenarios must use the same hazard_bump_mode.",
-                    first.id,
-                    hazard_bump_mode_name(first.hazard_bump_mode),
-                    conflicting.id,
-                    hazard_bump_mode_name(conflicting.hazard_bump_mode),
-                )));
-            }
-        }
-
-        let composed = self.compose_inner(scenarios);
-
-        let time_roll_count = composed
-            .operations
-            .iter()
-            .filter(|op| matches!(op, OperationSpec::TimeRollForward { .. }))
-            .count();
-        if time_roll_count > 1 {
-            return Err(crate::error::Error::validation(format!(
-                "Compose would produce {time_roll_count} TimeRollForward operations; only \
-                 one is allowed per composed scenario. Merge the roll periods into a single \
-                 `TimeRollForward` (preferred) or remove the duplicates before calling compose."
-            )));
-        }
-
-        Ok(composed)
+        ScenarioSpec::compose(scenarios)
     }
 
     /// Apply a scenario specification to the execution context.
@@ -429,23 +373,7 @@ impl ScenarioEngine {
                 let Some(model) = ctx.model.as_deref_mut() else {
                     return Err(crate::error::Error::missing_statement_model("rate binding"));
                 };
-                match crate::adapters::statements::update_rate_from_binding(
-                    binding,
-                    model,
-                    ctx.market,
-                    ctx.calendar,
-                ) {
-                    Ok(true) => {}
-                    Ok(false) => warnings.push(Warning::RateBindingNoForecastValues {
-                        node_id: node_id.as_str().to_string(),
-                        curve_id: binding.curve_id.as_str().to_string(),
-                    }),
-                    Err(e) => warnings.push(Warning::RateBindingFailed {
-                        node_id: node_id.as_str().to_string(),
-                        curve_id: binding.curve_id.as_str().to_string(),
-                        reason: e.to_string(),
-                    }),
-                }
+                apply_rate_binding(binding, model, ctx.market, ctx.calendar, &mut warnings);
             }
         }
 
@@ -464,29 +392,15 @@ impl ScenarioEngine {
                                 "rate binding",
                             ));
                         };
-                        match crate::adapters::statements::update_rate_from_binding(
+                        if apply_rate_binding(
                             &binding,
                             model,
                             ctx.market,
                             ctx.calendar,
+                            &mut warnings,
                         ) {
-                            Ok(true) => {
-                                applied += 1;
-                                applied_stmt_ops += 1;
-                            }
-                            Ok(false) => {
-                                applied += 1;
-                                applied_stmt_ops += 1;
-                                warnings.push(Warning::RateBindingNoForecastValues {
-                                    node_id: binding.node_id.as_str().to_string(),
-                                    curve_id: binding.curve_id.as_str().to_string(),
-                                });
-                            }
-                            Err(e) => warnings.push(Warning::RateBindingFailed {
-                                node_id: binding.node_id.as_str().to_string(),
-                                curve_id: binding.curve_id.as_str().to_string(),
-                                reason: e.to_string(),
-                            }),
+                            applied += 1;
+                            applied_stmt_ops += 1;
                         }
                     }
                     ScenarioEffect::StmtForecastPercent { node_id, pct } => {

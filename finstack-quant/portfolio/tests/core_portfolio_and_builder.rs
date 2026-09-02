@@ -41,11 +41,21 @@ fn getters_and_tag_filters() {
         .unwrap();
 
     assert!(portfolio.get_position("P").is_some());
-    assert_eq!(portfolio.positions_for_entity("E").len(), 1);
     assert_eq!(
         portfolio
-            .positions_with_attribute("sector", &AttributeValue::Text("Tech".to_string()))
-            .len(),
+            .positions()
+            .iter()
+            .filter(|position| position.entity_id.as_str() == "E")
+            .count(),
+        1
+    );
+    assert_eq!(
+        portfolio
+            .positions()
+            .iter()
+            .filter(|position| position.attributes.get("sector")
+                == Some(&AttributeValue::Text("Tech".to_string())))
+            .count(),
         1
     );
 }
@@ -194,7 +204,7 @@ fn builder_required_fields_and_dummy_auto_create() {
         .position(p)
         .build()
         .unwrap();
-    assert!(portfolio.has_dummy_entity());
+    assert!(portfolio.entities.contains_key(DUMMY_ENTITY_ID));
 }
 
 #[test]

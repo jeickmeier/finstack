@@ -95,19 +95,4 @@ impl PortfolioOptimizationProblem {
         self.constraints.push(constraint);
         self
     }
-
-    /// Add multiple constraints.
-    ///
-    /// # Arguments
-    ///
-    /// * `constraints` - Constraints to append to the problem.
-    ///
-    /// # Returns
-    ///
-    /// The updated problem for fluent chaining.
-    #[must_use]
-    pub fn with_constraints(mut self, constraints: impl IntoIterator<Item = Constraint>) -> Self {
-        self.constraints.extend(constraints);
-        self
-    }
 }

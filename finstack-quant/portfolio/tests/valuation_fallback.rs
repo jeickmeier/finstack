@@ -191,8 +191,8 @@ fn valuation_falls_back_when_metrics_fail() {
         valuation.has_degraded_risk(),
         "fallback valuation should mark the portfolio as degraded"
     );
-    assert_eq!(valuation.degraded_positions().len(), 1);
-    assert_eq!(valuation.degraded_positions()[0], "P");
+    assert_eq!(valuation.degraded_positions.len(), 1);
+    assert_eq!(valuation.degraded_positions[0], "P");
     assert!(
         !pv.risk_metrics_complete,
         "position should be marked as missing requested risk metrics"

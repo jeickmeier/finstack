@@ -75,7 +75,8 @@ pub struct ReplayConfig {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct JsonSnapshot {
-    date: String,
+    #[serde(with = "finstack_quant_core::wire::date")]
+    date: Date,
     market: MarketContext,
 }
 
@@ -101,16 +102,12 @@ impl ReplayTimeline {
     /// Returns [`Error::InvalidInput`] when the JSON or any ISO-8601 date is
     /// invalid, or when the decoded snapshots violate timeline ordering rules.
     pub fn from_json_snapshots(json: &str) -> Result<Self> {
-        let format = time::format_description::well_known::Iso8601::DEFAULT;
         let raw: Vec<JsonSnapshot> = serde_json::from_str(json)
             .map_err(|e| Error::InvalidInput(format!("invalid snapshots JSON: {e}")))?;
-        let mut snapshots = Vec::with_capacity(raw.len());
-        for entry in raw {
-            let date = Date::parse(&entry.date, &format).map_err(|e| {
-                Error::InvalidInput(format!("invalid snapshot date '{}': {e}", entry.date))
-            })?;
-            snapshots.push((date, entry.market));
-        }
+        let snapshots = raw
+            .into_iter()
+            .map(|entry| (entry.date, entry.market))
+            .collect();
         Self::new(snapshots)
     }
 

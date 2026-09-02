@@ -113,7 +113,7 @@ impl DeltaBasedEngine {
 /// * `bump_unit` - Unit of `bump_size`; it must match mappings that declare
 ///   curve or volatility bump units.
 /// * `as_of` - Valuation date attached to generated dated market bumps.
-pub fn mapping_to_market_bumps(
+pub(crate) fn mapping_to_market_bumps(
     mapping: &MarketMapping,
     bump_size: f64,
     bump_unit: FactorBumpUnit,

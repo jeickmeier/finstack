@@ -87,9 +87,7 @@ pub fn compose_scenarios(specs: JsValue) -> Result<JsValue, JsValue> {
 fn compose_scenarios_inner(
     specs: Vec<finstack_quant_scenarios::ScenarioSpec>,
 ) -> Result<finstack_quant_scenarios::ScenarioSpec, String> {
-    finstack_quant_scenarios::ScenarioEngine::new()
-        .try_compose(specs)
-        .map_err(|error| error.to_string())
+    finstack_quant_scenarios::ScenarioSpec::compose(specs).map_err(|error| error.to_string())
 }
 
 /// Validate a scenario specification JSON without executing it.

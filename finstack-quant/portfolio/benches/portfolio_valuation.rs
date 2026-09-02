@@ -215,7 +215,13 @@ fn bench_position_filtering(c: &mut Criterion) {
 
     group.bench_function("filter_by_entity", |b| {
         b.iter(|| {
-            let _ = portfolio.positions_for_entity(black_box("FUND_1"));
+            let target = black_box("FUND_1");
+            let matched: Vec<_> = portfolio
+                .positions()
+                .iter()
+                .filter(|position| position.entity_id.as_str() == target)
+                .collect();
+            black_box(matched);
         });
     });
 

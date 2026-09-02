@@ -21,14 +21,12 @@ pub(crate) mod positions;
 mod repricing_engine;
 mod traits;
 
-pub use delta_engine::{mapping_to_market_bumps, DeltaBasedEngine};
+pub use delta_engine::DeltaBasedEngine;
 pub use finstack_quant_models::factor::SensitivityMatrix;
 pub use json::{
-    compute_factor_sensitivities_from_json, compute_pnl_profiles_from_json, parse_bump_config_json,
-    parse_factor_definitions_json, FactorPnlProfileJson, SensitivityMatrixJson,
-    DEFAULT_PNL_SCENARIO_POINTS,
+    compute_factor_sensitivities_from_json, compute_pnl_profiles_from_json, FactorPnlProfileJson,
+    SensitivityMatrixJson, DEFAULT_PNL_SCENARIO_POINTS,
 };
-pub use positions::{parse_positions_json, pricing_positions, ParsedPosition};
 pub use repricing_engine::{FactorPnlProfile, FullRepricingEngine, ScenarioGrid};
 pub(crate) use traits::exact_factor_market_keys;
 pub use traits::FactorSensitivityEngine;

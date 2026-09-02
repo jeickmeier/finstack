@@ -161,11 +161,9 @@ fn build_scenario_spec(
 #[pyfunction]
 fn compose_scenarios(specs: Vec<PyScenarioSpec>) -> PyResult<PyScenarioSpec> {
     let specs = specs.into_iter().map(|spec| spec.inner).collect();
-    let composed = finstack_quant_scenarios::ScenarioEngine::new()
-        .try_compose(specs)
-        .map_err(|error| {
-            crate::errors::value_error(format!("Scenario composition failed: {error}"))
-        })?;
+    let composed = finstack_quant_scenarios::ScenarioSpec::compose(specs).map_err(|error| {
+        crate::errors::value_error(format!("Scenario composition failed: {error}"))
+    })?;
     Ok(PyScenarioSpec::from_inner(composed))
 }
 

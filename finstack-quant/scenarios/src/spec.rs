@@ -141,18 +141,118 @@ impl HazardBumpMode {
     }
 }
 
+/// Serde label for a [`HazardBumpMode`] value, used in composition error messages.
+const fn hazard_bump_mode_name(mode: HazardBumpMode) -> &'static str {
+    match mode {
+        HazardBumpMode::SolveToPar => "solve_to_par",
+        HazardBumpMode::FirstOrderShift => "first_order_shift",
+    }
+}
+
 impl ScenarioSpec {
-    /// Create a [`crate::templates::ScenarioSpecBuilder`] for constructing a scenario.
+    /// Strict composition: merge scenarios into a single spec, sorted by
+    /// ascending priority, returning an error at compose time when the
+    /// concatenated operations would be rejected at apply time.
     ///
-    /// This is the preferred entry point when the scenario identifier is known
-    /// up front and the ordered operations will be assembled fluently.
+    /// Composition rejects scenarios with different [`HazardBumpMode`] values
+    /// and scenarios that together contain more than one
+    /// [`OperationSpec::TimeRollForward`].
     ///
     /// # Arguments
     ///
-    /// * `id` - Stable string identifier used for lookup and serialization of this object
-    #[must_use]
-    pub fn builder(id: impl Into<String>) -> crate::templates::ScenarioSpecBuilder {
-        crate::templates::ScenarioSpecBuilder::new(id)
+    /// * `scenarios` - Scenario specifications to merge in ascending priority
+    ///   order. Every non-empty input must use the same `hazard_bump_mode`;
+    ///   conflicting modes are rejected before composition.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if `scenarios` contain conflicting
+    /// `hazard_bump_mode` values or more than one time-roll operation. Other
+    /// conflicts remain in the composed spec and are validated when
+    /// [`crate::engine::ScenarioEngine::apply`] is called.
+    pub fn compose(mut scenarios: Vec<ScenarioSpec>) -> crate::Result<Self> {
+        if let Some(first) = scenarios.first() {
+            if let Some(conflicting) = scenarios
+                .iter()
+                .skip(1)
+                .find(|scenario| scenario.hazard_bump_mode != first.hazard_bump_mode)
+            {
+                return Err(crate::error::Error::validation(format!(
+                    "Cannot compose scenarios '{}' (hazard_bump_mode '{}') and '{}' \
+                     (hazard_bump_mode '{}'): all scenarios must use the same hazard_bump_mode.",
+                    first.id,
+                    hazard_bump_mode_name(first.hazard_bump_mode),
+                    conflicting.id,
+                    hazard_bump_mode_name(conflicting.hazard_bump_mode),
+                )));
+            }
+        }
+
+        // Stable sort by priority (lower = higher priority)
+        scenarios.sort_by_key(|s| s.priority);
+
+        let composed_id = if scenarios.is_empty() {
+            "composed".to_string()
+        } else {
+            scenarios
+                .iter()
+                .map(|scenario| scenario.id.as_str())
+                .collect::<Vec<_>>()
+                .join("+")
+        };
+        let composed_name = if scenarios.is_empty() {
+            Some("Composed Scenario".to_string())
+        } else {
+            Some(
+                scenarios
+                    .iter()
+                    .map(|scenario| scenario.name.as_deref().unwrap_or(scenario.id.as_str()))
+                    .collect::<Vec<_>>()
+                    .join(" + "),
+            )
+        };
+        let resolution_mode = if scenarios.is_empty() {
+            ResolutionMode::default()
+        } else if scenarios
+            .iter()
+            .all(|scenario| scenario.resolution_mode == scenarios[0].resolution_mode)
+        {
+            scenarios[0].resolution_mode
+        } else {
+            ResolutionMode::Cumulative
+        };
+        let hazard_bump_mode = scenarios
+            .first()
+            .map_or_else(HazardBumpMode::default, |scenario| {
+                scenario.hazard_bump_mode
+            });
+
+        let mut all_operations = Vec::new();
+        for scenario in scenarios {
+            all_operations.extend(scenario.operations);
+        }
+
+        let time_roll_count = all_operations
+            .iter()
+            .filter(|op| matches!(op, OperationSpec::TimeRollForward { .. }))
+            .count();
+        if time_roll_count > 1 {
+            return Err(crate::error::Error::validation(format!(
+                "Compose would produce {time_roll_count} TimeRollForward operations; only \
+                 one is allowed per composed scenario. Merge the roll periods into a single \
+                 `TimeRollForward` (preferred) or remove the duplicates before calling compose."
+            )));
+        }
+
+        Ok(Self {
+            id: composed_id,
+            name: composed_name,
+            description: None,
+            operations: all_operations,
+            priority: 0,
+            resolution_mode,
+            hazard_bump_mode,
+        })
     }
 
     /// Whether applying this scenario needs the portfolio's instruments.

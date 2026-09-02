@@ -1,7 +1,7 @@
 //! Problem, decision-space, constraint, and solver types for portfolio optimization.
 //!
 use super::problem::PortfolioOptimizationProblem;
-use super::tolerances::{SLACK_TOL, WEIGHT_TOL};
+use super::types::{SLACK_TOL, WEIGHT_TOL};
 use crate::error::{Error, Result};
 use crate::portfolio::Portfolio;
 use crate::position::Position;
@@ -235,7 +235,7 @@ impl PortfolioOptimizationResult {
                 let delta_weight = target_weight - current_weight;
 
                 // Skip positions with negligible change.
-                // See `optimization::tolerances::WEIGHT_TOL` for the rationale
+                // See `optimization::types::WEIGHT_TOL` for the rationale
                 // behind the chosen scale.
                 if !delta_weight.is_finite() || delta_weight.abs() < WEIGHT_TOL {
                     return None;
@@ -327,7 +327,7 @@ impl PortfolioOptimizationResult {
     /// [`OptimizationStatus::is_feasible`] before consuming it.
     #[must_use]
     pub fn binding_constraints(&self) -> Vec<(&str, f64)> {
-        // See `optimization::tolerances::SLACK_TOL` for the rationale behind
+        // See `optimization::types::SLACK_TOL` for the rationale behind
         // the chosen scale.
         self.constraint_slacks
             .iter()
