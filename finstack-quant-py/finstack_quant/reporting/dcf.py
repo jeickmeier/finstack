@@ -76,7 +76,15 @@ def _section_ufcf(results: Any, ufcf_node: str, theme: Theme) -> Section | None:
 def _section_sensitivity(sensitivity: Any, theme: Theme) -> Section | None:
     if not sensitivity or not isinstance(sensitivity, list):
         return None
-    entries = [(e.get("parameter_id"), e.get("downside"), e.get("upside")) for e in sensitivity if isinstance(e, dict)]
+    entries: list[tuple[Any, Any, Any]] = []
+    for e in sensitivity:
+        if isinstance(e, dict):
+            entries.append((e.get("parameter_id"), e.get("downside"), e.get("upside")))
+        else:
+            parameter_id = getattr(e, "parameter_id", None)
+            if parameter_id is None:
+                continue
+            entries.append((parameter_id, getattr(e, "downside", None), getattr(e, "upside", None)))
     if not entries:
         return None
     entries.sort(key=lambda t: abs(t[1] or 0.0) + abs(t[2] or 0.0), reverse=True)

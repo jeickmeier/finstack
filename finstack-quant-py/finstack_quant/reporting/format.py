@@ -193,8 +193,11 @@ def fmt_date(d: Any) -> str:
     >>> fmt_date(date(2026, 6, 19))
     '19 Jun 2026'
     """
-    if _missing(d):
+    if _missing(d) or type(d).__name__ == "NaTType":
         return _PLACEHOLDER
     if hasattr(d, "strftime"):
-        return d.strftime("%d %b %Y").lstrip("0").replace(" 0", " ")
+        try:
+            return d.strftime("%d %b %Y").lstrip("0").replace(" 0", " ")
+        except (TypeError, ValueError, OverflowError):
+            return _PLACEHOLDER
     return str(d)

@@ -50,3 +50,9 @@ def test_sign_class() -> None:
 
 def test_fmt_date_accepts_date_and_timestamp() -> None:
     assert fmt.fmt_date(dt.date(2026, 6, 19)) == "19 Jun 2026"
+
+
+def test_fmt_date_renders_pandas_nat_as_placeholder() -> None:
+    import pandas as pd
+
+    assert fmt.fmt_date(pd.NaT) == "·"

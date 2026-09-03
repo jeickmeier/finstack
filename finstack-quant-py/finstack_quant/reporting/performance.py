@@ -137,11 +137,12 @@ def _section_drawdowns(perf: Any, ticker: int) -> Section:
     dd_rows = []
     for _, r in det.iterrows():
         end = r["end"]
+        ongoing = end is None or type(end).__name__ == "NaTType"
         dd_rows.append({
             "Peak → Trough": f"{fmt.fmt_date(r['start'])} → {fmt.fmt_date(r['valley'])}",
             "Depth": r["max_drawdown"] * 100.0,
             "Length": f"{int(r['duration_days'])} days",
-            "Recovery": "ongoing" if end is None else fmt.fmt_date(end),
+            "Recovery": "ongoing" if ongoing else fmt.fmt_date(end),
         })
     return Section(
         "Worst Drawdowns",
