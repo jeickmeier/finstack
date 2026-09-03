@@ -30,6 +30,8 @@ True
 
 from __future__ import annotations
 
+from typing import Any
+
 import datetime
 
 from finstack_quant.core.money import Money
@@ -330,6 +332,77 @@ class CashFlow:
         ValueError
             If a value is non-finite, the accrual factor is negative, or
             the reset date is after the payment date.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.cashflows.primitives import CashFlow
+        >>> from finstack_quant.core.money import Money
+        >>> isinstance(CashFlow(datetime.date(2025, 6, 15), Money(1.0, "USD"), "fixed").to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> CashFlow:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CashFlow
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.cashflows.primitives import CashFlow
+        >>> from finstack_quant.core.money import Money
+        >>> value = CashFlow(datetime.date(2025, 6, 15), Money(1.0, "USD"), "fixed")
+        >>> CashFlow.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
         """
         ...
 

@@ -645,6 +645,23 @@ fn default_fail_on_bad_fit() -> bool {
 /// Extension section key for calibration overrides.
 pub const CALIBRATION_CONFIG_KEY: &str = "calibration.config.v1";
 
+/// Recursively overlay `overlay` onto `base` (objects merge, everything else replaces).
+fn merge_json(base: &mut serde_json::Value, overlay: serde_json::Value) {
+    match (base, overlay) {
+        (serde_json::Value::Object(base_map), serde_json::Value::Object(overlay_map)) => {
+            for (key, value) in overlay_map {
+                match base_map.get_mut(&key) {
+                    Some(existing) => merge_json(existing, value),
+                    None => {
+                        base_map.insert(key, value);
+                    }
+                }
+            }
+        }
+        (base, overlay) => *base = overlay,
+    }
+}
+
 impl Default for CalibrationConfig {
     fn default() -> Self {
         Self {
@@ -849,6 +866,45 @@ impl CalibrationConfig {
     pub fn with_compute_diagnostics(mut self, enabled: bool) -> Self {
         self.compute_diagnostics = enabled;
         self
+    }
+
+    /// Overlay a partial JSON object onto this configuration.
+    ///
+    /// Objects merge recursively (only the supplied leaves change); arrays
+    /// and scalars replace the existing value. Unknown keys are rejected by
+    /// the strict deserialization of the merged document.
+    ///
+    /// # Arguments
+    ///
+    /// * `overrides` - JSON object whose keys mirror the serialized
+    ///   `CalibrationConfig` field names (e.g. `{"solver": {"tolerance": 1e-10},
+    ///   "use_parallel": false}`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when `overrides` is
+    /// not a JSON object, names an unknown field, or the merged document fails
+    /// [`Self::validate`].
+    pub fn with_json_overrides(
+        &self,
+        overrides: serde_json::Value,
+    ) -> finstack_quant_core::Result<Self> {
+        if !overrides.is_object() {
+            return Err(finstack_quant_core::Error::Validation(
+                "calibration config overrides must be a JSON object".to_string(),
+            ));
+        }
+        let mut base = serde_json::to_value(self).map_err(|e| {
+            finstack_quant_core::Error::Validation(format!(
+                "failed to serialize calibration config: {e}"
+            ))
+        })?;
+        merge_json(&mut base, overrides);
+        let merged: Self = serde_json::from_value(base).map_err(|e| {
+            finstack_quant_core::Error::Validation(format!("invalid calibration config: {e}"))
+        })?;
+        merged.validate()?;
+        Ok(merged)
     }
 
     /// Create a Levenberg-Marquardt solver with current config settings.

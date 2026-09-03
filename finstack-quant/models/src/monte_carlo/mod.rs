@@ -62,6 +62,7 @@
 //! use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
 //!
 //! let pricer = EuropeanPricer::new(25_000)
+//!     .expect("positive path count")
 //!     .with_seed(19)
 //!     .with_parallel(false);
 //! let process = GbmProcess::with_params(0.03, 0.01, 0.20).unwrap();
@@ -109,6 +110,26 @@ pub use traits::{
     state_keys, Discretization, PathState, Payoff, ProportionalDiffusion, RandomStream, StateKey,
     StochasticProcess,
 };
+
+/// Reject a non-finite or non-positive volatility before a convenience pricer runs.
+///
+/// The generic GBM process accepts `sigma == 0` (a deterministic forward), but
+/// the host-facing convenience entry points require a strictly positive
+/// volatility so a sign slip or a zero placeholder surfaces as a validation
+/// error instead of a silent degenerate price.
+///
+/// # Arguments
+///
+/// * `vol` - Annualized lognormal volatility as a decimal; must be finite and
+///   strictly positive.
+pub(crate) fn require_positive_vol(vol: f64) -> finstack_quant_core::Result<()> {
+    if !vol.is_finite() || vol <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Monte Carlo convenience pricers require a finite, strictly positive volatility, got {vol}"
+        )));
+    }
+    Ok(())
+}
 
 #[cfg(test)]
 mod gbm_path_summary_tests {

@@ -23,7 +23,7 @@ from finstack_quant.portfolio import (
     scenario_pnl_batch_json,
     value_portfolio,
 )
-from finstack_quant.scenarios import parse_scenario_spec
+from finstack_quant.scenarios import ScenarioSpec
 
 AS_OF = "2025-01-15"
 
@@ -84,7 +84,7 @@ def _scenario_batch_json() -> str:
                 "bp": bp,
             }
         ]
-        spec = parse_scenario_spec(json.dumps({"id": scenario_id, "operations": operations}))
+        spec = ScenarioSpec.from_json(json.dumps({"id": scenario_id, "operations": operations}))
         scenarios.append(json.loads(spec.to_json()))
     return json.dumps(scenarios)
 
@@ -196,7 +196,7 @@ def test_numpy_inputs_reject_wrong_shapes() -> None:
             np.ones((3, 3), dtype=np.float64),
         )
 
-    with pytest.raises(ValueError, match="position_pnls must have 2 rows"):
+    with pytest.raises(ValueError, match="position_pnls has shape \\(3, 10\\) but there are 2 position ids"):
         historical_var_decomposition(
             ["A", "B"],
             np.ones((3, 10), dtype=np.float64),

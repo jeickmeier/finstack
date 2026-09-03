@@ -779,12 +779,28 @@ fn test_payment_schedule_imm_vs_non_imm() {
         .generate_payment_schedule(&imm_tranche, as_of)
         .expect("IMM schedule should succeed");
     assert!(!imm_dates.is_empty());
-    assert!(
-        imm_dates
-            .iter()
-            .all(|d| finstack_quant_core::dates::is_cds_date(*d)),
-        "IMM schedule should use CDS roll dates"
-    );
+    // The IMM schedule is built from CDS roll dates and then business-day
+    // adjusted with the tranche's calendar (`weekends_only`) under the
+    // tranche's convention, so a 20th falling on a weekend legitimately moves.
+    // Assert the roll-date origin survives the adjustment rather than that
+    // every payment date is itself a 20th.
+    for date in &imm_dates {
+        assert!(
+            !matches!(
+                date.weekday(),
+                time::Weekday::Saturday | time::Weekday::Sunday
+            ),
+            "adjusted IMM payment {date} must fall on a business day"
+        );
+        let derives_from_roll_date = (0..4).any(|back| {
+            date.checked_sub(time::Duration::days(back))
+                .is_some_and(finstack_quant_core::dates::is_cds_date)
+        });
+        assert!(
+            derives_from_roll_date,
+            "adjusted IMM payment {date} must derive from a CDS roll date"
+        );
+    }
 
     let mut non_imm_tranche = sample_tranche();
     non_imm_tranche.standard_imm_dates = false;

@@ -286,7 +286,8 @@ class TestPeriodicReturns:
         assert len(lb.qtd) == 2
         assert len(lb.ytd) == 2
         assert len(lb.fytd) == 2
-        assert list(lb.to_dataframe(["ACME", "BENCH"]).columns) == [
+        assert lb.ticker_names == perf_prices.ticker_names
+        assert list(lb.to_dataframe().columns) == [
             "mtd",
             "qtd",
             "ytd",
@@ -301,10 +302,10 @@ class TestPeriodicReturns:
 
     def test_lookback_rejects_null_fytd_json(self) -> None:
         with pytest.raises(ValueError, match="invalid type: null"):
-            LookbackReturns.from_json('{"mtd":[],"qtd":[],"ytd":[],"fytd":null}')
+            LookbackReturns.from_json('{"ticker_names":[],"mtd":[],"qtd":[],"ytd":[],"fytd":null}')
 
     def test_lookback_rejects_invalid_fiscal_month(self, perf_prices: Performance) -> None:
-        with pytest.raises(AnalyticsError, match="Invalid"):
+        with pytest.raises(AnalyticsError, match="start_month must be in"):
             perf_prices.lookback_returns(date(2024, 2, 29), fiscal_year_start_month=13)
 
     def test_period_stats_monthly(self, perf_prices: Performance) -> None:
@@ -535,17 +536,17 @@ class TestCompsBindings:
 
     def test_regression_fair_value(self) -> None:
         result = regression_fair_value([1.0, 2.0, 3.0, 4.0], [3.0, 5.0, 7.0, 9.0], 3.0, 10.0)
-        assert result["fitted_value"] == pytest.approx(7.0)
-        assert result["residual"] == pytest.approx(3.0)
+        assert result.fitted_value == pytest.approx(7.0)
+        assert result.residual == pytest.approx(3.0)
 
     def test_percentile_rank(self) -> None:
-        assert percentile_rank(250.0, [100.0, 200.0, 300.0, 400.0, 500.0]) == pytest.approx(0.4)
-        assert percentile_rank(100.0, []) is None
+        assert percentile_rank([100.0, 200.0, 300.0, 400.0, 500.0], 250.0) == pytest.approx(0.4)
+        assert percentile_rank([], 100.0) is None
 
     def test_z_score(self) -> None:
-        assert z_score(3.0, [1.0, 2.0, 3.0, 4.0, 5.0]) == pytest.approx(0.0)
-        assert z_score(1.0, [1.0]) is None
-        assert z_score(5.0, [5.0, 5.0, 5.0]) is None
+        assert z_score([1.0, 2.0, 3.0, 4.0, 5.0], 3.0) == pytest.approx(0.0)
+        assert z_score([1.0], 1.0) is None
+        assert z_score([5.0, 5.0, 5.0], 5.0) is None
 
     def test_score_relative_value(self) -> None:
         peer_set = {
@@ -568,10 +569,10 @@ class TestCompsBindings:
                 }
             ],
         )
-        assert result["company_id"] == "SUBJ"
-        assert "by_dimension" not in result
-        assert result["dimensions"][0]["label"] == "Spread vs Leverage"
-        assert result["composite_score"] > 0.0
+        assert result.company_id == "SUBJ"
+        assert not hasattr(result, "by_dimension")
+        assert result.dimensions[0].label == "Spread vs Leverage"
+        assert result.composite_score > 0.0
 
     def test_score_relative_value_accepts_json_strings(self) -> None:
         import json
@@ -591,15 +592,15 @@ class TestCompsBindings:
         ]
         typed = score_relative_value(peer_set, dimensions)
         via_json = score_relative_value(json.dumps(peer_set), json.dumps(dimensions))
-        assert via_json == typed
+        assert via_json.to_json() == typed.to_json()
 
     def test_peer_stats_uses_rust_field_names(self) -> None:
         from finstack_quant.statements_analytics import peer_stats
 
         stats = peer_stats([1.0, 2.0, 3.0, 4.0, 5.0])
-        assert stats["count"] == 5
-        assert "n" not in stats
-        assert stats["iqr"] == pytest.approx(stats["q3"] - stats["q1"])
+        assert stats.count == 5
+        assert not hasattr(stats, "n")
+        assert stats.iqr == pytest.approx(stats.q3 - stats.q1)
         # No-result path returns None, matching the WASM twin's `undefined`.
         assert peer_stats([]) is None
 
@@ -630,9 +631,9 @@ class TestCompsBindings:
         rich_convention = score_relative_value(pe_peer_set(), [dimension("higher_is_rich")])
         # High multiple vs peers: rich (negative) under higher_is_rich, cheap
         # (positive) under the default higher_is_cheap convention.
-        assert cheap_convention["composite_score"] > 0.0
-        assert rich_convention["composite_score"] < 0.0
-        assert rich_convention["composite_score"] == pytest.approx(-cheap_convention["composite_score"])
+        assert cheap_convention.composite_score > 0.0
+        assert rich_convention.composite_score < 0.0
+        assert rich_convention.composite_score == pytest.approx(-cheap_convention.composite_score)
 
     def test_score_relative_value_rejects_unknown_direction(self) -> None:
         peer_set = {
@@ -675,8 +676,8 @@ class TestCompsBindings:
                 }
             ],
         )
-        assert result["peer_count"] == 3
-        assert result["dimensions"][0]["label"] == "EV/EBITDA"
+        assert result.peer_count == 3
+        assert result.dimensions[0].label == "EV/EBITDA"
 
     def test_non_numeric_metric_raises_value_error(self) -> None:
         peer_set = {

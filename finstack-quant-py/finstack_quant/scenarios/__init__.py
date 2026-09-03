@@ -13,8 +13,6 @@ import sys as _sys
 
 from finstack_quant.finstack_quant import scenarios as _scenarios
 
-parse_scenario_spec = _scenarios.parse_scenario_spec
-build_scenario_spec = _scenarios.build_scenario_spec
 compose_scenarios = _scenarios.compose_scenarios
 validate_scenario_spec = _scenarios.validate_scenario_spec
 list_builtin_templates = _scenarios.list_builtin_templates
@@ -34,6 +32,7 @@ TemplateMetadata = _scenarios.TemplateMetadata
 # Operation specifications
 OperationSpec = _scenarios.OperationSpec
 RateBindingSpec = _scenarios.RateBindingSpec
+HierarchyTarget = _scenarios.HierarchyTarget
 CurveKind = _scenarios.CurveKind
 TenorMatchMode = _scenarios.TenorMatchMode
 TimeRollMode = _scenarios.TimeRollMode
@@ -50,6 +49,7 @@ __all__: list[str] = [
     "ApplicationResult",
     "Compounding",
     "CurveKind",
+    "HierarchyTarget",
     "HorizonResult",
     "OperationSpec",
     "RateBindingSpec",
@@ -60,14 +60,12 @@ __all__: list[str] = [
     "apply_scenario",
     "apply_scenario_to_market",
     "build_from_template",
-    "build_scenario_spec",
     "build_template_component",
     "compose_scenarios",
     "compute_horizon_return",
     "list_builtin_template_metadata",
     "list_builtin_templates",
     "list_template_components",
-    "parse_scenario_spec",
     "schema",
     "validate_scenario_spec",
 ]

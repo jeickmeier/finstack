@@ -56,7 +56,7 @@ def test_credit_tearsheet_renders_all_sections() -> None:
 
 def test_credit_tearsheet_accepts_json_assessment() -> None:
     res = _results()
-    html = credit_tearsheet(json.dumps(_assessment(res)), results=res, generated=dt.date(2026, 6, 22)).to_html()
+    html = credit_tearsheet(_assessment(res).to_json(), results=res, generated=dt.date(2026, 6, 22)).to_html()
     assert "Credit Assessment" in html
 
 
@@ -82,7 +82,7 @@ def test_credit_tearsheet_rejects_unknown_section() -> None:
 
 def test_credit_tearsheet_tolerates_bad_rows() -> None:
     res = _results()
-    asmt = dict(_assessment(res))
+    asmt = json.loads(_assessment(res).to_json())
     asmt["series"] = [*asmt["series"], None, "bad"]  # malformed series points
     html = credit_tearsheet(
         asmt, results=res, coverage=[None, "bad"], covenants=[None], generated=dt.date(2026, 6, 22)

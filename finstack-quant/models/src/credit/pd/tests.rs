@@ -291,11 +291,23 @@ mod master_scale_tests {
     }
 
     #[test]
-    fn pd_exceeds_all_grades() {
+    fn pd_at_unit_maps_to_worst_grade() {
         let scale = MasterScale::sp_assumptions().expect("registry scale");
-        let result = scale.map_pd(1.5).unwrap();
+        let result = scale.map_pd(1.0).unwrap();
         assert_eq!(result.grade, "CC/C");
         assert_eq!(result.grade_index, 7);
+    }
+
+    #[test]
+    fn pd_outside_unit_interval_is_rejected() {
+        let scale = MasterScale::sp_assumptions().expect("registry scale");
+        for bad in [-0.1, 1.5, 5.0] {
+            assert!(matches!(
+                scale.map_pd(bad),
+                Err(PdCalibrationError::ValueOutOfRange { value, min, max })
+                    if value == bad && min == 0.0 && max == 1.0
+            ));
+        }
     }
 
     #[test]

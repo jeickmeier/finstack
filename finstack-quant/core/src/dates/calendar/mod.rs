@@ -133,21 +133,78 @@ pub use calendars_generated::*;
 /// # Arguments
 ///
 /// * `id` - Canonical lowercase calendar identifier (for example `"nyse"` or
-///   `"target2"`); see [`available_calendars`] for the registry.
+///   `"target2"`); see [`available_calendars`] for the registry. Joining
+///   identifiers with `+` (for example `"nyse+gblo"`) resolves to a union
+///   [`CompositeCalendar`] that is a business day only when every member is.
 ///
 /// # Errors
 ///
 /// Returns `InputError::CalendarNotFound` carrying fuzzy suggestions drawn
-/// from [`available_calendars`] when `id` is not a built-in calendar.
+/// from [`available_calendars`] when `id` (or any `+`-joined member) is not
+/// a built-in calendar.
 pub fn calendar_by_id_strict(id: &str) -> crate::Result<&'static dyn HolidayCalendar> {
+    if id.contains('+') {
+        return joint_calendar(id);
+    }
     calendar_by_id(id)
         .ok_or_else(|| crate::Error::calendar_not_found_with_suggestions(id, available_calendars()))
 }
 
-/// Shared calendar that treats only Saturdays and Sundays as non-business days.
+/// Interned union calendars keyed by their normalized `a+b` identifier.
 ///
-/// This is the explicit fallback for APIs whose calendar identifier is optional.
-pub static WEEKENDS_ONLY: Calendar = Calendar::new("weekends_only", "Weekends Only", true, &[]);
+/// Composite calendars borrow their members, so a `'static` handle needs a
+/// `'static` member slice; leaking one boxed composite per distinct
+/// combination is bounded by the number of combinations a process ever asks
+/// for and keeps the resolver signature identical for built-in and joint ids.
+static JOINT_CALENDARS: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<String, &'static dyn HolidayCalendar>>,
+> = std::sync::OnceLock::new();
+
+/// Resolve a `+`-joined identifier such as `"nyse+gblo"` to a union calendar.
+///
+/// Members are trimmed, lower-cased, sorted and de-duplicated, so
+/// `"GBLO + nyse"` and `"nyse+gblo"` share one interned composite; a single
+/// distinct member resolves to that built-in calendar directly.
+fn joint_calendar(id: &str) -> crate::Result<&'static dyn HolidayCalendar> {
+    let mut parts: Vec<String> = id
+        .split('+')
+        .map(|p| p.trim().to_ascii_lowercase())
+        .filter(|p| !p.is_empty())
+        .collect();
+    parts.sort_unstable();
+    parts.dedup();
+    if parts.is_empty() {
+        return Err(crate::Error::calendar_not_found_with_suggestions(
+            id,
+            available_calendars(),
+        ));
+    }
+    let members = parts
+        .iter()
+        .map(|p| {
+            calendar_by_id(p).ok_or_else(|| {
+                crate::Error::calendar_not_found_with_suggestions(p, available_calendars())
+            })
+        })
+        .collect::<crate::Result<Vec<&'static dyn HolidayCalendar>>>()?;
+    if let [single] = members.as_slice() {
+        return Ok(*single);
+    }
+    let key = parts.join("+");
+    let mut interned = JOINT_CALENDARS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(existing) = interned.get(&key) {
+        return Ok(*existing);
+    }
+    let member_slice: &'static [&'static dyn HolidayCalendar] =
+        Box::leak(members.into_boxed_slice());
+    let composite: &'static CompositeCalendar<'static> =
+        Box::leak(Box::new(CompositeCalendar::new(member_slice)));
+    interned.insert(key, composite);
+    Ok(composite)
+}
 
 /// Resolve typed calendar identifiers strictly and preserve their input order.
 ///
@@ -166,4 +223,31 @@ pub fn calendars_by_ids(
     ids.iter()
         .map(|id| calendar_by_id_strict(id.as_str()))
         .collect()
+}
+
+#[cfg(test)]
+mod joint_tests {
+    use super::*;
+    use time::macros::date;
+
+    #[test]
+    fn joint_id_resolves_to_union_calendar_and_is_interned() {
+        // 2025-07-04 (US Independence Day): NYSE holiday, GBLO business day.
+        let july4 = date!(2025 - 07 - 04);
+        let joint = calendar_by_id_strict("nyse+gblo").expect("joint");
+        assert!(!joint.is_business_day(july4));
+        assert!(calendar_by_id_strict("gblo")
+            .expect("gblo")
+            .is_business_day(july4));
+        // 2025-08-25 (UK Summer bank holiday): GBLO holiday, NYSE open.
+        assert!(!joint.is_business_day(date!(2025 - 08 - 25)));
+
+        let same = calendar_by_id_strict("GBLO + nyse").expect("normalized");
+        assert!(std::ptr::eq(
+            joint as *const dyn HolidayCalendar as *const u8,
+            same as *const dyn HolidayCalendar as *const u8
+        ));
+        assert!(calendar_by_id_strict("nyse+bogus").is_err());
+        assert!(calendar_by_id_strict("+").is_err());
+    }
 }

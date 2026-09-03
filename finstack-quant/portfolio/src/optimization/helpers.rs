@@ -6,7 +6,7 @@
 
 use super::{
     Constraint, DefaultLpOptimizer, MissingMetricPolicy, Objective, PortfolioOptimizationProblem,
-    PortfolioOptimizationResult, WeightingScheme,
+    PortfolioOptimizationResult, TradeUniverse, WeightingScheme,
 };
 use crate::error::Result;
 use crate::portfolio::{Portfolio, PortfolioSpec};
@@ -40,10 +40,48 @@ pub struct PortfolioOptimizationSpec {
     /// Optional label for auditability.
     #[serde(default)]
     pub label: Option<String>,
+    /// Optional trade universe (tradeable/held filters and candidate
+    /// additions). `None` means every existing position is tradeable and no
+    /// candidates are considered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trade_universe: Option<TradeUniverse>,
 }
 
 fn default_weighting() -> WeightingScheme {
     WeightingScheme::ValueWeight
+}
+
+impl PortfolioOptimizationSpec {
+    /// Create a spec with the Rust defaults (no constraints, value weighting,
+    /// zero missing-metric policy, no label, full trade universe).
+    ///
+    /// # Arguments
+    ///
+    /// * `portfolio` - Serializable portfolio specification to optimize.
+    /// * `objective` - Optimization objective.
+    #[must_use]
+    pub fn new(portfolio: PortfolioSpec, objective: Objective) -> Self {
+        Self {
+            portfolio,
+            objective,
+            constraints: Vec::new(),
+            weighting: WeightingScheme::ValueWeight,
+            missing_metric_policy: MissingMetricPolicy::Zero,
+            label: None,
+            trade_universe: None,
+        }
+    }
+
+    /// Restrict the optimizer to a trade universe.
+    ///
+    /// # Arguments
+    ///
+    /// * `universe` - Tradeable/held filters plus candidate additions.
+    #[must_use]
+    pub fn with_trade_universe(mut self, universe: TradeUniverse) -> Self {
+        self.trade_universe = Some(universe);
+        self
+    }
 }
 
 /// Run portfolio optimization from a JSON-friendly spec.
@@ -78,6 +116,9 @@ pub fn optimize_from_spec(
     problem.missing_metric_policy = spec.missing_metric_policy;
     problem.label = spec.label.clone();
     problem.constraints.extend(spec.constraints.iter().cloned());
+    if let Some(universe) = &spec.trade_universe {
+        problem = problem.with_trade_universe(universe.clone());
+    }
 
     let optimizer = DefaultLpOptimizer;
     optimizer.optimize(&problem, market, config)

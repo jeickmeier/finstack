@@ -83,7 +83,7 @@
 pub(crate) mod dataframe;
 mod valuation_result;
 
-pub use dataframe::ValuationRow;
+pub use dataframe::{ValuationLongRow, ValuationRow};
 pub use finstack_quant_core::config::ResultsMeta;
 pub use valuation_result::{
     CreditDerivativeValuationDetails, FxValuationDetails, MonteCarloValuationDetails,

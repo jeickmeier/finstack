@@ -1040,7 +1040,7 @@ pub struct PvCreditAdjustment<'a> {
 /// Discount source for periodized PV aggregation.
 ///
 /// Callers holding resolved curve handles use [`Self::Discount`] directly;
-/// [`CashFlowSchedule::pv_by_period_with_market`] resolves the handles from a
+/// [`CashFlowSchedule::pv_by_period`] resolves the handles from a
 /// [`MarketContext`] first.
 #[derive(Clone, Copy)]
 pub enum PvDiscountSource<'a> {
@@ -1092,7 +1092,7 @@ impl CashFlowSchedule {
     ///     disc: &dyn Discounting,
     ///     base: Date,
     /// ) -> finstack_quant_core::Result<()> {
-    ///     let pv = schedule.pv_by_period(
+    ///     let pv = schedule.pv_by_period_with_discounting(
     ///         periods,
     ///         PvDiscountSource::Discount { disc, credit: None },
     ///         DateContext::new(base, DayCount::Act365F, DayCountContext::default()),
@@ -1102,7 +1102,7 @@ impl CashFlowSchedule {
     ///     Ok(())
     /// }
     /// ```
-    pub fn pv_by_period(
+    pub fn pv_by_period_with_discounting(
         &self,
         periods: &[Period],
         source: PvDiscountSource<'_>,
@@ -1160,7 +1160,7 @@ impl CashFlowSchedule {
     ///
     /// Returns an error if curve lookup fails, day-count conversion fails, or
     /// credit-adjusted inputs are internally inconsistent.
-    pub fn pv_by_period_with_market(
+    pub fn pv_by_period(
         &self,
         periods: &[Period],
         market: &MarketContext,
@@ -1168,9 +1168,9 @@ impl CashFlowSchedule {
         hazard_curve_id: Option<&CurveId>,
         base: Date,
         day_count: Option<DayCount>,
-    ) -> finstack_quant_core::Result<IndexMap<PeriodId, IndexMap<Currency, Money>>> {
+    ) -> finstack_quant_core::Result<crate::aggregation::PeriodAggregation> {
         let curves = resolve_credit_curves(market, disc_curve_id, hazard_curve_id)?;
-        self.pv_by_period(
+        self.pv_by_period_with_discounting(
             periods,
             PvDiscountSource::Discount {
                 disc: curves.discounting(),
@@ -1185,6 +1185,67 @@ impl CashFlowSchedule {
                 DayCountContext::default(),
             ),
         )
+        .map(crate::aggregation::PeriodAggregation::from)
+    }
+
+    /// Calendar-year ladder of this schedule's flows against caller-supplied PVs.
+    ///
+    /// Buckets every flow by the Gregorian year of its payment date and sums
+    /// principal-like amounts (`CFKind::is_principal_like`), all other amounts,
+    /// and the supplied present values per year. Amounts are taken in native
+    /// currency units without FX conversion.
+    ///
+    /// # Arguments
+    ///
+    /// * `pvs` - Present value of each flow, one entry per flow in
+    ///   [`Self::get_flows`] order and in the same currency units as the flow
+    ///   amounts; must be finite.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when `pvs` does not
+    /// have one entry per flow or contains a non-finite value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_cashflows::builder::{CashFlowSchedule, FixedCouponSpec, CouponType, ScheduleParams};
+    /// use finstack_quant_core::{currency::Currency, dates::Date, money::Money};
+    /// use rust_decimal_macros::dec;
+    /// use time::Month;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let schedule = CashFlowSchedule::builder()
+    ///     .principal(
+    ///         Money::new(1_000_000.0, Currency::USD),
+    ///         Date::from_calendar_date(2025, Month::January, 15)?,
+    ///         Date::from_calendar_date(2026, Month::January, 15)?,
+    ///     )
+    ///     .fixed_cf(FixedCouponSpec {
+    ///         coupon_type: CouponType::Cash,
+    ///         rate: dec!(0.05),
+    ///         schedule: ScheduleParams::semiannual_30360(),
+    ///     })
+    ///     .build(None)?;
+    /// let pvs: Vec<f64> = schedule.get_flows().iter().map(|f| f.amount.amount()).collect();
+    /// let ladder = schedule.calendar_year_ladder(&pvs)?;
+    /// assert_eq!(ladder.first().map(|row| row.year), Some(2025));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn calendar_year_ladder(
+        &self,
+        pvs: &[f64],
+    ) -> finstack_quant_core::Result<Vec<crate::aggregation::CalendarYearLadderRow>> {
+        let dates: Vec<Date> = self.flows.iter().map(|flow| flow.date).collect();
+        let labels: Vec<String> = self
+            .flows
+            .iter()
+            .map(|flow| flow.kind.to_string())
+            .collect();
+        let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+        let amounts: Vec<f64> = self.flows.iter().map(|flow| flow.amount.amount()).collect();
+        crate::aggregation::calendar_year_ladder(&dates, &label_refs, &amounts, pvs)
     }
 }
 

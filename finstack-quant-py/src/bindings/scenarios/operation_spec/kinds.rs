@@ -1,271 +1,159 @@
 //! Supporting enum wrappers for scenario operations.
+//!
+//! Each wrapper exposes one classmethod per Rust variant, a constructor from
+//! the canonical snake-case wire label, ``name`` / ``value`` accessors, and
+//! value semantics (``==`` / ``hash``).
 
-use crate::errors::display_to_py;
 use finstack_quant_scenarios::spec::{Compounding, CurveKind, TenorMatchMode, TimeRollMode};
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
-/// Type of market curve targeted by a scenario operation.
-///
-/// Mirrors [`finstack_quant_scenarios::CurveKind`]. Serde renames `forward` and
-/// `par_cds` are preserved on the JSON wire format.
-#[pyclass(
-    name = "CurveKind",
-    module = "finstack_quant.scenarios",
-    eq,
-    hash,
-    frozen,
-    from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PyCurveKind {
-    pub(crate) inner: CurveKind,
+use super::helpers::{enum_to_label, label_to_enum};
+
+macro_rules! scenario_enum {
+    (
+        $(#[$meta:meta])*
+        $py_name:literal, $wrapper:ident, $inner:ident, $accepted:literal,
+        { $( $(#[$vmeta:meta])* $method:ident => $variant:ident ),+ $(,)? }
+    ) => {
+        $(#[$meta])*
+        #[pyclass(
+            name = $py_name,
+            module = "finstack_quant.scenarios",
+            eq,
+            hash,
+            frozen,
+            from_py_object
+        )]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub struct $wrapper {
+            pub(crate) inner: $inner,
+        }
+
+        #[pymethods]
+        impl $wrapper {
+            #[new]
+            fn new(label: &str) -> PyResult<Self> {
+                Ok(Self {
+                    inner: label_to_enum::<$inner>($py_name, label, $accepted)?,
+                })
+            }
+
+            $(
+                $(#[$vmeta])*
+                #[classmethod]
+                fn $method(_cls: &Bound<'_, PyType>) -> Self {
+                    Self { inner: $inner::$variant }
+                }
+            )+
+
+            /// Rust variant name, e.g. ``"Discount"``.
+            #[getter]
+            fn name(&self) -> String {
+                format!("{:?}", self.inner)
+            }
+
+            /// Serialized wire label, e.g. ``"discount"`` or ``"par_cds"``.
+            #[getter]
+            fn value(&self) -> PyResult<String> {
+                enum_to_label(&self.inner)
+            }
+
+            fn __repr__(&self) -> String {
+                format!("{}.{:?}", $py_name, self.inner)
+            }
+        }
+    };
 }
 
-#[pymethods]
-impl PyCurveKind {
-    /// Discount factor curve.
-    #[classmethod]
-    fn discount(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: CurveKind::Discount,
-        }
+scenario_enum!(
+    /// Type of market curve targeted by a scenario operation.
+    ///
+    /// Construct from a wire label (``CurveKind("par_cds")``) or a classmethod
+    /// (``CurveKind.par_cds()``); every ``OperationSpec`` constructor accepts
+    /// either form.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.scenarios import CurveKind
+    /// >>> CurveKind("par_cds") == CurveKind.par_cds()
+    /// True
+    /// >>> CurveKind.discount().value
+    /// 'discount'
+    "CurveKind", PyCurveKind, CurveKind, "discount, forward, par_cds, inflation, commodity",
+    {
+        /// Discount factor curve.
+        discount => Discount,
+        /// Forward rate curve.
+        forward => Forward,
+        /// Par CDS spread curve.
+        par_cds => ParCDS,
+        /// Inflation index curve.
+        inflation => Inflation,
+        /// Commodity forward (price) curve. Basis-point shocks on this kind are
+        /// interpreted as percent of the forward, not additive bp.
+        commodity => Commodity,
     }
+);
 
-    /// Forward rate curve.
-    #[classmethod]
-    fn forward(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: CurveKind::Forward,
-        }
+scenario_enum!(
+    /// Tenor-pillar alignment strategy for curve-node operations.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.scenarios import TenorMatchMode
+    /// >>> TenorMatchMode("interpolate") == TenorMatchMode.interpolate()
+    /// True
+    "TenorMatchMode", PyTenorMatchMode, TenorMatchMode, "exact, interpolate",
+    {
+        /// Match the exact pillar only (errors if missing).
+        exact => Exact,
+        /// Interpolate the bump across adjacent knots.
+        interpolate => Interpolate,
     }
+);
 
-    /// Par CDS spread curve.
-    #[classmethod]
-    fn par_cds(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: CurveKind::ParCDS,
-        }
+scenario_enum!(
+    /// Calendar-vs-business-day semantics for time-roll operations.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.scenarios import TimeRollMode
+    /// >>> TimeRollMode("calendar_days").value
+    /// 'calendar_days'
+    "TimeRollMode", PyTimeRollMode, TimeRollMode, "business_days, calendar_days, approximate",
+    {
+        /// Business-day-aware roll (respects calendars when provided).
+        business_days => BusinessDays,
+        /// Pure calendar-day arithmetic.
+        calendar_days => CalendarDays,
+        /// Approximate day-count mode (non-additive across successive rolls).
+        approximate => Approximate,
     }
+);
 
-    /// Inflation index curve.
-    #[classmethod]
-    fn inflation(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: CurveKind::Inflation,
-        }
+scenario_enum!(
+    /// Compounding convention for rate-extraction operations.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.scenarios import Compounding
+    /// >>> Compounding("annual") == Compounding.annual()
+    /// True
+    "Compounding", PyCompounding, Compounding,
+    "simple, continuous, annual, semi_annual, quarterly, monthly",
+    {
+        /// Simple interest (no compounding).
+        simple => Simple,
+        /// Continuous compounding (default).
+        continuous => Continuous,
+        /// Annual compounding.
+        annual => Annual,
+        /// Semi-annual compounding.
+        semi_annual => SemiAnnual,
+        /// Quarterly compounding.
+        quarterly => Quarterly,
+        /// Monthly compounding.
+        monthly => Monthly,
     }
-
-    /// Commodity forward curve.
-    #[classmethod]
-    fn commodity(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: CurveKind::Commodity,
-        }
-    }
-
-    /// Variant name, e.g. ``"Discount"``.
-    #[getter]
-    fn name(&self) -> String {
-        format!("{:?}", self.inner)
-    }
-
-    /// Serialized wire value, e.g. ``"discount"`` or ``"par_cds"``.
-    #[getter]
-    fn value(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner)
-            .map(|s| s.trim_matches('"').to_string())
-            .map_err(display_to_py)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("CurveKind.{:?}", self.inner)
-    }
-}
-
-/// Tenor-pillar alignment strategy for curve-node operations.
-#[pyclass(
-    name = "TenorMatchMode",
-    module = "finstack_quant.scenarios",
-    eq,
-    hash,
-    frozen,
-    from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PyTenorMatchMode {
-    pub(crate) inner: TenorMatchMode,
-}
-
-#[pymethods]
-impl PyTenorMatchMode {
-    /// Match exact pillar only (errors if missing).
-    #[classmethod]
-    fn exact(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: TenorMatchMode::Exact,
-        }
-    }
-
-    /// Interpolate the bump across adjacent knots.
-    #[classmethod]
-    fn interpolate(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: TenorMatchMode::Interpolate,
-        }
-    }
-
-    #[getter]
-    fn name(&self) -> String {
-        format!("{:?}", self.inner)
-    }
-
-    #[getter]
-    fn value(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner)
-            .map(|s| s.trim_matches('"').to_string())
-            .map_err(display_to_py)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("TenorMatchMode.{:?}", self.inner)
-    }
-}
-
-/// Calendar-vs-business-day semantics for time-roll operations.
-#[pyclass(
-    name = "TimeRollMode",
-    module = "finstack_quant.scenarios",
-    eq,
-    hash,
-    frozen,
-    from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PyTimeRollMode {
-    pub(crate) inner: TimeRollMode,
-}
-
-#[pymethods]
-impl PyTimeRollMode {
-    /// Business-day-aware roll (respects calendars when provided).
-    #[classmethod]
-    fn business_days(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: TimeRollMode::BusinessDays,
-        }
-    }
-
-    /// Pure calendar-day arithmetic.
-    #[classmethod]
-    fn calendar_days(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: TimeRollMode::CalendarDays,
-        }
-    }
-
-    /// Approximate day-count mode (see Rust docs for non-additivity caveats).
-    #[classmethod]
-    fn approximate(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: TimeRollMode::Approximate,
-        }
-    }
-
-    #[getter]
-    fn name(&self) -> String {
-        format!("{:?}", self.inner)
-    }
-
-    #[getter]
-    fn value(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner)
-            .map(|s| s.trim_matches('"').to_string())
-            .map_err(display_to_py)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("TimeRollMode.{:?}", self.inner)
-    }
-}
-
-/// Compounding convention for rate-extraction operations.
-#[pyclass(
-    name = "Compounding",
-    module = "finstack_quant.scenarios",
-    eq,
-    hash,
-    frozen,
-    from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PyCompounding {
-    pub(crate) inner: Compounding,
-}
-
-#[pymethods]
-impl PyCompounding {
-    /// Simple interest (no compounding).
-    #[classmethod]
-    fn simple(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: Compounding::Simple,
-        }
-    }
-
-    /// Continuous compounding (default).
-    #[classmethod]
-    fn continuous(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: Compounding::Continuous,
-        }
-    }
-
-    /// Annual compounding.
-    #[classmethod]
-    fn annual(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: Compounding::Annual,
-        }
-    }
-
-    /// Semi-annual compounding.
-    #[classmethod]
-    fn semi_annual(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: Compounding::SemiAnnual,
-        }
-    }
-
-    /// Quarterly compounding.
-    #[classmethod]
-    fn quarterly(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: Compounding::Quarterly,
-        }
-    }
-
-    /// Monthly compounding.
-    #[classmethod]
-    fn monthly(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: Compounding::Monthly,
-        }
-    }
-
-    #[getter]
-    fn name(&self) -> String {
-        format!("{:?}", self.inner)
-    }
-
-    #[getter]
-    fn value(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner)
-            .map(|s| s.trim_matches('"').to_string())
-            .map_err(display_to_py)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("Compounding.{:?}", self.inner)
-    }
-}
+);

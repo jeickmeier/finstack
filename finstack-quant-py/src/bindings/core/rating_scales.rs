@@ -11,10 +11,21 @@ use finstack_quant_core::rating_scales::{
     embedded_registry, registry_from_config, RatingLevel, RatingScaleRegistry, ScorecardScale,
     UnknownScalePolicy, RATING_SCALES_EXTENSION_KEY,
 };
+use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule, PyType};
+use pyo3::types::{PyIterator, PyList, PyModule, PyType};
 
-/// Wrapper for [`UnknownScalePolicy`].
+/// Policy applied when a scorecard names an unknown rating scale.
+///
+/// Enum-style class: ``ERROR`` rejects unknown names, ``FALLBACK_TO_DEFAULT``
+/// resolves them to the registry's default scale, and ``WARN_AND_FALLBACK``
+/// does the same while leaving warning emission to the caller.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.rating_scales import UnknownScalePolicy
+/// >>> UnknownScalePolicy.from_name("error") == UnknownScalePolicy.ERROR
+/// True
 #[pyclass(
     module = "finstack_quant.core.rating_scales",
     name = "UnknownScalePolicy",
@@ -54,8 +65,9 @@ impl PyUnknownScalePolicy {
         inner: UnknownScalePolicy::WarnAndFallback,
     };
 
-    /// Parse a policy name (``error``, ``fallback_to_default``,
-    /// ``warn_and_fallback``) from its exact snake_case value.
+    /// Parse a policy from its exact lowercase snake_case name
+    /// (case-sensitive): ``"error"``, ``"fallback_to_default"``,
+    /// ``"warn_and_fallback"``. Raises ``ValueError`` otherwise.
     #[classmethod]
     #[pyo3(text_signature = "(cls, name)")]
     fn from_name(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<Self> {
@@ -73,7 +85,7 @@ impl PyUnknownScalePolicy {
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
-            "UnknownScalePolicy({})",
+            "UnknownScalePolicy({:?})",
             self.name().unwrap_or_else(|_| "?".to_string())
         )
     }
@@ -110,7 +122,27 @@ impl PyUnknownScalePolicy {
     }
 }
 
-/// Wrapper for [`RatingLevel`].
+/// A single rating threshold row on a scorecard scale.
+///
+/// Parameters
+/// ----------
+/// name : str
+///     Rating label (``"BBB+"``, ``"Baa1"``); must not be blank.
+/// score : float
+///     Representative score on the inclusive 0-100 scorecard scale.
+/// min_score : float
+///     Minimum score (inclusive 0-100) that qualifies for this rating.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If *name* is blank or either score is non-finite or outside 0-100.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.rating_scales import RatingLevel
+/// >>> RatingLevel("BBB", 70.0, 65.0).min_score
+/// 65.0
 #[pyclass(
     module = "finstack_quant.core.rating_scales",
     name = "RatingLevel",
@@ -131,15 +163,15 @@ impl PyRatingLevel {
 
 #[pymethods]
 impl PyRatingLevel {
+    /// Construct and validate a rating level from its name and score
+    /// thresholds. Raises ``ValueError`` on a blank name or a score outside
+    /// the inclusive 0-100 range.
     #[new]
     #[pyo3(text_signature = "(name, score, min_score)")]
-    /// Construct a rating level from its name and score thresholds.
-    fn new(name: String, score: f64, min_score: f64) -> Self {
-        Self::from_inner(RatingLevel {
-            name,
-            score,
-            min_score,
-        })
+    fn new(name: String, score: f64, min_score: f64) -> PyResult<Self> {
+        RatingLevel::try_new(name, score, min_score)
+            .map(Self::from_inner)
+            .map_err(core_to_py)
     }
 
     /// Rating name (e.g. ``"AAA"`` or ``"Aaa"``).
@@ -166,6 +198,18 @@ impl PyRatingLevel {
             "RatingLevel(name={:?}, score={}, min_score={})",
             self.inner.name, self.inner.score, self.inner.min_score
         )
+    }
+
+    /// Structural equality on name, score and min_score.
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        other
+            .extract::<PyRef<'_, PyRatingLevel>>()
+            .map(|rhs| {
+                self.inner.name == rhs.inner.name
+                    && self.inner.score == rhs.inner.score
+                    && self.inner.min_score == rhs.inner.min_score
+            })
+            .unwrap_or(false)
     }
 
     /// Serialize to a JSON string.
@@ -195,7 +239,34 @@ impl PyRatingLevel {
     }
 }
 
-/// Wrapper for [`ScorecardScale`].
+/// A named, ordered (best-to-worst) list of scorecard rating thresholds.
+///
+/// Distinct from ``finstack_quant.models.credit.migration.RatingScale``, which
+/// models the state set of a migration matrix. Supports ``len(scale)``,
+/// iteration and indexing over its ``RatingLevel`` rows.
+///
+/// Parameters
+/// ----------
+/// scale_name : str
+///     Scale identifier (``"S&P"``, ``"Moody's"``).
+/// ratings : list[RatingLevel]
+///     Levels ordered best-to-worst; ``score`` and ``min_score`` must strictly
+///     descend and names must be unique.
+/// description : str | None
+///     Optional human-readable description.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If *ratings* is empty, contains duplicate names, or is not strictly
+///     ordered best-to-worst.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.rating_scales import RatingLevel, ScorecardScale
+/// >>> scale = ScorecardScale("custom", [RatingLevel("A", 90.0, 85.0), RatingLevel("B", 70.0, 65.0)])
+/// >>> [level.name for level in scale]
+/// ['A', 'B']
 #[pyclass(
     module = "finstack_quant.core.rating_scales",
     name = "ScorecardScale",
@@ -216,20 +287,21 @@ impl PyScorecardScale {
 
 #[pymethods]
 impl PyScorecardScale {
+    /// Construct and validate a scorecard scale. Raises ``ValueError`` if
+    /// ``ratings`` is empty, has duplicate names, or is not strictly ordered
+    /// best-to-worst.
     #[new]
     #[pyo3(signature = (scale_name, ratings, description = None))]
-    /// Construct a scorecard scale.
+    #[pyo3(text_signature = "(scale_name, ratings, description=None)")]
     fn new(
         scale_name: String,
         ratings: Vec<PyRef<'_, PyRatingLevel>>,
         description: Option<String>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let levels: Vec<RatingLevel> = ratings.iter().map(|r| r.inner.clone()).collect();
-        Self::from_inner(ScorecardScale {
-            scale_name,
-            description,
-            ratings: levels,
-        })
+        ScorecardScale::try_new(scale_name, description, levels)
+            .map(Self::from_inner)
+            .map_err(core_to_py)
     }
 
     /// Scale name (e.g. ``"S&P"`` or ``"Moody's"``).
@@ -260,12 +332,53 @@ impl PyScorecardScale {
         self.inner.ratings.len()
     }
 
+    /// ``scale[i]`` — the ``i``-th rating level (negative indices supported).
+    fn __getitem__(&self, index: isize) -> PyResult<PyRatingLevel> {
+        let len = self.inner.ratings.len() as isize;
+        let resolved = if index < 0 { index + len } else { index };
+        if resolved < 0 || resolved >= len {
+            return Err(PyIndexError::new_err("ScorecardScale index out of range"));
+        }
+        Ok(PyRatingLevel::from_inner(
+            self.inner.ratings[resolved as usize].clone(),
+        ))
+    }
+
+    /// Iterate over rating levels best-to-worst.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        let levels = PyList::new(py, self.ratings())?;
+        levels.into_any().try_iter()
+    }
+
+    /// Structural equality on name, description and ratings.
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(rhs) = other.extract::<PyRef<'_, PyScorecardScale>>() else {
+            return Ok(false);
+        };
+        Ok(self.to_json()? == rhs.to_json()?)
+    }
+
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
             "ScorecardScale(scale_name={:?}, ratings={})",
             self.inner.scale_name,
             self.inner.ratings.len()
+        )
+    }
+
+    /// Rating levels as a pandas ``DataFrame`` with columns
+    /// ``name``, ``score``, ``min_score`` (one row per level, best first).
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema(
+            py,
+            &self.inner.ratings,
+            &[
+                ("name", "str"),
+                ("score", "float64"),
+                ("min_score", "float64"),
+            ],
         )
     }
 
@@ -296,7 +409,18 @@ impl PyScorecardScale {
     }
 }
 
-/// Wrapper for [`RatingScaleRegistry`].
+/// Versioned registry of scorecard rating scales and defaults.
+///
+/// Obtain one via ``embedded_registry()`` (the bundled default) or
+/// ``registry_from_config(config)``; resolve scales by id or alias with
+/// ``rating_scale(name)``.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.rating_scales import embedded_registry
+/// >>> registry = embedded_registry()
+/// >>> registry.rating_scale("Fitch").scale_name
+/// 'S&P'
 #[pyclass(
     module = "finstack_quant.core.rating_scales",
     name = "RatingScaleRegistry",
@@ -335,13 +459,23 @@ impl PyRatingScaleRegistry {
         PyUnknownScalePolicy::from_inner(self.inner.unknown_scale_policy())
     }
 
+    /// Primary id of every registered scale, in registry order (aliases excluded).
+    #[pyo3(text_signature = "(self)")]
+    fn scale_ids(&self) -> Vec<String> {
+        self.inner
+            .scale_ids()
+            .into_iter()
+            .map(str::to_string)
+            .collect()
+    }
+
     /// Return ``True`` if ``name`` is a known scale id or alias.
     #[pyo3(text_signature = "(self, name)")]
     fn is_known_rating_scale(&self, name: &str) -> bool {
         self.inner.is_known_rating_scale(name)
     }
 
-    /// Resolve a scale name or alias to a [`ScorecardScale`].
+    /// Resolve a scale name or alias to a ``ScorecardScale``.
     ///
     /// Honours the registry's unknown-scale policy: depending on the policy
     /// this may fall back to the default scale or raise ``ValueError``.
@@ -360,6 +494,14 @@ impl PyRatingScaleRegistry {
             self.inner.default_scale_id(),
             self.inner.default_scorecard_score()
         )
+    }
+
+    /// Structural equality via the JSON wire form.
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(rhs) = other.extract::<PyRef<'_, PyRatingScaleRegistry>>() else {
+            return Ok(false);
+        };
+        Ok(self.to_json()? == rhs.to_json()?)
     }
 
     /// Serialize the registry to a JSON string.
@@ -398,7 +540,7 @@ fn py_embedded_registry() -> PyResult<PyRatingScaleRegistry> {
         .map_err(core_to_py)
 }
 
-/// Load a rating-scale registry from a [`FinstackConfig`].
+/// Load a rating-scale registry from a ``FinstackConfig``.
 ///
 /// Falls back to the embedded registry when the config does not override the
 /// ``core.rating_scales.v1`` extension key.

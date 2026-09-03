@@ -12,6 +12,17 @@ use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use time::Month;
 
+#[test]
+fn flat_forward_curve_quotes_rate_everywhere() {
+    let curve = ForwardCurve::flat("USD-SOFR-3M", 0.25, test_date(), 0.04).expect("valid flat");
+    assert!((curve.rate(0.0) - 0.04).abs() < 1e-12);
+    assert!((curve.rate(0.5) - 0.04).abs() < 1e-12);
+    assert!((curve.rate(10.0) - 0.04).abs() < 1e-12);
+    assert!((curve.tenor() - 0.25).abs() < 1e-12);
+    assert!(ForwardCurve::flat("BAD", 0.0, test_date(), 0.04).is_err());
+    assert!(ForwardCurve::flat("BAD", 0.25, test_date(), f64::NAN).is_err());
+}
+
 fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
 }

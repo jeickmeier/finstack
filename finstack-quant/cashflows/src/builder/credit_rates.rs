@@ -24,8 +24,8 @@
 ///
 /// # Errors
 ///
-/// Returns `InputError::NegativeValue` if CPR is negative and
-/// `InputError::Invalid` if CPR is non-finite or above 100%.
+/// Returns `Error::Validation("cpr must be a decimal in [0,1]; got …")` if
+/// CPR is negative, non-finite, or above 100%.
 ///
 /// # Examples
 ///
@@ -45,21 +45,7 @@
 /// assert!(cpr_to_smm(-0.05).is_err());
 /// ```
 pub fn cpr_to_smm(cpr: f64) -> finstack_quant_core::Result<f64> {
-    if !cpr.is_finite() {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::Invalid,
-        ));
-    }
-    if cpr < 0.0 {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::NegativeValue,
-        ));
-    }
-    if cpr > 1.0 {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::Invalid,
-        ));
-    }
+    check_unit_interval("cpr", cpr)?;
     if cpr == 0.0 {
         return Ok(0.0);
     }
@@ -85,8 +71,8 @@ pub fn cpr_to_smm(cpr: f64) -> finstack_quant_core::Result<f64> {
 ///
 /// # Errors
 ///
-/// Returns `InputError::NegativeValue` for negative inputs and
-/// `InputError::Invalid` for values above `1.0`.
+/// Returns `Error::Validation("smm must be a decimal in [0,1]; got …")` for
+/// negative, non-finite, or above-`1.0` inputs.
 ///
 /// # Examples
 ///
@@ -100,25 +86,22 @@ pub fn cpr_to_smm(cpr: f64) -> finstack_quant_core::Result<f64> {
 /// assert!((cpr - cpr_back).abs() < 1e-10);
 /// ```
 pub fn smm_to_cpr(smm: f64) -> finstack_quant_core::Result<f64> {
-    if !smm.is_finite() {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::Invalid,
-        ));
-    }
-    if smm < 0.0 {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::NegativeValue,
-        ));
-    }
-    if smm > 1.0 {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::Invalid,
-        ));
-    }
+    check_unit_interval("smm", smm)?;
     if smm == 0.0 {
         return Ok(0.0);
     }
     Ok(1.0 - (1.0 - smm).powi(12))
+}
+
+/// Reject non-finite or out-of-range mortality rates with a self-describing
+/// message (`<name> must be a decimal in [0,1]; got <value>`).
+fn check_unit_interval(name: &str, value: f64) -> finstack_quant_core::Result<()> {
+    if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{name} must be a decimal in [0,1]; got {value}"
+        )));
+    }
+    Ok(())
 }
 
 /// Convert annual CDR (constant default rate) to monthly MDR.

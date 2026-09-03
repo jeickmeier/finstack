@@ -19,9 +19,12 @@ True
 from __future__ import annotations
 
 import datetime
-
-import pandas as pd
+from collections.abc import Mapping
 from typing import Any
+
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
 
 class CreditFactorModel:
     """
@@ -33,18 +36,16 @@ class CreditFactorModel:
     Examples
     --------
     >>> from finstack_quant.models.factor.credit import CreditCalibrator, CreditFactorModel
-    >>> config_json = (
-    ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
-    ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
-    ... )
-    >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
-    ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
-    ...     '"idiosyncratic_overrides":{}}'
-    ... )
-    >>> calibrated = CreditCalibrator(config_json).calibrate(inputs_json)
+    >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+    >>> inputs = {
+    ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+    ...     "issuer_tags": {"tags": {"A": {}}},
+    ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+    ...     "as_of": "2024-02-01",
+    ...     "as_of_spreads": {"A": 0.0101},
+    ...     "idiosyncratic_overrides": {},
+    ... }
+    >>> calibrated = CreditCalibrator(config).calibrate(inputs)
     >>> CreditFactorModel.from_json(calibrated.to_json()).schema
     'finstack_quant.credit_factor_model/1'
     """
@@ -176,6 +177,172 @@ class CreditFactorModel:
         """
         ...
 
+    @property
+    def calibration_window(self) -> tuple[datetime.date, datetime.date]:
+        """
+        History window consumed by calibration.
+
+        Returns
+        -------
+        tuple[datetime.date, datetime.date]
+            ``(start, end)`` of the calibration panel, both inclusive.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def policy(self) -> str:
+        """
+        Issuer-beta policy used during calibration.
+
+        Returns
+        -------
+        str
+            Serde label such as ``"globally_off"`` or ``"globally_on"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def panel_frequency(self) -> str:
+        """
+        Panel observation frequency that fixed the annualization factor.
+
+        Returns
+        -------
+        str
+            ``"daily"``, ``"monthly"`` or ``"quarterly"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def bucket_weighting(self) -> str:
+        """
+        Bucket-mean weighting used at calibration.
+
+        Returns
+        -------
+        str
+            ``"equal"`` or ``"dts"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def config(self) -> FactorModelConfig:
+        """
+        Point-in-time factor-model configuration embedded in the artifact.
+
+        Returns
+        -------
+        FactorModelConfig
+            Factors, covariance and matching rules used for point-in-time risk.
+
+        Notes
+        -----
+        This accessor does not raise; it returns a copy of the stored value.
+        """
+        ...
+
+    @property
+    def covariance(self) -> FactorCovarianceMatrix:
+        """
+        Point-in-time factor covariance matrix (``config.covariance``).
+
+        Returns
+        -------
+        FactorCovarianceMatrix
+            Annualized covariance aligned with ``factor_ids()``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns a copy of the stored value.
+        """
+        ...
+
+    @property
+    def diagnostics(self) -> dict[str, Any]:
+        """
+        Structured calibration diagnostics.
+
+        Returns
+        -------
+        dict[str, Any]
+            Canonical serde fields: ``mode_counts``, ``bucket_sizes_per_level``,
+            ``fold_ups`` and, when present, ``r_squared_histogram``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def static_correlation(self) -> dict[str, Any]:
+        """
+        Static factor correlation matrix ``rho`` used by vol forecasting.
+
+        Returns
+        -------
+        dict[str, Any]
+            ``{"factor_ids": [...], "data": [[...], ...]}`` with unit diagonal.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+            Export the per-issuer beta rows as a pandas DataFrame.
+
+            Returns
+            -------
+            pd.DataFrame
+                One row per issuer, sorted by ``issuer_id``. Columns:
+                ``issuer_id``, ``tags`` (dict), ``mode`` (``"issuer_beta"`` /
+                ``"bucket_only"``), ``beta_pc``, ``beta_levels`` (list aligned with
+                ``level_names()``; ``0.0`` marks a folded level), ``adder_at_anchor``
+                (bp), ``adder_vol_annualized`` (bp), ``adder_vol_source``,
+                ``r_squared`` and ``n_obs`` (``NaN`` for bucket-only rows) and
+                ``spread_duration`` (years).
+
+            Raises
+            ------
+            ValueError
+                If a row cannot be serialized.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.factor.credit import CreditCalibrator
+        >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+        >>> inputs = {
+        ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+        ...     "issuer_tags": {"tags": {"A": {}}},
+        ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+        ...     "as_of": "2024-02-01",
+        ...     "as_of_spreads": {"A": 0.0101},
+        ...     "idiosyncratic_overrides": {},
+        ... }
+            >>> list(CreditCalibrator(config).calibrate(inputs).to_dataframe()["issuer_id"])
+            ['A']
+        """
+        ...
+
     def level_names(self) -> list[str]:
         """
         Return hierarchy level names.
@@ -227,51 +394,124 @@ class CreditCalibrator:
     """
     Deterministic calibrator that produces a :class:`CreditFactorModel`.
 
-    Configuration and inputs are JSON strings so callers can work with plain
-    dicts (via ``json.dumps``) without typed wrappers for every sub-field.
+    The configuration is a ``CreditCalibrationConfig`` given as a dict or a
+    JSON string; every field has a default, so a partial dict such as
+    ``{"hierarchy": {"levels": ["rating"]}}`` is accepted, and ``None`` selects
+    the all-defaults configuration.
 
     Examples
     --------
     >>> from finstack_quant.models.factor.credit import CreditCalibrator
-    >>> config_json = (
-    ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
-    ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
-    ... )
-    >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
-    ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
-    ...     '"idiosyncratic_overrides":{}}'
-    ... )
-    >>> CreditCalibrator(config_json).calibrate(inputs_json).n_issuers
+    >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+    >>> inputs = {
+    ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+    ...     "issuer_tags": {"tags": {"A": {}}},
+    ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+    ...     "as_of": "2024-02-01",
+    ...     "as_of_spreads": {"A": 0.0101},
+    ...     "idiosyncratic_overrides": {},
+    ... }
+    >>> CreditCalibrator(config).calibrate(inputs).n_issuers
     1
     """
 
-    def __init__(self, config_json: str) -> None:
+    def __init__(self, config: Mapping[str, Any] | str | None = None) -> None:
         """
-        Construct a calibrator from a JSON configuration.
+        Construct a calibrator from a ``CreditCalibrationConfig``.
 
         Parameters
         ----------
-        config_json : str
-            JSON-encoded ``CreditCalibrationConfig``.
+        config : Mapping[str, Any] | str | None
+            ``CreditCalibrationConfig`` as a dict or JSON string. Omitted
+            fields take their defaults (``policy="globally_off"``, empty
+            hierarchy, ``vol_model="sample"``,
+            ``covariance_strategy="full_sample_repaired"``,
+            ``beta_shrinkage="none"``, ``use_returns_or_levels="returns"``,
+            ``panel_frequency="monthly"``, ``bucket_weighting="dts"``).
+            ``None`` selects the all-defaults configuration.
 
         Raises
         ------
         ValueError
-            If ``config_json`` is not a valid ``CreditCalibrationConfig``.
+            If ``config`` names an unknown field or an invalid enum label.
         """
         ...
 
-    def calibrate(self, inputs_json: str) -> CreditFactorModel:
+    def calibrate(self, inputs: Mapping[str, Any] | str) -> CreditFactorModel:
         """
-        Run calibration and return a validated factor model.
+            Run calibration and return a validated factor model.
+
+            Parameters
+            ----------
+            inputs : Mapping[str, Any] | str
+                ``CreditCalibrationInputs`` as a dict or JSON string:
+                ``history_panel`` (``dates`` + per-issuer decimal spread lists),
+                ``issuer_tags``, ``generic_factor``, ``as_of``, ``as_of_spreads``
+                and optional ``idiosyncratic_overrides`` / ``spread_durations``.
+                Spreads are decimal (``0.01`` = 100 bp).
+
+            Returns
+            -------
+            CreditFactorModel
+                Calibrated hierarchy artifact.
+
+            Raises
+            ------
+            ValueError
+                If ``inputs`` is structurally invalid or calibration rejects the
+                panel (irregular grid, missing tags, bad EWMA lambda, ...).
+
+            Examples
+            --------
+            >>> from finstack_quant.models.factor.credit import CreditCalibrator
+        >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+        >>> inputs = {
+        ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+        ...     "issuer_tags": {"tags": {"A": {}}},
+        ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+        ...     "as_of": "2024-02-01",
+        ...     "as_of_spreads": {"A": 0.0101},
+        ...     "idiosyncratic_overrides": {},
+        ... }
+            >>> CreditCalibrator(config).calibrate(inputs).n_factors
+            1
+        """
+        ...
+
+    @staticmethod
+    def from_dataframe(
+        spreads: pd.DataFrame,
+        tags: Mapping[str, Mapping[str, str]] | pd.DataFrame,
+        generic: pd.Series | list[float],
+        as_of: datetime.date | str | None = None,
+        spread_durations: Mapping[str, float] | pd.Series | None = None,
+        config: Mapping[str, Any] | str | None = None,
+    ) -> CreditFactorModel:
+        """
+        Calibrate straight from pandas objects.
+
+        Builds the ``CreditCalibrationInputs`` from the frames (pure
+        conversion) and runs :meth:`calibrate` under ``config``.
 
         Parameters
         ----------
-        inputs_json : str
-            JSON-encoded ``CreditCalibrationInputs`` (spreads, issuers, etc.).
+        spreads : pd.DataFrame
+            Decimal spreads (``0.01`` = 100 bp) with a date index (sorted,
+            regular grid) and one column per issuer; ``NaN`` marks a gap.
+        tags : Mapping[str, Mapping[str, str]] | pd.DataFrame
+            ``{issuer: {dimension_key: tag}}`` or a DataFrame indexed by
+            issuer with one column per hierarchy dimension (``"rating"``,
+            ``"region"``, ...).
+        generic : pd.Series | list[float]
+            Generic (PC) factor series aligned with ``spreads.index``; a
+            Series' ``name`` becomes the factor name.
+        as_of : datetime.date | str | None
+            Anchor date; defaults to the last index date.
+        spread_durations : Mapping[str, float] | pd.Series | None
+            ``{issuer: years}``; required when ``bucket_weighting="dts"``.
+        config : Mapping[str, Any] | str | None
+            ``CreditCalibrationConfig`` dict / JSON string / ``None`` (see
+            :meth:`__init__`).
 
         Returns
         -------
@@ -281,7 +521,38 @@ class CreditCalibrator:
         Raises
         ------
         ValueError
-            If inputs are invalid or calibration fails.
+            If the frames are misaligned, ``as_of`` is not an index date, or
+            calibration rejects the inputs.
+
+        Examples
+        --------
+        >>> import pandas as pd
+        >>> from finstack_quant.models.factor.credit import CreditCalibrator
+        >>> spreads = pd.DataFrame({"A": [0.010, 0.0101]}, index=["2024-01-01", "2024-02-01"])
+        >>> model = CreditCalibrator.from_dataframe(
+        ...     spreads,
+        ...     {"A": {}},
+        ...     [0.010, 0.0101],
+        ...     config={"covariance_strategy": "diagonal", "bucket_weighting": "equal"},
+        ... )
+        >>> model.n_issuers
+        1
+        """
+        ...
+
+    @property
+    def config(self) -> dict[str, Any]:
+        """
+        The calibration configuration as a dict (canonical serde fields).
+
+        Returns
+        -------
+        dict[str, Any]
+            ``CreditCalibrationConfig`` with every field populated.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -294,19 +565,17 @@ class LevelsAtDate:
     Examples
     --------
     >>> from finstack_quant.models.factor.credit import CreditCalibrator, decompose_levels
-    >>> config_json = (
-    ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
-    ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
-    ... )
-    >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
-    ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
-    ...     '"idiosyncratic_overrides":{}}'
-    ... )
-    >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> levels = decompose_levels(model, '{"A": 0.0105}', 0.010, "2024-03-01")
+    >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+    >>> inputs = {
+    ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+    ...     "issuer_tags": {"tags": {"A": {}}},
+    ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+    ...     "as_of": "2024-02-01",
+    ...     "as_of_spreads": {"A": 0.0101},
+    ...     "idiosyncratic_overrides": {},
+    ... }
+    >>> model = CreditCalibrator(config).calibrate(inputs)
+    >>> levels = decompose_levels(model, {"A": 0.0105}, 0.010, "2024-03-01")
     >>> (levels.date, levels.generic, levels.adder())
     ('2024-03-01', 100.0, {'A': 5.0})
     """
@@ -494,20 +763,18 @@ class PeriodDecomposition:
     Examples
     --------
     >>> from finstack_quant.models.factor.credit import CreditCalibrator, decompose_levels, decompose_period
-    >>> config_json = (
-    ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
-    ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
-    ... )
-    >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
-    ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
-    ...     '"idiosyncratic_overrides":{}}'
-    ... )
-    >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> start = decompose_levels(model, '{"A": 0.0105}', 0.010, "2024-03-01")
-    >>> end = decompose_levels(model, '{"A": 0.01065}', 0.01015, "2024-03-02")
+    >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+    >>> inputs = {
+    ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+    ...     "issuer_tags": {"tags": {"A": {}}},
+    ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+    ...     "as_of": "2024-02-01",
+    ...     "as_of_spreads": {"A": 0.0101},
+    ...     "idiosyncratic_overrides": {},
+    ... }
+    >>> model = CreditCalibrator(config).calibrate(inputs)
+    >>> start = decompose_levels(model, {"A": 0.0105}, 0.010, "2024-03-01")
+    >>> end = decompose_levels(model, {"A": 0.01065}, 0.01015, "2024-03-02")
     >>> period = decompose_period(start, end)
     >>> (period.from_date, period.to_date, period.d_generic)
     ('2024-03-01', '2024-03-02', 1.5)
@@ -741,13 +1008,42 @@ class FactorCovarianceMatrix:
     """
     Validated factor covariance matrix with deterministic row-major storage.
 
+    Entries are annualized covariances in the factors' native units. The
+    constructor validates squareness, unique identifiers, symmetry and positive
+    semidefiniteness. Instances compare equal when identifiers and data match.
+
     Examples
     --------
     >>> from finstack_quant.models.factor.credit import FactorCovarianceMatrix
-    >>> matrix = FactorCovarianceMatrix.from_json('{"factor_ids":["credit::generic"],"n":1,"data":[0.04]}')
-    >>> matrix.variance("credit::generic")
-    0.04
+    >>> matrix = FactorCovarianceMatrix(["a", "b"], [[0.04, 0.0], [0.0, 0.01]])
+    >>> (matrix.variance("a"), float(matrix.to_dataframe().loc["b", "b"]))
+    (0.04, 0.01)
     """
+
+    def __init__(
+        self,
+        factor_ids: list[str],
+        data: list[float] | list[list[float]] | npt.NDArray[np.float64],
+    ) -> None:
+        """
+        Build and validate a covariance matrix.
+
+        Parameters
+        ----------
+        factor_ids : list[str]
+            Ordered, unique factor identifiers defining both axes.
+        data : list[float] | list[list[float]] | numpy.ndarray
+            Annualized covariances — a nested list or 2-D array of shape
+            ``(n, n)``, or a flat row-major list of ``n * n`` values, in
+            ``factor_ids`` order.
+
+        Raises
+        ------
+        ValueError
+            If ``data`` is not ``n x n``, an identifier repeats, the matrix is
+            asymmetric, or it is not positive semidefinite.
+        """
+        ...
 
     @staticmethod
     def from_json(json: str) -> FactorCovarianceMatrix:
@@ -901,6 +1197,40 @@ class FactorCovarianceMatrix:
             This method does not raise.
         """
         ...
+
+    def to_numpy(self) -> npt.NDArray[np.float64]:
+        """
+        The matrix as an ``(n, n)`` float64 NumPy array.
+
+        Returns
+        -------
+        numpy.ndarray
+            Row-major covariance in ``factor_ids`` order.
+
+        Notes
+        -----
+        This method does not raise; it copies the stored data.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        The matrix as a square pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            Indexed and columned by ``factor_ids``.
+
+        Raises
+        ------
+        ValueError
+            If pandas cannot build the frame.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
 
 class FactorModelConfig:
     """
@@ -1117,23 +1447,25 @@ class FactorCovarianceForecast:
     """
     Factor covariance and idiosyncratic vol forecasts from a credit factor model.
 
+    Every method takes a ``horizon`` that is either a :class:`VolHorizon` or a
+    descriptor string: ``"one_step"``, ``"unconditional"``,
+    ``'{"n_steps": N}'`` or ``'{"years": Y}'``.
+
     Examples
     --------
-    >>> from finstack_quant.models.factor.credit import CreditCalibrator, FactorCovarianceForecast
-    >>> config_json = (
-    ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
-    ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
-    ... )
-    >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
-    ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
-    ...     '"idiosyncratic_overrides":{}}'
-    ... )
-    >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
+    >>> from finstack_quant.models.factor.credit import CreditCalibrator, FactorCovarianceForecast, VolHorizon
+    >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+    >>> inputs = {
+    ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+    ...     "issuer_tags": {"tags": {"A": {}}},
+    ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+    ...     "as_of": "2024-02-01",
+    ...     "as_of_spreads": {"A": 0.0101},
+    ...     "idiosyncratic_overrides": {},
+    ... }
+    >>> model = CreditCalibrator(config).calibrate(inputs)
     >>> forecast = FactorCovarianceForecast(model)
-    >>> forecast.covariance_at("one_step").factor_ids
+    >>> forecast.covariance_at(VolHorizon.one_step()).factor_ids
     ['credit::generic']
     """
 
@@ -1148,32 +1480,33 @@ class FactorCovarianceForecast:
 
         Notes
         -----
-        Construction does not raise; arguments are stored as supplied.
+        Construction does not raise; the model is copied.
         """
         ...
 
-    def covariance_at(self, horizon: str) -> FactorCovarianceMatrix:
+    def covariance_at(self, horizon: str | VolHorizon) -> FactorCovarianceMatrix:
         """
         Return a typed factor covariance matrix at a forecast horizon.
 
         Parameters
         ----------
-        horizon : str
-            ``"one_step"``, ``"unconditional"``, or JSON ``'{"n_steps": N}'``.
+        horizon : str | VolHorizon
+            :class:`VolHorizon` or descriptor string (``"one_step"``,
+            ``"unconditional"``, ``'{"n_steps": N}'``, ``'{"years": Y}'``).
 
         Returns
         -------
         FactorCovarianceMatrix
-            Typed covariance matrix with ordered factor axes and row-major data.
+            ``D · rho_static · D`` scaled to the horizon.
 
         Raises
         ------
         ValueError
-            If ``horizon`` is invalid or the model lacks required inputs.
+            If ``horizon`` is invalid or the model data is inconsistent.
         """
         ...
 
-    def idiosyncratic_vol(self, issuer_id: str, horizon: str) -> float:
+    def idiosyncratic_vol(self, issuer_id: str, horizon: str | VolHorizon) -> float:
         """
         Return idiosyncratic volatility for an issuer at a horizon.
 
@@ -1181,13 +1514,14 @@ class FactorCovarianceForecast:
         ----------
         issuer_id : str
             Issuer identifier present in the model artifact.
-        horizon : str
-            ``"one_step"``, ``"unconditional"``, or JSON ``'{"n_steps": N}'``.
+        horizon : str | VolHorizon
+            :class:`VolHorizon` or descriptor string (see :meth:`covariance_at`).
 
         Returns
         -------
         float
-            Idiosyncratic volatility (decimal annualized).
+            Idiosyncratic standard deviation in basis points of spread, scaled
+            to the horizon.
 
         Raises
         ------
@@ -1196,26 +1530,50 @@ class FactorCovarianceForecast:
         """
         ...
 
-    def factor_model_at(self, horizon: str, risk_measure_json: str) -> FactorModelConfig:
+    def factor_model_at(
+        self,
+        horizon: str | VolHorizon,
+        risk_measure: str | Mapping[str, Any] | None = None,
+    ) -> FactorModelConfig:
         """
-        Return a typed portfolio-ready factor model at a horizon.
+            Return a typed portfolio-ready factor model at a horizon.
 
-        Parameters
-        ----------
-        horizon : str
-            ``"one_step"``, ``"unconditional"``, or JSON ``'{"n_steps": N}'``.
-        risk_measure_json : str
-            JSON-encoded risk-measure configuration (e.g. VaR horizon, scaling).
+            Parameters
+            ----------
+            horizon : str | VolHorizon
+                :class:`VolHorizon` or descriptor string (see :meth:`covariance_at`).
+            risk_measure : str | Mapping[str, Any] | None
+                ``"variance"`` (default), ``"volatility"``, or a dict such as
+                ``{"var": {"confidence": 0.99}}`` /
+                ``{"expected_shortfall": {"confidence": 0.975}}``; a JSON string of
+                any of these is also accepted.
 
-        Returns
-        -------
-        FactorModelConfig
-            Typed configuration suitable for portfolio risk decomposition or ``to_json()``.
+            Returns
+            -------
+            FactorModelConfig
+                Configuration with the horizon covariance and requested measure.
 
-        Raises
-        ------
-        ValueError
-            If inputs are invalid or the forecast cannot be built.
+            Raises
+            ------
+            ValueError
+                If the horizon or risk measure is invalid (confidence outside
+                ``(0.5, 1)``) or the covariance cannot be built.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.factor.credit import CreditCalibrator, FactorCovarianceForecast
+        >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+        >>> inputs = {
+        ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+        ...     "issuer_tags": {"tags": {"A": {}}},
+        ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+        ...     "as_of": "2024-02-01",
+        ...     "as_of_spreads": {"A": 0.0101},
+        ...     "idiosyncratic_overrides": {},
+        ... }
+            >>> model = CreditCalibrator(config).calibrate(inputs)
+            >>> FactorCovarianceForecast(model).factor_model_at("one_step", {"var": {"confidence": 0.99}}).risk_measure
+            {'var': {'confidence': 0.99}}
         """
         ...
 
@@ -1223,10 +1581,10 @@ class FactorCovarianceForecast:
 
 def decompose_levels(
     model: CreditFactorModel,
-    observed_spreads_json: str,
+    observed_spreads: Mapping[str, float] | pd.Series | str,
     observed_generic: float,
     as_of: datetime.date | str,
-    runtime_tags_json: str | None = None,
+    runtime_tags: Mapping[str, Mapping[str, str]] | pd.DataFrame | str | None = None,
 ) -> LevelsAtDate:
     """
     Decompose observed issuer spreads into hierarchy levels and adders.
@@ -1235,41 +1593,48 @@ def decompose_levels(
     ----------
     model : CreditFactorModel
         Calibrated hierarchy artifact.
-    observed_spreads_json : str
-        JSON map of issuer ID to observed spread in basis points.
+    observed_spreads : Mapping[str, float] | pd.Series | str
+        Issuer ID to observed **decimal** spread (``0.01`` = 100 bp) — a dict,
+        a ``pandas.Series`` indexed by issuer, or a JSON string of the same
+        object.
     observed_generic : float
-        Observed market generic spread in basis points.
+        Generic (PC) factor value at ``as_of``, decimal.
     as_of : datetime.date | str
         Observation date, either a date-like object or an ISO 8601 string.
-    runtime_tags_json : str, optional
-        Optional JSON map of runtime tags for bucket assignment overrides.
+    runtime_tags : Mapping[str, Mapping[str, str]] | pd.DataFrame | str | None
+        ``{issuer_id: {dimension_key: tag}}`` for issuers not present in the
+        model — a dict, a ``pandas.DataFrame`` indexed by issuer, or a JSON
+        string.
 
     Returns
     -------
     LevelsAtDate
-        Decomposed levels at ``as_of``.
+        Decomposed levels at ``as_of`` (basis points).
 
     Raises
     ------
+    KeyError
+        If an issuer has no model row and no ``runtime_tags`` entry.
     ValueError
-        If spreads, dates, or model references are invalid.
+        If a spread is not a finite decimal in ``(-0.5, 2.0)``, an issuer is
+        missing a required hierarchy tag, or a DTS weight cannot be formed.
+    RuntimeError
+        If the model artifact is internally inconsistent.
 
     Examples
     --------
     >>> from finstack_quant.models.factor.credit import CreditCalibrator, decompose_levels
-    >>> config_json = (
-    ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
-    ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
-    ... )
-    >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
-    ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
-    ...     '"idiosyncratic_overrides":{}}'
-    ... )
-    >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> decompose_levels(model, '{"A": 0.0125}', 0.0120, "2025-06-30").generic
+    >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+    >>> inputs = {
+    ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+    ...     "issuer_tags": {"tags": {"A": {}}},
+    ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+    ...     "as_of": "2024-02-01",
+    ...     "as_of_spreads": {"A": 0.0101},
+    ...     "idiosyncratic_overrides": {},
+    ... }
+    >>> model = CreditCalibrator(config).calibrate(inputs)
+    >>> decompose_levels(model, {"A": 0.0125}, 0.0120, "2025-06-30").generic
     120.0
     """
     ...
@@ -1301,20 +1666,18 @@ def decompose_period(
     Examples
     --------
     >>> from finstack_quant.models.factor.credit import CreditCalibrator, decompose_levels, decompose_period
-    >>> config_json = (
-    ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
-    ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
-    ... )
-    >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
-    ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
-    ...     '"idiosyncratic_overrides":{}}'
-    ... )
-    >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> start = decompose_levels(model, '{"A": 0.0105}', 0.010, "2024-03-01")
-    >>> end = decompose_levels(model, '{"A": 0.01065}', 0.01015, "2024-03-02")
+    >>> config = {"hierarchy": {"levels": []}, "covariance_strategy": "diagonal", "bucket_weighting": "equal"}
+    >>> inputs = {
+    ...     "history_panel": {"dates": ["2024-01-01", "2024-02-01"], "spreads": {"A": [0.010, 0.0101]}},
+    ...     "issuer_tags": {"tags": {"A": {}}},
+    ...     "generic_factor": {"spec": {"name": "G", "series_id": "G"}, "values": [0.010, 0.0101]},
+    ...     "as_of": "2024-02-01",
+    ...     "as_of_spreads": {"A": 0.0101},
+    ...     "idiosyncratic_overrides": {},
+    ... }
+    >>> model = CreditCalibrator(config).calibrate(inputs)
+    >>> start = decompose_levels(model, {"A": 0.0105}, 0.010, "2024-03-01")
+    >>> end = decompose_levels(model, {"A": 0.01065}, 0.01015, "2024-03-02")
     >>> decompose_period(start, end).d_generic
     1.5
     """
@@ -1322,7 +1685,10 @@ def decompose_period(
 
 class VolHorizon:
     """
-    Forecast horizon used to scale a calibrated `Sample` vol estimate.
+    Forecast horizon used to scale a calibrated ``Sample`` vol estimate.
+
+    Instances compare equal by variant and value, and pickle through their
+    descriptor string.
 
     Examples
     --------
@@ -1506,6 +1872,7 @@ class VolHorizon:
         """
         ...
 
+    def __eq__(self, other: object) -> bool: ...
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns

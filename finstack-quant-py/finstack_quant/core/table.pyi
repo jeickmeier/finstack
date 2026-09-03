@@ -36,9 +36,18 @@ class ArrowTable:
     Arrow ``RecordBatch`` wrapper exposing the Arrow PyCapsule C-stream protocol.
 
     Produced internally from a core ``TableEnvelope`` by finstack-quant
-    ``to_arrow_*`` producer methods. Has no Python-facing constructor;
-    consume it via the standard Arrow PyCapsule interface, for example
-    ``pyarrow.table(arrow_table)`` or ``polars.DataFrame(arrow_table)``.
+    ``to_arrow_*`` producer methods. Has no Python-facing constructor apart
+    from :meth:`from_ipc` (the pickle path); consume it via the standard
+    Arrow PyCapsule interface, for example ``pyarrow.table(arrow_table)`` or
+    ``polars.DataFrame(arrow_table)``, or the lazy helpers
+    :meth:`to_pyarrow`, :meth:`to_polars` and :meth:`to_pandas`.
+
+    pandas recipe (requires ``pyarrow`` and ``pandas``)::
+
+        df = pyarrow.table(arrow_table).to_pandas()  # or arrow_table.to_pandas()
+
+    Supports ``len(table)`` (row count), structural ``==`` and pickling
+    (via Arrow IPC bytes).
 
     Examples
     --------
@@ -55,6 +64,9 @@ class ArrowTable:
     >>> table = value_portfolio(portfolio, MarketContext()).to_arrow_positions()
     >>> (table.num_rows, table.num_columns, table.column_names())
     (0, 6, ['position_id', 'entity_id', 'value_native', 'value_base', 'currency_native', 'currency_base'])
+    >>> import pickle
+    >>> pickle.loads(pickle.dumps(table)) == table
+    True
 
     """
 
@@ -105,6 +117,144 @@ class ArrowTable:
         """
         ...
 
+    def schema(self) -> list[tuple[str, str, bool]]:
+        """
+        Schema as ``(name, arrow_type, nullable)`` triples in column order.
+
+        Returns
+        -------
+        list[tuple[str, str, bool]]
+            Field name, Arrow data-type string (e.g. ``"Float64"``,
+            ``"Utf8"``) and nullability for every column.
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def to_ipc(self) -> bytes:
+        """
+        Serialize to Arrow IPC stream bytes (the pickle wire format).
+
+        Returns
+        -------
+        bytes
+            A single-batch Arrow IPC stream.
+
+        Raises
+        ------
+        ValueError
+            If IPC encoding fails.
+        """
+        ...
+
+    @classmethod
+    def from_ipc(cls, data: bytes) -> ArrowTable:
+        """
+        Rebuild a table from Arrow IPC stream bytes produced by :meth:`to_ipc`.
+
+        Parameters
+        ----------
+        data : bytes
+            Arrow IPC stream; multiple batches are concatenated.
+
+        Returns
+        -------
+        ArrowTable
+            The decoded table.
+
+        Raises
+        ------
+        ValueError
+            If *data* is not a valid Arrow IPC stream.
+
+        Examples
+        --------
+        >>> import json
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.core.table import ArrowTable
+        >>> from finstack_quant.portfolio import Portfolio, value_portfolio
+        >>> bundle = {
+        ...     "schema": "finstack_quant.portfolio_materialization/1",
+        ...     "portfolio": {"id": "empty", "base_currency": "USD", "as_of": "2025-01-01", "entities": {}},
+        ...     "instruments": [],
+        ...     "positions": [],
+        ... }
+        >>> portfolio, _ = Portfolio.from_materialization(json.dumps(bundle))
+        >>> table = value_portfolio(portfolio, MarketContext()).to_arrow_positions()
+        >>> ArrowTable.from_ipc(table.to_ipc()) == table
+        True
+        """
+        ...
+
+    def to_pyarrow(self) -> Any:
+        """
+        ``pyarrow.Table`` view of this table.
+
+        Returns
+        -------
+        pyarrow.Table
+            Zero-copy table built through the PyCapsule protocol.
+
+        Raises
+        ------
+        ImportError
+            If ``pyarrow`` is not installed.
+        """
+        ...
+
+    def to_polars(self) -> Any:
+        """
+        ``polars.DataFrame`` view of this table.
+
+        Returns
+        -------
+        polars.DataFrame
+            DataFrame built through the PyCapsule protocol.
+
+        Raises
+        ------
+        ImportError
+            If ``polars`` is not installed.
+        """
+        ...
+
+    def to_pandas(self) -> Any:
+        """
+        ``pandas.DataFrame`` view via ``pyarrow.table(self).to_pandas()``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame with one column per Arrow field.
+
+        Raises
+        ------
+        ImportError
+            If ``pyarrow`` or ``pandas`` is not installed.
+        """
+        ...
+
+    def __len__(self) -> int:
+        """Return the number of rows.
+
+        Returns
+        -------
+        int
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether two tables have the same schema and column contents.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def __reduce__(self) -> tuple[object, tuple[bytes]]: ...
     def __arrow_c_stream__(self, requested_schema: Any | None = None) -> Any:
         """
         Export the table via the Arrow PyCapsule C-stream protocol.

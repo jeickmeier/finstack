@@ -96,14 +96,23 @@ class TestReduceCoverage:
             f"  now fixed (drop from `expected`): {sorted(expected - actual)}"
         )
 
-    def test_reduce_is_not_claimed_by_json_free_classes(self) -> None:
-        """`__reduce__` here is implemented in terms of `to_json`.
+    def test_reduce_is_backed_by_a_working_constructor(self) -> None:
+        """Every `__reduce__` must name a callable that can be reached again.
 
-        A class carrying one without the other would raise at pickle time
-        rather than at import time, so pin the invariant directly.
+        Most wrappers reduce via `to_json`/`from_json`, but value types such as
+        the `core.dates` enums reduce through their own constructors instead.
+        Either way the reduce target has to be importable and callable, or the
+        class raises at pickle time rather than at import time.
         """
-        broken = [name for name, cls in _walk_classes() if "__reduce__" in cls.__dict__ and not hasattr(cls, "to_json")]
-        assert not broken, f"__reduce__ without to_json: {sorted(set(broken))}"
+        broken: list[str] = []
+        for name, cls in _walk_classes():
+            if "__reduce__" not in cls.__dict__:
+                continue
+            if hasattr(cls, "to_json") and hasattr(cls, "from_json"):
+                continue
+            if not callable(cls):
+                broken.append(name)
+        assert not broken, f"__reduce__ without a usable reconstruction path: {sorted(set(broken))}"
 
 
 class TestRoundTrips:

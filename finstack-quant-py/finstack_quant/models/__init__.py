@@ -21,13 +21,22 @@ from finstack_quant.models import (
     volatility as volatility,
 )
 
+BsGreeks = _models.BsGreeks
 asian_option_price = _models.asian_option_price
+bachelier_greeks = _models.bachelier_greeks
+bachelier_price = _models.bachelier_price
 barrier_call = _models.barrier_call
+barrier_put = _models.barrier_put
+black76_greeks = _models.black76_greeks
 black76_implied_vol = _models.black76_implied_vol
+black76_price = _models.black76_price
+black_shifted_price = _models.black_shifted_price
+black_shifted_vega = _models.black_shifted_vega
 bs_cos_price = _models.bs_cos_price
 bs_greeks = _models.bs_greeks
 bs_implied_vol = _models.bs_implied_vol
 bs_price = _models.bs_price
+heston_price = _models.heston_price
 lookback_option_price = _models.lookback_option_price
 merton_jump_cos_price = _models.merton_jump_cos_price
 quanto_option_price = _models.quanto_option_price
@@ -35,9 +44,17 @@ vanilla_expiry_payoff = _models.vanilla_expiry_payoff
 vg_cos_price = _models.vg_cos_price
 
 __all__: list[str] = [
+    "BsGreeks",
     "asian_option_price",
+    "bachelier_greeks",
+    "bachelier_price",
     "barrier_call",
+    "barrier_put",
+    "black76_greeks",
     "black76_implied_vol",
+    "black76_price",
+    "black_shifted_price",
+    "black_shifted_vega",
     "bs_cos_price",
     "bs_greeks",
     "bs_implied_vol",
@@ -45,6 +62,7 @@ __all__: list[str] = [
     "correlation",
     "credit",
     "factor",
+    "heston_price",
     "liquidity",
     "lookback_option_price",
     "merton_jump_cos_price",

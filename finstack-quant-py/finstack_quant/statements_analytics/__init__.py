@@ -6,7 +6,7 @@ Bindings for the ``finstack-quant-statements-analytics`` Rust crate.
 Examples:
 --------
 >>> from finstack_quant.statements_analytics import backtest_forecast
->>> backtest_forecast([1.0, 2.0], [1.0, 2.5])["n"]
+>>> backtest_forecast([1.0, 2.0], [1.0, 2.5]).n
 2
 
 """
@@ -99,23 +99,84 @@ add_ncf_buildup = _sa.add_ncf_buildup
 add_rent_roll = _sa.add_rent_roll
 add_property_operating_statement = _sa.add_property_operating_statement
 
+# Typed results, specs and mappings
+CompanyMetrics = _sa.CompanyMetrics
+CorporateAnalysis = _sa.CorporateAnalysis
+CorporateValuationResult = _sa.CorporateValuationResult
+CreditAssessment = _sa.CreditAssessment
+CreditAssessmentPoint = _sa.CreditAssessmentPoint
+CreditMapping = _sa.CreditMapping
+DcfSensitivityResult = _sa.DcfSensitivityResult
+DimensionScore = _sa.DimensionScore
+EclBucket = _sa.EclBucket
+EclResult = _sa.EclResult
+EquityBridge = _sa.EquityBridge
+Explanation = _sa.Explanation
+ExplanationStep = _sa.ExplanationStep
+ForecastMetrics = _sa.ForecastMetrics
+GoalSeekResult = _sa.GoalSeekResult
+LboCheckMappings = _sa.LboCheckMappings
+LboResult = _sa.LboResult
+PLSummaryReport = _sa.PLSummaryReport
+ParameterSpec = _sa.ParameterSpec
+PeerFilter = _sa.PeerFilter
+PeerSet = _sa.PeerSet
+PeerStats = _sa.PeerStats
+QualitativeFlags = _sa.QualitativeFlags
+RegressionResult = _sa.RegressionResult
+RelativeValueResult = _sa.RelativeValueResult
+ScoringDimension = _sa.ScoringDimension
+Stage = _sa.Stage
+StageResult = _sa.StageResult
+StagingConfig = _sa.StagingConfig
+TerminalValueSpec = _sa.TerminalValueSpec
+ThreeStatementMapping = _sa.ThreeStatementMapping
+ValuationDiscounts = _sa.ValuationDiscounts
+WeightedEclResult = _sa.WeightedEclResult
+pl_summary_report = _sa.pl_summary_report
+
 __all__: list[str] = [
     "AccountType",
     "BridgeChart",
     "BridgeStep",
+    "CompanyMetrics",
     "CorkscrewAccount",
     "CorkscrewConfig",
     "CorkscrewExtension",
     "CorkscrewReport",
+    "CorporateAnalysis",
+    "CorporateValuationResult",
+    "CreditAssessment",
+    "CreditAssessmentPoint",
+    "CreditMapping",
     "CreditScorecardExtension",
+    "DcfSensitivityResult",
     "DependencyTracer",
+    "DimensionScore",
+    "EclBucket",
+    "EclResult",
+    "EquityBridge",
+    "Explanation",
+    "ExplanationStep",
     "Exposure",
+    "ForecastMetrics",
     "FreeRentWindowSpec",
+    "GoalSeekResult",
+    "LboCheckMappings",
+    "LboResult",
     "LeaseGrowthConvention",
     "LeaseSpec",
     "ManagementFeeBase",
     "ManagementFeeSpec",
+    "PLSummaryReport",
+    "ParameterSpec",
+    "PeerFilter",
+    "PeerSet",
+    "PeerStats",
     "PropertyTemplateNodes",
+    "QualitativeFlags",
+    "RegressionResult",
+    "RelativeValueResult",
     "RenewalSpec",
     "RentRollOutputNodes",
     "RentStepSpec",
@@ -125,12 +186,20 @@ __all__: list[str] = [
     "ScorecardConfig",
     "ScorecardMetric",
     "ScorecardReport",
+    "ScoringDimension",
     "SensitivityConfig",
     "SensitivityResult",
+    "Stage",
+    "StageResult",
+    "StagingConfig",
+    "TerminalValueSpec",
+    "ThreeStatementMapping",
     "TornadoEntry",
+    "ValuationDiscounts",
     "VarianceConfig",
     "VarianceReport",
     "VarianceRow",
+    "WeightedEclResult",
     "add_ncf_buildup",
     "add_noi_buildup",
     "add_property_operating_statement",
@@ -155,6 +224,7 @@ __all__: list[str] = [
     "goal_seek",
     "peer_stats",
     "percentile_rank",
+    "pl_summary_report",
     "pl_summary_report_text",
     "regression_fair_value",
     "render_check_report_html",

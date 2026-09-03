@@ -242,6 +242,7 @@ impl DieboldLi {
         let r_squared_avg = r_squared.iter().sum::<f64>() / r_squared.len() as f64;
 
         self.factors = Some(FactorTimeSeries {
+            dates: panel.dates.clone(),
             factors,
             residuals,
             r_squared,
@@ -249,6 +250,25 @@ impl DieboldLi {
         });
 
         Ok(self)
+    }
+
+    /// Extract factors from `panel` and fit the VAR(1) dynamics in one step.
+    ///
+    /// Equivalent to [`Self::extract_factors`] followed by [`Self::fit_var`];
+    /// the result is ready for [`Self::forecast`].
+    ///
+    /// # Arguments
+    ///
+    /// * `panel` - Yield panel (rows = dates, columns = tenors in years) of
+    ///   continuously compounded zero rates in decimal units.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the validation errors of [`Self::extract_factors`] (fewer
+    /// than three tenors, singular loading matrix) and [`Self::fit_var`]
+    /// (fewer than five observations).
+    pub fn fit(self, panel: &YieldPanel) -> finstack_quant_core::Result<Self> {
+        self.extract_factors(panel)?.fit_var()
     }
 
     /// Fit VAR(1) dynamics to the extracted factors.
@@ -450,6 +470,13 @@ impl DieboldLi {
         self.lambda
     }
 
+    /// Tenor grid (years) recorded by the last [`Self::extract_factors`] call;
+    /// empty before extraction.
+    #[must_use]
+    pub fn tenors(&self) -> &[f64] {
+        &self.tenors
+    }
+
     /// Convert forecast yields to a `ParametricCurve` by fitting NS parameters
     /// to the forecast point estimates.
     ///
@@ -626,6 +653,75 @@ pub fn nelson_siegel_yields(
     Ok((loadings * beta).as_slice().to_vec())
 }
 
+/// Build a Diebold-Li model from an optional decay parameter.
+///
+/// # Arguments
+///
+/// * `lambda` - Decay parameter for tenors in years; `None` selects the
+///   crate default `0.7308` (years-equivalent of Diebold-Li's 0.0609 months).
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when `lambda` is
+/// supplied but non-finite or not strictly positive.
+pub fn diebold_li_model(lambda: Option<f64>) -> finstack_quant_core::Result<DieboldLi> {
+    match lambda {
+        Some(value) => DieboldLi::new(value),
+        None => Ok(DieboldLi::with_default_lambda()),
+    }
+}
+
+/// Extract Diebold-Li factors from row-major yield observations.
+///
+/// Convenience twin of [`DieboldLi::extract_factors`] for callers holding
+/// plain nested vectors instead of a [`YieldPanel`].
+///
+/// # Arguments
+///
+/// * `tenors` - Tenor grid in years, strictly ascending and positive.
+/// * `yield_rows` - `yield_rows[date_idx][tenor_idx]` decimal zero rates.
+/// * `lambda` - Decay parameter for tenors in years; `None` uses the default.
+///
+/// # Errors
+///
+/// Propagates panel validation and factor-extraction errors.
+pub fn diebold_li_fit_factors(
+    tenors: Vec<f64>,
+    yield_rows: Vec<Vec<f64>>,
+    lambda: Option<f64>,
+) -> finstack_quant_core::Result<FactorTimeSeries> {
+    let panel = YieldPanel::from_rows(tenors, yield_rows, None)?;
+    let model = diebold_li_model(lambda)?.extract_factors(&panel)?;
+    model.factors.ok_or_else(|| {
+        finstack_quant_core::Error::Internal(
+            "factor extraction completed without populating factors".into(),
+        )
+    })
+}
+
+/// Extract factors, fit VAR(1) dynamics and forecast `horizon` steps ahead
+/// from row-major yield observations.
+///
+/// # Arguments
+///
+/// * `tenors` - Tenor grid in years, strictly ascending and positive.
+/// * `yield_rows` - `yield_rows[date_idx][tenor_idx]` decimal zero rates.
+/// * `horizon` - Forecast horizon in observation periods; must be `>= 1`.
+/// * `lambda` - Decay parameter for tenors in years; `None` uses the default.
+///
+/// # Errors
+///
+/// Propagates panel validation, extraction, VAR-fit and forecast errors.
+pub fn diebold_li_forecast(
+    tenors: Vec<f64>,
+    yield_rows: Vec<Vec<f64>>,
+    horizon: usize,
+    lambda: Option<f64>,
+) -> finstack_quant_core::Result<YieldForecast> {
+    let panel = YieldPanel::from_rows(tenors, yield_rows, None)?;
+    diebold_li_model(lambda)?.fit(&panel)?.forecast(horizon)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -665,6 +761,69 @@ mod tests {
         assert!(DieboldLi::new(0.0).is_err());
         assert!(DieboldLi::new(-0.1).is_err());
         assert!(DieboldLi::new(f64::NAN).is_err());
+    }
+
+    fn dated_panel() -> YieldPanel {
+        let tenors = standard_tenors();
+        let rows: Vec<Vec<f64>> = (0..12)
+            .map(|i| {
+                let t = i as f64;
+                make_ns_yields(
+                    0.05 + 0.002 * (t * 0.3).sin(),
+                    -0.02 + 0.001 * (t * 0.5).cos(),
+                    0.01 + 0.001 * (t * 0.7).sin(),
+                    0.7308,
+                    &tenors,
+                )
+            })
+            .collect();
+        let dates = (1..=12)
+            .map(|day| {
+                finstack_quant_core::dates::Date::from_calendar_date(
+                    2025,
+                    time::Month::January,
+                    day,
+                )
+                .expect("valid date")
+            })
+            .collect();
+        YieldPanel::from_rows(tenors, rows, Some(dates)).expect("valid panel")
+    }
+
+    #[test]
+    fn fit_matches_extract_then_fit_var_and_keeps_dates() {
+        let panel = dated_panel();
+        let fitted = DieboldLi::with_default_lambda().fit(&panel).unwrap();
+        let stepwise = DieboldLi::with_default_lambda()
+            .extract_factors(&panel)
+            .unwrap()
+            .fit_var()
+            .unwrap();
+        assert_eq!(fitted.phi(), stepwise.phi());
+        assert_eq!(fitted.tenors(), panel.tenors.as_slice());
+        let factors = fitted.factors().unwrap();
+        assert_eq!(factors.dates.as_deref(), panel.dates.as_deref());
+        assert_eq!(factors.num_dates(), 12);
+        assert_eq!(factors.residual_rows().len(), 12);
+    }
+
+    #[test]
+    fn free_helpers_match_typed_pipeline() {
+        let panel = dated_panel();
+        let rows: Vec<Vec<f64>> = (0..panel.num_dates())
+            .map(|i| {
+                (0..panel.num_tenors())
+                    .map(|j| panel.yields[(i, j)])
+                    .collect()
+            })
+            .collect();
+        let typed = DieboldLi::with_default_lambda().fit(&panel).unwrap();
+        let factors = diebold_li_fit_factors(panel.tenors.clone(), rows.clone(), None).unwrap();
+        assert_eq!(factors.columns(), typed.factors().unwrap().columns());
+        let forecast = diebold_li_forecast(panel.tenors, rows, 3, None).unwrap();
+        assert_eq!(forecast.yields, typed.forecast(3).unwrap().yields);
+        assert!(diebold_li_model(Some(-1.0)).is_err());
+        assert!((diebold_li_model(None).unwrap().lambda() - DEFAULT_LAMBDA).abs() < 1e-12);
     }
 
     #[test]

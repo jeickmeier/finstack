@@ -281,9 +281,13 @@ impl BucketSizeThresholds {
 }
 
 /// Configuration for the calibrator.
+///
+/// Every field has a serde default (see [`Default`]), so a partial JSON
+/// object such as `{"hierarchy": {...}}` deserializes with the remaining
+/// fields at their defaults. Unknown fields are still rejected.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
+#[serde(default, deny_unknown_fields)]
 pub struct CreditCalibrationConfig {
     /// Issuer-beta classification policy.
     pub policy: IssuerBetaPolicy,

@@ -93,6 +93,7 @@ impl MarketContext {
     ///     vec![0.08, 0.085, 0.09],
     ///     vec![0.01, 0.012, 0.015],
     ///     vec![0.005, 0.006, 0.007],
+    ///     None,
     /// ).expect("surface should build");
     /// let ctx = MarketContext::new().insert_fx_delta_vol_surface(surface);
     /// assert!(ctx.get_fx_delta_vol_surface("EURUSD-DELTA-VOL").is_ok());

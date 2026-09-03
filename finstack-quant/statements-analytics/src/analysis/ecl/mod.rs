@@ -76,11 +76,11 @@ pub use types::{
 pub use staging::{classify_stage, StageResult, StagingConfig, StagingTrigger};
 
 pub use engine::{
-    compute_ecl_single, compute_ecl_weighted, EclBucket, EclConfig, EclConfigBuilder, EclEngine,
+    compute_ecl, compute_ecl_weighted, EclBucket, EclConfig, EclConfigBuilder, EclEngine,
     EclResult, ExposureEclResult, LgdType, MacroScenario, WeightedEclResult,
 };
 
-pub use request::{EclRequest, EclStageRequest};
+pub use request::{classify_exposure, compute_ecl_for_exposure, EclRequest, EclStageRequest};
 
 pub use cecl::{CeclConfig, CeclEngine, CeclMethodology, CeclResult, ReversionMethod};
 

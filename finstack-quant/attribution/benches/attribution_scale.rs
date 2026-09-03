@@ -12,7 +12,7 @@
 //! The bench group name is `"attribution"` to match the existing style of
 //! `attribution.rs`; individual bench ids are `"<method>/<N>"`.
 //!
-//! Note: `simple_pnl_bridge` is the minimal baseline (two reprices, no
+//! Note: `pnl_bridge` is the minimal baseline (two reprices, no
 //! factor loop). The other methodologies all add factor iteration on top
 //! and should be benchmarked against the baseline to quantify that cost.
 
@@ -25,8 +25,8 @@ mod fixtures;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use finstack_quant_attribution::{
     attribute_pnl, attribute_pnl_metrics_based, attribute_return_contribution,
-    default_waterfall_order, simple_pnl_bridge, AttributionMethod, AttributionRequest,
-    ExecutionPolicy, MarketRestoreFlags, MarketSnapshot, TaylorAttributionConfig,
+    default_waterfall_order, pnl_bridge, AttributionMethod, AttributionRequest, ExecutionPolicy,
+    MarketRestoreFlags, MarketSnapshot, TaylorAttributionConfig,
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
@@ -84,7 +84,7 @@ fn bond_attribution_metrics() -> Vec<MetricId> {
 
 fn run_simple_bridge(fx: &Fixture) {
     for bond in &fx.bonds {
-        let pnl = simple_pnl_bridge(
+        let pnl = pnl_bridge(
             bond,
             black_box(&fx.markets.market_t0),
             black_box(&fx.markets.market_t1),

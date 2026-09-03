@@ -289,27 +289,37 @@ pub(crate) fn derive_financial_builder_impl(input: TokenStream) -> TokenStream {
         None
     };
 
-    // Build expression: required fields unwrap, optional fields carry through (unwrap_or(None)) and initialize attributes if present
+    // Build expression: required fields unwrap, optional fields carry through
+    // (unwrap_or(None)) and initialize attributes if present. A missing required
+    // field fails with a validation error naming the builder and the field.
+    let builder_name_str = builder_name.to_string();
+    let missing_error = |field: &syn::Ident| {
+        let message = format!("{builder_name_str}: missing required field '{field}'");
+        quote! { finstack_quant_core::Error::Validation(::std::string::String::from(#message)) }
+    };
     let assign_req = required_fields.iter().map(|(id, _)| {
         if let Some(expr) = defaults.get(id) {
             let expr_clone = expr.clone();
             quote! { #id: self.#id.unwrap_or(#expr_clone) }
         } else if issue_field_ident.as_ref() == Some(id) {
             if let Some(ref mat_ident) = maturity_field_ident {
+                let missing_maturity = missing_error(mat_ident);
                 quote! {
                     #id: match self.#id {
                         ::core::option::Option::Some(d) => d,
                         ::core::option::Option::None => {
-                            let mat = self.#mat_ident.ok_or(finstack_quant_core::InputError::Invalid)?;
+                            let mat = self.#mat_ident.ok_or_else(|| #missing_maturity)?;
                             mat.checked_sub(::time::Duration::days(365)).unwrap_or(mat)
                         }
                     }
                 }
             } else {
-                quote! { #id: self.#id.ok_or(finstack_quant_core::InputError::Invalid)? }
+                let missing = missing_error(id);
+                quote! { #id: self.#id.ok_or_else(|| #missing)? }
             }
         } else {
-            quote! { #id: self.#id.ok_or(finstack_quant_core::InputError::Invalid)? }
+            let missing = missing_error(id);
+            quote! { #id: self.#id.ok_or_else(|| #missing)? }
         }
     });
 

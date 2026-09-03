@@ -1,8 +1,10 @@
 """Performance analytics: returns, drawdowns, risk metrics, benchmarks.
 
-Bindings for the ``finstack-quant-analytics`` Rust crate. The sole entry point is
-:class:`Performance`; the remaining names are value-object results and
-inputs surfaced by `Performance` methods.
+Bindings for the ``finstack-quant-analytics`` Rust crate. The main entry point is
+:class:`Performance`; the remaining names are value-object results surfaced by
+`Performance` methods plus four scalar free functions (:func:`sharpe`,
+:func:`sortino`, :func:`volatility`, :func:`max_drawdown`) for a single return
+series.
 
 Examples:
 --------
@@ -29,6 +31,10 @@ DrawdownEpisode = _analytics.DrawdownEpisode
 DatedSeries = _analytics.DatedSeries
 
 constrained_least_squares = _analytics.constrained_least_squares
+max_drawdown = _analytics.max_drawdown
+sharpe = _analytics.sharpe
+sortino = _analytics.sortino
+volatility = _analytics.volatility
 
 __all__: list[str] = [
     "AnalyticsError",
@@ -42,4 +48,8 @@ __all__: list[str] = [
     "PeriodStats",
     "RollingGreeks",
     "constrained_least_squares",
+    "max_drawdown",
+    "sharpe",
+    "sortino",
+    "volatility",
 ]

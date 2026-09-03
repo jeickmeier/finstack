@@ -9,7 +9,7 @@
 //! `finstack_quant.valuations.instruments`; this module only owns the
 //! example-payload factories that produce canonical v1 instrument envelopes.
 
-use crate::errors::display_to_py;
+use crate::errors::core_to_py;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_index::CDSIndex;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
@@ -78,7 +78,7 @@ fn cds_tranche_example_json() -> PyResult<String> {
 #[pyfunction]
 #[pyo3(text_signature = "()")]
 fn cds_option_example_json() -> PyResult<String> {
-    let option = CDSOption::example().map_err(display_to_py)?;
+    let option = CDSOption::example().map_err(core_to_py)?;
     serialize_typed_instrument_json(InstrumentJson::CDSOption(option), "CDSOption example")
 }
 

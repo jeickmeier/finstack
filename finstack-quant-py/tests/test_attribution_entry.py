@@ -16,8 +16,10 @@ from finstack_quant.attribution import (
     PnlAttribution,
     ReturnContributionResult,
     attribute_pnl,
+    attribute_pnl_many,
     attribute_return_contribution,
     default_waterfall_order,
+    pnl_bridge,
     validate_attribution_json,
     validate_return_contribution_json,
 )
@@ -189,7 +191,7 @@ def test_empty_detail_dataframes_keep_schema_columns() -> None:
         AS_OF_T1,
         "parallel",
     )
-    expected_columns = ["kind", "factor", "key_a", "key_b", "amount", "currency"]
+    expected_columns = ["kind", "factor", "sub", "key_a", "key_b", "amount", "currency"]
     for df in (
         attr.to_credit_factor_dataframe(),
         attr.to_carry_detail_dataframe(),
@@ -198,6 +200,33 @@ def test_empty_detail_dataframes_keep_schema_columns() -> None:
         assert list(df.columns) == expected_columns or len(df) > 0, (
             f"empty detail frame must carry schema columns, got {list(df.columns)}"
         )
+
+
+def test_attribute_pnl_typed_inputs_many_and_bridge() -> None:
+    """Typed MarketContext / date inputs, the batch table and the scalar bridge."""
+    import datetime
+
+    market_t0 = MarketContext.from_json(_market_json(AS_OF_T0))
+    market_t1 = MarketContext.from_json(_market_json(AS_OF_T1, shift=0.002))
+    attr = attribute_pnl(
+        _bond_json(),
+        market_t0,
+        market_t1,
+        datetime.date.fromisoformat(AS_OF_T0),
+        datetime.date.fromisoformat(AS_OF_T1),
+        "parallel",
+    )
+    assert attr.t0 == datetime.date.fromisoformat(AS_OF_T0)
+    assert attr.required_metrics() == []
+    assert "sub" in attr.to_long_dataframe().columns
+
+    table = attribute_pnl_many([_bond_json(), _bond_json()], market_t0, market_t1, AS_OF_T0, AS_OF_T1, "parallel")
+    assert len(table) == 2
+    assert table["total_pnl"].iloc[0] == pytest.approx(attr.total_pnl)
+
+    bridge = pnl_bridge(_bond_json(), market_t0, market_t1, AS_OF_T0, AS_OF_T1, "USD")
+    assert bridge.currency.code == "USD"
+    assert attr.mark_to_market_pnl == pytest.approx(bridge.amount, rel=1e-9)
 
 
 def test_attribute_return_contribution_json_entrypoint() -> None:
@@ -227,6 +256,10 @@ def test_attribute_return_contribution_json_entrypoint() -> None:
 
     validate_return_contribution_json(json.dumps(spec))
     result = attribute_return_contribution(json.dumps(spec))
+    assert attribute_return_contribution(spec).portfolio_return == pytest.approx(result.portfolio_return)
+    assert list(result.to_dataframe().columns) == ["id", "weight", "return", "contribution", "active_contribution"]
+    assert set(result.to_group_dataframe()["dimension"]) == {"sector", "strategy"}
+    assert list(result.to_factor_dataframe()["factor"]) == ["value"]
 
     assert isinstance(result, ReturnContributionResult)
     assert result.portfolio_return == pytest.approx(0.0104)

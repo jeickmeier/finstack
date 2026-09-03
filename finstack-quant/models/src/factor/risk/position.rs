@@ -42,7 +42,8 @@ pub enum DecompositionMethod {
 }
 
 /// Configuration for position-level VaR decomposition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DecompositionConfig {
     /// Confidence level for VaR and ES (e.g. 0.95, 0.99).
     pub confidence: f64,
@@ -53,20 +54,6 @@ pub struct DecompositionConfig {
     /// Whether to compute incremental VaR (expensive: one full repricing
     /// per position).
     pub compute_incremental: bool,
-
-    /// Optional RNG seed for Monte Carlo simulation paths.
-    ///
-    /// `None` lets the underlying `SimulationDecomposer` pick its default
-    /// (currently a hard-coded seed for reproducible test runs). Set this
-    /// explicitly when reproducibility is part of an audit or risk-report
-    /// contract — supplying the seed in the config rather than only at the
-    /// decomposer call site keeps the seed visible in serialized risk
-    /// artifacts and reviewable from the same struct that fixes confidence
-    /// and method.
-    ///
-    /// Has no effect on the parametric or historical paths, which are
-    /// deterministic given their inputs.
-    pub seed: Option<u64>,
 }
 
 impl DecompositionConfig {
@@ -84,7 +71,6 @@ impl DecompositionConfig {
             confidence,
             method: DecompositionMethod::Parametric,
             compute_incremental: false,
-            seed: None,
         }
     }
 
@@ -104,7 +90,6 @@ impl DecompositionConfig {
             confidence,
             method: DecompositionMethod::Historical,
             compute_incremental: false,
-            seed: None,
         }
     }
 
@@ -112,15 +97,6 @@ impl DecompositionConfig {
     #[must_use]
     pub fn with_incremental(mut self) -> Self {
         self.compute_incremental = true;
-        self
-    }
-
-    /// Pin the RNG seed for any simulation-path decomposition.
-    ///
-    /// See [`Self::seed`] for behaviour notes.
-    #[must_use]
-    pub fn with_seed(mut self, seed: u64) -> Self {
-        self.seed = Some(seed);
         self
     }
 }
@@ -271,6 +247,27 @@ pub struct PositionRiskDecomposition {
     /// residual algebraically zero by construction, so it carries no
     /// diagnostic information.
     pub euler_residual: Option<f64>,
+}
+
+impl PositionRiskDecomposition {
+    /// Look up one position's component VaR by identifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `position_id` - Position identifier exactly as it appears in
+    ///   [`PositionVarContribution::position_id`].
+    ///
+    /// # Returns
+    ///
+    /// The position's Euler-allocated component VaR (loss convention, same
+    /// units as [`Self::portfolio_var`]), or `None` when the id is absent.
+    #[must_use]
+    pub fn component_var(&self, position_id: &str) -> Option<f64> {
+        self.var_contributions
+            .iter()
+            .find(|c| c.position_id == position_id)
+            .map(|c| c.component_var)
+    }
 }
 
 // Stress attribution (historical)
@@ -1175,7 +1172,6 @@ mod tests {
             confidence: 0.99,
             method: DecompositionMethod::Historical,
             compute_incremental: false,
-            seed: None,
         };
 
         let result =

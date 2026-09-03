@@ -1,5 +1,12 @@
 """Product-independent interest-rate models.
 
+Submodules
+----------
+- :mod:`finstack_quant.models.rates.dtsm` — Diebold-Li dynamic Nelson-Siegel
+  and yield-curve PCA.
+- :mod:`finstack_quant.models.rates.hull_white` — Hull-White one-factor
+  parameters and closed-form kernels.
+
 Examples
 --------
 >>> from finstack_quant.models.rates import dtsm
@@ -8,5 +15,6 @@ Examples
 """
 
 from finstack_quant.models.rates import dtsm as dtsm
+from finstack_quant.models.rates import hull_white as hull_white
 
-__all__ = ["dtsm"]
+__all__ = ["dtsm", "hull_white"]

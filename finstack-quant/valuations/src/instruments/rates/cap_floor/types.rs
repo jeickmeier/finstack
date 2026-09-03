@@ -298,6 +298,7 @@ pub struct CapFloor {
     /// - `Lognormal`: Standard Black model, requires positive rates/strikes
     /// - `Normal`: Bachelier model, handles negative rates
     #[serde(default)]
+    #[builder(default)]
     pub vol_type: CapFloorVolType,
     /// Displacement shift for shifted-lognormal pricing (default: 0.0 = no shift).
     ///

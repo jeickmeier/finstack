@@ -29,17 +29,10 @@ pub const EXPORTS: &[&str] = &[
 /// Third Wednesday of the given month — the IMM date convention.
 #[pyfunction(name = "third_wednesday")]
 #[pyo3(text_signature = "(month, year)")]
-fn py_third_wednesday<'py>(
-    py: Python<'py>,
-    month_number: u8,
-    year: i32,
-) -> PyResult<Bound<'py, PyAny>> {
+fn py_third_wednesday<'py>(py: Python<'py>, month: u8, year: i32) -> PyResult<Bound<'py, PyAny>> {
     date_to_py(
         py,
-        third_wednesday(
-            crate::bindings::date_utils::month_from_u8(month_number)?,
-            year,
-        ),
+        third_wednesday(crate::bindings::date_utils::month_from_u8(month)?, year),
     )
 }
 
@@ -47,17 +40,10 @@ fn py_third_wednesday<'py>(
 /// convention.
 #[pyfunction(name = "third_friday")]
 #[pyo3(text_signature = "(month, year)")]
-fn py_third_friday<'py>(
-    py: Python<'py>,
-    month_number: u8,
-    year: i32,
-) -> PyResult<Bound<'py, PyAny>> {
+fn py_third_friday<'py>(py: Python<'py>, month: u8, year: i32) -> PyResult<Bound<'py, PyAny>> {
     date_to_py(
         py,
-        third_friday(
-            crate::bindings::date_utils::month_from_u8(month_number)?,
-            year,
-        ),
+        third_friday(crate::bindings::date_utils::month_from_u8(month)?, year),
     )
 }
 
@@ -183,17 +169,10 @@ fn py_next_semiannual_cds_maturity<'py>(
 /// Expiry of the option on the IMM future for the given month.
 #[pyfunction(name = "imm_option_expiry")]
 #[pyo3(text_signature = "(month, year)")]
-fn py_imm_option_expiry<'py>(
-    py: Python<'py>,
-    month_number: u8,
-    year: i32,
-) -> PyResult<Bound<'py, PyAny>> {
+fn py_imm_option_expiry<'py>(py: Python<'py>, month: u8, year: i32) -> PyResult<Bound<'py, PyAny>> {
     date_to_py(
         py,
-        imm_option_expiry(
-            crate::bindings::date_utils::month_from_u8(month_number)?,
-            year,
-        ),
+        imm_option_expiry(crate::bindings::date_utils::month_from_u8(month)?, year),
     )
 }
 

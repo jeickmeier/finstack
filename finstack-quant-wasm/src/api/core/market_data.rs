@@ -1028,31 +1028,24 @@ impl JsFxDeltaVolSurface {
         rr10d: Option<Vec<f64>>,
         bf10d: Option<Vec<f64>>,
     ) -> Result<JsFxDeltaVolSurface, JsValue> {
-        let surface = match (rr10d, bf10d) {
-            (Some(rr), Some(bf)) => RustFxDeltaVolSurface::with_10d(
-                id,
-                expiries.to_vec(),
-                atm_vols.to_vec(),
-                rr25d.to_vec(),
-                bf25d.to_vec(),
-                rr,
-                bf,
-            )
-            .map_err(to_js_err)?,
-            (None, None) => RustFxDeltaVolSurface::new(
-                id,
-                expiries.to_vec(),
-                atm_vols.to_vec(),
-                rr25d.to_vec(),
-                bf25d.to_vec(),
-            )
-            .map_err(to_js_err)?,
+        let wings_10d = match (rr10d, bf10d) {
+            (Some(rr), Some(bf)) => Some((rr, bf)),
+            (None, None) => None,
             _ => {
                 return Err(to_js_err(
                     "rr10d and bf10d must both be provided or both omitted",
                 ));
             }
         };
+        let surface = RustFxDeltaVolSurface::new(
+            id,
+            expiries.to_vec(),
+            atm_vols.to_vec(),
+            rr25d.to_vec(),
+            bf25d.to_vec(),
+            wings_10d,
+        )
+        .map_err(to_js_err)?;
         Ok(Self {
             inner: Arc::new(surface),
         })

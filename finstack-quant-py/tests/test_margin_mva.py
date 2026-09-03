@@ -191,7 +191,7 @@ def test_xva_result_funding_legs_are_optional_but_total_is_required() -> None:
 
 
 def flat_hazard_curve(lam: float) -> HazardCurve:
-    return HazardCurve("HZ", dt.date(2025, 1, 1), [(0.0, lam), (30.0, lam)], 0.40)
+    return HazardCurve("HZ", dt.date(2025, 1, 1), [(0.0, lam), (30.0, lam)], recovery_rate=0.40)
 
 
 def uniform_exposure() -> ExposureProfile:

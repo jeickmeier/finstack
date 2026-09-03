@@ -320,52 +320,54 @@
   "properties": {
     "beta_shrinkage": {
       "$ref": "#/$defs/BetaShrinkage",
+      "default": "none",
       "description": "Optional shrinkage applied to OLS β estimates."
     },
     "bucket_weighting": {
       "$ref": "#/$defs/BucketWeighting",
+      "default": "dts",
       "description": "Bucket-mean weighting. Default [`BucketWeighting::Dts`].\n\n[`BucketWeighting::Dts`] requires [`super::inputs::CreditCalibrationInputs::spread_durations`]."
     },
     "covariance_strategy": {
       "$ref": "#/$defs/CovarianceStrategy",
+      "default": "full_sample_repaired",
       "description": "Covariance assembly strategy."
     },
     "hierarchy": {
       "$ref": "#/$defs/CreditHierarchySpec",
+      "default": {
+        "levels": []
+      },
       "description": "Hierarchy specification (broadest → narrowest)."
     },
     "min_bucket_size_per_level": {
       "$ref": "#/$defs/BucketSizeThresholds",
+      "default": {
+        "per_level": []
+      },
       "description": "Per-level minimum-bucket-size thresholds."
     },
     "panel_frequency": {
       "$ref": "#/$defs/PanelFrequency",
+      "default": "monthly",
       "description": "Regular observation frequency of the history panel.\n\nDerives the annualization used for variance and Ledoit-Wolf\n(`252` / `12` / `4`). The panel dates must form a complete regular\ngrid of this frequency from `dates[0]`."
     },
     "policy": {
       "$ref": "#/$defs/IssuerBetaPolicy",
+      "default": "globally_off",
       "description": "Issuer-beta classification policy."
     },
     "use_returns_or_levels": {
       "$ref": "#/$defs/PanelSpace",
+      "default": "returns",
       "description": "Whether to differentiate the panel before peeling."
     },
     "vol_model": {
       "$ref": "#/$defs/VolModelChoice",
+      "default": "sample",
       "description": "Vol-model choice for the per-factor variance forecast (sample or EWMA)."
     }
   },
-  "required": [
-    "policy",
-    "hierarchy",
-    "min_bucket_size_per_level",
-    "vol_model",
-    "covariance_strategy",
-    "beta_shrinkage",
-    "use_returns_or_levels",
-    "panel_frequency",
-    "bucket_weighting"
-  ],
   "title": "CreditCalibrationConfig",
   "type": "object"
 }

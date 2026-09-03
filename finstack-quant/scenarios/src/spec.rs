@@ -293,6 +293,38 @@ impl ScenarioSpec {
         self.hazard_bump_mode = mode;
         self
     }
+
+    /// Expand one parallel basis-point shift into one
+    /// [`OperationSpec::CurveParallelBp`] per curve identifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `curve_kind` - Curve family every generated operation targets.
+    /// * `curve_ids` - Curve identifiers, one operation each, in the given order.
+    /// * `bp` - Additive shift in basis points (1 bp = 1e-4); for
+    ///   [`CurveKind::Commodity`] this is percent of the forward instead.
+    /// * `discount_curve_id` - Optional discount curve used when re-bootstrapping
+    ///   ParCDS quotes; copied onto every generated operation.
+    pub fn parallel_bp_many<I, S>(
+        curve_kind: CurveKind,
+        curve_ids: I,
+        bp: f64,
+        discount_curve_id: Option<CurveId>,
+    ) -> Vec<OperationSpec>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<CurveId>,
+    {
+        curve_ids
+            .into_iter()
+            .map(|curve_id| OperationSpec::CurveParallelBp {
+                curve_kind,
+                curve_id: curve_id.into(),
+                discount_curve_id: discount_curve_id.clone(),
+                bp,
+            })
+            .collect()
+    }
 }
 
 /// Individual operation within a scenario.
@@ -1379,6 +1411,11 @@ impl OperationSpec {
                         "Time roll period cannot be empty".into(),
                     ));
                 }
+                finstack_quant_core::dates::Tenor::parse(period.trim()).map_err(|error| {
+                    crate::error::Error::InvalidPeriod(format!(
+                        "Time roll period {period:?} is not a valid tenor: {error}"
+                    ))
+                })?;
             }
         }
         Ok(())

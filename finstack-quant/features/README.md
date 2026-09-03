@@ -255,11 +255,15 @@ The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
 
 - Keys are opaque `String`s. Time order is lexicographic, so callers who want
   calendar order must pass ISO-8601 (or any other lexicographic clock).
-- `window`, `periods`, `half_life`, and EWMA `span` count **finite
-  observations**, not calendar days. Gaps do not expand the window. Missing
-  rows do not decay EWMA or half-life (pandas `skipna`). Callers who need
-  business-day half-lives must resample first. There is no calendar-aware
-  window implementation.
+- `periods` (`returns`, `log_returns`, `diff`, `lag`) counts **finite
+  observations** (pandas `skipna`): a missing row never advances the lag.
+  `half_life` and EWMA `span` likewise only advance on finite rows. Rolling
+  `window`s span the trailing `window` rows of the entity (not calendar days);
+  only finite rows inside the window contribute and `min_periods` of them are
+  required. Callers who need business-day half-lives must resample first.
+  There is no calendar-aware window implementation.
+- `params` are strict: any key an operation does not read is rejected with an
+  error naming the accepted keys.
 - Inputs are `Option<f64>`; `None` and non-finite values are treated as missing
   and pass through as `None`.
 - Output length and ordering always match the input `values` column.

@@ -1,14 +1,20 @@
-//! Python wrappers for capital-structure specs (waterfall + ECF sweep + PIK toggle).
+//! Python wrappers for capital-structure specs (waterfall + ECF sweep + PIK toggle)
+//! and the evaluated capital-structure cashflows.
 //!
 //! Mirrors `finstack_quant_statements::capital_structure::{WaterfallSpec, EcfSweepSpec,
-//! PikToggleSpec, PaymentClassSpec, PaymentPriority}`. All classes support JSON
-//! round-trip via `from_json`/`to_json` and structured keyword-argument construction.
+//! PikToggleSpec, PaymentClassSpec, PaymentPriority, CapitalStructureCashflows}`.
+//! All classes support JSON round-trip via `from_json`/`to_json`.
 
-use crate::errors::display_to_py;
+use crate::bindings::core::money::PyMoney;
+use crate::bindings::pandas_utils::{serde_rows_to_dataframe_with_schema, ColumnSchema};
+use crate::errors::{serde_json_to_py, statements_to_py};
+use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::capital_structure::{
-    EcfSweepSpec, PaymentClassSpec, PaymentPriority, PikToggleSpec, WaterfallSpec,
+    CapitalStructureCashflows, CashflowBreakdown, EcfSweepSpec, PaymentClassSpec, PaymentPriority,
+    PikToggleSpec, WaterfallSpec,
 };
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 /// Parse the serde name of a [`PaymentPriority`] (e.g. `"fees"`, `"mandatory_prepayment"`).
 fn parse_priority(s: &str) -> PyResult<PaymentPriority> {
@@ -20,15 +26,26 @@ fn priority_to_str(p: PaymentPriority) -> PyResult<String> {
     finstack_quant_core::wire::serde_label(&p).map_err(crate::errors::core_to_py)
 }
 
+/// Columns emitted by `CapitalStructureCashflows.to_dataframe` and
+/// `to_totals_dataframe`.
+const CASHFLOW_COLUMNS: [ColumnSchema<'static>; 5] = [
+    ("instrument", "str"),
+    ("period", "str"),
+    ("flow_type", "str"),
+    ("amount", "float64"),
+    ("currency", "str"),
+];
+
 /// Excess Cash Flow (ECF) sweep specification.
 ///
 /// Defines how to compute ECF and what fraction sweeps to debt paydown.
 #[pyclass(
     name = "EcfSweepSpec",
     module = "finstack_quant.statements",
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PyEcfSweepSpec {
     pub(super) inner: EcfSweepSpec,
 }
@@ -107,14 +124,16 @@ impl PyEcfSweepSpec {
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: EcfSweepSpec = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: EcfSweepSpec = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid EcfSweepSpec JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize to JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize EcfSweepSpec"))
     }
 
     /// Node reference or DSL formula supplying EBITDA, the ECF starting
@@ -129,6 +148,31 @@ impl PyEcfSweepSpec {
     #[getter]
     fn ebitda_node(&self) -> &str {
         &self.inner.ebitda_node
+    }
+
+    /// Node deducted as cash taxes, or ``None``.
+    #[getter]
+    fn taxes_node(&self) -> Option<&str> {
+        self.inner.taxes_node.as_deref()
+    }
+
+    /// Node deducted as capital expenditure, or ``None``.
+    #[getter]
+    fn capex_node(&self) -> Option<&str> {
+        self.inner.capex_node.as_deref()
+    }
+
+    /// Node deducted as the working-capital movement, or ``None``.
+    #[getter]
+    fn working_capital_node(&self) -> Option<&str> {
+        self.inner.working_capital_node.as_deref()
+    }
+
+    /// Node deducted as cash interest paid, or ``None`` (the engine then
+    /// deducts contractual cash interest from the debt schedule).
+    #[getter]
+    fn cash_interest_node(&self) -> Option<&str> {
+        self.inner.cash_interest_node.as_deref()
     }
 
     /// Fraction of excess cash flow swept to debt paydown.
@@ -156,17 +200,17 @@ impl PyEcfSweepSpec {
         self.inner.target_instrument_id.as_deref()
     }
 
-    /// Return the debug representation with the EBITDA source, sweep
-    /// fraction and target instrument.
+    /// Return the representation with the EBITDA source, sweep fraction and
+    /// target instrument.
     fn __repr__(&self) -> String {
         format!(
-            "EcfSweepSpec(ebitda_node={:?}, sweep_percentage={}, target_instrument_id={:?})",
+            "EcfSweepSpec(ebitda_node={:?}, sweep_percentage={}, target_instrument_id={})",
             self.inner.ebitda_node,
             self.inner.sweep_percentage,
             self.inner
                 .target_instrument_id
                 .as_deref()
-                .unwrap_or("<all>")
+                .map_or_else(|| "None".to_string(), |id| format!("{id:?}"))
         )
     }
 }
@@ -178,9 +222,10 @@ impl PyEcfSweepSpec {
 #[pyclass(
     name = "PikToggleSpec",
     module = "finstack_quant.statements",
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PyPikToggleSpec {
     pub(super) inner: PikToggleSpec,
 }
@@ -247,14 +292,16 @@ impl PyPikToggleSpec {
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: PikToggleSpec = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: PikToggleSpec = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid PikToggleSpec JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize this PIK toggle spec to JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize PikToggleSpec"))
     }
 
     /// Node reference or DSL formula producing the liquidity signal.
@@ -285,6 +332,13 @@ impl PyPikToggleSpec {
         self.inner.threshold
     }
 
+    /// Instruments the toggle applies to, or ``None`` for every PIK-capable
+    /// instrument.
+    #[getter]
+    fn target_instrument_ids(&self) -> Option<Vec<String>> {
+        self.inner.target_instrument_ids.clone()
+    }
+
     /// Hysteresis floor: minimum time PIK stays on once triggered.
     ///
     /// Returns
@@ -298,7 +352,7 @@ impl PyPikToggleSpec {
         self.inner.min_periods_in_pik
     }
 
-    /// Return the debug representation with metric, threshold and hysteresis.
+    /// Return the representation with metric, threshold and hysteresis.
     fn __repr__(&self) -> String {
         format!(
             "PikToggleSpec(liquidity_metric={:?}, threshold={}, min_periods_in_pik={})",
@@ -315,9 +369,10 @@ impl PyPikToggleSpec {
 #[pyclass(
     name = "PaymentClassSpec",
     module = "finstack_quant.statements",
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PyPaymentClassSpec {
     pub(super) inner: PaymentClassSpec,
 }
@@ -358,14 +413,16 @@ impl PyPaymentClassSpec {
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: PaymentClassSpec = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: PaymentClassSpec = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid PaymentClassSpec JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize to JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize PaymentClassSpec"))
     }
 
     /// Class identifier (for example ``"1L"``).
@@ -401,7 +458,7 @@ impl PyPaymentClassSpec {
         self.inner.instrument_ids.clone()
     }
 
-    /// Return the debug representation with id, rank, and instrument ids.
+    /// Return the representation with id, rank, and instrument ids.
     fn __repr__(&self) -> String {
         format!(
             "PaymentClassSpec(id={:?}, rank={}, instrument_ids={:?})",
@@ -419,9 +476,10 @@ impl PyPaymentClassSpec {
 #[pyclass(
     name = "WaterfallSpec",
     module = "finstack_quant.statements",
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PyWaterfallSpec {
     pub(super) inner: WaterfallSpec,
 }
@@ -509,14 +567,16 @@ impl PyWaterfallSpec {
     #[staticmethod]
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: WaterfallSpec = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: WaterfallSpec = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid WaterfallSpec JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize to JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize WaterfallSpec"))
     }
 
     /// Validate the spec against internal consistency rules.
@@ -525,7 +585,7 @@ impl PyWaterfallSpec {
     /// (e.g. `Sweep` ordered after `Equity` while a positive ECF sweep is set).
     #[pyo3(text_signature = "($self)")]
     fn validate(&self) -> PyResult<()> {
-        self.inner.validate().map_err(display_to_py)
+        self.inner.validate().map_err(statements_to_py)
     }
 
     /// Payment priority order, highest priority first.
@@ -559,6 +619,24 @@ impl PyWaterfallSpec {
     #[getter]
     fn available_cash_node(&self) -> &str {
         self.inner.available_cash_node.as_str()
+    }
+
+    /// Excess-cash-flow sweep configuration, or ``None``.
+    #[getter]
+    fn ecf_sweep(&self) -> Option<PyEcfSweepSpec> {
+        self.inner
+            .ecf_sweep
+            .clone()
+            .map(|inner| PyEcfSweepSpec { inner })
+    }
+
+    /// PIK toggle configuration, or ``None``.
+    #[getter]
+    fn pik_toggle(&self) -> Option<PyPikToggleSpec> {
+        self.inner
+            .pik_toggle
+            .clone()
+            .map(|inner| PyPikToggleSpec { inner })
     }
 
     /// Intra-category seniority classes, empty when one implicit class is used.
@@ -612,14 +690,298 @@ impl PyWaterfallSpec {
         self.inner.pik_toggle.is_some()
     }
 
-    /// Return the debug representation with priority order and which optional
+    /// Return the representation with priority order and which optional
     /// mechanics are configured.
     fn __repr__(&self) -> String {
         format!(
             "WaterfallSpec(priority={:?}, ecf_sweep={}, pik_toggle={})",
-            self.priority_of_payments(),
-            self.inner.ecf_sweep.is_some(),
-            self.inner.pik_toggle.is_some(),
+            self.priority_of_payments().unwrap_or_default(),
+            if self.inner.ecf_sweep.is_some() {
+                "True"
+            } else {
+                "False"
+            },
+            if self.inner.pik_toggle.is_some() {
+                "True"
+            } else {
+                "False"
+            },
+        )
+    }
+}
+
+/// Aggregated capital-structure cashflows from an evaluation.
+///
+/// Available as ``StatementResult.cs_cashflows`` after
+/// ``Evaluator.evaluate_with_market`` on a model with debt instruments.
+/// Holds per-instrument and total breakdowns (cash / PIK interest,
+/// principal, fees, debt balance, accrued interest) per period, plus the
+/// post-waterfall equity distribution. Amounts are positive debt-service
+/// magnitudes in each instrument's own currency; totals are in the
+/// reporting currency when one is configured.
+#[pyclass(
+    name = "CapitalStructureCashflows",
+    module = "finstack_quant.statements",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyCapitalStructureCashflows {
+    pub(crate) inner: CapitalStructureCashflows,
+}
+
+/// Append one breakdown as long-format rows.
+fn push_breakdown_rows(
+    rows: &mut Vec<serde_json::Value>,
+    instrument: &str,
+    period: &PeriodId,
+    breakdown: &CashflowBreakdown,
+) {
+    let mut push = |flow_type: &str, money: finstack_quant_core::money::Money| {
+        rows.push(serde_json::json!({
+            "instrument": instrument,
+            "period": period.to_string(),
+            "flow_type": flow_type,
+            "amount": money.amount(),
+            "currency": money.currency().to_string(),
+        }));
+    };
+    push("interest_expense_cash", breakdown.interest_expense_cash);
+    if let Some(income) = breakdown.interest_income_cash {
+        push("interest_income_cash", income);
+    }
+    push("interest_expense_pik", breakdown.interest_expense_pik);
+    push("principal_payment", breakdown.principal_payment);
+    push("fees", breakdown.fees);
+    push("debt_balance", breakdown.debt_balance);
+    push("accrued_interest", breakdown.accrued_interest);
+}
+
+#[pymethods]
+impl PyCapitalStructureCashflows {
+    /// Support `pickle` via the canonical JSON round-trip.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from canonical JSON.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json, /)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid CapitalStructureCashflows JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to canonical JSON.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize CapitalStructureCashflows"))
+    }
+
+    /// Instrument identifiers with cashflows, in capital-structure order.
+    #[getter]
+    fn instrument_ids(&self) -> Vec<String> {
+        self.inner.by_instrument.keys().cloned().collect()
+    }
+
+    /// Period identifiers covered, in timeline order.
+    #[getter]
+    fn periods(&self) -> Vec<String> {
+        if !self.inner.totals.is_empty() {
+            return self.inner.totals.keys().map(ToString::to_string).collect();
+        }
+        let mut periods: Vec<PeriodId> = self
+            .inner
+            .by_instrument
+            .values()
+            .flat_map(|by_period| by_period.keys().copied())
+            .collect();
+        periods.sort();
+        periods.dedup();
+        periods.iter().map(ToString::to_string).collect()
+    }
+
+    /// ISO-4217 code of the reporting currency used for totals, or ``None``.
+    #[getter]
+    fn reporting_currency(&self) -> Option<String> {
+        self.inner.reporting_currency.map(|c| c.to_string())
+    }
+
+    /// Total interest expense (cash + PIK) for one instrument and period.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Amount in the instrument's currency.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If the instrument or period is unknown.
+    /// ValueError
+    ///     If ``period`` is not a valid period id.
+    #[pyo3(text_signature = "($self, instrument_id, period)")]
+    fn get_interest(&self, instrument_id: &str, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_interest(instrument_id, &pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Cash interest expense for one instrument and period.
+    #[pyo3(text_signature = "($self, instrument_id, period)")]
+    fn get_interest_cash(&self, instrument_id: &str, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_interest_cash(instrument_id, &pid)
+            .map_err(statements_to_py)
+    }
+
+    /// PIK (non-cash) interest accrued for one instrument and period.
+    #[pyo3(text_signature = "($self, instrument_id, period)")]
+    fn get_interest_pik(&self, instrument_id: &str, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_interest_pik(instrument_id, &pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Principal repaid for one instrument and period.
+    #[pyo3(text_signature = "($self, instrument_id, period)")]
+    fn get_principal(&self, instrument_id: &str, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_principal(instrument_id, &pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Outstanding debt balance at period end for one instrument.
+    #[pyo3(text_signature = "($self, instrument_id, period)")]
+    fn get_debt_balance(&self, instrument_id: &str, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_debt_balance(instrument_id, &pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Fees paid for one instrument and period.
+    #[pyo3(text_signature = "($self, instrument_id, period)")]
+    fn get_fees(&self, instrument_id: &str, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_fees(instrument_id, &pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Accrued, unpaid interest at period end for one instrument.
+    #[pyo3(text_signature = "($self, instrument_id, period)")]
+    fn get_accrued_interest(&self, instrument_id: &str, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_accrued_interest(instrument_id, &pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Total interest expense (cash + PIK) across instruments for a period,
+    /// in the reporting currency.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If the period has no totals.
+    #[pyo3(text_signature = "($self, period)")]
+    fn get_total_interest(&self, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_total_interest(&pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Total principal repaid across instruments for a period.
+    #[pyo3(text_signature = "($self, period)")]
+    fn get_total_principal(&self, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_total_principal(&pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Total debt balance across instruments at period end.
+    #[pyo3(text_signature = "($self, period)")]
+    fn get_total_debt_balance(&self, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner
+            .get_total_debt_balance(&pid)
+            .map_err(statements_to_py)
+    }
+
+    /// Total fees across instruments for a period.
+    #[pyo3(text_signature = "($self, period)")]
+    fn get_total_fees(&self, period: &str) -> PyResult<f64> {
+        let pid = super::parse_period_id(period)?;
+        self.inner.get_total_fees(&pid).map_err(statements_to_py)
+    }
+
+    /// Post-waterfall residual cash distributed to equity per period.
+    ///
+    /// Returns
+    /// -------
+    /// dict[str, Money]
+    ///     Period id to ``Money``; empty unless a waterfall with
+    ///     ``available_cash_node`` ran.
+    #[getter]
+    fn equity_distribution<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        for (period, money) in &self.inner.equity_distribution {
+            dict.set_item(period.to_string(), PyMoney { inner: *money })?;
+        }
+        Ok(dict)
+    }
+
+    /// Export per-instrument cashflows as a long pandas ``DataFrame``.
+    ///
+    /// Columns: ``instrument``, ``period`` (period id string),
+    /// ``flow_type`` (``interest_expense_cash``, ``interest_income_cash``
+    /// when present, ``interest_expense_pik``, ``principal_payment``,
+    /// ``fees``, ``debt_balance``, ``accrued_interest``), ``amount``
+    /// (float64, positive debt-service magnitude) and ``currency`` (ISO
+    /// code of that instrument). Rows follow instrument then period order.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut rows = Vec::new();
+        for (instrument, by_period) in &self.inner.by_instrument {
+            for (period, breakdown) in by_period {
+                push_breakdown_rows(&mut rows, instrument, period, breakdown);
+            }
+        }
+        serde_rows_to_dataframe_with_schema(py, &rows, &CASHFLOW_COLUMNS)
+    }
+
+    /// Export the cross-instrument totals as a long pandas ``DataFrame``.
+    ///
+    /// Same columns as :meth:`to_dataframe`; ``instrument`` is
+    /// ``"__total__"`` and ``currency`` is the reporting currency. Empty
+    /// when no reporting currency is configured.
+    #[pyo3(text_signature = "($self)")]
+    fn to_totals_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut rows = Vec::new();
+        for (period, breakdown) in &self.inner.totals {
+            push_breakdown_rows(&mut rows, "__total__", period, breakdown);
+        }
+        serde_rows_to_dataframe_with_schema(py, &rows, &CASHFLOW_COLUMNS)
+    }
+
+    /// Return ``CapitalStructureCashflows(instruments=2, periods=4)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "CapitalStructureCashflows(instruments={}, periods={}, reporting_currency={})",
+            self.inner.by_instrument.len(),
+            self.periods().len(),
+            self.inner
+                .reporting_currency
+                .map_or_else(|| "None".to_string(), |c| format!("{:?}", c.to_string()))
         )
     }
 }
@@ -630,5 +992,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPaymentClassSpec>()?;
     m.add_class::<PyPikToggleSpec>()?;
     m.add_class::<PyWaterfallSpec>()?;
+    m.add_class::<PyCapitalStructureCashflows>()?;
     Ok(())
 }

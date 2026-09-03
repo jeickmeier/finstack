@@ -1,13 +1,29 @@
 //! Covenant package templates for common deal structures.
 //!
 //! These presets encode standard covenant packages used across different
-//! lending markets. Each function returns a `Vec<CovenantSpec>` ready for
-//! insertion into a [`crate::CovenantEngine`].
+//! lending markets. Each function validates its threshold inputs and returns a
+//! `Vec<CovenantSpec>` ready for insertion into a [`crate::CovenantEngine`].
 
 use super::engine::{
     Covenant, CovenantConsequence, CovenantScope, CovenantSpec, CovenantType, ThresholdTest,
 };
 use finstack_quant_core::dates::Tenor;
+use finstack_quant_core::{Error, Result};
+
+/// Reject a template threshold that is not a finite, non-negative number.
+///
+/// Every template input is a ratio in turns, a decimal fraction, or a
+/// reporting-currency amount; none of them is meaningful when negative, and a
+/// `NaN` or infinite threshold would otherwise serialize as JSON `null` and
+/// fail much later with an unrelated error.
+fn check_threshold(name: &str, value: f64) -> Result<()> {
+    if !value.is_finite() || value < 0.0 {
+        return Err(Error::Validation(format!(
+            "covenant template threshold `{name}` must be finite and non-negative, got {value}"
+        )));
+    }
+    Ok(())
+}
 
 fn maintenance(cov_type: CovenantType, frequency: Tenor, metric: &str) -> CovenantSpec {
     CovenantSpec::with_metric(
@@ -45,13 +61,22 @@ fn incurrence(cov_type: CovenantType, frequency: Tenor, metric: &str) -> Covenan
 ///   threshold in turns.
 /// * `max_capex` - Maximum annual capital-expenditure amount in the caller's
 ///   reporting-currency convention.
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] when any input is `NaN`, infinite, or
+/// negative.
 pub fn lbo_standard(
     initial_leverage: f64,
     interest_coverage: f64,
     fixed_charge_coverage: f64,
     max_capex: f64,
-) -> Vec<CovenantSpec> {
-    vec![
+) -> Result<Vec<CovenantSpec>> {
+    check_threshold("initial_leverage", initial_leverage)?;
+    check_threshold("interest_coverage", interest_coverage)?;
+    check_threshold("fixed_charge_coverage", fixed_charge_coverage)?;
+    check_threshold("max_capex", max_capex)?;
+    Ok(vec![
         {
             let mut s = maintenance(
                 CovenantType::MaxDebtToEbitda {
@@ -98,7 +123,7 @@ pub fn lbo_standard(
             Tenor::annual(),
             "capex",
         ),
-    ]
+    ])
 }
 
 /// "Covenant-lite" leveraged loan package (incurrence only).
@@ -112,8 +137,15 @@ pub fn lbo_standard(
 ///   turns.
 /// * `max_senior_leverage` - Maximum senior-debt-to-EBITDA incurrence
 ///   threshold in turns.
-pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Vec<CovenantSpec> {
-    vec![
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] when any input is `NaN`, infinite, or
+/// negative.
+pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Result<Vec<CovenantSpec>> {
+    check_threshold("max_leverage", max_leverage)?;
+    check_threshold("max_senior_leverage", max_senior_leverage)?;
+    Ok(vec![
         incurrence(
             CovenantType::MaxTotalLeverage {
                 threshold: max_leverage,
@@ -135,7 +167,7 @@ pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Vec<CovenantSpec
             Tenor::annual(),
             "negative_debt",
         ),
-    ]
+    ])
 }
 
 /// Commercial real estate (CRE) covenant package.
@@ -153,8 +185,16 @@ pub fn cov_lite(max_leverage: f64, max_senior_leverage: f64) -> Vec<CovenantSpec
 ///   `0.10` for 10%.
 /// * `max_ltv` - Maximum loan-to-value ratio as a decimal fraction, such as
 ///   `0.65` for 65%.
-pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Vec<CovenantSpec> {
-    vec![
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] when any input is `NaN`, infinite, or
+/// negative.
+pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Result<Vec<CovenantSpec>> {
+    check_threshold("min_dscr", min_dscr)?;
+    check_threshold("min_debt_yield", min_debt_yield)?;
+    check_threshold("max_ltv", max_ltv)?;
+    Ok(vec![
         {
             let mut s = maintenance(
                 CovenantType::MinDscr {
@@ -202,7 +242,7 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Vec<Cove
                 });
             s
         },
-    ]
+    ])
 }
 
 /// Infrastructure / project finance covenant package.
@@ -228,13 +268,22 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Vec<Cove
 ///   reporting-currency convention.
 /// * `max_net_leverage` - Maximum net-debt-to-EBITDA maintenance threshold in
 ///   turns.
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] when any input is `NaN`, infinite, or
+/// negative.
 pub fn project_finance(
     min_dscr: f64,
     distribution_lockup_dscr: f64,
     min_liquidity: f64,
     max_net_leverage: f64,
-) -> Vec<CovenantSpec> {
-    vec![
+) -> Result<Vec<CovenantSpec>> {
+    check_threshold("min_dscr", min_dscr)?;
+    check_threshold("distribution_lockup_dscr", distribution_lockup_dscr)?;
+    check_threshold("min_liquidity", min_liquidity)?;
+    check_threshold("max_net_leverage", max_net_leverage)?;
+    Ok(vec![
         {
             let mut s = maintenance(
                 CovenantType::MinDscr {
@@ -276,5 +325,28 @@ pub fn project_finance(
             Tenor::quarterly(),
             "net_debt_to_ebitda",
         ),
-    ]
+    ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn templates_reject_non_finite_and_negative_thresholds() {
+        assert!(lbo_standard(f64::NAN, 2.0, 1.1, 50.0).is_err());
+        assert!(lbo_standard(5.0, f64::INFINITY, 1.1, 50.0).is_err());
+        assert!(lbo_standard(5.0, 2.0, -1.1, 50.0).is_err());
+        assert!(cov_lite(7.0, f64::NEG_INFINITY).is_err());
+        assert!(real_estate(1.25, f64::NAN, 0.75).is_err());
+        assert!(project_finance(1.2, 1.1, -10.0, 7.0).is_err());
+    }
+
+    #[test]
+    fn templates_accept_valid_thresholds() {
+        assert_eq!(lbo_standard(5.0, 2.0, 1.1, 50.0).unwrap().len(), 4);
+        assert_eq!(cov_lite(7.0, 4.5).unwrap().len(), 3);
+        assert_eq!(real_estate(1.25, 0.08, 0.75).unwrap().len(), 3);
+        assert_eq!(project_finance(1.2, 1.1, 10.0, 7.0).unwrap().len(), 4);
+    }
 }

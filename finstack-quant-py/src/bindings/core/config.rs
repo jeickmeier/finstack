@@ -1,15 +1,29 @@
 //! Python bindings for `finstack_quant_core::config`.
 
+use std::collections::BTreeMap;
+
+use crate::bindings::core::currency::extract_currency;
 use crate::bindings::module_utils::py_to_json_value;
 use crate::errors::{core_to_py, serde_json_to_py};
 use finstack_quant_core::config::{FinstackConfig, RoundingMode, ToleranceConfig};
-use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Error;
-use finstack_quant_core::InputError;
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule, PyType};
+use pyo3::types::{PyList, PyModule, PyString, PyType};
 
-/// Wrapper for [`RoundingMode`].
+/// Rounding mode for monetary and rate calculations.
+///
+/// Enum-style class with class-level constants for each supported mode:
+/// ``BANKERS`` (ties to even, the default), ``AWAY_FROM_ZERO``,
+/// ``TOWARD_ZERO``, ``FLOOR`` and ``CEIL``. Wherever a rounding mode is
+/// accepted, its exact lowercase name (``"bankers"``, ``"away_from_zero"``,
+/// ``"toward_zero"``, ``"floor"``, ``"ceil"``) may be passed instead.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.config import RoundingMode
+/// >>> RoundingMode.from_name("bankers") == RoundingMode.BANKERS
+/// True
 #[pyclass(
     module = "finstack_quant.core.config",
     name = "RoundingMode",
@@ -29,6 +43,23 @@ impl PyRoundingMode {
     pub(crate) fn from_inner(inner: RoundingMode) -> Self {
         Self { inner }
     }
+}
+
+/// Extract a [`RoundingMode`] from a `RoundingMode` instance or its exact
+/// lowercase name.
+pub(crate) fn extract_rounding_mode(obj: &Bound<'_, PyAny>) -> PyResult<RoundingMode> {
+    if let Ok(mode) = obj.extract::<PyRef<'_, PyRoundingMode>>() {
+        return Ok(mode.inner);
+    }
+    if let Ok(text) = obj.cast::<PyString>() {
+        return text
+            .to_str()?
+            .parse::<RoundingMode>()
+            .map_err(|e| core_to_py(Error::Validation(e)));
+    }
+    Err(PyTypeError::new_err(
+        "expected RoundingMode or its lowercase name (e.g. 'bankers')",
+    ))
 }
 
 #[pymethods]
@@ -59,7 +90,9 @@ impl PyRoundingMode {
         inner: RoundingMode::Ceil,
     };
 
-    /// Parse a rounding mode from a human-readable label (case-insensitive).
+    /// Parse a rounding mode from its exact lowercase label (case-sensitive):
+    /// ``"bankers"``, ``"away_from_zero"``, ``"toward_zero"``, ``"floor"``,
+    /// ``"ceil"``. Raises ``ValueError`` otherwise.
     #[classmethod]
     #[pyo3(text_signature = "(cls, name)")]
     fn from_name(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<Self> {
@@ -68,19 +101,70 @@ impl PyRoundingMode {
             .map_err(|e| core_to_py(Error::Validation(e)))
     }
 
-    fn __repr__(&self) -> String {
-        format!("RoundingMode({})", self.inner)
+    /// Canonical lowercase name (the serde representation), e.g. ``"bankers"``.
+    #[getter]
+    fn name(&self) -> String {
+        self.inner.to_string()
     }
 
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!("RoundingMode({:?})", self.inner.to_string())
+    }
+
+    /// Return ``str(self)`` — the lowercase name.
     fn __str__(&self) -> String {
         self.inner.to_string()
     }
+
+    /// Serialize to JSON (the quoted lowercase name).
+    #[allow(clippy::wrong_self_convention)]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "invalid RoundingMode"))
+    }
+
+    /// Deserialize from JSON (a quoted lowercase name).
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        serde_json::from_str(json)
+            .map(Self::from_inner)
+            .map_err(|err| serde_json_to_py(err, "invalid RoundingMode JSON"))
+    }
+
+    /// Support ``pickle`` via the JSON wire format.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
 }
 
-/// Wrapper for [`ToleranceConfig`].
+/// Numerical tolerance settings for rate and generic comparisons.
+///
+/// Parameters
+/// ----------
+/// rate_epsilon : float | None
+///     Epsilon for rate-style comparisons (decimal rate units); library
+///     default when ``None``.
+/// generic_epsilon : float | None
+///     Epsilon for generic floating-point comparisons; library default when
+///     ``None``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If a supplied epsilon is non-finite or not strictly positive.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.config import ToleranceConfig
+/// >>> ToleranceConfig(rate_epsilon=1e-9).rate_epsilon
+/// 1e-09
 #[pyclass(
     module = "finstack_quant.core.config",
     name = "ToleranceConfig",
+    eq,
     skip_from_py_object
 )]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -89,19 +173,29 @@ pub struct PyToleranceConfig {
     pub(crate) inner: ToleranceConfig,
 }
 
+impl PyToleranceConfig {
+    /// Build a Python wrapper from a Rust [`ToleranceConfig`].
+    pub(crate) fn from_inner(inner: ToleranceConfig) -> Self {
+        Self { inner }
+    }
+}
+
 #[pymethods]
 impl PyToleranceConfig {
+    /// Create tolerance settings, optionally overriding the default epsilons.
+    ///
+    /// Raises ``ValueError`` if a supplied epsilon is non-finite or not
+    /// strictly positive.
     #[new]
     #[pyo3(signature = (rate_epsilon=None, generic_epsilon=None))]
     #[pyo3(text_signature = "(rate_epsilon=None, generic_epsilon=None)")]
-    /// Create tolerance settings, optionally overriding default epsilons.
     fn new(rate_epsilon: Option<f64>, generic_epsilon: Option<f64>) -> PyResult<Self> {
         let defaults = ToleranceConfig::default();
         ToleranceConfig::new(
             rate_epsilon.unwrap_or(defaults.rate_epsilon),
             generic_epsilon.unwrap_or(defaults.generic_epsilon),
         )
-        .map(|inner| Self { inner })
+        .map(Self::from_inner)
         .map_err(core_to_py)
     }
 
@@ -117,15 +211,62 @@ impl PyToleranceConfig {
         self.inner.generic_epsilon
     }
 
+    /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
             "ToleranceConfig(rate_epsilon={:?}, generic_epsilon={:?})",
             self.inner.rate_epsilon, self.inner.generic_epsilon
         )
     }
+
+    /// Serialize to JSON.
+    #[allow(clippy::wrong_self_convention)]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "invalid ToleranceConfig"))
+    }
+
+    /// Deserialize from JSON; epsilons are re-validated.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let parsed: ToleranceConfig = serde_json::from_str(json)
+            .map_err(|err| serde_json_to_py(err, "invalid ToleranceConfig JSON"))?;
+        ToleranceConfig::new(parsed.rate_epsilon, parsed.generic_epsilon)
+            .map(Self::from_inner)
+            .map_err(core_to_py)
+    }
+
+    /// Support ``pickle`` via the JSON wire format.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
 }
 
-/// Wrapper for [`FinstackConfig`].
+/// Top-level library configuration: rounding policy, per-currency scale
+/// overrides, comparison tolerances and versioned extensions.
+///
+/// Parameters
+/// ----------
+/// rounding_mode : RoundingMode | str | None
+///     Rounding mode override (object or exact lowercase name); library
+///     default (bankers) when ``None``.
+/// tolerances : ToleranceConfig | None
+///     Tolerance override; library default when ``None``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If *rounding_mode* is a string that is not a recognised mode name.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.config import FinstackConfig
+/// >>> cfg = FinstackConfig(rounding_mode="floor")
+/// >>> cfg.set_output_scale("JPY", 2)
+/// >>> (cfg.rounding_mode.name, cfg.output_scale("JPY"), cfg.output_scale_overrides())
+/// ('floor', 2, {'JPY': 2})
 #[pyclass(
     module = "finstack_quant.core.config",
     name = "FinstackConfig",
@@ -146,40 +287,99 @@ impl PyFinstackConfig {
 
 #[pymethods]
 impl PyFinstackConfig {
+    /// Create a configuration, optionally overriding the rounding mode
+    /// (``RoundingMode`` or its lowercase name) and tolerances.
     #[new]
     #[pyo3(signature = (rounding_mode=None, tolerances=None))]
     #[pyo3(text_signature = "(rounding_mode=None, tolerances=None)")]
-    /// Create a configuration, optionally overriding rounding mode and tolerances.
     fn new(
-        rounding_mode: Option<PyRef<PyRoundingMode>>,
+        rounding_mode: Option<&Bound<'_, PyAny>>,
         tolerances: Option<PyRef<PyToleranceConfig>>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let mut inner = FinstackConfig::default();
         if let Some(rm) = rounding_mode {
-            inner.rounding.mode = rm.inner;
+            inner.rounding.mode = extract_rounding_mode(rm)?;
         }
         if let Some(t) = tolerances {
             inner.tolerances = t.inner;
         }
-        Self { inner }
+        Ok(Self { inner })
     }
 
-    /// Effective output decimal scale for `currency` (ISO-4217 code).
-    #[pyo3(text_signature = "(self, currency)")]
-    fn output_scale(&self, currency: &str) -> PyResult<u32> {
-        let ccy: Currency = currency
-            .parse()
-            .map_err(|_| core_to_py(InputError::UnknownCurrency.into()))?;
-        Ok(self.inner.output_scale(ccy))
+    /// Active rounding mode.
+    #[getter]
+    fn rounding_mode(&self) -> PyRoundingMode {
+        PyRoundingMode::from_inner(self.inner.rounding.mode)
     }
 
-    /// Effective ingest decimal scale for `currency` (ISO-4217 code).
+    /// Comparison tolerances.
+    #[getter]
+    fn tolerances(&self) -> PyToleranceConfig {
+        PyToleranceConfig::from_inner(self.inner.tolerances)
+    }
+
+    /// Effective output decimal scale for ``currency`` (``Currency`` or ISO code).
+    ///
+    /// Falls back to the currency's ISO-4217 minor units when no override is set.
     #[pyo3(text_signature = "(self, currency)")]
-    fn ingest_scale(&self, currency: &str) -> PyResult<u32> {
-        let ccy: Currency = currency
-            .parse()
-            .map_err(|_| core_to_py(InputError::UnknownCurrency.into()))?;
-        Ok(self.inner.ingest_scale(ccy))
+    fn output_scale(&self, currency: &Bound<'_, PyAny>) -> PyResult<u32> {
+        Ok(self.inner.output_scale(extract_currency(currency)?))
+    }
+
+    /// Effective ingest decimal scale for ``currency`` (``Currency`` or ISO code).
+    ///
+    /// Falls back to ``max(6, minor units)`` when no override is set.
+    #[pyo3(text_signature = "(self, currency)")]
+    fn ingest_scale(&self, currency: &Bound<'_, PyAny>) -> PyResult<u32> {
+        Ok(self.inner.ingest_scale(extract_currency(currency)?))
+    }
+
+    /// Override the output decimal scale for ``currency``.
+    #[pyo3(text_signature = "(self, currency, scale)")]
+    fn set_output_scale(&mut self, currency: &Bound<'_, PyAny>, scale: u32) -> PyResult<()> {
+        let ccy = extract_currency(currency)?;
+        self.inner
+            .rounding
+            .output_scale
+            .overrides
+            .insert(ccy, scale);
+        Ok(())
+    }
+
+    /// Override the ingest decimal scale for ``currency``.
+    #[pyo3(text_signature = "(self, currency, scale)")]
+    fn set_ingest_scale(&mut self, currency: &Bound<'_, PyAny>, scale: u32) -> PyResult<()> {
+        let ccy = extract_currency(currency)?;
+        self.inner
+            .rounding
+            .ingest_scale
+            .overrides
+            .insert(ccy, scale);
+        Ok(())
+    }
+
+    /// Explicit output-scale overrides as ``{iso_code: scale}``.
+    #[pyo3(text_signature = "(self)")]
+    fn output_scale_overrides(&self) -> BTreeMap<String, u32> {
+        self.inner
+            .rounding
+            .output_scale
+            .overrides
+            .iter()
+            .map(|(ccy, scale)| (ccy.to_string(), *scale))
+            .collect()
+    }
+
+    /// Explicit ingest-scale overrides as ``{iso_code: scale}``.
+    #[pyo3(text_signature = "(self)")]
+    fn ingest_scale_overrides(&self) -> BTreeMap<String, u32> {
+        self.inner
+            .rounding
+            .ingest_scale
+            .overrides
+            .iter()
+            .map(|(ccy, scale)| (ccy.to_string(), *scale))
+            .collect()
     }
 
     /// Set a versioned registry/config extension from a Python dict/list or JSON string.
@@ -263,8 +463,24 @@ impl PyFinstackConfig {
             .map_err(|err| serde_json_to_py(err, "invalid FinstackConfig JSON"))
     }
 
+    /// Structural equality via the JSON wire form (rounding, scale overrides,
+    /// tolerances and extensions).
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(rhs) = other.extract::<PyRef<'_, PyFinstackConfig>>() else {
+            return Ok(false);
+        };
+        Ok(self.to_json()? == rhs.to_json()?)
+    }
+
+    /// Return ``repr(self)`` showing the rounding mode and override counts.
     fn __repr__(&self) -> String {
-        "FinstackConfig(...)".to_string()
+        format!(
+            "FinstackConfig(rounding_mode={:?}, output_scale_overrides={}, ingest_scale_overrides={}, extensions={})",
+            self.inner.rounding.mode.to_string(),
+            self.inner.rounding.output_scale.overrides.len(),
+            self.inner.rounding.ingest_scale.overrides.len(),
+            self.inner.extensions.keys().count()
+        )
     }
 }
 

@@ -231,6 +231,67 @@ impl ForwardCurve {
         }
     }
 
+    /// Construct a flat forward curve quoting `rate` at every maturity.
+    ///
+    /// The curve stores two knots, `(0, rate)` and `(1, rate)`, with linear
+    /// interpolation and flat-forward extrapolation, so `rate(t) == rate` for
+    /// every non-negative `t`. Day count and reset lag follow the same curve-ID
+    /// inference as [`ForwardCurve::builder`].
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique curve identifier (for example `"USD-SOFR-3M"`).
+    /// * `tenor_years` - Index tenor in years (`0.25` for a 3-month index);
+    ///   must be finite and strictly positive.
+    /// * `base_date` - Valuation date anchoring `t = 0`.
+    /// * `rate` - Simple forward rate as a decimal fraction (`0.04` is 4%);
+    ///   must be finite.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when `rate` is non-finite or `tenor_years`
+    /// is non-finite or non-positive, or when the builder rejects the curve.
+    pub fn flat(
+        id: impl Into<CurveId>,
+        tenor_years: f64,
+        base_date: Date,
+        rate: f64,
+    ) -> crate::Result<Self> {
+        if !rate.is_finite() {
+            return Err(crate::Error::Validation(format!(
+                "ForwardCurve::flat rate must be finite, got {rate}"
+            )));
+        }
+        if !tenor_years.is_finite() || tenor_years <= 0.0 {
+            return Err(crate::Error::Validation(format!(
+                "ForwardCurve::flat tenor must be finite and positive, got {tenor_years}"
+            )));
+        }
+        Self::builder(id, tenor_years)
+            .base_date(base_date)
+            .knots([(0.0, rate), (1.0, rate)])
+            .build()
+    }
+
+    /// Forward rate starting on `date` for the curve's tenor.
+    ///
+    /// Converts `date` to a year fraction from the base date under the curve
+    /// day count and evaluates [`ForwardCurve::rate`].
+    ///
+    /// # Arguments
+    ///
+    /// * `date` - Calendar date on or after the curve base date at which the
+    ///   forward rate is observed.
+    ///
+    /// # Errors
+    ///
+    /// Propagates a failure while computing the curve day-count fraction from
+    /// the base date to `date`.
+    pub fn rate_on_date(&self, date: Date) -> crate::Result<f64> {
+        let t = super::common::year_fraction_to(self.base, date, self.day_count)?;
+        Ok(self.rate(t))
+    }
+
     /// Forward rate starting at time `t` (in years) for the curve’s tenor.
     ///
     /// # Arguments

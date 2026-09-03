@@ -158,8 +158,10 @@ pub(crate) fn require_hazard_replay(
     }
     Err(finstack_quant_core::Error::Calibration {
         message: format!(
-            "{operation} requires a lossless calibration recipe for hazard curve '{}'; \
-             use the explicitly named hazard-shift metric for direct intensity risk",
+            "{operation} requires a lossless calibration recipe for hazard curve '{}' \
+             (a curve produced by the calibration pipeline, not one built directly from \
+             hazard rates); request `cs01_hazard` / `bucketed_cs01_hazard` instead for \
+             direct hazard-rate (intensity) risk",
             hazard.id()
         ),
         category: "cs01_rebootstrap".to_string(),

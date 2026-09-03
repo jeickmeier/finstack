@@ -1,9 +1,11 @@
 //! Python bindings for the `finstack-quant-analytics` crate.
 //!
-//! The only Python-callable entry point is [`Performance`]. All analytics —
+//! The primary Python-callable entry point is [`Performance`]. All analytics —
 //! return transforms, return/risk metrics, periodic returns, benchmark
 //! comparisons, and basic factor models — are exposed as methods on a
-//! `Performance` instance built from a price or return panel.
+//! `Performance` instance built from a price or return panel. Four scalar
+//! free functions (`sharpe`, `sortino`, `volatility`, `max_drawdown`) cover
+//! the single-series case without a panel.
 
 mod performance;
 mod regression;
@@ -32,16 +34,20 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         [
             "AnalyticsError",
-            "Performance",
-            "LookbackReturns",
-            "PeriodStats",
             "BetaResult",
-            "GreeksResult",
-            "RollingGreeks",
-            "MultiFactorResult",
-            "DrawdownEpisode",
             "DatedSeries",
+            "DrawdownEpisode",
+            "GreeksResult",
+            "LookbackReturns",
+            "MultiFactorResult",
+            "Performance",
+            "PeriodStats",
+            "RollingGreeks",
             "constrained_least_squares",
+            "max_drawdown",
+            "sharpe",
+            "sortino",
+            "volatility",
         ],
     )?;
     m.setattr("__all__", all)?;

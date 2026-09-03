@@ -157,6 +157,7 @@ pub struct CompanyMetrics {
 
     /// Optional instrument-level attributes (sector, geography, rating).
     /// Used by `PeerFilter` for inclusion/exclusion decisions.
+    #[serde(default)]
     pub attributes: Attributes,
 
     /// Enterprise value.
@@ -200,6 +201,7 @@ pub struct CompanyMetrics {
 
     /// Arbitrary additional metrics keyed by name.
     /// Used for custom multiples or regression factors.
+    #[serde(default)]
     pub custom: IndexMap<String, f64>,
 }
 

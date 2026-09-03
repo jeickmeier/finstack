@@ -658,7 +658,9 @@ pub fn aggregate_metrics(
 ///   Rust `PortfolioValuationOptions`. Pass `false` only for an intentional
 ///   PV-preserving fallback.
 /// @param metrics - Optional exact risk-metric ids to compute. Omit for the
-///   standard set; an empty array performs PV-only valuation. Names are
+///   standard set (PV plus `dv01`; pricer-specific metrics such as `theta`
+///   or `cs01` must be listed explicitly); an empty array performs PV-only
+///   valuation. Names are
 ///   validated strictly against the standard `MetricId` set — an unknown
 ///   name throws. Mirrors the Python `metrics=` keyword.
 ///
@@ -752,7 +754,9 @@ pub fn aggregate_full_cashflows_built(
 ///   Rust `PortfolioValuationOptions`. Pass `false` only for an intentional
 ///   PV-preserving fallback.
 /// @param metrics - Optional exact risk-metric ids to compute. Omit for the
-///   standard set; an empty array performs PV-only valuation. Names are
+///   standard set (PV plus `dv01`; pricer-specific metrics such as `theta`
+///   or `cs01` must be listed explicitly); an empty array performs PV-only
+///   valuation. Names are
 ///   validated strictly against the standard `MetricId` set — an unknown
 ///   name throws instead of silently degrading to PV-only valuation.
 ///   Mirrors the Python `metrics=` keyword.

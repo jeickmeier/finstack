@@ -47,7 +47,7 @@ impl TryFrom<MasterScaleWire> for MasterScale {
 }
 
 /// A single grade in a master scale.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MasterScaleGrade {
     /// Grade label (e.g., "AAA", "Aaa", "1", etc.).
     pub label: String,
@@ -63,7 +63,7 @@ pub struct MasterScaleGrade {
 }
 
 /// Result of mapping a PD to a master scale grade.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MasterScaleResult {
     /// The assigned rating grade label.
     pub grade: String,
@@ -131,8 +131,9 @@ impl MasterScale {
     /// # Errors
     ///
     /// Returns [`PdCalibrationError::NonFiniteValue`] if `pd` is NaN or
-    /// infinite (NaN previously fell through
-    /// every comparison and silently mapped to the worst grade).
+    /// infinite, and [`PdCalibrationError::ValueOutOfRange`] if `pd` lies
+    /// outside `[0, 1]` (a sign error or a percent/decimal mix-up such as
+    /// `5.0` for 5% is rejected instead of silently clamping to an end band).
     ///
     /// # Arguments
     ///
@@ -140,6 +141,13 @@ impl MasterScale {
     pub fn map_pd(&self, pd: f64) -> Result<MasterScaleResult, PdCalibrationError> {
         if !pd.is_finite() {
             return Err(PdCalibrationError::NonFiniteValue { value: pd });
+        }
+        if !(0.0..=1.0).contains(&pd) {
+            return Err(PdCalibrationError::ValueOutOfRange {
+                value: pd,
+                min: 0.0,
+                max: 1.0,
+            });
         }
         for (i, grade) in self.grades.iter().enumerate() {
             if pd <= grade.upper_pd {

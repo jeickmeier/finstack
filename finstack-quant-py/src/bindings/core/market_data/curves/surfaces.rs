@@ -1,9 +1,8 @@
-//! Volatility surface bindings.
+//! Volatility surface, cube and FX delta-surface bindings.
 
 use finstack_quant_core::market_data::surfaces::{
     FxDeltaVolSurface, SabrParameterData, VolCube, VolGridOpts, VolSurface,
 };
-use finstack_quant_core::market_data::term_structures::{PriceCurve, PriceCurveKind};
 use pyo3::types::PyDict;
 
 use std::sync::Arc;
@@ -11,15 +10,49 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 use super::helpers::{
-    parse_day_count, parse_extrapolation, parse_interp_style, parse_vol_interpolation_mode,
-    parse_vol_quote_type, parse_vol_surface_axis, vol_interpolation_mode_name,
+    columns_to_dataframe, impl_arc_serde_pymethods, impl_repr_html_via_dataframe,
+    parse_vol_interpolation_mode, parse_vol_quote_type, parse_vol_surface_axis,
+    vol_interpolation_mode_name,
 };
-use crate::bindings::date_utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
+
+/// Extract a row-major volatility grid from a flat list, a nested list of
+/// rows, or any object exposing ``tolist()`` (e.g. a 2-D numpy array).
+fn extract_vol_grid(obj: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    if let Ok(rows) = obj.extract::<Vec<Vec<f64>>>() {
+        return Ok(rows.into_iter().flatten().collect());
+    }
+    if let Ok(flat) = obj.extract::<Vec<f64>>() {
+        return Ok(flat);
+    }
+    if obj.hasattr("tolist")? {
+        let listed = obj.call_method0("tolist")?;
+        if let Ok(rows) = listed.extract::<Vec<Vec<f64>>>() {
+            return Ok(rows.into_iter().flatten().collect());
+        }
+        if let Ok(flat) = listed.extract::<Vec<f64>>() {
+            return Ok(flat);
+        }
+    }
+    Err(pyo3::exceptions::PyTypeError::new_err(
+        "vols must be a flat row-major list of floats, a list of rows, or a 2-D numpy array",
+    ))
+}
 
 /// Two-dimensional implied volatility surface on an expiry x strike grid.
 ///
-/// Wraps [`VolSurface`] from `finstack-quant-core`.
+/// Volatilities are decimal annualised standard deviations (``0.20`` is 20%)
+/// stored row-major by expiry. The secondary axis is a strike, a tenor or a
+/// moneyness coordinate depending on ``secondary_axis``.
+///
+/// Example
+/// -------
+/// >>> from finstack_quant.core.market_data import VolSurface
+/// >>> surface = VolSurface("EQ-VOL", [1.0, 2.0], [90.0, 100.0, 110.0], [[0.22, 0.20, 0.21], [0.23, 0.21, 0.22]])
+/// >>> surface.grid_shape
+/// (2, 3)
+/// >>> round(surface.vol(1.5, 100.0), 4)
+/// 0.205
 #[pyclass(
     name = "VolSurface",
     module = "finstack_quant.core.market_data.curves",
@@ -41,14 +74,46 @@ impl PyVolSurface {
 
 #[pymethods]
 impl PyVolSurface {
-    /// Construct a vol surface from row-major grid data.
+    /// Construct a vol surface from an expiry x strike grid.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Unique surface identifier.
+    /// expiries : list[float]
+    ///     Strictly increasing expiry times in years.
+    /// strikes : list[float]
+    ///     Strictly increasing secondary-axis coordinates (strikes, tenors or moneyness).
+    /// vols : list[float] | list[list[float]] | numpy.ndarray
+    ///     Volatilities as decimals, either flat row-major (``len(expiries) *
+    ///     len(strikes)``) or as ``len(expiries)`` rows of ``len(strikes)`` values.
+    /// secondary_axis : str, optional
+    ///     ``"strike"`` (default) or ``"tenor"``.
+    /// interpolation_mode : str, optional
+    ///     ``"vol"`` (default, bilinear in vol) or ``"total_variance"``.
+    /// quote_type : str, optional
+    ///     ``"black_lognormal"`` (default) or ``"normal"``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the grid size does not match the axes, an axis is not strictly
+    ///     increasing, a vol is non-finite or negative, or a label is unknown.
+    /// TypeError
+    ///     If ``vols`` is not a list, nested list or array-like.
+    ///
+    /// Example
+    /// -------
+    /// >>> from finstack_quant.core.market_data import VolSurface
+    /// >>> VolSurface("EQ-VOL", [1.0], [90.0, 100.0], [0.22, 0.20]).strikes
+    /// [90.0, 100.0]
     #[new]
-    #[pyo3(signature = (id, expiries, strikes, vols_row_major, secondary_axis="strike", interpolation_mode="vol", quote_type="black_lognormal"))]
+    #[pyo3(signature = (id, expiries, strikes, vols, *, secondary_axis="strike", interpolation_mode="vol", quote_type="black_lognormal"))]
     fn new(
         id: &str,
         expiries: Vec<f64>,
         strikes: Vec<f64>,
-        vols_row_major: Vec<f64>,
+        vols: &Bound<'_, PyAny>,
         secondary_axis: &str,
         interpolation_mode: &str,
         quote_type: &str,
@@ -56,11 +121,12 @@ impl PyVolSurface {
         let axis = parse_vol_surface_axis(secondary_axis)?;
         let mode = parse_vol_interpolation_mode(interpolation_mode)?;
         let quote = parse_vol_quote_type(quote_type)?;
+        let grid = extract_vol_grid(vols)?;
         let surface = VolSurface::from_grid_opts(
             id,
             &expiries,
             &strikes,
-            &vols_row_major,
+            &grid,
             VolGridOpts {
                 secondary_axis: axis,
                 quote_type: quote,
@@ -72,6 +138,58 @@ impl PyVolSurface {
         Ok(Self {
             inner: Arc::new(surface),
         })
+    }
+
+    /// Interpolated volatility (decimal) at an expiry / secondary-axis point.
+    ///
+    /// Bilinear in vol or in total variance according to ``interpolation_mode``.
+    ///
+    /// Parameters
+    /// ----------
+    /// expiry : float
+    ///     Expiry in years; must lie within the ``expiries`` range.
+    /// strike : float
+    ///     Secondary-axis coordinate; must lie within the ``strikes`` range.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a coordinate is non-finite or outside the grid.
+    #[pyo3(text_signature = "(self, expiry, strike)")]
+    fn vol(&self, expiry: f64, strike: f64) -> PyResult<f64> {
+        finstack_quant_models::volatility::get_surface_vol(&self.inner, expiry, strike)
+            .map_err(core_to_py)
+    }
+
+    /// Export the grid in long form with columns ``expiry``, ``strike`` and ``vol``.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.DataFrame
+    ///     One row per grid node, expiries outer and strikes inner.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let expiries = self.inner.expiries();
+        let strikes = self.inner.strikes();
+        let mut exp_col = Vec::with_capacity(expiries.len() * strikes.len());
+        let mut strike_col = Vec::with_capacity(exp_col.capacity());
+        for &e in expiries {
+            for &k in strikes {
+                exp_col.push(e);
+                strike_col.push(k);
+            }
+        }
+        columns_to_dataframe(
+            py,
+            &[
+                ("expiry", exp_col),
+                ("strike", strike_col),
+                ("vol", self.inner.vols().to_vec()),
+            ],
+        )
     }
 
     /// Surface identifier string.
@@ -86,45 +204,75 @@ impl PyVolSurface {
         self.inner.expiries().to_vec()
     }
 
-    /// Strike axis of the stored volatility grid.
+    /// Secondary axis (strikes, tenors or moneyness) of the stored grid.
     #[getter]
     fn strikes(&self) -> Vec<f64> {
         self.inner.strikes().to_vec()
     }
 
-    /// Secondary-axis semantic meaning.
+    /// Volatility grid (decimal) as ``len(expiries)`` rows of ``len(strikes)`` values.
+    #[getter]
+    fn vols(&self) -> Vec<Vec<f64>> {
+        let n_strikes = self.inner.strikes().len().max(1);
+        self.inner
+            .vols()
+            .chunks(n_strikes)
+            .map(<[f64]>::to_vec)
+            .collect()
+    }
+
+    /// Secondary-axis semantic meaning (``"strike"`` or ``"tenor"``).
     #[getter]
     fn secondary_axis(&self) -> String {
         self.inner.secondary_axis().to_string()
     }
 
-    /// Quoting convention of the stored volatilities.
+    /// Quoting convention of the stored volatilities (``"black_lognormal"`` or ``"normal"``).
     #[getter]
     fn quote_type(&self) -> String {
         self.inner.quote_type().to_string()
     }
 
-    /// Interpolation contract used between grid points.
+    /// Interpolation contract between grid points (``"vol"`` or ``"total_variance"``).
     #[getter]
     fn interpolation_mode(&self) -> PyResult<String> {
         vol_interpolation_mode_name(self.inner.interpolation_mode())
     }
 
-    /// Surface grid shape as `(n_expiries, n_strikes)`.
+    /// Surface grid shape as ``(n_expiries, n_strikes)``.
     #[getter]
     fn grid_shape(&self) -> (usize, usize) {
         self.inner.grid_shape()
     }
 
     fn __repr__(&self) -> String {
-        format!("VolSurface(id={:?})", self.inner.id().as_str())
+        let (n_exp, n_strk) = self.inner.grid_shape();
+        format!(
+            "VolSurface(id='{}', grid_shape=({}, {}), secondary_axis='{}', quote_type='{}')",
+            self.inner.id().as_str(),
+            n_exp,
+            n_strk,
+            self.inner.secondary_axis(),
+            self.inner.quote_type()
+        )
     }
 }
 
+impl_arc_serde_pymethods!(PyVolSurface, VolSurface, "VolSurface");
+impl_repr_html_via_dataframe!(PyVolSurface);
+
 /// Delta-quoted FX volatility surface (ATM, 25-delta RR/BF, optional 10-delta wings).
 ///
-/// Uses forward delta (premium-unadjusted). Converts to strikes via Garman-Kohlhagen
-/// for strike-axis pricing. See Wystup (2006) and Clark (2011).
+/// Uses forward delta (premium-unadjusted). Quotes are decimal vols
+/// (``0.08`` is 8%); risk reversals are call vol minus put vol and butterflies
+/// are average wing vol minus ATM. See Wystup (2006) and Clark (2011).
+///
+/// Example
+/// -------
+/// >>> from finstack_quant.core.market_data import FxDeltaVolSurface
+/// >>> surface = FxDeltaVolSurface("EURUSD", [0.25, 1.0], [0.08, 0.09], [0.01, 0.015], [0.005, 0.007])
+/// >>> surface.num_expiries
+/// 2
 #[pyclass(
     name = "FxDeltaVolSurface",
     module = "finstack_quant.core.market_data.curves",
@@ -148,9 +296,6 @@ impl PyFxDeltaVolSurface {
 impl PyFxDeltaVolSurface {
     /// Construct an FX delta-quoted vol surface with 25-delta wings.
     ///
-    /// Optional `rr_10d` and `bf_10d` add 10-delta wings for richer smile
-    /// interpolation in the wings.
-    ///
     /// Parameters
     /// ----------
     /// id : str
@@ -158,15 +303,28 @@ impl PyFxDeltaVolSurface {
     /// expiries : list[float]
     ///     Strictly increasing positive expiry times in years.
     /// atm_vols : list[float]
-    ///     ATM delta-neutral straddle vols per expiry (must be positive).
+    ///     ATM delta-neutral straddle vols per expiry (decimal, positive).
     /// rr_25d : list[float]
-    ///     25-delta risk reversal per expiry (call vol - put vol).
+    ///     25-delta risk reversal per expiry (decimal, call vol - put vol).
     /// bf_25d : list[float]
-    ///     25-delta butterfly per expiry (wing average - ATM).
+    ///     25-delta butterfly per expiry (decimal, wing average - ATM).
     /// rr_10d : list[float], optional
-    ///     10-delta risk reversal per expiry. If provided, `bf_10d` is required.
+    ///     10-delta risk reversal per expiry; requires ``bf_10d``.
     /// bf_10d : list[float], optional
-    ///     10-delta butterfly per expiry. If provided, `rr_10d` is required.
+    ///     10-delta butterfly per expiry; requires ``rr_10d``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If only one of ``rr_10d`` / ``bf_10d`` is given, any vector is empty
+    ///     or mismatched in length, expiries are not strictly increasing and
+    ///     positive, or a quote is non-finite (ATM vols must be positive).
+    ///
+    /// Example
+    /// -------
+    /// >>> from finstack_quant.core.market_data import FxDeltaVolSurface
+    /// >>> FxDeltaVolSurface("EURUSD", [1.0], [0.09], [0.015], [0.007]).atm_vols
+    /// [0.09]
     #[new]
     #[pyo3(signature = (id, expiries, atm_vols, rr_25d, bf_25d, rr_10d=None, bf_10d=None))]
     fn new(
@@ -178,22 +336,42 @@ impl PyFxDeltaVolSurface {
         rr_10d: Option<Vec<f64>>,
         bf_10d: Option<Vec<f64>>,
     ) -> PyResult<Self> {
-        let surface = match (rr_10d, bf_10d) {
-            (Some(rr), Some(bf)) => {
-                FxDeltaVolSurface::with_10d(id, expiries, atm_vols, rr_25d, bf_25d, rr, bf)
-                    .map_err(core_to_py)?
-            }
-            (None, None) => FxDeltaVolSurface::new(id, expiries, atm_vols, rr_25d, bf_25d)
-                .map_err(core_to_py)?,
+        let wings_10d = match (rr_10d, bf_10d) {
+            (Some(rr), Some(bf)) => Some((rr, bf)),
+            (None, None) => None,
             _ => {
                 return Err(crate::errors::value_error(
                     "rr_10d and bf_10d must both be provided or both omitted",
                 ));
             }
         };
+        let surface = FxDeltaVolSurface::new(id, expiries, atm_vols, rr_25d, bf_25d, wings_10d)
+            .map_err(core_to_py)?;
         Ok(Self {
             inner: Arc::new(surface),
         })
+    }
+
+    /// Export pillars as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``expiry``, ``atm_vol``, ``rr_25d``, ``bf_25d`` and, when
+    /// 10-delta wings are stored, ``rr_10d`` and ``bf_10d``.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.DataFrame
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut columns = vec![
+            ("expiry", self.inner.expiries().to_vec()),
+            ("atm_vol", self.inner.atm_vols().to_vec()),
+            ("rr_25d", self.inner.rr_25d().to_vec()),
+            ("bf_25d", self.inner.bf_25d().to_vec()),
+        ];
+        if let (Some(rr), Some(bf)) = (self.inner.rr_10d(), self.inner.bf_10d()) {
+            columns.push(("rr_10d", rr.to_vec()));
+            columns.push(("bf_10d", bf.to_vec()));
+        }
+        columns_to_dataframe(py, &columns)
     }
 
     /// Surface identifier string.
@@ -214,18 +392,248 @@ impl PyFxDeltaVolSurface {
         self.inner.num_expiries()
     }
 
+    /// ATM delta-neutral straddle vols per expiry (decimal).
+    #[getter]
+    fn atm_vols(&self) -> Vec<f64> {
+        self.inner.atm_vols().to_vec()
+    }
+
+    /// 25-delta risk reversals per expiry (decimal).
+    #[getter]
+    fn rr_25d(&self) -> Vec<f64> {
+        self.inner.rr_25d().to_vec()
+    }
+
+    /// 25-delta butterflies per expiry (decimal).
+    #[getter]
+    fn bf_25d(&self) -> Vec<f64> {
+        self.inner.bf_25d().to_vec()
+    }
+
+    /// 10-delta risk reversals per expiry (decimal), or ``None``.
+    #[getter]
+    fn rr_10d(&self) -> Option<Vec<f64>> {
+        self.inner.rr_10d().map(<[f64]>::to_vec)
+    }
+
+    /// 10-delta butterflies per expiry (decimal), or ``None``.
+    #[getter]
+    fn bf_10d(&self) -> Option<Vec<f64>> {
+        self.inner.bf_10d().map(<[f64]>::to_vec)
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "FxDeltaVolSurface(id={:?}, num_expiries={})",
+            "FxDeltaVolSurface(id='{}', num_expiries={}, has_10d={})",
             self.inner.id().as_str(),
-            self.inner.num_expiries()
+            self.inner.num_expiries(),
+            if self.inner.rr_10d().is_some() {
+                "True"
+            } else {
+                "False"
+            }
         )
     }
 }
 
+impl_arc_serde_pymethods!(PyFxDeltaVolSurface, FxDeltaVolSurface, "FxDeltaVolSurface");
+impl_repr_html_via_dataframe!(PyFxDeltaVolSurface);
+
+/// Calibrated SABR parameters for one vol-cube node.
+///
+/// Example
+/// -------
+/// >>> from finstack_quant.core.market_data import SabrParameterData
+/// >>> p = SabrParameterData(0.02, 0.5, -0.2, 0.3)
+/// >>> (p.alpha, p.shift)
+/// (0.02, None)
+#[pyclass(
+    name = "SabrParameterData",
+    module = "finstack_quant.core.market_data.curves",
+    frozen,
+    eq,
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, PartialEq)]
+pub struct PySabrParameterData {
+    /// Inner Rust parameter node.
+    pub(crate) inner: SabrParameterData,
+}
+
+impl PySabrParameterData {
+    /// Wrap an existing Rust node.
+    pub(crate) fn from_inner(inner: SabrParameterData) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PySabrParameterData {
+    /// Construct a validated SABR parameter node.
+    ///
+    /// Parameters
+    /// ----------
+    /// alpha : float
+    ///     Initial volatility level; strictly positive.
+    /// beta : float
+    ///     CEV exponent in ``[0, 1]``.
+    /// rho : float
+    ///     Forward/volatility correlation in ``(-1, 1)``.
+    /// nu : float
+    ///     Volatility of volatility; strictly positive.
+    /// shift : float, optional
+    ///     Displacement added to forward and strike (decimal rate units, e.g. ``0.03``).
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If any value is non-finite or outside its range.
+    ///
+    /// Example
+    /// -------
+    /// >>> from finstack_quant.core.market_data import SabrParameterData
+    /// >>> SabrParameterData(0.02, 0.5, -0.2, 0.3, shift=0.03).shift
+    /// 0.03
+    #[new]
+    #[pyo3(signature = (alpha, beta, rho, nu, shift=None))]
+    fn new(alpha: f64, beta: f64, rho: f64, nu: f64, shift: Option<f64>) -> PyResult<Self> {
+        SabrParameterData::new_with_shift(alpha, beta, rho, nu, shift)
+            .map(Self::from_inner)
+            .map_err(core_to_py)
+    }
+
+    /// Initial volatility level (strictly positive).
+    #[getter]
+    fn alpha(&self) -> f64 {
+        self.inner.alpha
+    }
+
+    /// CEV exponent in ``[0, 1]``.
+    #[getter]
+    fn beta(&self) -> f64 {
+        self.inner.beta
+    }
+
+    /// Forward/volatility correlation in ``(-1, 1)``.
+    #[getter]
+    fn rho(&self) -> f64 {
+        self.inner.rho
+    }
+
+    /// Volatility of volatility (strictly positive).
+    #[getter]
+    fn nu(&self) -> f64 {
+        self.inner.nu
+    }
+
+    /// Displacement applied to forward and strike, or ``None``.
+    #[getter]
+    fn shift(&self) -> Option<f64> {
+        self.inner.shift
+    }
+
+    /// Serialize to canonical JSON (``{"alpha": ..., "beta": ..., "rho": ..., "nu": ..., "shift": ...}``).
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If serialization fails.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(|e| {
+            crate::errors::value_error(format!("failed to serialize SabrParameterData: {e}"))
+        })
+    }
+
+    /// Deserialize from canonical JSON.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     JSON produced by ``to_json``.
+    ///
+    /// Returns
+    /// -------
+    /// SabrParameterData
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed or the parameters fail validation.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        serde_json::from_str::<SabrParameterData>(json)
+            .map(Self::from_inner)
+            .map_err(|e| crate::errors::value_error(format!("invalid SabrParameterData JSON: {e}")))
+    }
+
+    /// Support ``pickle`` through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        let shift = self
+            .inner
+            .shift
+            .map_or_else(|| "None".to_string(), |s| s.to_string());
+        format!(
+            "SabrParameterData(alpha={}, beta={}, rho={}, nu={}, shift={})",
+            self.inner.alpha, self.inner.beta, self.inner.rho, self.inner.nu, shift
+        )
+    }
+}
+
+/// Parse one cube node: a ``SabrParameterData`` or a dict with keys
+/// ``alpha``, ``beta``, ``rho``, ``nu`` and optional ``shift``.
+fn extract_sabr_node(obj: &Bound<'_, PyAny>, idx: usize) -> PyResult<SabrParameterData> {
+    if let Ok(typed) = obj.extract::<PyRef<'_, PySabrParameterData>>() {
+        return Ok(typed.inner);
+    }
+    let dict = obj.cast::<PyDict>().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(format!(
+            "params_row_major[{idx}]: expected SabrParameterData or dict"
+        ))
+    })?;
+    let get = |key: &str| -> PyResult<f64> {
+        dict.get_item(key)?
+            .ok_or_else(|| {
+                crate::errors::value_error(format!(
+                    "params_row_major[{idx}]: missing required key {key:?}"
+                ))
+            })?
+            .extract::<f64>()
+    };
+
+    let alpha = get("alpha")?;
+    let beta = get("beta")?;
+    let rho = get("rho")?;
+    let nu = get("nu")?;
+
+    let shift = dict
+        .get_item("shift")?
+        .filter(|value| !value.is_none())
+        .map(|value| value.extract::<f64>())
+        .transpose()?;
+    SabrParameterData::new_with_shift(alpha, beta, rho, nu, shift).map_err(core_to_py)
+}
+
 /// SABR volatility cube on an expiry x tenor grid.
 ///
-/// Wraps [`VolCube`] from `finstack-quant-core`.
+/// Each node stores calibrated SABR parameters and the forward swap rate
+/// (decimal) for that expiry/tenor pair, row-major by expiry.
+///
+/// Example
+/// -------
+/// >>> from finstack_quant.core.market_data import SabrParameterData, VolCube
+/// >>> p = SabrParameterData(0.02, 0.5, -0.2, 0.3)
+/// >>> cube = VolCube("USD-SWPT", [1.0, 2.0], [5.0], [p, p], [0.03, 0.032])
+/// >>> cube.forward_at(1, 0)
+/// 0.032
 #[pyclass(
     name = "VolCube",
     module = "finstack_quant.core.market_data.curves",
@@ -245,33 +653,6 @@ impl PyVolCube {
     }
 }
 
-/// Parse a Python dict to [`SabrParameterData`].
-///
-/// Required keys: `"alpha"`, `"beta"`, `"rho"`, `"nu"`.
-/// Optional key: `"shift"`.
-fn parse_sabr_dict(dict: &Bound<'_, PyDict>, idx: usize) -> PyResult<SabrParameterData> {
-    let get = |key: &str| -> PyResult<f64> {
-        dict.get_item(key)?
-            .ok_or_else(|| {
-                crate::errors::value_error(format!(
-                    "params_row_major[{idx}]: missing required key {key:?}"
-                ))
-            })?
-            .extract::<f64>()
-    };
-
-    let alpha = get("alpha")?;
-    let beta = get("beta")?;
-    let rho = get("rho")?;
-    let nu = get("nu")?;
-
-    let shift = dict
-        .get_item("shift")?
-        .map(|value| value.extract::<f64>())
-        .transpose()?;
-    SabrParameterData::new_with_shift(alpha, beta, rho, nu, shift).map_err(core_to_py)
-}
-
 #[pymethods]
 impl PyVolCube {
     /// Construct a vol cube from row-major grid data.
@@ -281,24 +662,39 @@ impl PyVolCube {
     /// id : str
     ///     Unique cube identifier.
     /// expiries : list[float]
-    ///     Option expiry axis in years.
+    ///     Option expiry axis in years, strictly increasing.
     /// tenors : list[float]
-    ///     Underlying swap tenor axis in years.
-    /// params_row_major : list[dict]
-    ///     SABR parameter dicts with keys ``"alpha"``, ``"beta"``, ``"rho"``,
-    ///     ``"nu"``, and optionally ``"shift"``.
+    ///     Underlying swap tenor axis in years, strictly increasing.
+    /// params_row_major : list[SabrParameterData | dict]
+    ///     ``len(expiries) * len(tenors)`` SABR nodes, row-major by expiry.
+    ///     Dicts use keys ``"alpha"``, ``"beta"``, ``"rho"``, ``"nu"`` and
+    ///     optionally ``"shift"``.
     /// forwards_row_major : list[float]
-    ///     Forward rates in row-major order.
+    ///     Forward swap rates (decimal) in the same row-major order.
     /// interpolation_mode : str, optional
-    ///     Interpolation contract: ``"vol"`` or ``"total_variance"``
-    ///     (default ``"vol"``).
+    ///     ``"vol"`` (default) or ``"total_variance"``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If grid sizes do not match the axes, a node fails SABR validation,
+    ///     or a label is unknown.
+    /// TypeError
+    ///     If a node is neither ``SabrParameterData`` nor a dict.
+    ///
+    /// Example
+    /// -------
+    /// >>> from finstack_quant.core.market_data import VolCube
+    /// >>> node = {"alpha": 0.02, "beta": 0.5, "rho": -0.2, "nu": 0.3}
+    /// >>> VolCube("USD-SWPT", [1.0], [5.0, 10.0], [node, node], [0.03, 0.035]).grid_shape
+    /// (1, 2)
     #[new]
     #[pyo3(signature = (id, expiries, tenors, params_row_major, forwards_row_major, interpolation_mode="vol"))]
     fn new(
         id: &str,
         expiries: Vec<f64>,
         tenors: Vec<f64>,
-        params_row_major: Vec<Bound<'_, PyDict>>,
+        params_row_major: Vec<Bound<'_, PyAny>>,
         forwards_row_major: Vec<f64>,
         interpolation_mode: &str,
     ) -> PyResult<Self> {
@@ -307,7 +703,7 @@ impl PyVolCube {
         let sabr_params: Vec<SabrParameterData> = params_row_major
             .iter()
             .enumerate()
-            .map(|(i, d)| parse_sabr_dict(d, i))
+            .map(|(i, node)| extract_sabr_node(node, i))
             .collect::<PyResult<Vec<_>>>()?;
 
         let cube = VolCube::from_grid(id, &expiries, &tenors, &sabr_params, &forwards_row_major)
@@ -317,6 +713,103 @@ impl PyVolCube {
         Ok(Self {
             inner: Arc::new(cube),
         })
+    }
+
+    /// SABR parameters at grid indices.
+    ///
+    /// Parameters
+    /// ----------
+    /// exp_idx : int
+    ///     Zero-based expiry index.
+    /// tenor_idx : int
+    ///     Zero-based tenor index.
+    ///
+    /// Returns
+    /// -------
+    /// SabrParameterData
+    ///
+    /// Raises
+    /// ------
+    /// IndexError
+    ///     If an index is outside the grid.
+    #[pyo3(text_signature = "(self, exp_idx, tenor_idx)")]
+    fn params_at(&self, exp_idx: usize, tenor_idx: usize) -> PyResult<PySabrParameterData> {
+        let (n_exp, n_ten) = self.inner.grid_shape();
+        if exp_idx >= n_exp || tenor_idx >= n_ten {
+            return Err(pyo3::exceptions::PyIndexError::new_err(format!(
+                "grid index ({exp_idx}, {tenor_idx}) outside shape ({n_exp}, {n_ten})"
+            )));
+        }
+        Ok(PySabrParameterData::from_inner(
+            *self.inner.params_at(exp_idx, tenor_idx),
+        ))
+    }
+
+    /// Forward swap rate (decimal) at grid indices.
+    ///
+    /// Parameters
+    /// ----------
+    /// exp_idx : int
+    ///     Zero-based expiry index.
+    /// tenor_idx : int
+    ///     Zero-based tenor index.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///
+    /// Raises
+    /// ------
+    /// IndexError
+    ///     If an index is outside the grid.
+    #[pyo3(text_signature = "(self, exp_idx, tenor_idx)")]
+    fn forward_at(&self, exp_idx: usize, tenor_idx: usize) -> PyResult<f64> {
+        let (n_exp, n_ten) = self.inner.grid_shape();
+        if exp_idx >= n_exp || tenor_idx >= n_ten {
+            return Err(pyo3::exceptions::PyIndexError::new_err(format!(
+                "grid index ({exp_idx}, {tenor_idx}) outside shape ({n_exp}, {n_ten})"
+            )));
+        }
+        Ok(self.inner.forward_at(exp_idx, tenor_idx))
+    }
+
+    /// Export nodes in long form.
+    ///
+    /// Columns: ``expiry``, ``tenor``, ``alpha``, ``beta``, ``rho``, ``nu``,
+    /// ``shift`` (``NaN`` when absent) and ``forward``.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.DataFrame
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let expiries = self.inner.expiries();
+        let tenors = self.inner.tenors();
+        let params = self.inner.params();
+        let n = params.len();
+        let mut exp_col = Vec::with_capacity(n);
+        let mut ten_col = Vec::with_capacity(n);
+        for &e in expiries {
+            for &t in tenors {
+                exp_col.push(e);
+                ten_col.push(t);
+            }
+        }
+        columns_to_dataframe(
+            py,
+            &[
+                ("expiry", exp_col),
+                ("tenor", ten_col),
+                ("alpha", params.iter().map(|p| p.alpha).collect()),
+                ("beta", params.iter().map(|p| p.beta).collect()),
+                ("rho", params.iter().map(|p| p.rho).collect()),
+                ("nu", params.iter().map(|p| p.nu).collect()),
+                (
+                    "shift",
+                    params.iter().map(|p| p.shift.unwrap_or(f64::NAN)).collect(),
+                ),
+                ("forward", self.inner.forwards().to_vec()),
+            ],
+        )
     }
 
     /// Cube identifier string.
@@ -337,7 +830,24 @@ impl PyVolCube {
         self.inner.tenors().to_vec()
     }
 
-    /// Grid shape as `(n_expiries, n_tenors)`.
+    /// SABR nodes in row-major (expiry outer, tenor inner) order.
+    #[getter]
+    fn params(&self) -> Vec<PySabrParameterData> {
+        self.inner
+            .params()
+            .iter()
+            .copied()
+            .map(PySabrParameterData::from_inner)
+            .collect()
+    }
+
+    /// Forward swap rates (decimal) in row-major order.
+    #[getter]
+    fn forwards(&self) -> Vec<f64> {
+        self.inner.forwards().to_vec()
+    }
+
+    /// Grid shape as ``(n_expiries, n_tenors)``.
     #[getter]
     fn grid_shape(&self) -> (usize, usize) {
         self.inner.grid_shape()
@@ -350,100 +860,15 @@ impl PyVolCube {
     }
 
     fn __repr__(&self) -> String {
-        format!("VolCube(id={:?})", self.inner.id().as_str())
+        let (n_exp, n_ten) = self.inner.grid_shape();
+        format!(
+            "VolCube(id='{}', grid_shape=({}, {}))",
+            self.inner.id().as_str(),
+            n_exp,
+            n_ten
+        )
     }
 }
 
-/// Volatility index forward curve (e.g. VIX term structure).
-///
-/// Wraps a [`PriceCurve`] with [`PriceCurveKind::VolIndex`] from
-/// `finstack-quant-core`.
-#[pyclass(
-    name = "VolatilityIndexCurve",
-    module = "finstack_quant.core.market_data.curves",
-    frozen,
-    skip_from_py_object
-)]
-#[derive(Clone)]
-pub struct PyVolatilityIndexCurve {
-    /// Shared Rust curve.
-    pub(crate) inner: Arc<PriceCurve>,
-}
-
-impl PyVolatilityIndexCurve {
-    /// Build from an existing `Arc<PriceCurve>` stored as a vol-index curve.
-    pub(crate) fn from_inner(inner: Arc<PriceCurve>) -> Self {
-        Self { inner }
-    }
-}
-
-#[pymethods]
-impl PyVolatilityIndexCurve {
-    /// Construct a volatility index curve from knot points.
-    ///
-    /// Parameters
-    /// ----------
-    /// id : str
-    ///     Unique curve identifier (e.g. ``"VIX"``).
-    /// base_date : datetime.date
-    ///     Valuation date.
-    /// knots : list[tuple[float, float]]
-    ///     ``(time_years, forward_level)`` pairs.
-    /// extrapolation : str, optional
-    ///     Extrapolation policy (default ``"flat_zero"``).
-    /// interp : str, optional
-    ///     Interpolation style (default ``"linear"``).
-    /// day_count : str, optional
-    ///     Day-count convention (default ``"act_365f"``).
-    #[new]
-    #[pyo3(signature = (id, base_date, knots, extrapolation="flat_zero", interp="linear", day_count="act_365f"))]
-    fn new(
-        id: &str,
-        base_date: &Bound<'_, PyAny>,
-        knots: Vec<(f64, f64)>,
-        extrapolation: &str,
-        interp: &str,
-        day_count: &str,
-    ) -> PyResult<Self> {
-        let base = py_to_date(base_date)?;
-        let extrap = parse_extrapolation(extrapolation)?;
-        let style = parse_interp_style(interp)?;
-        let day_count = parse_day_count(day_count)?;
-
-        let curve = PriceCurve::builder(id)
-            .kind(PriceCurveKind::VolIndex)
-            .base_date(base)
-            .day_count(day_count)
-            .knots(knots)
-            .interp(style)
-            .extrapolation(extrap)
-            .build()
-            .map_err(core_to_py)?;
-
-        Ok(Self {
-            inner: Arc::new(curve),
-        })
-    }
-
-    /// Forward volatility index level at year fraction `t`.
-    #[pyo3(text_signature = "(self, t)")]
-    fn forward_level(&self, t: f64) -> f64 {
-        self.inner.price(t)
-    }
-
-    /// Curve identifier string.
-    #[getter]
-    fn id(&self) -> &str {
-        self.inner.id().as_str()
-    }
-
-    /// Valuation base date.
-    #[getter]
-    fn base_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        date_to_py(py, self.inner.base_date())
-    }
-
-    fn __repr__(&self) -> String {
-        format!("VolatilityIndexCurve(id={:?})", self.inner.id().as_str())
-    }
-}
+impl_arc_serde_pymethods!(PyVolCube, VolCube, "VolCube");
+impl_repr_html_via_dataframe!(PyVolCube);

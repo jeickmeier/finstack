@@ -30,18 +30,30 @@ pub struct DayCountContext<'a> {
     pub end_is_termination_date: bool,
 }
 
+/// Reject an ACT/ACT ICMA reference coupon period unless `start < end`.
+fn validate_coupon_period(start: Date, end: Date) -> crate::Result<()> {
+    if start >= end {
+        return Err(crate::Error::Validation(format!(
+            "coupon period start must be before end, got start={start} end={end}"
+        )));
+    }
+    Ok(())
+}
+
 impl<'a> DayCountContext<'a> {
     /// Return a copy with a validated ACT/ACT ICMA reference coupon period.
     ///
+    /// # Arguments
+    ///
+    /// * `start` - Inclusive start of the reference coupon period.
+    /// * `end` - Exclusive end of the reference coupon period; must be after
+    ///   `start`.
+    ///
     /// # Errors
     ///
-    /// Returns an error unless `start < end`.
+    /// Returns `Error::Validation` unless `start < end`.
     pub fn with_coupon_period(mut self, start: Date, end: Date) -> crate::Result<Self> {
-        if start >= end {
-            return Err(crate::Error::Validation(
-                "coupon period start must be before end".to_string(),
-            ));
-        }
+        validate_coupon_period(start, end)?;
         self.coupon_period = Some((start, end));
         Ok(self)
     }
@@ -59,7 +71,7 @@ impl<'a> std::fmt::Debug for DayCountContext<'a> {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 /// Serializable snapshot of [`DayCountContext`] state for persistence and interchange.
@@ -89,12 +101,59 @@ pub struct DayCountContextState {
 }
 
 impl DayCountContextState {
+    /// Build a validated state snapshot.
+    ///
+    /// This is the single validation point shared by every host binding: an
+    /// inverted `coupon_period` is rejected here rather than at year-fraction
+    /// time. The calendar id is *not* resolved (that happens in
+    /// [`Self::to_ctx`]) so a snapshot can be persisted before the registry
+    /// is consulted.
+    ///
+    /// # Arguments
+    ///
+    /// * `calendar_id` - Optional registered holiday-calendar id (for example
+    ///   `"usny"`), required by `Bus/252`.
+    /// * `frequency` - Optional coupon frequency used by ACT/ACT ICMA.
+    /// * `bus_basis` - Optional business-day divisor for `Bus/252`; `None`
+    ///   selects 252.
+    /// * `coupon_period` - Optional `(start, end)` ACT/ACT ICMA reference
+    ///   period; `start` must precede `end`.
+    /// * `end_is_termination_date` - Whether the accrual end is the
+    ///   instrument termination date (30E/360 ISDA February rule).
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Validation` when `coupon_period` is not strictly
+    /// increasing.
+    pub fn try_new(
+        calendar_id: Option<String>,
+        frequency: Option<Tenor>,
+        bus_basis: Option<u16>,
+        coupon_period: Option<(Date, Date)>,
+        end_is_termination_date: bool,
+    ) -> crate::Result<Self> {
+        if let Some((start, end)) = coupon_period {
+            validate_coupon_period(start, end)?;
+        }
+        Ok(Self {
+            calendar_id,
+            frequency,
+            bus_basis,
+            coupon_period,
+            end_is_termination_date,
+        })
+    }
+
     /// Build a runtime [`DayCountContext`] using the built-in calendar lookup.
     ///
     /// # Errors
     ///
-    /// Returns an error when `calendar_id` names an unknown calendar.
+    /// Returns an error when `calendar_id` names an unknown calendar or when
+    /// a deserialized `coupon_period` is inverted.
     pub fn to_ctx(&self) -> crate::Result<DayCountContext<'static>> {
+        if let Some((start, end)) = self.coupon_period {
+            validate_coupon_period(start, end)?;
+        }
         let calendar = self
             .calendar_id
             .as_deref()
@@ -122,5 +181,47 @@ impl<'a> From<DayCountContext<'a>> for DayCountContextState {
             coupon_period: value.coupon_period,
             end_is_termination_date: value.end_is_termination_date,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::macros::date;
+
+    #[test]
+    fn try_new_rejects_inverted_coupon_period() {
+        let err = DayCountContextState::try_new(
+            None,
+            None,
+            None,
+            Some((date!(2025 - 07 - 01), date!(2025 - 01 - 01))),
+            false,
+        )
+        .expect_err("inverted");
+        assert!(err
+            .to_string()
+            .contains("coupon period start must be before end"));
+        assert!(err.to_string().contains("2025-07-01"));
+        assert!(DayCountContextState::try_new(
+            None,
+            None,
+            None,
+            Some((date!(2025 - 01 - 01), date!(2025 - 07 - 01))),
+            false,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn to_ctx_rejects_inverted_deserialized_coupon_period() {
+        let state = DayCountContextState {
+            calendar_id: None,
+            frequency: None,
+            bus_basis: None,
+            coupon_period: Some((date!(2025 - 07 - 01), date!(2025 - 01 - 01))),
+            end_is_termination_date: false,
+        };
+        assert!(state.to_ctx().is_err());
     }
 }

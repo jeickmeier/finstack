@@ -1225,8 +1225,8 @@ impl LsmcPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`; must be positive.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -1244,8 +1244,8 @@ impl LsmcPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
@@ -1257,8 +1257,8 @@ impl LsmcPricer {
             spot,
             strike,
             rate,
-            dividend_yield,
-            volatility,
+            div_yield,
+            vol,
             expiry,
             num_steps,
             currency,
@@ -1278,8 +1278,8 @@ impl LsmcPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`; must be positive.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -1296,8 +1296,8 @@ impl LsmcPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
@@ -1309,8 +1309,8 @@ impl LsmcPricer {
             spot,
             strike,
             rate,
-            dividend_yield,
-            volatility,
+            div_yield,
+            vol,
             expiry,
             num_steps,
             currency,
@@ -1330,8 +1330,8 @@ impl LsmcPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`; must be positive.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -1351,8 +1351,8 @@ impl LsmcPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
@@ -1365,8 +1365,8 @@ impl LsmcPricer {
             spot,
             strike,
             rate,
-            dividend_yield,
-            volatility,
+            div_yield,
+            vol,
             expiry,
             num_steps,
             currency,
@@ -1387,8 +1387,8 @@ impl LsmcPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`; must be positive.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -1407,8 +1407,8 @@ impl LsmcPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
@@ -1421,8 +1421,8 @@ impl LsmcPricer {
             spot,
             strike,
             rate,
-            dividend_yield,
-            volatility,
+            div_yield,
+            vol,
             expiry,
             num_steps,
             currency,
@@ -1439,8 +1439,8 @@ impl LsmcPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
@@ -1448,7 +1448,8 @@ impl LsmcPricer {
         basis_degree: usize,
         exercise: &E,
     ) -> Result<MoneyEstimate> {
-        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        crate::monte_carlo::require_positive_vol(vol)?;
+        let process = GbmProcess::with_params(rate, div_yield, vol)?;
         let basis = lsmc_basis(basis, basis_degree, strike)?;
         self.price(
             &process, spot, expiry, num_steps, exercise, &basis, currency, rate,
@@ -1461,8 +1462,8 @@ impl LsmcPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
@@ -1471,7 +1472,8 @@ impl LsmcPricer {
         pricing_seed: u64,
         exercise: &E,
     ) -> Result<MoneyEstimate> {
-        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        crate::monte_carlo::require_positive_vol(vol)?;
+        let process = GbmProcess::with_params(rate, div_yield, vol)?;
         let basis = lsmc_basis(basis, basis_degree, strike)?;
         self.price_unbiased(
             &process,
@@ -1633,7 +1635,7 @@ mod tests {
             .with_seed(123);
         let pricer = LsmcPricer::new(config);
 
-        // High volatility to get wide spot range
+        // High vol to get wide spot range
         let gbm = GbmProcess::new(GbmParams::new(0.05, 0.0, 1.0).unwrap());
         let put = AmericanPut { strike: 100.0 };
         let basis = PolynomialBasis::new(3);
@@ -1659,7 +1661,7 @@ mod tests {
             .with_seed(456);
         let pricer = LsmcPricer::new(config);
 
-        // Low volatility, deep OTM
+        // Low vol, deep OTM
         let gbm = GbmProcess::new(GbmParams::new(0.05, 0.0, 0.05).unwrap());
         let put = AmericanPut { strike: 50.0 };
         let basis = PolynomialBasis::new(2);
@@ -1919,17 +1921,11 @@ mod tests {
         let spot = 100.0;
         let strike = 100.0;
         let rate = 0.05;
-        let dividend_yield = 0.0;
+        let div_yield = 0.0;
         let vol = 0.2;
         let expiry = 1.0;
-        let european = crate::closed_form::black_scholes_spot_put(
-            spot,
-            strike,
-            rate,
-            dividend_yield,
-            vol,
-            expiry,
-        );
+        let european =
+            crate::closed_form::black_scholes_spot_put(spot, strike, rate, div_yield, vol, expiry);
         let pricer = LsmcPricer::gbm_american(8_000, 8, 11, false, true)
             .expect("GBM American pricer should construct");
         let estimate = pricer
@@ -1937,7 +1933,7 @@ mod tests {
                 spot,
                 strike,
                 rate,
-                dividend_yield,
+                div_yield,
                 vol,
                 expiry,
                 8,
@@ -1960,17 +1956,11 @@ mod tests {
         let spot = 100.0;
         let strike = 100.0;
         let rate = 0.05;
-        let dividend_yield = 0.0;
+        let div_yield = 0.0;
         let vol = 0.2;
         let expiry = 1.0;
-        let european = crate::closed_form::black_scholes_spot_call(
-            spot,
-            strike,
-            rate,
-            dividend_yield,
-            vol,
-            expiry,
-        );
+        let european =
+            crate::closed_form::black_scholes_spot_call(spot, strike, rate, div_yield, vol, expiry);
         let pricer = LsmcPricer::gbm_american(8_000, 8, 13, false, true)
             .expect("GBM American pricer should construct");
         let estimate = pricer
@@ -1978,7 +1968,7 @@ mod tests {
                 spot,
                 strike,
                 rate,
-                dividend_yield,
+                div_yield,
                 vol,
                 expiry,
                 8,

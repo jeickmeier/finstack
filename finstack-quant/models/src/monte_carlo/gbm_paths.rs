@@ -110,6 +110,7 @@ pub fn simulate_gbm_paths(config: &GbmPathConfig) -> Result<GbmPathSummary> {
         )));
     }
 
+    crate::monte_carlo::require_positive_vol(config.vol)?;
     let time_grid = TimeGrid::uniform(config.expiry, config.num_steps)?;
     let mut engine_config =
         McEngineConfig::new(config.num_paths, time_grid).antithetic(config.antithetic);

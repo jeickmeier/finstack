@@ -9,6 +9,7 @@ Examples
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
@@ -16,10 +17,13 @@ import numpy.typing as npt
 import pandas as pd
 
 __all__ = [
+    "DEFAULT_UTILIZATION_THRESHOLD",
     "DecompositionConfig",
     "FactorContribution",
+    "ParametricEsDecompositionView",
     "PositionBudgetEntry",
     "PositionEsContribution",
+    "PositionEsContributionView",
     "PositionFactorContribution",
     "PositionResidualContribution",
     "PositionRiskDecomposition",
@@ -37,29 +41,39 @@ __all__ = [
     "position_component_var",
 ]
 
+DEFAULT_UTILIZATION_THRESHOLD: float
+"""Default ``actual / target`` utilization ratio (``1.2``) above which
+``evaluate_risk_budget`` flags a breach."""
+
 def parametric_var_decomposition(
-    position_ids: list[str],
+    position_ids: list[str] | None,
     weights: list[float],
-    covariance: list[list[float]] | npt.NDArray[np.float64],
-    confidence: float = 0.95,
-    compute_incremental: bool = False,
+    covariance: list[list[float]] | npt.NDArray[np.float64] | pd.DataFrame,
+    confidence: float | None = None,
+    compute_incremental: bool | None = None,
+    config: DecompositionConfig | None = None,
 ) -> PositionRiskDecomposition:
     """
     Decompose portfolio parametric VaR across positions.
 
     Parameters
     ----------
-    position_ids : list[str]
-        Position identifiers aligned with ``weights``.
+    position_ids : list[str] | None
+        Position identifiers aligned with ``weights``. May be ``None`` when
+        ``covariance`` is a ``pandas.DataFrame`` (its column labels are used).
     weights : list[float]
-        Portfolio weights or exposures.
-    covariance : list[list[float]] or numpy.ndarray
+        Portfolio weights or exposures, one per position.
+    covariance : list[list[float]] | numpy.ndarray | pd.DataFrame
         Square covariance matrix aligned with ``position_ids``. C-contiguous
         ``float64`` arrays use the direct buffer path.
-    confidence : float, default 0.95
-        VaR confidence level strictly inside ``(0.5, 1)``.
-    compute_incremental : bool, default False
-        Whether to calculate leave-one-out incremental VaR for each position.
+    confidence : float | None
+        VaR confidence strictly inside ``(0.5, 1)``; overrides
+        ``config.confidence``. Defaults to ``0.95`` when neither is given.
+    compute_incremental : bool | None
+        Whether to calculate leave-one-out incremental VaR; overrides
+        ``config.compute_incremental``. Defaults to ``False``.
+    config : DecompositionConfig | None
+        Supplies the defaults for the two scalars above.
 
     Returns
     -------
@@ -82,30 +96,39 @@ def parametric_var_decomposition(
     ...
 
 def parametric_es_decomposition(
-    position_ids: list[str],
+    position_ids: list[str] | None,
     weights: list[float],
-    covariance: list[list[float]] | npt.NDArray[np.float64],
-    confidence: float = 0.95,
-) -> PositionRiskDecomposition:
+    covariance: list[list[float]] | npt.NDArray[np.float64] | pd.DataFrame,
+    confidence: float | None = None,
+    config: DecompositionConfig | None = None,
+) -> ParametricEsDecompositionView:
     """
     Decompose portfolio parametric expected shortfall across positions.
 
+    The ES twin of :func:`parametric_var_decomposition`: runs the same engine
+    and returns the ES reporting view (``portfolio_es`` plus per-position
+    ``component_es`` / ``pct_contribution`` rows).
+
     Parameters
     ----------
-    position_ids : list[str]
-        Position identifiers aligned with ``weights``.
+    position_ids : list[str] | None
+        Position identifiers aligned with ``weights``; ``None`` allowed with a
+        ``pandas.DataFrame`` covariance.
     weights : list[float]
-        Portfolio weights or exposures.
-    covariance : list[list[float]] or numpy.ndarray
-        Square covariance matrix aligned with ``position_ids``. C-contiguous
-        ``float64`` arrays use the direct buffer path.
-    confidence : float, default 0.95
-        ES confidence level strictly inside ``(0.5, 1)``.
+        Portfolio weights or exposures, one per position.
+    covariance : list[list[float]] | numpy.ndarray | pd.DataFrame
+        Square covariance matrix aligned with ``position_ids``.
+    confidence : float | None
+        ES confidence strictly inside ``(0.5, 1)``; overrides
+        ``config.confidence``. Defaults to ``0.95``.
+    config : DecompositionConfig | None
+        Supplies the default confidence.
 
     Returns
     -------
-    PositionRiskDecomposition
-        Typed portfolio VaR/ES totals and per-position contributions.
+    ParametricEsDecompositionView
+        ``portfolio_var``, ``portfolio_es`` (losses negative) and per-position
+        ES rows.
 
     Raises
     ------
@@ -123,34 +146,43 @@ def parametric_es_decomposition(
     ...
 
 def historical_var_decomposition(
-    position_ids: list[str],
-    position_pnls: list[list[float]] | npt.NDArray[np.float64],
-    confidence: float = 0.95,
+    position_ids: list[str] | None,
+    position_pnls: list[list[float]] | npt.NDArray[np.float64] | pd.DataFrame,
+    confidence: float | None = None,
+    config: DecompositionConfig | None = None,
 ) -> PositionRiskDecomposition:
     """
     Decompose historical VaR from scenario or realized position P&Ls.
 
     Parameters
     ----------
-    position_ids : list[str]
-        Position identifiers.
-    position_pnls : list[list[float]] or numpy.ndarray
-        Position-major matrix of P&Ls shaped
-        ``len(position_ids) x n_scenarios``. C-contiguous ``float64`` arrays
-        use the direct buffer path.
-    confidence : float, default 0.95
-        Historical VaR confidence level strictly inside ``(0.5, 1)``.
+    position_ids : list[str] | None
+        Position identifiers. May be ``None`` when ``position_pnls`` is a
+        ``pandas.DataFrame`` (its column labels are used).
+    position_pnls : list[list[float]] | numpy.ndarray | pd.DataFrame
+        P&L matrix, losses negative. A ``pandas.DataFrame`` is read as rows =
+        scenarios, columns = positions. A nested list or 2-D array is read as
+        ``n_positions x n_scenarios`` (position-major); a
+        ``n_scenarios x n_positions`` layout is accepted when the two
+        dimensions differ.
+    confidence : float | None
+        Historical VaR confidence strictly inside ``(0.5, 1)``; overrides
+        ``config.confidence``. Defaults to ``0.95``.
+    config : DecompositionConfig | None
+        Supplies the default confidence.
 
     Returns
     -------
     PositionRiskDecomposition
-        Typed historical VaR/ES totals and per-position contributions.
+        Typed historical VaR/ES totals and per-position contributions
+        (marginal and incremental VaR are ``None``).
 
     Raises
     ------
     ValueError
-        If the P&L matrix is empty, ragged, dimensionally
-        inconsistent, or the confidence level is invalid.
+        If the P&L matrix is empty, ragged, its orientation cannot be resolved
+        against ``position_ids``, too few scenarios resolve the tail, or the
+        confidence level is invalid.
 
     Examples
     --------
@@ -166,7 +198,7 @@ def evaluate_risk_budget(
     actual_var: list[float],
     target_var_pct: list[float],
     portfolio_var: float,
-    utilization_threshold: float = 1.20,
+    utilization_threshold: float = 1.2,
 ) -> RiskBudgetResult:
     """
     Compare actual position VaR against target risk-budget shares.
@@ -183,9 +215,10 @@ def evaluate_risk_budget(
     portfolio_var : float
         Total portfolio VaR used to convert target percentages
         into target VaR amounts.
-    utilization_threshold : float, default 1.20
-        Breach threshold for actual / target utilization. The default is the
-        Rust ``DEFAULT_UTILIZATION_THRESHOLD`` shared with the WASM binding.
+    utilization_threshold : float, default 1.2
+        Breach threshold for actual / target utilization. The default is
+        :data:`DEFAULT_UTILIZATION_THRESHOLD`, the Rust constant shared with
+        the WASM binding.
 
     Returns
     -------
@@ -332,6 +365,22 @@ class FactorContribution:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this entry as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row with columns ``factor_id``, ``absolute_risk``, ``relative_risk``, ``marginal_risk``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -444,6 +493,22 @@ class PositionFactorContribution:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this entry as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row with columns ``position_id``, ``factor_id``, ``risk_contribution``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized.
         """
         ...
 
@@ -579,6 +644,22 @@ class PositionResidualContribution:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this entry as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row with columns ``position_id``, ``residual_variance``, ``source_kind``, ``source_issuer_id``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -654,6 +735,24 @@ class RiskDecomposition:
         -------
         float
             Total portfolio risk under the decomposition measure.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def measure(self) -> str | dict[str, Any]:
+        """
+        Risk measure used for aggregation, as its canonical Python value.
+
+        Returns
+        -------
+        str | dict[str, Any]
+            ``"variance"``, ``"volatility"``, ``{"var": {"confidence": c}}`` or
+            ``{"expected_shortfall": {"confidence": c}}`` — the same shape as
+            ``FactorModelConfig.risk_measure``.
 
         Notes
         -----
@@ -1119,6 +1218,22 @@ class PositionEsContribution:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this entry as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row with columns ``position_id``, ``component_es``, ``relative_es``, ``marginal_es``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized.
         """
         ...
 
@@ -1775,6 +1890,22 @@ class StressPositionEntry:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this entry as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row with columns ``position_id``, ``avg_tail_pnl``, ``pct_of_tail_loss``, ``worst_scenario_pnl``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized.
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -1892,22 +2023,38 @@ class TailScenarioBreakdown:
         """
         ...
 
-    def to_dataframe(self, position_ids: list[str]) -> pd.DataFrame:
+    @property
+    def position_ids(self) -> list[str] | None:
+        """
+        Position ordering inherited from the parent ``StressAttribution``.
+
+        Returns
+        -------
+        list[str] | None
+            Identifiers aligned with :attr:`position_pnls`, or ``None`` for a
+            breakdown reconstructed from JSON on its own.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self, position_ids: list[str] | None = None) -> pd.DataFrame:
         """
         Export this scenario's per-position P&L as a pandas DataFrame.
-
-        The breakdown carries no identifiers of its own — they live once on
-        the parent ``StressAttribution.position_ids`` — so they must be
-        supplied here, exactly as for :meth:`FactorPnlProfile.to_dataframe`.
 
         Columns: ``position_id``, ``pnl`` (portfolio-currency amount; a loss
         is negative).
 
         Parameters
         ----------
-        position_ids : list[str]
-            Position identifiers, normally ``attribution.position_ids``. Must
-            match the number of entries in :attr:`position_pnls`.
+        position_ids : list[str] | None
+            Position identifiers aligned with :attr:`position_pnls`. Defaults
+            to the ordering inherited from the parent
+            ``StressAttribution.position_ids`` when this breakdown was read
+            from ``tail_scenarios``; required for a breakdown built via
+            :meth:`from_json`.
 
         Returns
         -------
@@ -1917,7 +2064,8 @@ class TailScenarioBreakdown:
         Raises
         ------
         ValueError
-            If ``len(position_ids)`` does not match ``len(position_pnls)``.
+            If no identifiers are available or their count does not match
+            ``len(position_pnls)``.
         """
         ...
 
@@ -2123,14 +2271,53 @@ class StressAttribution:
 
 class DecompositionConfig:
     """
-    Configuration for position-level VaR decomposition.
+    Configuration for position-level VaR / ES decomposition.
+
+    Holds the tail ``confidence`` (decimal probability in ``(0.5, 1)``), the
+    ``method`` (``"parametric"`` or ``"historical"``) and whether leave-one-out
+    incremental VaR is computed. Pass an instance as ``config=`` to
+    :func:`parametric_var_decomposition` / :func:`historical_var_decomposition`;
+    any scalar keyword given alongside overrides the matching field. Instances
+    compare equal field-wise and pickle through JSON.
 
     Examples
     --------
     >>> from finstack_quant.models.factor.risk import DecompositionConfig
-    >>> DecompositionConfig.parametric_95().confidence
-    0.95
+    >>> cfg = DecompositionConfig.parametric(0.975).with_incremental()
+    >>> (cfg.confidence, cfg.method, cfg.compute_incremental)
+    (0.975, 'parametric', True)
+    >>> DecompositionConfig.from_json(cfg.to_json()) == cfg
+    True
     """
+
+    @classmethod
+    def parametric(cls, confidence: float) -> DecompositionConfig:
+        """
+        Parametric configuration at an arbitrary confidence level.
+
+        Parameters
+        ----------
+        confidence : float
+            Tail confidence as a decimal probability strictly inside
+            ``(0.5, 1)``, e.g. ``0.95``.
+
+        Returns
+        -------
+        DecompositionConfig
+            Parametric config with incremental VaR disabled.
+
+        Notes
+        -----
+        This method does not raise; the confidence is validated when the
+        config is used.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.risk import DecompositionConfig
+        >>> DecompositionConfig.parametric(0.9).confidence
+        0.9
+        """
+        ...
 
     @classmethod
     def parametric_95(cls) -> DecompositionConfig:
@@ -2140,7 +2327,7 @@ class DecompositionConfig:
         Returns
         -------
         DecompositionConfig
-            Parametric 95% config with incremental VaR disabled and no explicit seed.
+            Parametric 95% config with incremental VaR disabled.
 
         Notes
         -----
@@ -2162,7 +2349,7 @@ class DecompositionConfig:
         Returns
         -------
         DecompositionConfig
-            Parametric 99% config with incremental VaR disabled and no explicit seed.
+            Parametric 99% config with incremental VaR disabled.
 
         Notes
         -----
@@ -2184,13 +2371,12 @@ class DecompositionConfig:
         Parameters
         ----------
         confidence : float
-            VaR confidence as a decimal probability strictly inside ``(0.5, 1)``, such as
-            ``0.95`` for a 95% confidence level.
+            VaR confidence as a decimal probability strictly inside ``(0.5, 1)``.
 
         Returns
         -------
         DecompositionConfig
-            Historical config at the supplied confidence with no incremental VaR or seed.
+            Historical config at the supplied confidence.
 
         Notes
         -----
@@ -2206,42 +2392,69 @@ class DecompositionConfig:
 
     def with_incremental(self) -> DecompositionConfig:
         """
-        Return a copy that requests incremental VaR.
+        Return a copy that requests leave-one-out incremental VaR.
+
         Returns
         -------
         DecompositionConfig
+            Copy with ``compute_incremental`` set.
 
         Notes
         -----
-        This method does not raise; it returns the same instance for chaining.
+        This method does not raise.
         """
         ...
 
-    def with_seed(self, seed: int) -> DecompositionConfig:
+    @staticmethod
+    def from_json(json_str: str) -> DecompositionConfig:
         """
-        Return a copy with a deterministic simulation seed.
+        Deserialize from canonical JSON.
 
         Parameters
         ----------
-        seed : int
-            Integer seed used to reproduce any randomized decomposition steps.
+        json_str : str
+            Object with ``confidence``, ``method`` and ``compute_incremental``.
 
         Returns
         -------
         DecompositionConfig
-            Copy with ``seed`` recorded for simulation-path decompositions.
+            Parsed configuration.
 
-        Notes
-        -----
-        This builder returns a copy with the field set and does not raise.
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or names an unknown field.
 
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.risk import DecompositionConfig
+        >>> DecompositionConfig.from_json(
+        ...     '{"confidence":0.99,"method":"historical","compute_incremental":false}'
+        ... ).method
+        'historical'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON with ``confidence``, ``method`` and ``compute_incremental``.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
         """
         ...
 
     @property
     def confidence(self) -> float:
         """
-        VaR/ES confidence level.
+        Tail confidence as a decimal probability (``0.95``, not ``95``).
 
         Returns
         -------
@@ -2262,7 +2475,7 @@ class DecompositionConfig:
         Returns
         -------
         str
-            Decomposition method label.
+            ``"parametric"`` or ``"historical"``.
 
         Notes
         -----
@@ -2273,12 +2486,98 @@ class DecompositionConfig:
     @property
     def compute_incremental(self) -> bool:
         """
-        Whether incremental VaR is requested.
+        Whether leave-one-out incremental VaR is requested.
 
         Returns
         -------
         bool
-            Whether incremental VaR is requested.
+            ``True`` when incremental VaR is computed.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str:
+        """Return a concise debug representation.
+        Returns
+        -------
+        str
+        """
+        ...
+
+class PositionEsContributionView:
+    """
+    One position's row in a :class:`ParametricEsDecompositionView`.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.factor.risk import PositionEsContributionView
+    >>> row = PositionEsContributionView.from_json(
+    ...     '{"position_id":"A","component_es":-1.5,"marginal_es":null,"pct_contribution":0.6}'
+    ... )
+    >>> (row.position_id, row.pct_contribution)
+    ('A', 0.6)
+    """
+
+    @staticmethod
+    def from_json(json_str: str) -> PositionEsContributionView:
+        """
+        Parse from a JSON string.
+
+        Parameters
+        ----------
+        json_str : str
+            Object with ``position_id``, ``component_es``, ``marginal_es`` and
+            ``pct_contribution``.
+
+        Returns
+        -------
+        PositionEsContributionView
+            Parsed row.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.risk import PositionEsContributionView
+        >>> PositionEsContributionView.from_json(
+        ...     '{"position_id":"A","component_es":-1.0,"marginal_es":null,"pct_contribution":1.0}'
+        ... ).component_es
+        -1.0
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+    @property
+    def position_id(self) -> str:
+        """
+        Portfolio position identifier.
+
+        Returns
+        -------
+        str
+            Position identifier.
 
         Notes
         -----
@@ -2287,13 +2586,14 @@ class DecompositionConfig:
         ...
 
     @property
-    def seed(self) -> int | None:
+    def component_es(self) -> float:
         """
-        Optional deterministic seed.
+        Component Expected Shortfall allocated to the position.
 
         Returns
         -------
-            Optional deterministic seed.
+        float
+            Portfolio-currency amount; losses are negative.
 
         Notes
         -----
@@ -2301,6 +2601,224 @@ class DecompositionConfig:
         """
         ...
 
+    @property
+    def marginal_es(self) -> float | None:
+        """
+        Marginal ES, when the engine produced a gradient.
+
+        Returns
+        -------
+        float | None
+            Same sign convention as :attr:`component_es`; ``None`` otherwise.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def pct_contribution(self) -> float:
+        """
+        Share of portfolio ES contributed by this position.
+
+        Returns
+        -------
+        float
+            A fraction (not a percentage); sums to ``1.0`` across positions.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export this row as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``position_id``, ``component_es``, ``marginal_es``,
+            ``pct_contribution``.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str:
+        """Return a concise debug representation.
+        Returns
+        -------
+        str
+        """
+        ...
+
+class ParametricEsDecompositionView:
+    """
+    Expected-shortfall view of a parametric position decomposition.
+
+    Returned by :func:`parametric_es_decomposition`.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.factor.risk import parametric_es_decomposition
+    >>> es = parametric_es_decomposition(["A", "B"], [1.0, 2.0], [[0.04, 0.0], [0.0, 0.01]])
+    >>> (es.n_positions, round(es.portfolio_es, 6))
+    (2, -0.583423)
+    """
+
+    @staticmethod
+    def from_json(json_str: str) -> ParametricEsDecompositionView:
+        """
+        Parse from a JSON string.
+
+        Parameters
+        ----------
+        json_str : str
+            Object with ``portfolio_var``, ``portfolio_es``, ``confidence``,
+            ``n_positions`` and ``contributions``.
+
+        Returns
+        -------
+        ParametricEsDecompositionView
+            Parsed view.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.risk import ParametricEsDecompositionView
+        >>> doc = '{"portfolio_var":-1.0,"portfolio_es":-1.2,"confidence":0.95,"n_positions":0,"contributions":[]}'
+        >>> ParametricEsDecompositionView.from_json(doc).portfolio_es
+        -1.2
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+    @property
+    def portfolio_var(self) -> float:
+        """
+        Total portfolio VaR.
+
+        Returns
+        -------
+        float
+            Portfolio-currency amount; losses are negative.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def portfolio_es(self) -> float:
+        """
+        Total portfolio Expected Shortfall.
+
+        Returns
+        -------
+        float
+            Portfolio-currency amount; losses are negative and
+            ``portfolio_es <= portfolio_var``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def confidence(self) -> float:
+        """
+        Tail confidence as a decimal probability.
+
+        Returns
+        -------
+        float
+            Strictly inside ``(0.5, 1)``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def n_positions(self) -> int:
+        """
+        Number of positions in the decomposition.
+
+        Returns
+        -------
+        int
+            Position count.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def contributions(self) -> list[PositionEsContributionView]:
+        """
+        Per-position ES rows.
+
+        Returns
+        -------
+        list[PositionEsContributionView]
+            One entry per position, in input order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns copies of the stored rows.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-position ES rows as a pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``position_id``, ``component_es``, ``marginal_es``,
+            ``pct_contribution`` (fraction, not percentage). The portfolio
+            scalars stay on their properties.
+
+        Raises
+        ------
+        ValueError
+            If pandas cannot build the frame.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -2310,41 +2828,41 @@ class DecompositionConfig:
         ...
 
 def build_stress_attribution(
-    position_ids: list[str],
-    position_pnls: list[list[float]] | npt.NDArray[np.float64],
+    position_ids: list[str] | None,
+    position_pnls: list[list[float]] | npt.NDArray[np.float64] | pd.DataFrame,
     confidence: float = 0.95,
 ) -> StressAttribution:
     """
     Build tail-scenario stress attribution from position P&Ls.
 
-    Python input is position-major: one row per position, and each row contains
-    that position's P&L across all scenarios. The binding transposes this into
-    Rust's scenario-major buffer before selecting tail scenarios.
-
     Parameters
     ----------
-    position_ids : list[str]
-        Position identifiers, one per row in ``position_pnls``.
-    position_pnls : list[list[float]] or numpy.ndarray
-        Matrix shaped ``len(position_ids) x n_scenarios``.
-        Every row must have the same number of finite scenario P&Ls.
-        C-contiguous ``float64`` arrays use the direct buffer path.
+    position_ids : list[str] | None
+        Position identifiers. May be ``None`` when ``position_pnls`` is a
+        ``pandas.DataFrame`` (its column labels are used).
+    position_pnls : list[list[float]] | numpy.ndarray | pd.DataFrame
+        P&L matrix, losses negative. A ``pandas.DataFrame`` is read as rows =
+        scenarios, columns = positions. A nested list or 2-D array is read as
+        ``n_positions x n_scenarios`` (position-major); a
+        ``n_scenarios x n_positions`` layout is accepted when the two
+        dimensions differ. C-contiguous ``float64`` arrays use the direct
+        buffer path.
     confidence : float, default 0.95
-        Tail confidence level in ``(0.5, 1)``. The Rust engine
-        selects ``floor((1 - confidence) * n_scenarios)`` tail scenarios.
+        Tail confidence level in ``(0.5, 1)``. The Rust engine selects
+        ``floor((1 - confidence) * n_scenarios)`` tail scenarios.
 
     Returns
     -------
     StressAttribution
-        StressAttribution containing VaR threshold, tail scenario count,
-        per-position tail contributions, and scenario-level P&L breakdowns.
+        VaR threshold, tail scenario count, per-position tail contributions
+        and scenario-level P&L breakdowns.
 
     Raises
     ------
     ValueError
-        If dimensions are inconsistent, confidence is outside
-        ``(0.5, 1)``, the requested tail has zero scenarios, or any P&L is
-        non-finite.
+        If dimensions are inconsistent or the orientation cannot be resolved,
+        confidence is outside ``(0.5, 1)``, the requested tail has zero
+        scenarios, or any P&L is non-finite.
 
     Examples
     --------

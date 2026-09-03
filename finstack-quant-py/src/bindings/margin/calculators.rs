@@ -1,7 +1,10 @@
 //! Python wrappers for margin calculators (VM + IM result types).
 
 use super::types::{PyCsaSpec, PyImMethodology};
-use crate::bindings::pandas_utils::dict_to_dataframe;
+use crate::bindings::date_utils::{date_to_py, extract_date};
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_rows_to_dataframe_with_schema, ColumnSchema,
+};
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
@@ -10,6 +13,11 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 /// Variation margin calculation result.
+///
+/// Sign convention: ``gross_exposure`` is the signed mark-to-market from our
+/// side (positive = the counterparty owes us). ``delivery_amount`` is what we
+/// post and ``return_amount`` what we receive back; at most one is non-zero.
+/// Amounts are floats in the CSA base currency.
 #[pyclass(
     name = "VmResult",
     module = "finstack_quant.margin",
@@ -22,7 +30,8 @@ pub struct PyVmResult {
 
 #[pymethods]
 impl PyVmResult {
-    /// Deserialize a VM result from canonical JSON.
+    /// Deserialize a VM result from canonical JSON; raises ``ValueError`` on
+    /// malformed input.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
@@ -40,7 +49,20 @@ impl PyVmResult {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Gross mark-to-market exposure amount.
+    /// Calculation date as ``datetime.date``.
+    #[getter]
+    fn date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.date)
+    }
+
+    /// Settlement date of the margin transfer (calculation date plus the CSA
+    /// settlement lag, adjusted on the CSA calendar) as ``datetime.date``.
+    #[getter]
+    fn settlement_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.settlement_date)
+    }
+
+    /// Gross mark-to-market exposure (positive = counterparty owes us).
     #[getter]
     fn gross_exposure(&self) -> f64 {
         self.inner.gross_exposure.amount()
@@ -70,6 +92,12 @@ impl PyVmResult {
         self.inner.net_margin().amount()
     }
 
+    /// CSA base currency of every amount.
+    #[getter]
+    fn currency(&self) -> String {
+        self.inner.gross_exposure.currency().to_string()
+    }
+
     /// Whether a margin call is required.
     #[getter]
     fn requires_call(&self) -> bool {
@@ -78,7 +106,8 @@ impl PyVmResult {
 
     /// Export the result as a single-row pandas ``DataFrame``.
     ///
-    /// Columns: ``gross_exposure``, ``net_exposure``, ``delivery_amount``,
+    /// Columns: ``date``, ``settlement_date`` (ISO 8601 strings),
+    /// ``gross_exposure``, ``net_exposure``, ``delivery_amount``,
     /// ``return_amount``, ``net_margin``, ``requires_call``, ``currency``.
     ///
     /// All amount columns are floats in the single CSA currency reported by
@@ -86,6 +115,11 @@ impl PyVmResult {
     /// positive ``return_amount`` means we receive margin back.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
+        data.set_item("date", vec![self.inner.date.to_string()])?;
+        data.set_item(
+            "settlement_date",
+            vec![self.inner.settlement_date.to_string()],
+        )?;
         data.set_item("gross_exposure", vec![self.inner.gross_exposure.amount()])?;
         data.set_item("net_exposure", vec![self.inner.net_exposure.amount()])?;
         data.set_item("delivery_amount", vec![self.inner.delivery_amount.amount()])?;
@@ -101,10 +135,16 @@ impl PyVmResult {
 
     fn __repr__(&self) -> String {
         format!(
-            "VmResult(delivery={:.2}, return={:.2}, requires_call={})",
+            "VmResult(date={}, delivery={:.2}, return={:.2}, requires_call={}, settlement_date={})",
+            self.inner.date,
             self.inner.delivery_amount.amount(),
             self.inner.return_amount.amount(),
-            self.inner.requires_call()
+            if self.inner.requires_call() {
+                "True"
+            } else {
+                "False"
+            },
+            self.inner.settlement_date,
         )
     }
 
@@ -121,6 +161,12 @@ impl PyVmResult {
 }
 
 /// Variation margin calculator following ISDA CSA rules.
+///
+/// Applies the CSA threshold, independent amount, minimum transfer amount
+/// and rounding to a signed exposure, dates the settlement on the CSA
+/// calendar, and can run a whole MTM series into a margin-call schedule
+/// (``generate_margin_calls``) or list the contractual call dates
+/// (``margin_call_dates``).
 #[pyclass(
     name = "VmCalculator",
     module = "finstack_quant.margin",
@@ -129,49 +175,202 @@ impl PyVmResult {
 #[derive(Clone)]
 pub struct PyVmCalculator {
     inner: fm::VmCalculator,
+    csa: fm::CsaSpec,
+}
+
+/// Convert ``list[tuple[date-like, float]] | pandas.Series`` into dated
+/// exposures in ``currency``.
+fn extract_dated_exposures(
+    obj: &Bound<'_, PyAny>,
+    currency: Currency,
+) -> PyResult<Vec<(time::Date, Money)>> {
+    let items: Vec<(Bound<'_, PyAny>, f64)> = if obj.hasattr("items")? && obj.hasattr("index")? {
+        obj.call_method0("items")?
+            .try_iter()?
+            .map(|item| item?.extract::<(Bound<'_, PyAny>, f64)>())
+            .collect::<PyResult<_>>()?
+    } else {
+        obj.extract()?
+    };
+    items
+        .iter()
+        .map(|(date, amount)| Ok((extract_date(date)?, money_from_amount(*amount, currency)?)))
+        .collect()
 }
 
 #[pymethods]
 impl PyVmCalculator {
-    /// Create a new VM calculator with the given CSA specification.
+    /// Create a new VM calculator bound to one CSA specification.
     #[new]
     fn new(csa: &PyCsaSpec) -> Self {
         Self {
             inner: fm::VmCalculator::new(csa.inner.clone()),
+            csa: csa.inner.clone(),
+        }
+    }
+
+    /// CSA specification this calculator applies.
+    #[getter]
+    fn csa(&self) -> PyCsaSpec {
+        PyCsaSpec {
+            inner: self.csa.clone(),
         }
     }
 
     /// Calculate variation margin.
-    #[pyo3(signature = (exposure, posted_collateral, currency, year, month, day))]
+    ///
+    /// Parameters
+    /// ----------
+    /// exposure : float
+    ///     Signed mark-to-market in ``currency`` (positive = the counterparty
+    ///     owes us, negative = we owe them).
+    /// posted_collateral : float
+    ///     Collateral currently posted to us, in ``currency``.
+    /// currency : str
+    ///     ISO-4217 code; must equal the CSA base currency.
+    /// as_of : datetime.date | str
+    ///     Calculation date (``date``, ``datetime``, ``pandas.Timestamp`` or
+    ///     ISO ``YYYY-MM-DD``); the settlement date is derived from it.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the currency is unknown or differs from the CSA base currency,
+    ///     an amount is non-finite, or the date string is not ISO 8601.
+    /// TypeError
+    ///     If ``as_of`` is neither a string nor date-like.
+    #[pyo3(signature = (exposure, posted_collateral, currency, as_of))]
     fn calculate(
         &self,
         exposure: f64,
         posted_collateral: f64,
         currency: &str,
-        year: i32,
-        month: u8,
-        day: u8,
+        as_of: &Bound<'_, PyAny>,
     ) -> PyResult<PyVmResult> {
-        let ccy: finstack_quant_core::currency::Currency =
-            currency.parse().map_err(display_to_py)?;
-        let exp = finstack_quant_core::money::Money::try_new(exposure, ccy)
-            .map_err(crate::errors::core_to_py)?;
-        let posted = finstack_quant_core::money::Money::try_new(posted_collateral, ccy)
-            .map_err(crate::errors::core_to_py)?;
-        let m = time::Month::try_from(month)
-            .map_err(|e| crate::errors::value_error(format!("invalid month: {e}")))?;
-        let as_of = finstack_quant_core::dates::Date::from_calendar_date(year, m, day)
-            .map_err(|e| crate::errors::value_error(format!("invalid date: {e}")))?;
-
+        let ccy: Currency = currency.parse().map_err(display_to_py)?;
+        let exp = money_from_amount(exposure, ccy)?;
+        let posted = money_from_amount(posted_collateral, ccy)?;
+        let as_of = extract_date(as_of)?;
         let result = self
             .inner
             .calculate(exp, posted, as_of)
             .map_err(core_to_py)?;
         Ok(PyVmResult { inner: result })
     }
+
+    /// Run an exposure time series into a margin-call schedule.
+    ///
+    /// Parameters
+    /// ----------
+    /// exposures : list[tuple[datetime.date | str, float]] | pandas.Series
+    ///     Dated signed exposures in the CSA base currency (positive = the
+    ///     counterparty owes us). A ``Series`` contributes its index as the
+    ///     dates. Dates are processed in the order given.
+    /// initial_collateral : float
+    ///     Collateral posted before the first date, in the CSA base currency.
+    ///
+    /// Returns a pandas ``DataFrame`` with one row per call and columns
+    /// ``call_date``, ``settlement_date`` (ISO 8601 strings), ``call_type``
+    /// (``"variation_margin_delivery"`` or ``"variation_margin_return"``),
+    /// ``amount``, ``mtm_trigger``, ``threshold``, ``mta_applied`` (floats in
+    /// ``currency``) and ``currency``. Dates without a call produce no row.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an amount is non-finite or a date string is not ISO 8601.
+    #[pyo3(signature = (exposures, initial_collateral))]
+    fn generate_margin_calls<'py>(
+        &self,
+        py: Python<'py>,
+        exposures: &Bound<'py, PyAny>,
+        initial_collateral: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        const COLUMNS: &[ColumnSchema<'_>] = &[
+            ("call_date", "str"),
+            ("settlement_date", "str"),
+            ("call_type", "str"),
+            ("amount", "float64"),
+            ("mtm_trigger", "float64"),
+            ("threshold", "float64"),
+            ("mta_applied", "float64"),
+            ("currency", "str"),
+        ];
+        let currency = self.csa.base_currency;
+        let exposures = extract_dated_exposures(exposures, currency)?;
+        let initial = money_from_amount(initial_collateral, currency)?;
+        let calls = self
+            .inner
+            .generate_margin_calls(&exposures, initial)
+            .map_err(core_to_py)?;
+        let rows: Vec<serde_json::Value> = calls
+            .iter()
+            .map(|call| {
+                serde_json::json!({
+                    "call_date": call.call_date.to_string(),
+                    "settlement_date": call.settlement_date.to_string(),
+                    "call_type": call.call_type.to_string(),
+                    "amount": call.amount.amount(),
+                    "mtm_trigger": call.mtm_trigger.amount(),
+                    "threshold": call.threshold.amount(),
+                    "mta_applied": call.mta_applied.amount(),
+                    "currency": call.amount.currency().to_string(),
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, COLUMNS)
+    }
+
+    /// Contractual margin-call dates between ``start`` and ``end``.
+    ///
+    /// Follows the CSA VM frequency on the CSA calendar: daily lists every
+    /// business day, weekly/monthly roll from ``start`` with each date
+    /// adjusted forward, on-demand returns just the adjusted endpoints.
+    ///
+    /// Parameters
+    /// ----------
+    /// start : datetime.date | str
+    ///     First date of the window (inclusive).
+    /// end : datetime.date | str
+    ///     Last date of the window (inclusive).
+    ///
+    /// Returns a list of ``datetime.date``. Raises ``ValueError`` if a date
+    /// string is not ISO 8601 or the CSA calendar is not registered.
+    #[pyo3(signature = (start, end))]
+    fn margin_call_dates<'py>(
+        &self,
+        py: Python<'py>,
+        start: &Bound<'py, PyAny>,
+        end: &Bound<'py, PyAny>,
+    ) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        let dates = self
+            .inner
+            .margin_call_dates(extract_date(start)?, extract_date(end)?)
+            .map_err(core_to_py)?;
+        crate::bindings::pandas_utils::dates_to_pylist(py, &dates)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "VmCalculator(csa={:?}, currency={}, threshold={:.2}, mta={:.2}, frequency={})",
+            self.csa.id,
+            self.csa.base_currency,
+            self.csa.vm_threshold().amount(),
+            self.csa.vm_params.mta.amount(),
+            self.csa.vm_params.frequency,
+        )
+    }
 }
 
 /// Initial margin calculation result.
+///
+/// ``amount`` is a float in ``currency``; ``breakdown_keys`` are
+/// methodology-specific component labels — SIMM publishes ``IR_Delta``,
+/// ``IR_Vega``, ``Credit_Qualifying_Delta``, ``Credit_Qualifying_Vega``,
+/// ``Credit_NonQualifying_Delta``, ``Credit_NonQualifying_Vega``,
+/// ``Equity_Delta``, ``Equity_Vega``, ``FX_Delta``, ``FX_Vega``,
+/// ``Commodity_Delta``, ``Commodity_Vega`` and ``Curvature``; the schedule
+/// calculator publishes the normalised asset class (e.g. ``interest_rate``).
 #[pyclass(
     name = "ImResult",
     module = "finstack_quant.margin",
@@ -190,7 +389,8 @@ impl PyImResult {
 
 #[pymethods]
 impl PyImResult {
-    /// Deserialize an IM result from canonical JSON.
+    /// Deserialize an IM result from canonical JSON; raises ``ValueError``
+    /// on malformed input.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
@@ -228,7 +428,7 @@ impl PyImResult {
         }
     }
 
-    /// Margin Period of Risk (days).
+    /// Margin period of risk in business days.
     #[getter]
     fn mpor_days(&self) -> u32 {
         self.inner.mpor_days
@@ -241,18 +441,19 @@ impl PyImResult {
         self.inner.approximation
     }
 
-    /// Calculation date as an ISO 8601 string.
+    /// Calculation date as ``datetime.date``.
     #[getter]
-    fn as_of(&self) -> String {
-        self.inner.as_of.to_string()
+    fn as_of<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.as_of)
     }
 
-    /// Risk-class breakdown keys (if available).
+    /// Breakdown component labels present (see the class docstring for the
+    /// SIMM and schedule label sets), in canonical sorted order.
     fn breakdown_keys(&self) -> Vec<String> {
         self.inner.breakdown.keys().cloned().collect()
     }
 
-    /// Get breakdown amount for a risk class.
+    /// Breakdown amount for one component label, or ``None`` if absent.
     fn breakdown_amount(&self, key: &str) -> Option<f64> {
         self.inner.breakdown.get(key).map(|m| m.amount())
     }
@@ -263,11 +464,11 @@ impl PyImResult {
     /// ``as_of``, ``approximation``.
     ///
     /// ``amount`` is a float in ``currency``; ``mpor_days`` is the margin
-    /// period of risk in calendar days; ``as_of`` is an ISO 8601 date string.
+    /// period of risk in business days; ``as_of`` is an ISO 8601 date string.
     /// ``approximation`` is ``True`` when the amount is a conservative proxy
     /// rather than an exact computation under the named methodology — do not
     /// reconcile an approximated figure against an actual margin call.
-    /// Per-risk-class detail lives in ``to_breakdown_dataframe``.
+    /// Per-component detail lives in ``to_breakdown_dataframe``.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         data.set_item("amount", vec![self.inner.amount.amount()])?;
@@ -279,13 +480,14 @@ impl PyImResult {
         dict_to_dataframe(py, &data, None)
     }
 
-    /// Export the per-risk-class breakdown as a pandas ``DataFrame``.
+    /// Export the per-component breakdown as a pandas ``DataFrame``.
     ///
-    /// Columns: ``risk_class``, ``amount``, ``currency``. One row per risk
-    /// class (e.g. ``"interest_rate"``, ``"credit"``, ``"equity"``), sorted
-    /// by ``risk_class`` so repeated runs are byte-identical, matching the
-    /// canonical ordered breakdown map. Methodologies that publish no
-    /// breakdown yield a zero-row frame that still carries all three columns.
+    /// Columns: ``risk_class``, ``amount``, ``currency``. One row per
+    /// component label (SIMM: ``IR_Delta``, ``IR_Vega``, ``FX_Delta``,
+    /// ``Curvature``, ...; schedule: the asset class such as
+    /// ``interest_rate``), sorted by ``risk_class`` so repeated runs are
+    /// byte-identical. Methodologies that publish no breakdown yield a
+    /// zero-row frame that still carries all three columns.
     ///
     /// Breakdown components do not generally sum to ``amount``: SIMM and
     /// other methodologies aggregate risk classes with correlations.
@@ -309,11 +511,17 @@ impl PyImResult {
 
     fn __repr__(&self) -> String {
         format!(
-            "ImResult(amount={:.2}, methodology={}, mpor={}d, approximation={})",
+            "ImResult(amount={:.2}, currency={}, methodology={}, mpor_days={}, as_of={}, approximation={})",
             self.inner.amount.amount(),
+            self.inner.amount.currency(),
             self.inner.methodology,
             self.inner.mpor_days,
-            self.inner.approximation
+            self.inner.as_of,
+            if self.inner.approximation {
+                "True"
+            } else {
+                "False"
+            }
         )
     }
 
@@ -330,6 +538,11 @@ impl PyImResult {
 }
 
 pub(super) fn money_from_amount(amount: f64, currency: Currency) -> PyResult<Money> {
+    if !amount.is_finite() {
+        return Err(crate::errors::value_error(format!(
+            "amount must be finite, got {amount}"
+        )));
+    }
     Money::try_new(amount, currency).map_err(core_to_py)
 }
 

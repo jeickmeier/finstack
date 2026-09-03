@@ -22,7 +22,9 @@ pub mod workout;
 pub use downturn::{DownturnLgd, DownturnMethod};
 pub use ead::{CreditConversionFactor, EadCalculator};
 pub use seniority::{BetaRecovery, SeniorityCalibration, SeniorityClass, SeniorityRecovery};
-pub use workout::{CollateralPiece, CollateralType, WorkoutCosts, WorkoutLgd, WorkoutLgdBuilder};
+pub use workout::{
+    CollateralPiece, CollateralType, WorkoutCosts, WorkoutLgd, WorkoutLgdBuilder, WorkoutLgdResult,
+};
 
 /// Return historical recovery distribution parameters for a seniority class.
 ///
@@ -105,7 +107,7 @@ pub fn beta_recovery_quantile(mean: f64, std: f64, q: f64) -> finstack_quant_cor
     BetaRecovery::new(mean, std)?.quantile(q)
 }
 
-/// Compute workout net recovery and LGD from collateral specs.
+/// Compute workout net recovery, LGD, and recovery rate from collateral specs.
 ///
 /// Each collateral tuple is `(type_name, book_value, haircut)`.
 ///
@@ -130,7 +132,7 @@ pub fn workout_lgd(
     indirect_cost_pct: f64,
     time_to_resolution_years: f64,
     discount_rate: f64,
-) -> finstack_quant_core::Result<(f64, f64)> {
+) -> finstack_quant_core::Result<WorkoutLgdResult> {
     let pieces = collateral
         .into_iter()
         .map(|(type_name, value, haircut)| {
@@ -147,7 +149,7 @@ pub fn workout_lgd(
         .costs(costs)
         .build()?;
 
-    Ok((model.net_recovery(ead)?, model.lgd(ead)?))
+    model.evaluate(ead)
 }
 
 /// Apply a stressed downturn adjustment to base LGD.
@@ -256,7 +258,11 @@ mod tests {
 
     #[test]
     fn workout_lgd_returns_net_recovery_and_lgd() {
-        let (net_recovery, lgd) = workout_lgd(
+        let WorkoutLgdResult {
+            net_recovery,
+            lgd,
+            recovery_rate,
+        } = workout_lgd(
             100.0,
             vec![("real_estate".to_string(), 80.0, 0.30)],
             0.05,
@@ -272,6 +278,7 @@ mod tests {
         let expected_net = 48.0 / (1.05_f64 * 1.05);
         assert!((net_recovery - expected_net).abs() < 1e-12);
         assert!((lgd - (1.0 - expected_net / 100.0)).abs() < 1e-12);
+        assert!((recovery_rate - (1.0 - lgd)).abs() < 1e-12);
     }
 
     #[test]

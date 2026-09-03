@@ -152,17 +152,17 @@ class TestCDSTrancheTyped:
 
 
 class TestConvertibleBondTyped:
-    def test_builder_with_conversion_json_round_trips(self) -> None:
+    def test_builder_with_conversion_round_trips(self) -> None:
         bond = _convertible()
         payload = json.loads(bond.to_json())
         assert payload["instrument"]["type"] == "convertible_bond"
         assert ConvertibleBond.from_json(bond.to_json()).id == "CONV-1"
 
-    def test_invalid_conversion_json_raises(self) -> None:
-        with pytest.raises(ValueError, match="invalid conversion JSON"):
-            ConvertibleBond.builder().conversion_json("{nope")
+    def test_invalid_conversion_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid conversion"):
+            ConvertibleBond.builder().conversion("{nope")
 
-    def test_conversion_json_pascal_case_enum_raises(self) -> None:
+    def test_conversion_pascal_case_enum_raises(self) -> None:
         conversion = json.dumps({
             "ratio": 20.0,
             "price": None,
@@ -171,8 +171,8 @@ class TestConvertibleBondTyped:
             "dividend_adjustment": "none",
             "dilution_events": [],
         })
-        with pytest.raises(ValueError, match="invalid conversion JSON"):
-            ConvertibleBond.builder().conversion_json(conversion)
+        with pytest.raises(ValueError, match="invalid conversion"):
+            ConvertibleBond.builder().conversion(conversion)
 
     def test_credit_curve_and_recovery_and_settlement_days(self) -> None:
         conversion = json.dumps({
@@ -192,7 +192,7 @@ class TestConvertibleBondTyped:
             .maturity(datetime.date(2029, 1, 15))
             .discount_curve_id("USD-OIS")
             .credit_curve_id("USD-CREDIT-BBB")
-            .conversion_json(conversion)
+            .conversion(conversion)
             .underlying_equity_id("ACME")
             .settlement_days(2)
             .recovery_rate(0.4)

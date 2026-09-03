@@ -558,6 +558,10 @@ impl BootstrapTarget for HazardCurveTarget {
     type Quote = crate::prepared::CalibrationQuote;
     type Curve = HazardCurve;
 
+    fn residual_key(&self, quote: &Self::Quote, _idx: usize) -> String {
+        quote.quote_id().to_string()
+    }
+
     fn quote_time(&self, quote: &Self::Quote) -> Result<f64> {
         match quote {
             crate::prepared::CalibrationQuote::Cds(pq) => Ok(pq.pillar_time),

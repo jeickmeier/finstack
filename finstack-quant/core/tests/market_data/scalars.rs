@@ -7,9 +7,33 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::dividends::{DividendKind, DividendSchedule};
-use finstack_quant_core::market_data::scalars::{InflationIndex, ScalarTimeSeries};
+use finstack_quant_core::market_data::scalars::{
+    InflationIndex, InflationLag, ScalarTimeSeries, SeriesInterpolation,
+};
 use finstack_quant_core::money::Money;
 use time::Month;
+
+#[test]
+fn inflation_lag_display_round_trips_with_from_str() {
+    for lag in [
+        InflationLag::None,
+        InflationLag::Months(3),
+        InflationLag::Days(90),
+    ] {
+        let parsed: InflationLag = lag.to_string().parse().expect("display form parses");
+        assert_eq!(parsed, lag);
+    }
+    assert_eq!(InflationLag::Months(3).to_string(), "3M");
+    assert_eq!(InflationLag::None.to_string(), "none");
+}
+
+#[test]
+fn series_interpolation_parse_error_names_input() {
+    let err = "cubic"
+        .parse::<SeriesInterpolation>()
+        .expect_err("cubic is not supported");
+    assert!(err.to_string().contains("cubic"), "{err}");
+}
 
 fn jan(day: u8) -> Date {
     Date::from_calendar_date(2025, Month::January, day).unwrap()

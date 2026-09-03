@@ -23,7 +23,9 @@ Examples
 from __future__ import annotations
 
 import datetime
-from typing import Optional, Sequence, Union
+from typing import Iterator, Optional, Sequence, Union
+
+import pandas as pd
 
 __all__ = [
     # day-count
@@ -31,6 +33,8 @@ __all__ = [
     "DayCountContext",
     "DayCountContextState",
     "Thirty360Convention",
+    "days_30_360",
+    "days_30e_360_isda",
     # tenor
     "TenorUnit",
     "Tenor",
@@ -76,6 +80,15 @@ __all__ = [
     "create_date",
     "days_since_epoch",
     "date_from_epoch_days",
+    # date extensions
+    "add_business_days",
+    "add_months",
+    "add_weekdays",
+    "end_of_month",
+    "fiscal_year",
+    "is_weekend",
+    "months_until",
+    "quarter",
 ]
 
 class SifmaSettlementClass:
@@ -91,9 +104,13 @@ class SifmaSettlementClass:
     """
 
     A: SifmaSettlementClass
+    """Class A: 30-year conventional (FNMA/FHLMC) and UMBS pools."""
     B: SifmaSettlementClass
+    """Class B: 15-year fixed-rate agency pools."""
     C: SifmaSettlementClass
+    """Class C: 30-year GNMA single-family pools."""
     D: SifmaSettlementClass
+    """Class D: balloons, ARMs, multifamily and other non-standard programs."""
 
     @classmethod
     def from_agency_term(cls, agency: str, term_years: int) -> SifmaSettlementClass:
@@ -228,13 +245,13 @@ def estimated_sifma_settlement_date_for_class(
     """
     ...
 
-def next_sifma_settlement(date: datetime.date) -> datetime.date | None:
+def next_sifma_settlement(date: datetime.date | str) -> datetime.date | None:
     """
     Return the next published SIFMA settlement date on or after a date.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Calendar date from which to search the published settlement calendar.
 
     Returns
@@ -291,6 +308,9 @@ class DayCount:
     otherwise 365. This is explicitly not ACT/ACT AFB, which uses a different
     sub-period-splitting algorithm.
     """
+    NL_365: DayCount
+    """NL/365 (Actual/365 No Leap): actual days excluding every February 29
+    in ``(start, end]``, divided by 365."""
     THIRTY_360: DayCount
     """30/360 US (Bond Basis)."""
     THIRTY_E_360: DayCount
@@ -354,54 +374,114 @@ class DayCount:
         """
         ...
 
+    @classmethod
+    def parse(cls, s: str) -> DayCount:
+        """
+        Leniently parse a day-count label as written on term sheets.
+
+        Case-insensitive; ``/``, ``-`` and spaces are treated as ``_``, and
+        the market spellings ``"ACT/ACT ICMA"``, ``"ACT/ACT ISDA"``,
+        ``"ACT/365"``, ``"30/360"`` and ``"30E/360 ISDA"`` are recognised.
+        Use :meth:`from_name` for strict canonical names.
+
+        Parameters
+        ----------
+        s : str
+            Day-count label such as ``"ACT/360"``, ``"Act/Act ICMA"`` or
+            any canonical snake_case name.
+
+        Returns
+        -------
+        DayCount
+            The matching convention.
+
+        Raises
+        ------
+        ValueError
+            If no spelling matches; the message lists the canonical names.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCount
+        >>> DayCount.parse("ACT/ACT ICMA") == DayCount.ACT_ACT_ISMA
+        True
+
+        """
+        ...
+
     def year_fraction(
         self,
-        start: datetime.date,
-        end: datetime.date,
+        start: datetime.date | str,
+        end: datetime.date | str,
         ctx: Optional[DayCountContext] = None,
+        *,
+        frequency: Union[Tenor, str, None] = None,
+        calendar: Union[HolidayCalendar, str, None] = None,
     ) -> float:
         """
         Compute the year fraction between two dates.
 
         Parameters
         ----------
-        start : datetime.date
-            Start date (inclusive).
-        end : datetime.date
-            End date (exclusive).
+        start : datetime.date | str
+            Accrual start (inclusive); ``datetime.date``, ``pandas.Timestamp``
+            or ISO ``YYYY-MM-DD`` string.
+        end : datetime.date | str
+            Accrual end (exclusive); must not precede *start*.
         ctx : DayCountContext | None
-            Optional context providing calendar or frequency data
-            required by conventions like Bus/252 or Act/Act ISMA.
+            Full context object (calendar, frequency, coupon period, ...).
+            Mutually exclusive with *frequency* / *calendar*.
+        frequency : Tenor | str | None
+            Coupon frequency for ``ACT_ACT_ISMA`` / ``ACT_365L`` (e.g. ``"6M"``).
+        calendar : HolidayCalendar | str | None
+            Holiday calendar (object or id) required by ``BUS_252``.
 
         Returns
         -------
         float
-            Non-negative year fraction.
+            Non-negative year fraction (``0.0`` when ``start == end``).
 
         Raises
         ------
         ValueError
-            If *start* > *end* or required context is missing.
+            If *start* > *end*, both *ctx* and keywords are given, or the
+            convention needs context that was not supplied.
+        KeyError
+            If *calendar* names an unknown calendar.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCount
+        >>> DayCount.ACT_ACT_ISMA.year_fraction("2025-01-15", "2025-07-15", frequency="6M")
+        0.5
+
         """
         ...
 
     def signed_year_fraction(
         self,
-        start: datetime.date,
-        end: datetime.date,
+        start: datetime.date | str,
+        end: datetime.date | str,
         ctx: Optional[DayCountContext] = None,
+        *,
+        frequency: Union[Tenor, str, None] = None,
+        calendar: Union[HolidayCalendar, str, None] = None,
     ) -> float:
         """
         Compute the signed year fraction (negative when start > end).
 
         Parameters
         ----------
-        start : datetime.date
+        start : datetime.date | str
             Start date.
-        end : datetime.date
-            End date.
+        end : datetime.date | str
+            End date; may precede *start*.
         ctx : DayCountContext | None
-            Optional context for calendar/frequency-dependent conventions.
+            Full context object; mutually exclusive with the keywords.
+        frequency : Tenor | str | None
+            Coupon frequency for frequency-dependent conventions.
+        calendar : HolidayCalendar | str | None
+            Holiday calendar required by ``BUS_252``.
 
         Returns
         -------
@@ -411,20 +491,29 @@ class DayCount:
         Raises
         ------
         ValueError
-            If required context is missing.
+            If required context is missing or both *ctx* and keywords are given.
+        KeyError
+            If *calendar* names an unknown calendar.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCount
+        >>> DayCount.ACT_360.signed_year_fraction("2024-07-01", "2024-01-01")
+        -0.5055555555555555
+
         """
         ...
 
     @staticmethod
-    def calendar_days(start: datetime.date, end: datetime.date) -> int:
+    def calendar_days(start: datetime.date | str, end: datetime.date | str) -> int:
         """
         Count the calendar days between two dates.
 
         Parameters
         ----------
-        start : datetime.date
+        start : datetime.date | str
             Start date.
-        end : datetime.date
+        end : datetime.date | str
             End date.
 
         Returns
@@ -462,21 +551,33 @@ class DayCountContext:
     Certain conventions require additional information:
 
     - **Bus/252** requires a holiday calendar (resolved by ``calendar_id``).
-    - **Act/Act (ISMA)** requires the coupon ``frequency``.
+    - **Act/Act (ISMA)** requires the coupon ``frequency`` and, for
+      irregular or mid-coupon accruals, the reference ``coupon_period``.
+    - **30E/360 ISDA** uses ``end_is_termination_date`` for its
+      end-of-February rule.
+
+    Equality is structural, and instances round-trip through
+    :meth:`to_json` / :meth:`from_json` and ``pickle``.
 
     Parameters
     ----------
     calendar_id : str | None
-        Calendar identifier (e.g. ``"target2"``).
-    frequency : Tenor | None
-        Coupon frequency for ISMA conventions.
+        Registered calendar id (e.g. ``"target2"``; ``"nyse+gblo"`` joins
+        calendars). Resolved on each use, so an unknown id raises
+        ``KeyError`` at calculation time.
+    frequency : Tenor | str | None
+        Coupon frequency for ISMA conventions (``Tenor`` or ``"6M"``).
     bus_basis : int | None
         Custom business-day divisor (defaults to 252 when omitted).
+    coupon_period : tuple[datetime.date | str, datetime.date | str] | None
+        Reference coupon period ``(start, end)``; ``start`` must precede ``end``.
+    end_is_termination_date : bool
+        Whether the accrual end is the instrument termination date.
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import DayCountContext, Tenor
-    >>> context = DayCountContext("usny", Tenor.quarterly(), 252)
+    >>> from finstack_quant.core.dates import DayCountContext
+    >>> context = DayCountContext("usny", "3M", 252)
     >>> (context.calendar_id, context.frequency.months, context.bus_basis, context.to_state().calendar_id)
     ('usny', 3, 252, 'usny')
 
@@ -485,9 +586,9 @@ class DayCountContext:
     def __init__(
         self,
         calendar_id: Optional[str] = None,
-        frequency: Optional[Tenor] = None,
+        frequency: Union[Tenor, str, None] = None,
         bus_basis: Optional[int] = None,
-        coupon_period: Optional[tuple[datetime.date, datetime.date]] = None,
+        coupon_period: Optional[tuple[datetime.date | str, datetime.date | str]] = None,
         end_is_termination_date: bool = False,
     ) -> None:
         """
@@ -496,12 +597,12 @@ class DayCountContext:
         Parameters
         ----------
         calendar_id : str | None
-            Calendar identifier.
-        frequency : Tenor | None
-            Coupon frequency.
+            Registered calendar id; not resolved until a calculation runs.
+        frequency : Tenor | str | None
+            Coupon frequency (``Tenor`` or tenor string such as ``"6M"``).
         bus_basis : int | None
-            Custom business-day divisor.
-        coupon_period : tuple[datetime.date, datetime.date] | None
+            Custom business-day divisor for Bus/252.
+        coupon_period : tuple[datetime.date | str, datetime.date | str] | None
             Reference coupon period ``(start, end)`` for ACT/ACT (ICMA).
         end_is_termination_date : bool
             Whether the accrual end is the instrument termination date.
@@ -509,11 +610,67 @@ class DayCountContext:
         Raises
         ------
         ValueError
-            If *coupon_period* is supplied and its start is not before its end.
+            If *coupon_period* is supplied and its start is not before its
+            end (validated in Rust), or *frequency* does not parse.
 
         """
         ...
 
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form (strict field names).
+
+        Returns
+        -------
+        str
+            JSON object with ``calendar_id``, ``frequency``, ``bus_basis``,
+            ``coupon_period`` (ISO date pair or ``null``) and
+            ``end_is_termination_date``.
+
+        Raises
+        ------
+        ValueError
+            If the context cannot be serialized.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCountContext
+        >>> DayCountContext.from_json(DayCountContext("usny").to_json()).calendar_id
+        'usny'
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> DayCountContext:
+        """
+        Deserialize from the canonical JSON wire form.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        DayCountContext
+            The reconstructed context.
+
+        Raises
+        ------
+        ValueError
+            If *json* is malformed, has unknown fields, or carries an
+            inverted ``coupon_period``.
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCountContext
+        >>> DayCountContext.from_json(DayCountContext("usny").to_json()).calendar_id
+        'usny'
+
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
     @property
     def calendar_id(self) -> Optional[str]:
         """
@@ -613,14 +770,22 @@ class DayCountContextState:
     """
     Serializable snapshot of :class:`DayCountContext` for persistence.
 
+    Takes the same parameters as :class:`DayCountContext` and validates them
+    the same way. Equality is structural; instances round-trip through
+    :meth:`to_json` / :meth:`from_json` and ``pickle``.
+
     Parameters
     ----------
     calendar_id : str | None
-        Calendar identifier.
-    frequency : Tenor | None
-        Coupon frequency.
+        Registered calendar id.
+    frequency : Tenor | str | None
+        Coupon frequency (``Tenor`` or ``"6M"``).
     bus_basis : int | None
         Custom business-day divisor.
+    coupon_period : tuple[datetime.date | str, datetime.date | str] | None
+        Reference coupon period ``(start, end)``; ``start`` must precede ``end``.
+    end_is_termination_date : bool
+        Whether the accrual end is the instrument termination date.
 
     Examples
     --------
@@ -634,9 +799,9 @@ class DayCountContextState:
     def __init__(
         self,
         calendar_id: Optional[str] = None,
-        frequency: Optional[Tenor] = None,
+        frequency: Union[Tenor, str, None] = None,
         bus_basis: Optional[int] = None,
-        coupon_period: Optional[tuple[datetime.date, datetime.date]] = None,
+        coupon_period: Optional[tuple[datetime.date | str, datetime.date | str]] = None,
         end_is_termination_date: bool = False,
     ) -> None:
         """
@@ -645,22 +810,78 @@ class DayCountContextState:
         Parameters
         ----------
         calendar_id : str | None
-            Calendar identifier.
-        frequency : Tenor | None
-            Coupon frequency.
+            Registered calendar id; not resolved until a calculation runs.
+        frequency : Tenor | str | None
+            Coupon frequency (``Tenor`` or tenor string).
         bus_basis : int | None
-            Custom business-day divisor.
-        coupon_period : tuple[datetime.date, datetime.date] | None
+            Custom business-day divisor for Bus/252.
+        coupon_period : tuple[datetime.date | str, datetime.date | str] | None
             Reference coupon period ``(start, end)``.
         end_is_termination_date : bool
             Whether the accrual end is the instrument termination date.
 
-        Notes
-        -----
-        Construction does not raise; arguments are stored as supplied.
+        Raises
+        ------
+        ValueError
+            If *coupon_period* is inverted (validated in Rust) or
+            *frequency* does not parse.
         """
         ...
 
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form (strict field names).
+
+        Returns
+        -------
+        str
+            JSON object with ``calendar_id``, ``frequency``, ``bus_basis``,
+            ``coupon_period`` and ``end_is_termination_date``.
+
+        Raises
+        ------
+        ValueError
+            If the state cannot be serialized.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCountContextState
+        >>> DayCountContextState.from_json(DayCountContextState(bus_basis=250).to_json()).bus_basis
+        250
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> DayCountContextState:
+        """
+        Deserialize from the canonical JSON wire form.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        DayCountContextState
+            The reconstructed snapshot.
+
+        Raises
+        ------
+        ValueError
+            If *json* is malformed, has unknown fields, or carries an
+            inverted ``coupon_period``.
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCountContextState
+        >>> DayCountContextState.from_json(DayCountContextState(bus_basis=250).to_json()).bus_basis
+        250
+
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
     def to_context(self) -> DayCountContext:
         """
         Reconstruct a live :class:`DayCountContext` from this state.
@@ -781,11 +1002,118 @@ class Thirty360Convention:
     ITALIAN: Thirty360Convention
     """30/360 Italian convention (31→30 and February day after 27→30)."""
 
+    @classmethod
+    def from_name(cls, name: str) -> Thirty360Convention:
+        """
+        Parse this variant from its snake_case name, case-insensitively.
+
+        Parameters
+        ----------
+        name : str
+            One of ``"us_sia"``, ``"isda"``, ``"european"``, ``"italian"``.
+
+        Returns
+        -------
+        Thirty360Convention
+            The matching variant.
+
+        Raises
+        ------
+        ValueError
+            If *name* is not one of the four variant names.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Thirty360Convention
+        >>> Thirty360Convention.from_name("ISDA") == Thirty360Convention.ISDA
+        True
+
+        """
+        ...
+
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
     def __ne__(self, other: object) -> bool: ...
+
+def days_30_360(
+    start: datetime.date | str,
+    end: datetime.date | str,
+    convention: Union[Thirty360Convention, str],
+) -> int:
+    """
+    30/360 day count between *start* (inclusive) and *end* (exclusive).
+
+    Parameters
+    ----------
+    start : datetime.date | str
+        Accrual start.
+    end : datetime.date | str
+        Accrual end; an earlier *end* gives a negative count.
+    convention : Thirty360Convention | str
+        Variant governing the month-end and February rules
+        (``"us_sia"``, ``"isda"``, ``"european"``, ``"italian"``).
+
+    Returns
+    -------
+    int
+        Signed 30/360 day count (divide by 360 for the year fraction).
+
+    Raises
+    ------
+    ValueError
+        If a date or the convention name is invalid.
+    TypeError
+        If an argument has an unsupported type.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import days_30_360
+    >>> days_30_360("2025-01-31", "2025-03-31", "isda")
+    60
+
+    """
+    ...
+
+def days_30e_360_isda(
+    start: datetime.date | str,
+    end: datetime.date | str,
+    end_is_termination_date: bool,
+) -> int:
+    """
+    30E/360 ISDA day count between *start* (inclusive) and *end* (exclusive).
+
+    Parameters
+    ----------
+    start : datetime.date | str
+        Accrual start.
+    end : datetime.date | str
+        Accrual end; an earlier *end* gives a negative count.
+    end_is_termination_date : bool
+        Whether *end* is the instrument termination date, which keeps a
+        February month-end at its actual day (ISDA 2006 §4.16(h)).
+
+    Returns
+    -------
+    int
+        Signed 30E/360 ISDA day count.
+
+    Raises
+    ------
+    ValueError
+        If a date is invalid.
+    TypeError
+        If a date argument has an unsupported type.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import days_30e_360_isda
+    >>> days_30e_360_isda("2024-01-31", "2024-02-29", False)
+    30
+
+    """
+    ...
 
 # Tenor
 
@@ -870,22 +1198,34 @@ class Tenor:
 
     """
 
-    def __init__(self, count: int, unit: TenorUnit) -> None:
+    def __init__(self, value: Union[str, int], unit: Union[TenorUnit, str, None] = None) -> None:
         """
-        Construct a tenor from a count and unit.
+        Construct a tenor from a string, or from a count and unit.
 
         Parameters
         ----------
-        count : int
-            Numeric count.
-        unit : TenorUnit
-            Tenor unit.
+        value : str | int
+            Tenor string such as ``"3M"`` (money-market aliases ``"ON"``,
+            ``"TN"``, ``"SN"`` give ``1D``), or the positive integer count
+            when *unit* is given.
+        unit : TenorUnit | str | None
+            Calendar unit for an integer *value*: a ``TenorUnit`` or the
+            one-letter designator ``"D"``/``"W"``/``"M"``/``"Y"``.
 
         Raises
         ------
         ValueError
-            If *count* is zero, exceeds the supported range for *unit*, or
-            cannot be converted safely between equivalent tenor units.
+            If the string does not parse, *count* is zero, or the count
+            exceeds the supported range for *unit* (200 years).
+        TypeError
+            If *value* is neither ``str`` nor ``int``, *unit* is given with a
+            string *value*, or *unit* is missing for an integer *value*.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Tenor, TenorUnit
+        >>> Tenor("3M") == Tenor(3, "M") == Tenor(3, TenorUnit.MONTHS)
+        True
 
         """
         ...
@@ -1126,6 +1466,158 @@ class Tenor:
         """
         ...
 
+    @classmethod
+    def from_years(cls, years: float, day_count: Union[DayCount, str]) -> Tenor:
+        """
+        Construct from a year fraction using a day-count convention.
+
+        A year fraction that is (within a small epsilon) a whole number of
+        months gives a month-based tenor; anything else is converted to days
+        under *day_count*.
+
+        Parameters
+        ----------
+        years : float
+            Positive, finite length in years (``0.5`` gives ``6M``).
+        day_count : DayCount | str
+            Convention for the day conversion (``DayCount`` or a canonical
+            name such as ``"act_365f"``).
+
+        Returns
+        -------
+        Tenor
+            Month tenor for whole-month fractions, otherwise a day tenor.
+
+        Raises
+        ------
+        ValueError
+            If *years* is non-positive, non-finite or exceeds 200 years, or
+            *day_count* is not a recognised convention.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCount, Tenor
+        >>> str(Tenor.from_years(0.5, DayCount.ACT_365F))
+        '6M'
+
+        """
+        ...
+
+    def payments_per_year(self) -> float:
+        """
+        Coupon payments per year implied by this tenor.
+
+        Returns
+        -------
+        float
+            ``12 / months`` for month tenors, ``52 / weeks``, ``365 / days`` or
+            ``1 / years`` (``3M`` gives ``4.0``, ``2Y`` gives ``0.5``).
+
+        Notes
+        -----
+        This method does not raise; it returns the derived value.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Tenor
+        >>> Tenor("3M").payments_per_year()
+        4.0
+        """
+        ...
+
+    def add_to_date(
+        self,
+        date: datetime.date | str,
+        calendar: Union[HolidayCalendar, str, None] = None,
+        business_day_convention: Union[BusinessDayConvention, str] = "modified_following",
+    ) -> datetime.date:
+        """
+        Add this tenor to a date with optional business-day adjustment.
+
+        Month and year tenors clamp to the last valid day of the target month
+        (Jan 31 + ``1M`` gives Feb 28/29).
+
+        Parameters
+        ----------
+        date : datetime.date | str
+            Anchor date (``datetime.date``, ``pandas.Timestamp`` or ISO string).
+        calendar : HolidayCalendar | str | None
+            Holiday calendar (object or id such as ``"usny"``; ``"nyse+gblo"``
+            joins calendars). ``None`` skips adjustment.
+        business_day_convention : BusinessDayConvention | str
+            Roll rule applied when *calendar* is given; short codes
+            ``MF``/``F``/``P``/``MP`` accepted.
+
+        Returns
+        -------
+        datetime.date
+            The (optionally adjusted) end date.
+
+        Raises
+        ------
+        KeyError
+            If *calendar* names an unknown calendar.
+        ValueError
+            If the convention string is unknown, *date* is invalid, or no
+            business day is found within 100 days.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Tenor
+        >>> Tenor("1M").add_to_date("2025-01-31")
+        datetime.date(2025, 2, 28)
+
+        """
+        ...
+
+    def to_years_with_context(
+        self,
+        as_of: datetime.date | str,
+        *,
+        day_count: Union[DayCount, str],
+        calendar: Union[HolidayCalendar, str, None] = None,
+        business_day_convention: Union[BusinessDayConvention, str] = "modified_following",
+    ) -> float:
+        """
+        Exact year fraction of this tenor from *as_of* under a day count.
+
+        Adds the tenor to *as_of* (see :meth:`add_to_date`) and measures the
+        span with *day_count*, so calendars and roll conventions are honoured,
+        unlike the fixed approximation in :meth:`to_years`.
+
+        Parameters
+        ----------
+        as_of : datetime.date | str
+            Start date of the measurement.
+        day_count : DayCount | str
+            Convention used to measure the span.
+        calendar : HolidayCalendar | str | None
+            Holiday calendar for the end-date roll; ``None`` skips adjustment.
+        business_day_convention : BusinessDayConvention | str
+            Roll rule for the end date.
+
+        Returns
+        -------
+        float
+            Year fraction between *as_of* and the rolled end date.
+
+        Raises
+        ------
+        KeyError
+            If *calendar* names an unknown calendar.
+        ValueError
+            If *day_count* or the convention is unrecognised, or the
+            convention needs context that was not supplied.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import DayCount, Tenor
+        >>> Tenor("1Y").to_years_with_context("2025-01-15", day_count=DayCount.ACT_ACT)
+        1.0
+
+        """
+        ...
+
     @property
     def count(self) -> int:
         """
@@ -1317,6 +1809,38 @@ class PeriodKind:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def prior_observation_date(self, first: datetime.date | str) -> datetime.date:
+        """
+        Observation date one period before *first*.
+
+        Daily and weekly step back 1 and 7 calendar days; monthly, quarterly,
+        semi-annual and annual step back 1, 3, 6 and 12 months with month-end
+        clamping.
+
+        Parameters
+        ----------
+        first : datetime.date | str
+            First observation date of the series.
+
+        Returns
+        -------
+        datetime.date
+            The prior observation date.
+
+        Raises
+        ------
+        ValueError
+            If *first* is not a valid calendar date or ISO string.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import PeriodKind
+        >>> PeriodKind.QUARTERLY.prior_observation_date("2025-03-31")
+        datetime.date(2024, 12, 31)
+
         """
         ...
 
@@ -1743,6 +2267,10 @@ class PeriodId:
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
     def __ne__(self, other: object) -> bool: ...
+    def __lt__(self, other: PeriodId) -> bool: ...
+    def __le__(self, other: PeriodId) -> bool: ...
+    def __gt__(self, other: PeriodId) -> bool: ...
+    def __ge__(self, other: PeriodId) -> bool: ...
 
 class Period:
     """
@@ -1823,8 +2351,63 @@ class Period:
         """
         ...
 
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            JSON object with ``id``, ``start``, ``end`` (ISO dates) and
+            ``is_actual``.
+
+        Raises
+        ------
+        ValueError
+            If the period cannot be serialized.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Period, build_periods
+        >>> period = build_periods("2024Q1..Q1").periods[0]
+        >>> Period.from_json(period.to_json()) == period
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> Period:
+        """
+        Deserialize from the canonical JSON wire form.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        Period
+            The reconstructed period.
+
+        Raises
+        ------
+        ValueError
+            If *json* is malformed.
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Period, build_periods
+        >>> period = build_periods("2024Q1..Q1").periods[0]
+        >>> Period.from_json(period.to_json()) == period
+        True
+
+        """
+        ...
+
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 class PeriodPlan:
     """
@@ -1856,8 +2439,86 @@ class PeriodPlan:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Periods as a pandas DataFrame.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per period with columns ``id`` (str), ``start`` and
+            ``end`` (``datetime64``) and ``is_actual`` (bool).
+
+        Raises
+        ------
+        ImportError
+            If pandas is not installed.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import build_periods
+        >>> list(build_periods("2024Q1..Q2").to_dataframe().columns)
+        ['id', 'start', 'end', 'is_actual']
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            JSON object with a ``periods`` array.
+
+        Raises
+        ------
+        ValueError
+            If the plan cannot be serialized.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import PeriodPlan, build_periods
+        >>> plan = build_periods("2024Q1..Q2")
+        >>> PeriodPlan.from_json(plan.to_json()) == plan
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PeriodPlan:
+        """
+        Deserialize from the canonical JSON wire form.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PeriodPlan
+            The reconstructed plan.
+
+        Raises
+        ------
+        ValueError
+            If *json* is malformed.
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import PeriodPlan, build_periods
+        >>> plan = build_periods("2024Q1..Q2")
+        >>> PeriodPlan.from_json(plan.to_json()) == plan
+        True
+
+        """
+        ...
+
+    def __iter__(self) -> Iterator[Period]: ...
     def __len__(self) -> int: ...
     def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 class FiscalConfig:
     """
@@ -2051,6 +2712,9 @@ class FiscalConfig:
         ...
 
     def __repr__(self) -> str: ...
+    def __hash__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 def build_periods(
     spec: str,
@@ -2133,7 +2797,9 @@ class BusinessDayConvention:
     --------
     >>> from finstack_quant.core.dates import BusinessDayConvention
     >>> str(BusinessDayConvention.MODIFIED_FOLLOWING)
-    'ModifiedFollowing'
+    'modified_following'
+    >>> BusinessDayConvention.from_name("MF") == BusinessDayConvention.MODIFIED_FOLLOWING
+    True
 
     """
 
@@ -2158,23 +2824,25 @@ class BusinessDayConvention:
         Parameters
         ----------
         name : str
-            Convention identifier (e.g. ``"following"``,
-            ``"modified_following"``).
+            snake_case name (``"following"``, ``"modified_following"``) or
+            short code (``"MF"``, ``"F"``, ``"P"``, ``"MP"``, ``"NONE"``),
+            case-insensitive.
 
         Returns
         -------
         BusinessDayConvention
+            The matching convention.
 
         Raises
         ------
         ValueError
-            If *name* is not recognised.
+            If *name* is not recognised; the message lists the accepted names.
 
         Examples
         --------
         >>> from finstack_quant.core.dates import BusinessDayConvention
         >>> str(BusinessDayConvention.from_name("following"))
-        'Following'
+        'following'
 
         """
         ...
@@ -2266,20 +2934,30 @@ class CalendarMetadata:
         ...
 
     def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 class HolidayCalendar:
     """
     A holiday calendar resolved from the global registry.
 
+    The calendar is resolved once at construction and cached. Ids may join
+    several calendars with ``+`` (``"nyse+gblo"``): the result is a business
+    day only when every member is. Equality and hashing are by canonical
+    ``code``; instances pickle.
+
     Parameters
     ----------
     code : str
-        Calendar code (e.g. ``"target2"``, ``"nyse"``).
+        Registered calendar id (``"usny"``, ``"target2"``, ``"nyse"``,
+        ``"weekends_only"``, ...; see :func:`available_calendars`) or a
+        ``+``-joined union. Matching is ASCII case-insensitive.
 
     Raises
     ------
-    ValueError
-        If *code* does not match any known calendar.
+    KeyError
+        If *code* (or any ``+`` member) is not a registered calendar; the
+        message carries "Did you mean ...?" suggestions.
 
     Examples
     --------
@@ -2298,22 +2976,54 @@ class HolidayCalendar:
         Parameters
         ----------
         code : str
-            Calendar code (e.g. ``"target2"``, ``"nyse"``).
+            Registered calendar id (``"target2"``, ``"nyse"``) or a
+            ``+``-joined union such as ``"nyse+gblo"``.
 
         Raises
         ------
-        ValueError
+        KeyError
             If *code* is not a known calendar.
         """
         ...
 
-    def is_holiday(self, date: datetime.date) -> bool:
+    def count_business_days(self, start: datetime.date | str, end: datetime.date | str) -> int:
+        """
+        Count business days in ``[start, end)``.
+
+        Parameters
+        ----------
+        start : datetime.date | str
+            First date included in the count.
+        end : datetime.date | str
+            Exclusive boundary; ``end <= start`` gives ``0``.
+
+        Returns
+        -------
+        int
+            Number of business days from *start* up to but excluding *end*.
+
+        Raises
+        ------
+        TypeError
+            If either argument is not date-like.
+        ValueError
+            If either argument is not a valid calendar date or ISO string.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import HolidayCalendar
+        >>> HolidayCalendar("usny").count_business_days("2025-01-01", "2025-01-08")
+        4
+        """
+        ...
+
+    def is_holiday(self, date: datetime.date | str) -> bool:
         """
         Check whether a date is a holiday.
 
         Parameters
         ----------
-        date : datetime.date
+        date : datetime.date | str
             The date to check.
 
         Returns
@@ -2331,13 +3041,13 @@ class HolidayCalendar:
         """
         ...
 
-    def is_business_day(self, date: datetime.date) -> bool:
+    def is_business_day(self, date: datetime.date | str) -> bool:
         """
         Check whether a date is a business day.
 
         Parameters
         ----------
-        date : datetime.date
+        date : datetime.date | str
             The date to check.
 
         Returns
@@ -2373,12 +3083,13 @@ class HolidayCalendar:
     @property
     def code(self) -> str:
         """
-        Stable holiday-calendar identifier such as ``nyc`` or ``target``.
+        Canonical registry id (``"usny"``, ``"target2"``, ``"weekends_only"``),
+        or the normalized ``a+b`` form for union calendars.
 
         Returns
         -------
         str
-            Canonical calendar code used for business-day adjustments.
+            Canonical calendar code (``HolidayCalendar("USNY").code`` is ``"usny"``).
 
         Notes
         -----
@@ -2388,9 +3099,12 @@ class HolidayCalendar:
 
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
+    def __hash__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 def adjust(
-    date: datetime.date,
+    date: datetime.date | str,
     convention: Union[BusinessDayConvention, str],
     calendar: Union[HolidayCalendar, str],
 ) -> datetime.date:
@@ -2399,22 +3113,31 @@ def adjust(
 
     Parameters
     ----------
-    date : datetime.date
-        The date to adjust.
+    date : datetime.date | str
+        Date to adjust (``datetime.date``, ``pandas.Timestamp`` or ISO
+        ``YYYY-MM-DD`` string).
     convention : BusinessDayConvention | str
-        Adjustment convention.
+        Roll rule: a ``BusinessDayConvention`` or its name
+        (``"modified_following"``; short codes ``MF``/``F``/``P``/``MP``/``NONE``).
     calendar : HolidayCalendar | str
-        Holiday calendar (object or code string).
+        Holiday calendar object or registry id (``"usny"``; ``"nyse+gblo"``
+        joins calendars).
 
     Returns
     -------
     datetime.date
-        The adjusted date.
+        The adjusted date (unchanged when already a business day or under
+        ``UNADJUSTED``).
 
     Raises
     ------
+    KeyError
+        If *calendar* names an unknown calendar.
     ValueError
-        If the calendar or convention is invalid.
+        If *convention* is unknown, *date* is invalid, or no business day
+        exists within 100 days.
+    TypeError
+        If an argument has an unsupported type.
 
     Examples
     --------
@@ -2532,7 +3255,38 @@ class ScheduleErrorPolicy:
     GRACEFUL_EMPTY: ScheduleErrorPolicy
     """Gracefully return an empty schedule on error."""
 
+    @classmethod
+    def from_name(cls, name: str) -> ScheduleErrorPolicy:
+        """
+        Parse this variant from its snake_case name, case-insensitively.
+
+        Parameters
+        ----------
+        name : str
+            One of ``"strict"``, ``"missing_calendar_warning"``,
+            ``"graceful_empty"``.
+
+        Returns
+        -------
+        ScheduleErrorPolicy
+            The matching policy.
+
+        Raises
+        ------
+        ValueError
+            If *name* is not one of the three policy names.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import ScheduleErrorPolicy
+        >>> ScheduleErrorPolicy.from_name("graceful_empty") == ScheduleErrorPolicy.GRACEFUL_EMPTY
+        True
+
+        """
+        ...
+
     def __repr__(self) -> str: ...
+    def __str__(self) -> str: ...
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
     def __ne__(self, other: object) -> bool: ...
@@ -2582,9 +3336,120 @@ class Schedule:
         >>> len(schedule.dates)
         3
 
-        Notes
-        -----
-        This constructor does not raise; validation happens in ``build()``.
+        Raises
+        ------
+        ValueError
+            If *start* is after *end* or either date is invalid.
+        """
+        ...
+
+    @staticmethod
+    def generate(
+        start: datetime.date | str,
+        end: datetime.date | str,
+        *,
+        frequency: Union[Tenor, str] = "6M",
+        stub: Union[StubKind, str] = "short_front",
+        convention: Union[BusinessDayConvention, str] = "modified_following",
+        calendar: Union[HolidayCalendar, str, None] = None,
+        eom: bool = False,
+        payment_lag: int = 0,
+        fixing_lag: Optional[int] = None,
+        imm: bool = False,
+        cds_imm: bool = False,
+        error_policy: Union[ScheduleErrorPolicy, str] = "strict",
+    ) -> Schedule:
+        """
+        Build a schedule in one call from keyword options.
+
+        Parameters
+        ----------
+        start : datetime.date | str
+            First accrual date.
+        end : datetime.date | str
+            Final accrual date; must not precede *start*.
+        frequency : Tenor | str
+            Roll frequency.
+        stub : StubKind | str
+            Stub rule (``"none"``, ``"short_front"``, ``"short_back"``,
+            ``"long_front"``, ``"long_back"``).
+        convention : BusinessDayConvention | str
+            Business-day convention for payment dates; only applied when
+            *calendar* is set.
+        calendar : HolidayCalendar | str | None
+            Holiday calendar object or id (``"usny"``, ``"nyse+gblo"``);
+            ``None`` leaves dates unadjusted.
+        eom : bool
+            End-of-month roll rule.
+        payment_lag : int
+            Business days after each adjusted period end for the payment date.
+        fixing_lag : int | None
+            T-minus business days from each accrual start for the fixing
+            date; ``None`` produces no fixing dates.
+        imm : bool
+            Roll on standard IMM dates (third Wednesday).
+        cds_imm : bool
+            Roll on CDS IMM dates (20th); mutually exclusive with *imm*.
+        error_policy : ScheduleErrorPolicy | str
+            Recoverable-error policy.
+
+        Returns
+        -------
+        Schedule
+            The generated schedule.
+
+        Raises
+        ------
+        ValueError
+            If dates, tenor, stub, convention or policy are invalid, both IMM
+            modes are set, or a lag is negative / needs a calendar.
+        KeyError
+            If *calendar* names an unknown calendar.
+        TypeError
+            If an unknown option keyword is passed.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Schedule
+        >>> schedule = Schedule.generate("2025-01-15", "2026-01-15", frequency="6M", calendar="usny")
+        >>> [d.isoformat() for d in schedule.payment_dates]
+        ['2025-07-15', '2026-01-15']
+
+        """
+        ...
+
+    @staticmethod
+    def from_spec(spec: Union[dict, str]) -> Schedule:
+        """
+        Build a schedule from a serialized ``ScheduleSpec``.
+
+        Parameters
+        ----------
+        spec : dict | str
+            Mapping or JSON string with the canonical fields ``start``,
+            ``end`` (ISO dates), ``frequency`` (``"3M"``), ``stub``,
+            ``business_day_convention``, ``calendar_id``, ``end_of_month``,
+            ``imm_mode``, ``cds_imm_mode``, ``error_policy``,
+            ``payment_lag_business_days`` and ``fixing_lag_business_days``
+            (as produced by :meth:`ScheduleBuilder.to_spec`).
+
+        Returns
+        -------
+        Schedule
+            The generated schedule.
+
+        Raises
+        ------
+        ValueError
+            If the spec is malformed or the schedule cannot be built.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Schedule
+        >>> spec = Schedule.builder("2025-01-15", "2025-07-15").frequency("3M").to_spec()
+        >>> len(Schedule.from_spec(spec))
+        3
+
         """
         ...
 
@@ -2677,14 +3542,17 @@ class Schedule:
         ...
 
     @property
-    def warnings(self) -> list[str]:
+    def warnings(self) -> list[dict[str, object]]:
         """
-        Warning messages (if any).
+        Warnings generated during schedule construction.
 
         Returns
         -------
-        list[str]
-            Warning messages (if any).
+        list[dict[str, object]]
+            One dict per warning with ``kind`` (``"graceful_fallback"`` or
+            ``"missing_calendar_id"``), ``message`` (human-readable text) and
+            the warning's own field (``error_message`` or ``calendar_id``).
+            Empty under the strict policy.
 
         Notes
         -----
@@ -2692,8 +3560,89 @@ class Schedule:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Accrual periods as a pandas DataFrame.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per period with ``datetime64`` columns ``period_start``,
+            ``period_end``, ``payment_date`` and ``fixing_date`` (``NaT`` when
+            no fixing lag is configured).
+
+        Raises
+        ------
+        ImportError
+            If pandas is not installed.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Schedule
+        >>> frame = Schedule.generate("2025-01-15", "2026-01-15", frequency="6M").to_dataframe()
+        >>> list(frame.columns)
+        ['period_start', 'period_end', 'payment_date', 'fixing_date']
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form (strict field names).
+
+        Returns
+        -------
+        str
+            JSON object with ``dates``, ``payment_dates``, ``fixing_dates``
+            (ISO strings) and, when present, ``warnings``.
+
+        Raises
+        ------
+        ValueError
+            If the schedule cannot be serialized.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Schedule
+        >>> schedule = Schedule.generate("2025-01-15", "2025-07-15", frequency="3M")
+        >>> Schedule.from_json(schedule.to_json()) == schedule
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> Schedule:
+        """
+        Deserialize from the canonical JSON wire form.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        Schedule
+            The reconstructed schedule.
+
+        Raises
+        ------
+        ValueError
+            If *json* is malformed.
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Schedule
+        >>> schedule = Schedule.generate("2025-01-15", "2025-07-15", frequency="3M")
+        >>> Schedule.from_json(schedule.to_json()) == schedule
+        True
+
+        """
+        ...
+
+    def __iter__(self) -> Iterator[datetime.date]: ...
     def __len__(self) -> int: ...
     def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
 
 class ScheduleBuilder:
     """
@@ -2704,9 +3653,9 @@ class ScheduleBuilder:
 
     Parameters
     ----------
-    start : datetime.date
+    start : datetime.date | str
         Schedule start date.
-    end : datetime.date
+    end : datetime.date | str
         Schedule end date (must not be before *start*; validated by the
         canonical Rust builder at ``build()`` time).
 
@@ -2755,46 +3704,55 @@ class ScheduleBuilder:
         """
         ...
 
-    def stub_rule(self, stub: StubKind) -> ScheduleBuilder:
+    def stub_rule(self, stub: Union[StubKind, str]) -> ScheduleBuilder:
         """
         Set how a short first or last stub period is generated.
 
         Parameters
         ----------
-        stub : StubKind
-            Stub positioning rule.
+        stub : StubKind | str
+            Stub positioning rule, or its name (``"short_front"``, ...).
 
         Returns
         -------
         ScheduleBuilder
             Same builder instance after replacing its stub rule with ``stub``.
 
-        Notes
-        -----
-        This method does not raise; it returns the same instance for chaining.
+        Raises
+        ------
+        ValueError
+            If a string *stub* is not a stub-kind name.
         """
         ...
 
-    def adjust_with(self, convention: BusinessDayConvention, calendar_id: str) -> ScheduleBuilder:
+    def adjust_with(
+        self,
+        convention: Union[BusinessDayConvention, str],
+        calendar: Union[HolidayCalendar, str],
+    ) -> ScheduleBuilder:
         """
-        Set the business-day convention and calendar for adjustment.
+        Set the business-day convention and calendar used to adjust payment dates.
 
         Parameters
         ----------
-        convention : BusinessDayConvention
-            Business-day convention.
-        calendar_id : str
-            Calendar identifier (e.g. ``"target2"``).
+        convention : BusinessDayConvention | str
+            Roll rule (``"modified_following"``; short codes ``MF``/``F``/``P``).
+        calendar : HolidayCalendar | str
+            Holiday calendar object or registry id (``"target2"``;
+            ``"nyse+gblo"`` joins calendars). A string id is resolved at
+            ``build()`` under the error policy (``STRICT`` raises
+            ``KeyError`` for unknown ids).
 
         Returns
         -------
         ScheduleBuilder
-            Same builder instance after storing the convention and calendar ID
+            Same builder instance after storing the convention and calendar
             used to adjust dates during ``build()``.
 
-        Notes
-        -----
-        This method does not raise; it returns the same instance for chaining.
+        Raises
+        ------
+        ValueError
+            If *convention* is unknown.
         """
         ...
 
@@ -2891,7 +3849,7 @@ class ScheduleBuilder:
         """
         ...
 
-    def error_policy(self, policy: ScheduleErrorPolicy) -> ScheduleBuilder:
+    def error_policy(self, policy: Union[ScheduleErrorPolicy, str]) -> ScheduleBuilder:
         """
         Set how invalid schedule dates are reported or skipped.
 
@@ -2900,17 +3858,45 @@ class ScheduleBuilder:
 
         Parameters
         ----------
-        policy : ScheduleErrorPolicy
-            Error handling policy.
+        policy : ScheduleErrorPolicy | str
+            Error handling policy, or its name (``"strict"``,
+            ``"missing_calendar_warning"``, ``"graceful_empty"``).
 
         Returns
         -------
         ScheduleBuilder
             Same builder instance after fully replacing its schedule-build error policy.
 
+        Raises
+        ------
+        ValueError
+            If a string *policy* is not a policy name.
+        """
+        ...
+
+    def to_spec(self) -> dict[str, object]:
+        """
+        Current builder state as a ``ScheduleSpec`` mapping.
+
+        Returns
+        -------
+        dict[str, object]
+            The canonical spec fields (``start``, ``end``, ``frequency``,
+            ``stub``, ``business_day_convention``, ``calendar_id``,
+            ``end_of_month``, ``imm_mode``, ``cds_imm_mode``,
+            ``error_policy``, ``payment_lag_business_days``,
+            ``fixing_lag_business_days``), accepted by
+            :meth:`Schedule.from_spec`.
+
         Notes
         -----
-        This method does not raise; it returns the same instance for chaining.
+        This method does not raise; it returns the current state.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.dates import Schedule
+        >>> Schedule.builder("2025-01-15", "2025-07-15").frequency("3M").to_spec()["frequency"]
+        {'count': 3, 'unit': 'months'}
         """
         ...
 
@@ -2975,13 +3961,13 @@ def create_date(year: int, month: int, day: int) -> datetime.date:
     """
     ...
 
-def days_since_epoch(date: datetime.date) -> int:
+def days_since_epoch(date: datetime.date | str) -> int:
     """
     Return the number of days since the Unix epoch (1970-01-01).
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Input date.
 
     Returns
@@ -3099,13 +4085,13 @@ def third_friday(month: int, year: int) -> datetime.date:
     """
     ...
 
-def next_imm(date: datetime.date) -> datetime.date:
+def next_imm(date: datetime.date | str) -> datetime.date:
     """
     Return the next quarterly IMM date strictly after *date*.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Reference date.
 
     Returns
@@ -3131,13 +4117,13 @@ def next_imm(date: datetime.date) -> datetime.date:
     """
     ...
 
-def is_imm_date(date: datetime.date) -> bool:
+def is_imm_date(date: datetime.date | str) -> bool:
     """
     Return whether *date* is a quarterly IMM date.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Candidate date.
 
     Returns
@@ -3163,13 +4149,13 @@ def is_imm_date(date: datetime.date) -> bool:
     """
     ...
 
-def is_cds_date(date: datetime.date) -> bool:
+def is_cds_date(date: datetime.date | str) -> bool:
     """
     Return whether *date* is a standard CDS roll date.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Candidate date.
 
     Returns
@@ -3195,13 +4181,13 @@ def is_cds_date(date: datetime.date) -> bool:
     """
     ...
 
-def next_cds_date(date: datetime.date) -> datetime.date:
+def next_cds_date(date: datetime.date | str) -> datetime.date:
     """
     Return the next standard CDS roll date on or after *date*.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Reference date.
 
     Returns
@@ -3227,13 +4213,13 @@ def next_cds_date(date: datetime.date) -> datetime.date:
     """
     ...
 
-def prev_cds_date(date: datetime.date) -> datetime.date:
+def prev_cds_date(date: datetime.date | str) -> datetime.date:
     """
     Return the most recent standard CDS roll date on or before *date*.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Reference date.
 
     Returns
@@ -3259,7 +4245,7 @@ def prev_cds_date(date: datetime.date) -> datetime.date:
     """
     ...
 
-def prev_cds_semiannual_roll(date: datetime.date) -> datetime.date:
+def prev_cds_semiannual_roll(date: datetime.date | str) -> datetime.date:
     """
     Return the most recent semi-annual CDS roll on or before *date*.
 
@@ -3267,7 +4253,7 @@ def prev_cds_semiannual_roll(date: datetime.date) -> datetime.date:
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Reference date.
 
     Returns
@@ -3293,13 +4279,13 @@ def prev_cds_semiannual_roll(date: datetime.date) -> datetime.date:
     """
     ...
 
-def next_semiannual_cds_maturity(date: datetime.date) -> datetime.date:
+def next_semiannual_cds_maturity(date: datetime.date | str) -> datetime.date:
     """
     Return the next semi-annual CDS maturity date after *date*.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Reference date.
 
     Returns
@@ -3355,13 +4341,13 @@ def imm_option_expiry(month: int, year: int) -> datetime.date:
     """
     ...
 
-def next_imm_option_expiry(date: datetime.date) -> datetime.date:
+def next_imm_option_expiry(date: datetime.date | str) -> datetime.date:
     """
     Return the next quarterly IMM option expiry strictly after *date*.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Reference date.
 
     Returns
@@ -3387,13 +4373,13 @@ def next_imm_option_expiry(date: datetime.date) -> datetime.date:
     """
     ...
 
-def next_equity_option_expiry(date: datetime.date) -> datetime.date:
+def next_equity_option_expiry(date: datetime.date | str) -> datetime.date:
     """
     Return the next monthly listed-equity-option expiry after *date*.
 
     Parameters
     ----------
-    date : datetime.date
+    date : datetime.date | str
         Reference date.
 
     Returns
@@ -3415,6 +4401,265 @@ def next_equity_option_expiry(date: datetime.date) -> datetime.date:
     >>> from finstack_quant.core.dates import next_equity_option_expiry
     >>> next_equity_option_expiry(datetime.date(2025, 5, 1))
     datetime.date(2025, 5, 16)
+
+    """
+    ...
+
+# Date extensions (finstack_quant_core::dates::DateExt)
+
+def add_business_days(
+    date: datetime.date | str,
+    n: int,
+    calendar: Union[HolidayCalendar, str],
+) -> datetime.date:
+    """
+    Add (or subtract) *n* business days to *date* under *calendar*.
+
+    Skips weekends and holidays according to the calendar. Positive *n*
+    moves forward, negative *n* backward; ``0`` returns *date* unchanged even
+    when it is not itself a business day.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Anchor date.
+    n : int
+        Signed number of business days to move.
+    calendar : HolidayCalendar | str
+        Holiday calendar object or registry id (``"usny"``; ``"nyse+gblo"``
+        joins calendars).
+
+    Returns
+    -------
+    datetime.date
+        The shifted business day.
+
+    Raises
+    ------
+    KeyError
+        If *calendar* names an unknown calendar.
+    ValueError
+        If *date* is invalid or no business day is found within the bounded
+        (100-day) search window.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import add_business_days
+    >>> add_business_days(datetime.date(2025, 6, 27), 3, "target2")
+    datetime.date(2025, 7, 2)
+
+    """
+    ...
+
+def add_weekdays(date: datetime.date | str, n: int) -> datetime.date:
+    """
+    Add (or subtract) *n* weekdays to *date*, skipping only Saturdays and Sundays.
+
+    Holidays are not considered; use :func:`add_business_days` with a
+    calendar for holiday-aware arithmetic.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Anchor date.
+    n : int
+        Signed number of weekdays to move; ``0`` returns *date* unchanged.
+
+    Returns
+    -------
+    datetime.date
+        The shifted weekday.
+
+    Raises
+    ------
+    ValueError
+        If *date* is not a valid calendar date or ISO string.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import add_weekdays
+    >>> add_weekdays("2025-01-03", 1)
+    datetime.date(2025, 1, 6)
+
+    """
+    ...
+
+def add_months(date: datetime.date | str, months: int) -> datetime.date:
+    """
+    Add *months* to *date*, clamping to the last valid day of the target month.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Anchor date.
+    months : int
+        Signed number of calendar months (Jan 31 + 1 gives Feb 28/29).
+
+    Returns
+    -------
+    datetime.date
+        The shifted date.
+
+    Raises
+    ------
+    ValueError
+        If *date* is not a valid calendar date or ISO string.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import add_months
+    >>> add_months("2024-01-31", 1)
+    datetime.date(2024, 2, 29)
+
+    """
+    ...
+
+def end_of_month(date: datetime.date | str) -> datetime.date:
+    """
+    Last day of the month containing *date*.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Any date in the month.
+
+    Returns
+    -------
+    datetime.date
+        The month-end date.
+
+    Raises
+    ------
+    ValueError
+        If *date* is not a valid calendar date or ISO string.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import end_of_month
+    >>> end_of_month("2024-02-15")
+    datetime.date(2024, 2, 29)
+
+    """
+    ...
+
+def is_weekend(date: datetime.date | str) -> bool:
+    """
+    Whether *date* falls on a Saturday or Sunday.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Date to test.
+
+    Returns
+    -------
+    bool
+        ``True`` for Saturday or Sunday.
+
+    Raises
+    ------
+    ValueError
+        If *date* is not a valid calendar date or ISO string.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import is_weekend
+    >>> is_weekend("2025-01-04")
+    True
+
+    """
+    ...
+
+def quarter(date: datetime.date | str) -> int:
+    """
+    Calendar quarter (1-4) containing *date*.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Date to classify.
+
+    Returns
+    -------
+    int
+        Quarter number from ``1`` (Jan-Mar) to ``4`` (Oct-Dec).
+
+    Raises
+    ------
+    ValueError
+        If *date* is not a valid calendar date or ISO string.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import quarter
+    >>> quarter("2025-08-15")
+    3
+
+    """
+    ...
+
+def fiscal_year(date: datetime.date | str, config: FiscalConfig) -> int:
+    """
+    Fiscal year label of *date* under a fiscal-year configuration.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Date to classify.
+    config : FiscalConfig
+        Fiscal-year start (``FiscalConfig.us_federal()`` starts October 1, so
+        2024-10-15 belongs to fiscal year 2025).
+
+    Returns
+    -------
+    int
+        Fiscal year label (the calendar year in which the fiscal year ends).
+
+    Raises
+    ------
+    ValueError
+        If *date* is not a valid calendar date or ISO string.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import FiscalConfig, fiscal_year
+    >>> fiscal_year("2024-10-15", FiscalConfig.us_federal())
+    2025
+
+    """
+    ...
+
+def months_until(date: datetime.date | str, other: datetime.date | str) -> int:
+    """
+    Whole months from *date* to *other* (``0`` when *other* is earlier).
+
+    Counts complete months, subtracting one when *other*'s day-of-month has
+    not yet reached *date*'s (month-end to month-end counts as whole). This
+    is the loan-seasoning convention used by structured-credit models.
+
+    Parameters
+    ----------
+    date : datetime.date | str
+        Start date.
+    other : datetime.date | str
+        End date.
+
+    Returns
+    -------
+    int
+        Non-negative month count.
+
+    Raises
+    ------
+    ValueError
+        If either argument is not a valid calendar date or ISO string.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.dates import months_until
+    >>> months_until("2020-01-15", "2022-03-10")
+    25
 
     """
     ...

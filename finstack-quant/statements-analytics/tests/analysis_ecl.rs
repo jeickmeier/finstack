@@ -5,8 +5,8 @@
 //! input validation, and EAD amortization schedules.
 
 use finstack_quant_statements_analytics::analysis::{
-    compute_ecl_single, CeclConfig, CeclEngine, CeclMethodology, EclConfig, EclConfigBuilder,
-    Exposure, MacroScenario, PdTermStructure, QualitativeFlags, RawPdCurve, Stage,
+    compute_ecl, CeclConfig, CeclEngine, CeclMethodology, EclConfig, EclConfigBuilder, Exposure,
+    MacroScenario, PdTermStructure, QualitativeFlags, RawPdCurve, Stage,
 };
 
 fn exposure(id: &str) -> Exposure {
@@ -66,7 +66,7 @@ fn stage3_ecl_is_discounted_lgd_times_ead() {
     let exp = exposure("defaulted-1");
     let config = EclConfig::default();
 
-    let result = compute_ecl_single(&exp, Stage::Stage3, &bbb_curve(), &config).unwrap();
+    let result = compute_ecl(&exp, Stage::Stage3, &bbb_curve(), &config).unwrap();
 
     // PD ≡ 1 for credit-impaired assets: ECL = LGD x EAD x DF(t_recovery),
     // with default time-to-recovery of 1.0 year at EIR 5%.
@@ -86,8 +86,7 @@ fn stage3_zero_remaining_maturity_has_positive_allowance() {
     let mut exp = exposure("defaulted-matured");
     exp.remaining_maturity_years = 0.0;
 
-    let result =
-        compute_ecl_single(&exp, Stage::Stage3, &bbb_curve(), &EclConfig::default()).unwrap();
+    let result = compute_ecl(&exp, Stage::Stage3, &bbb_curve(), &EclConfig::default()).unwrap();
 
     assert!(
         result.ecl > 0.0,
@@ -102,8 +101,8 @@ fn stage3_ecl_exceeds_stage2_for_same_exposure() {
     let config = EclConfig::default();
     let curve = bbb_curve();
 
-    let s2 = compute_ecl_single(&exp, Stage::Stage2, &curve, &config).unwrap();
-    let s3 = compute_ecl_single(&exp, Stage::Stage3, &curve, &config).unwrap();
+    let s2 = compute_ecl(&exp, Stage::Stage2, &curve, &config).unwrap();
+    let s3 = compute_ecl(&exp, Stage::Stage3, &curve, &config).unwrap();
 
     assert!(
         s3.ecl > s2.ecl,
@@ -118,7 +117,7 @@ fn stage3_still_validates_pd_curve_rating() {
     let exp = exposure("defaulted-rating-mismatch");
     let wrong_curve = RawPdCurve::new("AAA", vec![(0.0, 0.0), (1.0, 0.005), (5.0, 0.02)]).unwrap();
 
-    let err = compute_ecl_single(&exp, Stage::Stage3, &wrong_curve, &EclConfig::default())
+    let err = compute_ecl(&exp, Stage::Stage3, &wrong_curve, &EclConfig::default())
         .expect_err("Stage 3 shortcut must still validate curve/rating mapping");
     assert!(err.to_string().contains("RawPdCurve is for rating"));
 }
@@ -128,7 +127,7 @@ fn negative_eir_is_rejected() {
     let mut exp = exposure("negative-eir");
     exp.eir = -0.01;
 
-    let err = compute_ecl_single(&exp, Stage::Stage1, &bbb_curve(), &EclConfig::default())
+    let err = compute_ecl(&exp, Stage::Stage1, &bbb_curve(), &EclConfig::default())
         .expect_err("negative EIR must be rejected");
     assert!(err.to_string().contains("EIR"));
 }
@@ -313,8 +312,8 @@ fn amortizing_ead_schedule_reduces_lifetime_ecl_in_ifrs9_and_cecl() {
     amortizing.ead_schedule = Some(vec![(0.0, 1_000_000.0), (5.0, 0.0)]);
 
     // IFRS 9 lifetime (Stage 2)
-    let ifrs9_constant = compute_ecl_single(&constant, Stage::Stage2, &curve, &config).unwrap();
-    let ifrs9_amortizing = compute_ecl_single(&amortizing, Stage::Stage2, &curve, &config).unwrap();
+    let ifrs9_constant = compute_ecl(&constant, Stage::Stage2, &curve, &config).unwrap();
+    let ifrs9_amortizing = compute_ecl(&amortizing, Stage::Stage2, &curve, &config).unwrap();
     assert!(
         ifrs9_amortizing.ecl < ifrs9_constant.ecl,
         "IFRS 9: amortizing ECL ({}) must be below constant-EAD ECL ({})",
@@ -348,10 +347,10 @@ fn invalid_ead_schedule_is_rejected() {
 
     let mut exp = exposure("bad-schedule");
     exp.ead_schedule = Some(vec![(2.0, 100.0), (1.0, 50.0)]); // non-increasing times
-    assert!(compute_ecl_single(&exp, Stage::Stage1, &curve, &config).is_err());
+    assert!(compute_ecl(&exp, Stage::Stage1, &curve, &config).is_err());
 
     exp.ead_schedule = Some(vec![(0.0, f64::NAN)]); // non-finite EAD
-    assert!(compute_ecl_single(&exp, Stage::Stage1, &curve, &config).is_err());
+    assert!(compute_ecl(&exp, Stage::Stage1, &curve, &config).is_err());
 }
 
 #[test]
@@ -365,7 +364,7 @@ fn undrawn_ccf_scales_stage1_ecl() {
     exp.lgd = 0.45;
 
     let curve = RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.02)]).unwrap();
-    let result = compute_ecl_single(&exp, Stage::Stage1, &curve, &EclConfig::default()).unwrap();
+    let result = compute_ecl(&exp, Stage::Stage1, &curve, &EclConfig::default()).unwrap();
 
     let expected = 0.02 * 0.45 * 1_300_000.0;
     assert!(

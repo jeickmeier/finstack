@@ -3,8 +3,8 @@
 mod advanced;
 
 use crate::types::{
-    finite, op_from_str, required_f64_param, sample_std, usize_param, validate_lengths,
-    ZERO_TOLERANCE,
+    finite, op_from_str, reject_unknown_params, required_f64_param, sample_std, usize_param,
+    validate_lengths, ZERO_TOLERANCE,
 };
 use advanced::{drawdown, exponential_decay_weights, rolling_advanced, AdvancedRollingOp};
 use finstack_quant_core::{Error, Result};
@@ -73,7 +73,73 @@ impl FromStr for TimeSeriesOp {
     type Err = Error;
 
     fn from_str(op: &str) -> Result<Self> {
-        op_from_str(op, "time-series")
+        op_from_str(op, "time-series", &Self::names())
+    }
+}
+
+impl TimeSeriesOp {
+    /// Every operation, in declaration order.
+    pub const ALL: &'static [Self] = &[
+        Self::Returns,
+        Self::LogReturns,
+        Self::Diff,
+        Self::Lag,
+        Self::RollingMean,
+        Self::RollingSum,
+        Self::RollingStd,
+        Self::RollingMin,
+        Self::RollingMax,
+        Self::RollingZscore,
+        Self::RollingRank,
+        Self::RollingQuantile,
+        Self::RollingSkew,
+        Self::RollingKurtosis,
+        Self::RollingSlope,
+        Self::RollingSharpe,
+        Self::RollingWinsorize,
+        Self::Drawdown,
+        Self::HampelFilter,
+        Self::ExponentialDecayWeights,
+        Self::EwmaMean,
+        Self::EwmaVol,
+        Self::EwmaZscore,
+    ];
+
+    /// Canonical snake_case name accepted by [`transform_timeseries`].
+    #[must_use]
+    pub fn name(self) -> String {
+        crate::types::op_name(&self)
+    }
+
+    /// Canonical names of every operation, in [`Self::ALL`] order.
+    #[must_use]
+    pub fn names() -> Vec<String> {
+        Self::ALL.iter().map(|op| op.name()).collect()
+    }
+
+    /// JSON parameter keys this operation reads; any other key is rejected.
+    #[must_use]
+    pub fn param_keys(self) -> &'static [&'static str] {
+        match self {
+            Self::Returns | Self::LogReturns | Self::Diff | Self::Lag => &["periods"],
+            Self::RollingMean
+            | Self::RollingSum
+            | Self::RollingStd
+            | Self::RollingMin
+            | Self::RollingMax
+            | Self::RollingZscore
+            | Self::RollingRank
+            | Self::RollingSkew
+            | Self::RollingKurtosis
+            | Self::RollingSlope => &["window", "min_periods"],
+            Self::RollingQuantile => &["window", "min_periods", "quantile"],
+            Self::RollingSharpe => &["window", "min_periods", "risk_free"],
+            Self::RollingWinsorize => &["window", "min_periods", "lower", "upper"],
+            Self::Drawdown => &[],
+            Self::HampelFilter => &["window", "min_periods", "threshold"],
+            Self::ExponentialDecayWeights => &["window", "half_life"],
+            Self::EwmaMean | Self::EwmaVol | Self::EwmaZscore => &["span"],
+        }
     }
 }
 
@@ -81,9 +147,10 @@ impl FromStr for TimeSeriesOp {
 ///
 /// `order` is compared lexicographically within each entity. Use ISO-8601 date
 /// strings or another sortable key format when passing temporal labels.
-/// `window`, `periods`, `half_life`, and EWMA `span` count finite observations
-/// (pandas `skipna`); missing rows do not advance decay. `drawdown` expects a
-/// level series. `rolling_sharpe` is a period feature, not the `analytics`
+/// `periods`, `half_life`, and EWMA `span` count finite observations (pandas
+/// `skipna`); missing rows do not advance the lag or decay. Rolling `window`s
+/// span the trailing `window` rows and require `min_periods` finite rows.
+/// `drawdown` expects a level series. `rolling_sharpe` is a period feature, not the `analytics`
 /// Sharpe; optional JSON `risk_free` defaults to `0.0` in the same units as
 /// the return series.
 ///
@@ -119,7 +186,9 @@ pub fn transform_timeseries(
 ///
 /// `order` is compared lexicographically within each entity. Use ISO-8601 date
 /// strings or another sortable key format when passing temporal labels.
-/// Windows and EWMA spans count finite observations (pandas `skipna`).
+/// `periods` and EWMA spans count finite observations (pandas `skipna`);
+/// rolling windows span rows and require `min_periods` finite rows.
+/// Parameter keys are strict: see [`TimeSeriesOp::param_keys`].
 ///
 /// # Arguments
 ///
@@ -148,6 +217,7 @@ pub fn transform_timeseries_with_op(
         values.len(),
         &[("entity", entity.len()), ("order", order.len())],
     )?;
+    reject_unknown_params(params, &op.name(), op.param_keys())?;
     let mut output = vec![None; values.len()];
     let indices = crate::index::sorted_indices(entity, order);
     crate::index::try_for_each_entity(entity, &indices, |entity_indices| {
@@ -212,6 +282,36 @@ fn transform_entity(
     }
 }
 
+/// Visit every row of one entity together with the finite observation
+/// `periods` finite observations earlier (pandas `skipna` counting).
+///
+/// `periods` counts finite observations, not rows: `None`/non-finite rows are
+/// skipped when looking back and never advance the lag themselves. Rows whose
+/// own value is missing, or that have fewer than `periods` finite
+/// predecessors, are visited with `None` as the current value or `None` as the
+/// previous value respectively, and the operation writes `None`.
+fn for_each_finite_lag(
+    values: &[Option<f64>],
+    indices: &[usize],
+    periods: usize,
+    mut visit: impl FnMut(usize, Option<f64>, Option<f64>),
+) {
+    let mut finite_history: Vec<f64> = Vec::new();
+    for &idx in indices {
+        match finite(values[idx]) {
+            Some(current) => {
+                let previous = finite_history
+                    .len()
+                    .checked_sub(periods)
+                    .and_then(|at| finite_history.get(at).copied());
+                visit(idx, Some(current), previous);
+                finite_history.push(current);
+            }
+            None => visit(idx, None, None),
+        }
+    }
+}
+
 fn shifted_ratio(
     values: &[Option<f64>],
     indices: &[usize],
@@ -220,13 +320,7 @@ fn shifted_ratio(
     log_return: bool,
 ) -> Result<()> {
     let periods = usize_param(params, "periods", 1)?;
-    for (pos, &idx) in indices.iter().enumerate() {
-        if pos < periods {
-            output[idx] = None;
-            continue;
-        }
-        let current = finite(values[idx]);
-        let previous = finite(values[indices[pos - periods]]);
+    for_each_finite_lag(values, indices, periods, |idx, current, previous| {
         output[idx] = match (current, previous) {
             (Some(current), Some(previous)) if previous.abs() > ZERO_TOLERANCE => {
                 let ratio = current / previous;
@@ -242,7 +336,7 @@ fn shifted_ratio(
             }
             _ => None,
         };
-    }
+    });
     Ok(())
 }
 
@@ -253,13 +347,9 @@ fn lag(
     output: &mut [Option<f64>],
 ) -> Result<()> {
     let periods = usize_param(params, "periods", 1)?;
-    for (pos, &idx) in indices.iter().enumerate() {
-        output[idx] = if pos < periods {
-            None
-        } else {
-            finite(values[indices[pos - periods]])
-        };
-    }
+    for_each_finite_lag(values, indices, periods, |idx, current, previous| {
+        output[idx] = current.and(previous);
+    });
     Ok(())
 }
 
@@ -270,16 +360,12 @@ fn diff(
     output: &mut [Option<f64>],
 ) -> Result<()> {
     let periods = usize_param(params, "periods", 1)?;
-    for (pos, &idx) in indices.iter().enumerate() {
-        if pos < periods {
-            output[idx] = None;
-            continue;
-        }
-        output[idx] = match (finite(values[idx]), finite(values[indices[pos - periods]])) {
+    for_each_finite_lag(values, indices, periods, |idx, current, previous| {
+        output[idx] = match (current, previous) {
             (Some(current), Some(previous)) => Some(current - previous),
             _ => None,
         };
-    }
+    });
     Ok(())
 }
 

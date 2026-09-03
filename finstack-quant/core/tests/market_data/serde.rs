@@ -363,6 +363,7 @@ fn semantic_restore_fixture() -> MarketContextState {
         vec![0.08],
         vec![0.01],
         vec![0.005],
+        None,
     )
     .expect("FX delta vol surface");
     let vol_cube = VolCube::from_grid(
@@ -1035,6 +1036,7 @@ fn fx_delta_vol_surface_rejects_unknown_fields() {
         vec![0.08, 0.085, 0.09],
         vec![0.01, 0.012, 0.015],
         vec![0.005, 0.006, 0.007],
+        None,
     )
     .unwrap();
     assert_strict_inbound(&surface);
@@ -1049,6 +1051,7 @@ fn fx_delta_vol_surface_rejects_invalid_data_on_deserialize() {
         vec![0.08, 0.085, 0.09],
         vec![0.01, 0.012, 0.015],
         vec![0.005, 0.006, 0.007],
+        None,
     )
     .unwrap();
     let mut json = serde_json::to_value(&surface).unwrap();

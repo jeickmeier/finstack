@@ -13,7 +13,7 @@ Examples
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence
 
 import pandas as pd
 
@@ -90,15 +90,16 @@ class CopulaSpec:
         ...
 
     @classmethod
-    def student_t(cls, df: float) -> CopulaSpec:
+    def student_t(cls, degrees_of_freedom: float) -> CopulaSpec:
         """
         Student-t copula with specified degrees of freedom.
 
         Parameters
         ----------
-        df : float
-            Degrees of freedom (must be > 2 for finite variance).
-            Typical calibration range for CDX tranches is 4–10.
+        degrees_of_freedom : float
+            Degrees of freedom; must be finite and ``> 2`` (finite variance).
+            Typical calibration range for CDX tranches is 4-10. Matches the
+            Rust ``CopulaSpec::StudentT { degrees_of_freedom }`` field.
 
         Returns
         -------
@@ -108,12 +109,12 @@ class CopulaSpec:
         Raises
         ------
         ValueError
-            If ``df`` is not finite or is ``<= 2``.
+            If ``degrees_of_freedom`` is not finite or is ``<= 2``.
 
         Examples
         --------
         >>> from finstack_quant.models.correlation import CopulaSpec
-        >>> copula = CopulaSpec.student_t(5.0).build()
+        >>> copula = CopulaSpec.student_t(degrees_of_freedom=5.0).build()
         >>> (copula.model_name, round(copula.tail_dependence(0.3), 6))
         ('Student-t Copula', 0.122387)
 
@@ -248,6 +249,65 @@ class CopulaSpec:
         -----
         This accessor does not raise; it returns the stored value.
         """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical tagged JSON wire format (``{"type": ...}``).
+
+        Returns
+        -------
+        str
+            JSON document, e.g. ``{"type":"student_t","degrees_of_freedom":5.0}``.
+
+        Raises
+        ------
+        ValueError
+            If the specification cannot be serialized to JSON
+            (raised as ``"CopulaSpec serialization failed"``).
+
+        Examples
+        --------
+        >>> from finstack_quant.models.correlation import CopulaSpec
+        >>> CopulaSpec.from_json(CopulaSpec.student_t(5.0).to_json()) == CopulaSpec.student_t(5.0)
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> CopulaSpec:
+        """
+        Deserialize a spec produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            Tagged JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CopulaSpec
+            The reconstructed specification.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or the tag is unknown.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.correlation import CopulaSpec
+        >>> CopulaSpec.from_json('{"type":"gaussian"}').is_gaussian
+        True
+
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __reduce__(self) -> tuple[Any, tuple[str]]: ...
+    def __repr__(self) -> str:
+        """Python-style repr, e.g. ``CopulaSpec(type='student_t', degrees_of_freedom=5.0)``."""
         ...
 
 class Copula:
@@ -1436,6 +1496,65 @@ class RecoverySpec:
         """
         ...
 
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical tagged JSON wire format (``{"type": ...}``).
+
+        Returns
+        -------
+        str
+            JSON document, e.g. ``{"type":"constant","rate":0.4}``.
+
+        Raises
+        ------
+        ValueError
+            If the specification cannot be serialized to JSON
+            (raised as ``"RecoverySpec serialization failed"``).
+
+        Examples
+        --------
+        >>> from finstack_quant.models.correlation import RecoverySpec
+        >>> RecoverySpec.from_json(RecoverySpec.constant(0.4).to_json()) == RecoverySpec.constant(0.4)
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> RecoverySpec:
+        """
+        Deserialize a spec produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            Tagged JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        RecoverySpec
+            The reconstructed specification.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed or the tag is unknown.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.correlation import RecoverySpec
+        >>> RecoverySpec.from_json('{"type":"constant","rate":0.4}').expected_recovery
+        0.4
+
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __reduce__(self) -> tuple[Any, tuple[str]]: ...
+    def __repr__(self) -> str:
+        """Python-style repr, e.g. ``RecoverySpec(type='constant', rate=0.4)``."""
+        ...
+
 class RecoveryModel:
     """
     Concrete recovery model for credit portfolio pricing.
@@ -2460,7 +2579,7 @@ class CorrelatedBernoulli:
         ...
 
 def simulate_portfolio_loss(
-    exposures: Sequence[CreditExposure],
+    exposures: Sequence[CreditExposure] | pd.DataFrame,
     config: PortfolioLossConfig,
     recovery: RecoverySpec | None = None,
 ) -> PortfolioLossResult:
@@ -2474,9 +2593,12 @@ def simulate_portfolio_loss(
 
     Parameters
     ----------
-    exposures : Sequence[CreditExposure]
+    exposures : Sequence[CreditExposure] or pandas.DataFrame
         Obligors to simulate, each with exposure, marginal PD, LGD, and factor
-        loadings compatible with ``config.copula``.
+        loadings compatible with ``config.copula``. A DataFrame needs columns
+        ``id``, ``notional``, ``pd`` (or ``default_probability``), ``lgd`` and
+        ``factor_loading`` (one scalar per name) or ``factor_loadings`` (a
+        list per name).
     config : PortfolioLossConfig
         Path count, RNG seed, confidence level, and dependence-model settings.
     recovery : RecoverySpec or None, default None
@@ -2491,8 +2613,12 @@ def simulate_portfolio_loss(
 
     Raises
     ------
+    TypeError
+        If ``exposures`` is neither a sequence of ``CreditExposure`` nor a
+        DataFrame.
     ValueError
-        If the path count or confidence level is invalid; the copula is not a
+        If a required DataFrame column is missing; the path count or
+        confidence level is invalid; the copula is not a
         supported Gaussian or Student-t model; exposure identifiers are blank
         or duplicated; notionals, probabilities, LGDs, or factor loadings are
         non-finite or outside their supported ranges; factor-loading dimensions
@@ -2512,6 +2638,12 @@ def simulate_portfolio_loss(
     >>> result = simulate_portfolio_loss(exposures, PortfolioLossConfig(200, 42, 0.99, CopulaSpec.gaussian()))
     >>> (len(result.losses), result.expected_loss >= 0.0)
     (200, True)
+    >>> import pandas as pd
+    >>> frame = pd.DataFrame({"id": ["A"], "notional": [100.0], "pd": [0.05], "lgd": [0.6], "factor_loading": [0.3]})
+    >>> simulate_portfolio_loss(
+    ...     frame, PortfolioLossConfig(200, 42, 0.99, CopulaSpec.gaussian())
+    ... ).losses == result.losses
+    True
 
     """
     ...
@@ -2580,21 +2712,24 @@ def joint_probabilities(p1: float, p2: float, correlation: float) -> tuple[float
     """
     ...
 
-def validate_correlation_matrix(matrix: Sequence[float], n: int) -> None:
+def validate_correlation_matrix(matrix: Sequence[float] | Sequence[Sequence[float]], n: int) -> None:
     """
-    Validate a correlation matrix (flattened row-major).
+    Validate a correlation matrix.
 
     Parameters
     ----------
-    matrix : list[float]
-        Flattened row-major correlation matrix (length ``n²``).
+    matrix : Sequence[float] or Sequence[Sequence[float]]
+        Flat row-major correlation matrix (length ``n * n``) or a 2-D
+        ``n x n`` list/array of rows.
     n : int
         Dimension of the square matrix.
 
     Raises
     ------
     ValueError
-        If the matrix is invalid (not symmetric, not PSD, etc.).
+        If the shape does not match ``n`` (the message states the rows and
+        widths found), or the matrix is invalid (diagonal not one, entry out
+        of ``[-1, 1]``, not symmetric, not PSD).
 
     Examples
     --------
@@ -2606,7 +2741,7 @@ def validate_correlation_matrix(matrix: Sequence[float], n: int) -> None:
     ...
 
 def nearest_correlation(
-    matrix: Sequence[float],
+    matrix: Sequence[float] | Sequence[Sequence[float]],
     n: int,
     max_iter: int | None = None,
     tol: float | None = None,
@@ -2621,8 +2756,8 @@ def nearest_correlation(
 
     Parameters
     ----------
-    matrix : Sequence[float]
-        Flattened row-major ``n x n`` input matrix.
+    matrix : Sequence[float] or Sequence[Sequence[float]]
+        Flat row-major ``n x n`` input matrix, or a 2-D ``n x n`` list/array.
     n : int
         Matrix dimension.
     max_iter : int or None
@@ -2641,8 +2776,10 @@ def nearest_correlation(
     Raises
     ------
     ValueError
-        If the input is not square, is grossly asymmetric, the diagonal is
-        far from 1, or the projection does not converge.
+        If the input shape does not match ``n``, is grossly asymmetric, or
+        the diagonal is far from 1.
+    RuntimeError
+        If the projection does not converge within ``max_iter`` iterations.
 
     Examples
     --------
@@ -2654,17 +2791,18 @@ def nearest_correlation(
     """
     ...
 
-def cholesky_decompose(matrix: Sequence[float], n: int) -> list[float]:
+def cholesky_decompose(matrix: Sequence[float] | Sequence[Sequence[float]], n: int) -> list[float]:
     """
-    Pivoted Cholesky decomposition of a correlation matrix (flattened row-major).
+    Pivoted Cholesky decomposition of a correlation matrix.
 
     Uses diagonal pivoting to handle near-singular and positive-semidefinite
     matrices gracefully.
 
     Parameters
     ----------
-    matrix : list[float]
-        Flattened row-major correlation matrix (length ``n²``).
+    matrix : Sequence[float] or Sequence[Sequence[float]]
+        Flat row-major correlation matrix (length ``n * n``) or a 2-D
+        ``n x n`` list/array of rows.
     n : int
         Dimension of the square matrix.
 

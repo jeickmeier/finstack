@@ -87,7 +87,9 @@ fn transform_timeseries_supports_mvp_rolling_and_ewma_ops() {
         Some(&json!({"periods": 2})),
     )
     .expect("diff");
-    assert_eq!(diff, vec![None, None, Some(3.0), None, Some(4.0)]);
+    // `periods` counts finite observations (pandas `skipna`): the `None` row
+    // does not advance the lag, so 17 is differenced against 12, not 13.
+    assert_eq!(diff, vec![None, None, Some(3.0), None, Some(5.0)]);
 
     let rolling_zscore = transform_timeseries(
         &values,

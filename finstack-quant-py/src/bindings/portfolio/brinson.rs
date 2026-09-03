@@ -245,7 +245,7 @@ fn run_carino_link(
 ///
 /// Parameters
 /// ----------
-/// sectors_json : str
+/// sectors_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``SectorPeriod`` objects with ``sector``,
 ///     ``portfolio_weight``, ``benchmark_weight``, ``portfolio_return``, and
 ///     ``benchmark_return`` fields.
@@ -258,7 +258,12 @@ fn run_carino_link(
 ///     :func:`brinson_fachler_json` for the raw wire string.
 #[pyfunction]
 #[pyo3(text_signature = "(sectors_json)")]
-fn brinson_fachler(py: Python<'_>, sectors_json: &str) -> PyResult<PyBrinsonPeriodResult> {
+fn brinson_fachler(
+    py: Python<'_>,
+    sectors_json: &Bound<'_, PyAny>,
+) -> PyResult<PyBrinsonPeriodResult> {
+    let sectors_json = crate::bindings::extract::extract_records_json(py, sectors_json, "sectors")?;
+    let sectors_json: &str = &sectors_json;
     Ok(PyBrinsonPeriodResult {
         inner: run_brinson_fachler(py, sectors_json)?,
     })
@@ -274,7 +279,9 @@ fn brinson_fachler(py: Python<'_>, sectors_json: &str) -> PyResult<PyBrinsonPeri
 ///     JSON-serialized ``BrinsonPeriodResult``.
 #[pyfunction]
 #[pyo3(text_signature = "(sectors_json)")]
-fn brinson_fachler_json(py: Python<'_>, sectors_json: &str) -> PyResult<String> {
+fn brinson_fachler_json(py: Python<'_>, sectors_json: &Bound<'_, PyAny>) -> PyResult<String> {
+    let sectors_json = crate::bindings::extract::extract_records_json(py, sectors_json, "sectors")?;
+    let sectors_json: &str = &sectors_json;
     let result = run_brinson_fachler(py, sectors_json)?;
     serde_json::to_string(&result).map_err(|err| serde_json_to_py(err, "serialize Brinson result"))
 }
@@ -283,7 +290,7 @@ fn brinson_fachler_json(py: Python<'_>, sectors_json: &str) -> PyResult<String> 
 ///
 /// Parameters
 /// ----------
-/// periods_json : str
+/// periods_json : str | dict | list | pandas.DataFrame
 ///     JSON array of periods, where each period is an array of ``SectorPeriod``
 ///     objects.
 ///
@@ -294,7 +301,12 @@ fn brinson_fachler_json(py: Python<'_>, sectors_json: &str) -> PyResult<String> 
 ///     :func:`carino_link_json` for the raw wire string.
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
-fn carino_link(py: Python<'_>, periods_json: &str) -> PyResult<PyCarinoLinkedAttribution> {
+fn carino_link(
+    py: Python<'_>,
+    periods_json: &Bound<'_, PyAny>,
+) -> PyResult<PyCarinoLinkedAttribution> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
     Ok(PyCarinoLinkedAttribution {
         inner: run_carino_link(py, periods_json)?,
     })
@@ -310,7 +322,9 @@ fn carino_link(py: Python<'_>, periods_json: &str) -> PyResult<PyCarinoLinkedAtt
 ///     JSON-serialized ``CarinoLinkedAttribution``.
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
-fn carino_link_json(py: Python<'_>, periods_json: &str) -> PyResult<String> {
+fn carino_link_json(py: Python<'_>, periods_json: &Bound<'_, PyAny>) -> PyResult<String> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
     let result = run_carino_link(py, periods_json)?;
     serde_json::to_string(&result).map_err(|err| serde_json_to_py(err, "serialize Carino result"))
 }

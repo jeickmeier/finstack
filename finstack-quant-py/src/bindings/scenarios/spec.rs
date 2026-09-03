@@ -1,7 +1,7 @@
 //! Typed Python wrappers for scenario specifications and template metadata.
 
 use crate::bindings::date_utils::date_to_py;
-use crate::errors::display_to_py;
+use crate::errors::{display_to_py, scenarios_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -19,14 +19,46 @@ fn enum_label<T: serde::Serialize>(value: &T) -> PyResult<String> {
 fn parse_resolution_mode(
     value: &str,
 ) -> PyResult<finstack_quant_core::market_data::hierarchy::ResolutionMode> {
-    serde_json::from_value(serde_json::Value::String(value.to_string())).map_err(display_to_py)
+    serde_json::from_value(serde_json::Value::String(value.to_string())).map_err(|_| {
+        crate::errors::value_error(format!(
+            "Unknown resolution_mode {value:?}; expected 'most_specific_wins' or 'cumulative'"
+        ))
+    })
 }
 
 fn parse_hazard_bump_mode(value: &str) -> PyResult<finstack_quant_scenarios::HazardBumpMode> {
-    serde_json::from_value(serde_json::Value::String(value.to_string())).map_err(display_to_py)
+    serde_json::from_value(serde_json::Value::String(value.to_string())).map_err(|_| {
+        crate::errors::value_error(format!(
+            "Unknown hazard_bump_mode {value:?}; expected 'solve_to_par' or 'first_order_shift'"
+        ))
+    })
 }
 
 /// Validated scenario specification executed by the scenario engine.
+///
+/// Parameters
+/// ----------
+/// id : str
+///     Stable scenario identifier used for lookup and serialization.
+/// operations : list[OperationSpec]
+///     Ordered operations applied by the scenario engine.
+/// name : str, optional
+///     Human-readable scenario name.
+/// description : str, optional
+///     Human-readable explanation of the scenario.
+/// priority : int, default 0
+///     Composition priority; lower values execute first.
+/// resolution_mode : str, default "most_specific_wins"
+///     Hierarchy conflict policy: ``"most_specific_wins"`` or ``"cumulative"``.
+/// hazard_bump_mode : str, default "solve_to_par"
+///     ParCDS delivery: ``"solve_to_par"`` re-bootstraps hazard from shocked
+///     par spreads; ``"first_order_shift"`` shifts hazard knots in place.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the resolution mode, hazard bump mode, or resulting scenario is
+///     invalid (empty id, more than one time roll, invalid operation).
 ///
 /// Examples
 /// --------
@@ -35,13 +67,16 @@ fn parse_hazard_bump_mode(value: &str) -> PyResult<finstack_quant_scenarios::Haz
 /// >>> spec = ScenarioSpec("rates_up", [operation])
 /// >>> spec.id
 /// 'rates_up'
+/// >>> spec == ScenarioSpec.from_json(spec.to_json())
+/// True
 #[pyclass(
     name = "ScenarioSpec",
     module = "finstack_quant.scenarios",
+    eq,
     frozen,
     from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PyScenarioSpec {
     pub(crate) inner: finstack_quant_scenarios::ScenarioSpec,
 }
@@ -50,8 +85,21 @@ impl PyScenarioSpec {
     pub(crate) fn from_inner(inner: finstack_quant_scenarios::ScenarioSpec) -> Self {
         Self { inner }
     }
+}
 
-    pub(crate) fn build(
+#[pymethods]
+impl PyScenarioSpec {
+    #[new]
+    #[pyo3(signature = (
+        id,
+        operations,
+        name=None,
+        description=None,
+        priority=0,
+        resolution_mode="most_specific_wins",
+        hazard_bump_mode="solve_to_par"
+    ))]
+    fn new(
         id: &str,
         operations: Vec<PyOperationSpec>,
         name: Option<&str>,
@@ -72,65 +120,8 @@ impl PyScenarioSpec {
             resolution_mode: parse_resolution_mode(resolution_mode)?,
             hazard_bump_mode: parse_hazard_bump_mode(hazard_bump_mode)?,
         };
-        inner.validate().map_err(display_to_py)?;
+        inner.validate().map_err(scenarios_to_py)?;
         Ok(Self { inner })
-    }
-}
-
-#[pymethods]
-impl PyScenarioSpec {
-    /// Construct and validate a scenario specification.
-    ///
-    /// Parameters
-    /// ----------
-    /// id : str
-    ///     Stable scenario identifier used for lookup and serialization.
-    /// operations : list[OperationSpec]
-    ///     Ordered operations applied by the scenario engine.
-    /// name : str, optional
-    ///     Human-readable scenario name.
-    /// description : str, optional
-    ///     Human-readable explanation of the scenario.
-    /// priority : int, default 0
-    ///     Composition priority; lower values execute first.
-    /// resolution_mode : str, default "most_specific_wins"
-    ///     Hierarchy conflict policy: ``"most_specific_wins"`` or ``"cumulative"``.
-    /// hazard_bump_mode : str, default "solve_to_par"
-    ///     ParCDS delivery: ``"solve_to_par"`` re-bootstraps hazard from shocked
-    ///     par spreads; ``"first_order_shift"`` shifts hazard knots in place.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If the resolution mode, hazard bump mode, or resulting scenario is invalid.
-    #[new]
-    #[pyo3(signature = (
-        id,
-        operations,
-        name=None,
-        description=None,
-        priority=0,
-        resolution_mode="most_specific_wins",
-        hazard_bump_mode="solve_to_par"
-    ))]
-    fn new(
-        id: &str,
-        operations: Vec<PyOperationSpec>,
-        name: Option<&str>,
-        description: Option<&str>,
-        priority: i32,
-        resolution_mode: &str,
-        hazard_bump_mode: &str,
-    ) -> PyResult<Self> {
-        Self::build(
-            id,
-            operations,
-            name,
-            description,
-            priority,
-            resolution_mode,
-            hazard_bump_mode,
-        )
     }
 
     /// Deserialize and validate canonical scenario JSON.
@@ -139,6 +130,7 @@ impl PyScenarioSpec {
     /// ----------
     /// json : str
     ///     JSON object matching the Rust ``ScenarioSpec`` serde contract.
+    ///     Unknown operation fields are rejected.
     ///
     /// Returns
     /// -------
@@ -150,10 +142,13 @@ impl PyScenarioSpec {
     /// ValueError
     ///     If JSON parsing or scenario validation fails.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: finstack_quant_scenarios::ScenarioSpec =
-            serde_json::from_str(json).map_err(display_to_py)?;
-        inner.validate().map_err(display_to_py)?;
+            serde_json::from_str(json).map_err(|error| {
+                crate::errors::value_error(format!("Failed to parse ScenarioSpec JSON: {error}"))
+            })?;
+        inner.validate().map_err(scenarios_to_py)?;
         Ok(Self { inner })
     }
 
@@ -163,11 +158,6 @@ impl PyScenarioSpec {
     /// -------
     /// str
     ///     Compact JSON matching the Rust serde contract.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If serialization fails.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
@@ -224,9 +214,46 @@ impl PyScenarioSpec {
     /// Raises
     /// ------
     /// ValueError
-    ///     If an identifier, operation, numeric field, or composition rule is invalid.
+    ///     If an identifier, operation, numeric field, or composition rule is
+    ///     invalid.
     fn validate(&self) -> PyResult<()> {
-        self.inner.validate().map_err(display_to_py)
+        self.inner.validate().map_err(scenarios_to_py)
+    }
+
+    /// Whether applying this scenario needs instruments in the execution
+    /// context (instrument-scoped shocks or a ``time_roll_forward``).
+    fn requires_instruments(&self) -> bool {
+        self.inner.requires_instruments()
+    }
+
+    /// Whether applying this scenario can replace or mutate instruments
+    /// (instrument price / spread / structured-credit correlation shocks).
+    /// A time roll reads instruments for carry but does not mutate them.
+    fn mutates_instruments(&self) -> bool {
+        self.inner.mutates_instruments()
+    }
+
+    /// Return a copy with a different ParCDS hazard delivery mode.
+    ///
+    /// Parameters
+    /// ----------
+    /// mode : str
+    ///     ``"solve_to_par"`` or ``"first_order_shift"``.
+    ///
+    /// Returns
+    /// -------
+    /// ScenarioSpec
+    ///     New specification with ``hazard_bump_mode`` replaced.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``mode`` is not one of the accepted labels.
+    fn with_hazard_bump_mode(&self, mode: &str) -> PyResult<Self> {
+        let mode = parse_hazard_bump_mode(mode)?;
+        Ok(Self {
+            inner: self.inner.clone().with_hazard_bump_mode(mode),
+        })
     }
 
     /// Support pickle through the canonical JSON representation.
@@ -237,7 +264,7 @@ impl PyScenarioSpec {
 
     fn __repr__(&self) -> String {
         format!(
-            "ScenarioSpec(id='{}', operations={}, priority={})",
+            "ScenarioSpec(id={:?}, operations={}, priority={})",
             self.inner.id,
             self.inner.operations.len(),
             self.inner.priority
@@ -256,10 +283,11 @@ impl PyScenarioSpec {
 #[pyclass(
     name = "TemplateMetadata",
     module = "finstack_quant.scenarios",
+    eq,
     frozen,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PyTemplateMetadata {
     pub(crate) inner: finstack_quant_scenarios::TemplateMetadata,
 }
@@ -322,22 +350,13 @@ impl PyTemplateMetadata {
 
     /// Deserialize template metadata from canonical JSON.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
     }
 
     /// Serialize this metadata to canonical JSON.
-    ///
-    /// Returns
-    /// -------
-    /// str
-    ///     Compact JSON matching the Rust serde contract.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If serialization fails.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
@@ -349,7 +368,7 @@ impl PyTemplateMetadata {
 
     fn __repr__(&self) -> String {
         format!(
-            "TemplateMetadata(id='{}', name='{}')",
+            "TemplateMetadata(id={:?}, name={:?})",
             self.inner.id, self.inner.name
         )
     }

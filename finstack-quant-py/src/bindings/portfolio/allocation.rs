@@ -92,7 +92,7 @@ impl PyWeightAllocationResult {
 ///
 /// Parameters
 /// ----------
-/// spec_json : str
+/// spec_json : str | dict | list | pandas.DataFrame
 ///     JSON-serialized ``WeightAllocationSpec``.
 ///
 /// Returns
@@ -103,7 +103,12 @@ impl PyWeightAllocationResult {
 ///     for the raw wire string.
 #[pyfunction]
 #[pyo3(text_signature = "(spec_json)")]
-fn allocate_weights(py: Python<'_>, spec_json: &str) -> PyResult<PyWeightAllocationResult> {
+fn allocate_weights(
+    py: Python<'_>,
+    spec_json: &Bound<'_, PyAny>,
+) -> PyResult<PyWeightAllocationResult> {
+    let spec_json = crate::bindings::extract::extract_records_json(py, spec_json, "spec")?;
+    let spec_json: &str = &spec_json;
     let spec_json = spec_json.to_owned();
     let inner = py
         .detach(move || {
@@ -131,7 +136,9 @@ fn allocate_weights(py: Python<'_>, spec_json: &str) -> PyResult<PyWeightAllocat
 ///     JSON-serialized ``WeightAllocationResult``.
 #[pyfunction]
 #[pyo3(text_signature = "(spec_json)")]
-fn allocate_weights_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
+fn allocate_weights_json(py: Python<'_>, spec_json: &Bound<'_, PyAny>) -> PyResult<String> {
+    let spec_json = crate::bindings::extract::extract_records_json(py, spec_json, "spec")?;
+    let spec_json: &str = &spec_json;
     let spec_json = spec_json.to_owned();
     py.detach(move || finstack_quant_portfolio::allocate_weights_json(&spec_json))
         .map_err(portfolio_to_py)
@@ -141,7 +148,7 @@ fn allocate_weights_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
 ///
 /// Parameters
 /// ----------
-/// spec_json : str
+/// spec_json : str | dict | list | pandas.DataFrame
 ///     JSON-serialized ``WeightAllocationSpec``.
 ///
 /// Returns
@@ -150,7 +157,9 @@ fn allocate_weights_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
 ///     Canonical compact JSON.
 #[pyfunction]
 #[pyo3(text_signature = "(spec_json)")]
-fn validate_allocation_json(py: Python<'_>, spec_json: &str) -> PyResult<String> {
+fn validate_allocation_json(py: Python<'_>, spec_json: &Bound<'_, PyAny>) -> PyResult<String> {
+    let spec_json = crate::bindings::extract::extract_records_json(py, spec_json, "spec")?;
+    let spec_json: &str = &spec_json;
     let spec_json = spec_json.to_owned();
     py.detach(move || finstack_quant_portfolio::validate_allocation_json(&spec_json))
         .map_err(portfolio_to_py)

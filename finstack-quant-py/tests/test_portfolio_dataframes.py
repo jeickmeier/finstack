@@ -1125,6 +1125,8 @@ def test_portfolio_valuation_to_dataframe_matches_arrow_columns() -> None:
         "value_base",
         "currency_native",
         "currency_base",
+        "risk_metrics_complete",
+        "risk_error",
     ]
     assert len(df) == len(valuation) == 1
     assert df.iloc[0]["position_id"] == "USD-POS"

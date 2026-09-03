@@ -412,6 +412,16 @@ impl SabrCalibrator {
         self
     }
 
+    /// Convergence tolerance on the vega-weighted SSE objective.
+    pub fn tolerance(&self) -> f64 {
+        self.tolerance
+    }
+
+    /// Iteration cap before the solver reports non-convergence.
+    pub fn max_iterations(&self) -> usize {
+        self.max_iterations
+    }
+
     /// Calibrate SABR parameters with automatic negative rate detection
     pub fn calibrate_auto_shift(
         &self,

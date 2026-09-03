@@ -260,12 +260,28 @@ impl Error {
 }
 
 impl From<Error> for finstack_quant_core::Error {
+    /// Lookup misses (`MarketDataNotFound`, `NodeNotFound`, `TenorNotFound`,
+    /// `InstrumentNotFound`) map to core's `InputError::NotFound` so they keep
+    /// `ErrorKind::NotFound` (and therefore `KeyError` in Python); `Internal`
+    /// stays `Internal`; everything else becomes a validation error.
     fn from(err: Error) -> Self {
+        use finstack_quant_core::error::InputError;
         match err {
             Error::Core(core) => core,
             Error::Statements(statements) => statements.into(),
             Error::Valuations(valuations) => valuations.into(),
             Error::Internal(message) => finstack_quant_core::Error::Internal(message),
+            Error::MarketDataNotFound { id } | Error::InstrumentNotFound(id) => {
+                finstack_quant_core::Error::Input(InputError::NotFound { id })
+            }
+            Error::NodeNotFound { node_id } => {
+                finstack_quant_core::Error::Input(InputError::NotFound { id: node_id })
+            }
+            Error::TenorNotFound { tenor, curve_id } => {
+                finstack_quant_core::Error::Input(InputError::NotFound {
+                    id: format!("{tenor} in {curve_id}"),
+                })
+            }
             other => finstack_quant_core::Error::Validation(other.to_string()),
         }
     }
@@ -279,5 +295,21 @@ mod tests {
     fn converts_scenarios_errors_to_core_error() {
         let core: finstack_quant_core::Error = Error::invalid_period("1X").into();
         assert!(matches!(core, finstack_quant_core::Error::Validation(_)));
+    }
+
+    #[test]
+    fn lookup_misses_keep_not_found_kind() {
+        use finstack_quant_core::error::ErrorKind;
+        for err in [
+            Error::market_data_not_found("USD-OIS"),
+            Error::node_not_found("Revenue"),
+            Error::tenor_not_found("7Y", "USD-OIS"),
+            Error::instrument_not_found("BOND-1"),
+        ] {
+            let core: finstack_quant_core::Error = err.into();
+            assert_eq!(core.kind(), ErrorKind::NotFound, "{core}");
+        }
+        let internal: finstack_quant_core::Error = Error::internal("boom").into();
+        assert!(matches!(internal, finstack_quant_core::Error::Internal(_)));
     }
 }

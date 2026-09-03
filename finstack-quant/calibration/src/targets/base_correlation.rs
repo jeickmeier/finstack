@@ -345,6 +345,10 @@ impl BootstrapTarget for BaseCorrelationTarget {
     type Quote = CalibrationQuote;
     type Curve = BaseCorrelationCurve;
 
+    fn residual_key(&self, quote: &Self::Quote, _idx: usize) -> String {
+        quote.quote_id().to_string()
+    }
+
     /// Base-correlation calibration opts into best-effort knots: the objective
     /// (tranche upfront vs. correlation) is monotone, and a market upfront may
     /// sit just outside the model-reachable correlation range, in which case the

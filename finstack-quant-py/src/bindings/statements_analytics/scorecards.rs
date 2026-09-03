@@ -37,10 +37,17 @@ const METRIC_SCORE_COLUMNS: [ColumnSchema<'static>; 5] = [
 ///     DSL formula computing the metric value.
 /// weight : float
 ///     Weight in the overall score (default 1.0).
-/// thresholds_json : str
-///     JSON mapping of rating label to ``[min, max]`` pairs (default ``"{}"``).
+/// thresholds : dict[str, tuple[float, float]] | str
+///     Rating label to ``(min, max)`` band, or the same mapping as a JSON
+///     string (default ``{}``).
 /// description : str | None
 ///     Optional human-readable description.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import ScorecardMetric
+/// >>> ScorecardMetric("leverage", "total_debt / ebitda", 1.0, {"A": (0.0, 2.0)}).thresholds
+/// {'A': (0.0, 2.0)}
 #[pyclass(
     name = "ScorecardMetric",
     module = "finstack_quant.statements_analytics",
@@ -54,16 +61,21 @@ pub struct PyScorecardMetric {
 #[pymethods]
 impl PyScorecardMetric {
     #[new]
-    #[pyo3(signature = (name, formula, weight=1.0, thresholds_json="{}", description=None))]
+    #[pyo3(signature = (name, formula, weight=1.0, thresholds=None, description=None))]
     fn new(
+        py: Python<'_>,
         name: &str,
         formula: &str,
         weight: f64,
-        thresholds_json: &str,
+        thresholds: Option<&Bound<'_, PyAny>>,
         description: Option<&str>,
     ) -> PyResult<Self> {
-        let thresholds: indexmap::IndexMap<String, (f64, f64)> =
-            serde_json::from_str(thresholds_json).map_err(display_to_py)?;
+        let thresholds: indexmap::IndexMap<String, (f64, f64)> = match thresholds {
+            Some(value) => {
+                crate::bindings::statements_analytics::extract_serde_any(py, value, "thresholds")?
+            }
+            None => indexmap::IndexMap::new(),
+        };
         Ok(Self {
             inner: rust_scorecards::ScorecardMetric {
                 name: name.to_string(),
@@ -101,6 +113,16 @@ impl PyScorecardMetric {
     #[getter]
     fn description(&self) -> Option<&str> {
         self.inner.description.as_deref()
+    }
+
+    /// Rating label to ``(min, max)`` band, in definition order.
+    #[getter]
+    fn thresholds(&self) -> std::collections::BTreeMap<String, (f64, f64)> {
+        self.inner
+            .thresholds
+            .iter()
+            .map(|(k, v)| (k.clone(), *v))
+            .collect()
     }
 
     /// JSON-serialized thresholds (`{"AAA": [0.0, 1.0], ...}`).
@@ -295,10 +317,17 @@ impl PyScorecardReport {
         self.inner.errors.clone()
     }
 
-    /// Return the structured data payload as a JSON string.
+    /// Structured data payload as a dict.
     ///
     /// Includes the rated ``period``, the ``partial`` flag, and
     /// ``weight_coverage`` alongside the per-metric scores and rating.
+    #[getter]
+    fn data<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner.data)
+    }
+
+    /// Return the structured data payload as a JSON string (the wire form of
+    /// ``data``).
     fn data_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner.data).map_err(display_to_py)
     }

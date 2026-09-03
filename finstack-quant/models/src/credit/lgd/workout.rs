@@ -218,11 +218,47 @@ pub struct WorkoutLgd {
     costs: WorkoutCosts,
 }
 
+/// Outcome of evaluating a [`WorkoutLgd`] model at one exposure at default.
+///
+/// All three fields are consistent with each other: `lgd = 1 - net_recovery / ead`
+/// clamped to `[0, 1]` and `recovery_rate = 1 - lgd`.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct WorkoutLgdResult {
+    /// Net recovery amount in the same monetary units as the EAD, after the
+    /// collateral cap, workout costs, and discounting to the default date.
+    pub net_recovery: f64,
+    /// Loss given default as a decimal fraction of EAD in `[0, 1]`.
+    pub lgd: f64,
+    /// Recovery rate `1 - lgd` as a decimal fraction in `[0, 1]`.
+    pub recovery_rate: f64,
+}
+
 impl WorkoutLgd {
     /// Start building a WorkoutLgd.
     #[must_use]
     pub fn builder() -> WorkoutLgdBuilder {
         WorkoutLgdBuilder::default()
+    }
+
+    /// Evaluate net recovery, LGD, and recovery rate at one exposure at default.
+    ///
+    /// # Arguments
+    ///
+    /// * `ead` - Exposure at default in the same monetary units as the
+    ///   collateral book values; must be finite and strictly positive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `ead` is non-finite or `ead <= 0`.
+    pub fn evaluate(&self, ead: f64) -> Result<WorkoutLgdResult> {
+        let net_recovery = self.net_recovery(ead)?;
+        let lgd = (1.0 - net_recovery / ead).clamp(0.0, 1.0);
+        Ok(WorkoutLgdResult {
+            net_recovery,
+            lgd,
+            recovery_rate: 1.0 - lgd,
+        })
     }
 
     /// Compute LGD for a given exposure at default.
@@ -269,8 +305,37 @@ impl WorkoutLgd {
     }
 
     /// Recovery rate = 1 - LGD.
+    ///
+    /// # Arguments
+    ///
+    /// * `ead` - Exposure at default in collateral monetary units; must be
+    ///   finite and strictly positive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `ead` is non-finite or `ead <= 0`.
     pub fn recovery_rate(&self, ead: f64) -> Result<f64> {
         Ok(1.0 - self.lgd(ead)?)
+    }
+
+    /// Ordered collateral waterfall, highest priority first.
+    pub fn collateral(&self) -> &[CollateralPiece] {
+        &self.collateral
+    }
+
+    /// Expected workout duration in years.
+    pub fn workout_years(&self) -> f64 {
+        self.workout_years
+    }
+
+    /// Annual decimal discount rate applied over the workout horizon.
+    pub fn discount_rate(&self) -> f64 {
+        self.discount_rate
+    }
+
+    /// Direct and indirect resolution cost rates.
+    pub fn costs(&self) -> &WorkoutCosts {
+        &self.costs
     }
 }
 

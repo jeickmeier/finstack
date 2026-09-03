@@ -43,7 +43,7 @@
           "currency": "USD"
         },
         "premium": {
-          "calendar_id": "weekends",
+          "calendar_id": "weekends_only",
           "day_count": "act_360",
           "discount_curve_id": "USD-FLAT-2PCT",
           "end": "2030-12-20",

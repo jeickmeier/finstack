@@ -74,6 +74,21 @@ impl SabrSmile {
         }
     }
 
+    /// Forward price or rate this smile is anchored on.
+    pub fn forward(&self) -> f64 {
+        self.forward
+    }
+
+    /// Time to expiry in years this smile is anchored on.
+    pub fn time_to_expiry(&self) -> f64 {
+        self.time_to_expiry
+    }
+
+    /// Underlying SABR model.
+    pub fn model(&self) -> &SabrModel {
+        &self.model
+    }
+
     /// Returns the ATM (at-the-money) implied volatility.
     ///
     /// This is a convenience method that computes the implied volatility

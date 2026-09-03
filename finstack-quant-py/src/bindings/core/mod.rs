@@ -1,6 +1,6 @@
 //! Python bindings for the `finstack-quant-core` crate.
 
-mod config;
+pub(crate) mod config;
 pub(crate) mod currency;
 pub mod dates;
 pub mod market_data;

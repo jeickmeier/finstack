@@ -156,7 +156,8 @@ pub use barrier::{
     up_in_call, up_out_call, RebateTiming,
 };
 pub use dispatch::{
-    asian_option_price_str, barrier_call_str, lookback_option_price_str, quanto_option_price,
+    asian_option_price_str, barrier_call_str, barrier_put_str, lookback_option_price_str,
+    quanto_option_price,
 };
 pub use heston::{heston_call_price_fourier, heston_put_price_fourier, HestonPricingParams};
 pub use implied_vol::{black76_implied_vol, bs_implied_vol};

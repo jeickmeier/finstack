@@ -1,6 +1,7 @@
 //! Python bindings for product-independent interest-rate models.
 
 pub mod dtsm;
+pub mod hull_white;
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -20,7 +21,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
 
     dtsm::register(py, &module)?;
-    module.setattr("__all__", PyList::new(py, ["dtsm"])?)?;
+    hull_white::register(py, &module)?;
+    module.setattr("__all__", PyList::new(py, ["dtsm", "hull_white"])?)?;
 
     crate::bindings::module_utils::register_submodule_at(py, parent, &module, &qualified_name)?;
 

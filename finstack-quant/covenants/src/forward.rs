@@ -267,8 +267,12 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
         activation_flags.push(is_active);
 
         let v = metric_value_for_spec(covenant, model, pid).ok_or_else(|| {
+            let looked_up = spec_metric_names(covenant).join("', '");
             Error::from(finstack_quant_core::InputError::NotFound {
-                id: format!("metric for covenant '{}' in period {}", description, pid),
+                id: format!(
+                    "metric for covenant '{description}' in period {pid}; \
+                     looked for '{looked_up}'"
+                ),
             })
         })?;
         values.push(v);
@@ -1014,7 +1018,7 @@ mod tests {
         use crate::templates;
 
         let mut engine = CovenantEngine::new();
-        for spec in templates::cov_lite(6.0, 4.0) {
+        for spec in templates::cov_lite(6.0, 4.0).unwrap() {
             engine.add_spec(spec);
         }
 

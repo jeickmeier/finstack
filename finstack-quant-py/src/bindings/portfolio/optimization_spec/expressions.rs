@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 use finstack_quant_portfolio::optimization::{
-    Constraint, MetricExpr, Objective, PerPositionMetric, PositionFilter,
+    Constraint, Inequality, MetricExpr, Objective, PerPositionMetric, PositionFilter,
 };
 use finstack_quant_portfolio::types::{AttributeTest, AttributeValue, ComparisonOp, PositionId};
 use finstack_quant_valuations::metrics::MetricId;
@@ -35,17 +35,21 @@ fn parse_attribute_value(text: Option<String>, number: Option<f64>) -> PyResult<
 }
 
 fn parse_comparison_op(op: &str) -> PyResult<ComparisonOp> {
-    match op {
-        "eq" | "==" => Ok(ComparisonOp::Eq),
-        "ne" | "!=" => Ok(ComparisonOp::Ne),
-        "lt" | "<" => Ok(ComparisonOp::Lt),
-        "le" | "<=" => Ok(ComparisonOp::Le),
-        "gt" | ">" => Ok(ComparisonOp::Gt),
-        "ge" | ">=" => Ok(ComparisonOp::Ge),
-        other => Err(crate::errors::value_error(format!(
-            "Unknown comparison operator {other:?}; expected one of eq/ne/lt/le/gt/ge"
-        ))),
+    op.parse().map_err(crate::errors::portfolio_to_py)
+}
+
+/// Accept an ``Inequality`` object or one of its string spellings
+/// (``"le"``/``"<="``, ``"ge"``/``">="``, ``"eq"``/``"=="``).
+fn extract_inequality(op: &Bound<'_, PyAny>) -> PyResult<Inequality> {
+    if let Ok(typed) = op.cast::<PyInequality>() {
+        return Ok(typed.borrow().inner);
     }
+    let text: String = op.extract().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(
+            "expected an Inequality or one of 'le', '<=', 'ge', '>=', 'eq', '=='",
+        )
+    })?;
+    text.parse().map_err(crate::errors::portfolio_to_py)
 }
 
 /// Per-position metric source (clone-only declarative wrapper).
@@ -486,23 +490,26 @@ impl PyConstraint {
 
 #[pymethods]
 impl PyConstraint {
-    /// Generic `metric op rhs` constraint.
+    /// Generic ``metric op rhs`` constraint.
+    ///
+    /// ``op`` accepts an :class:`Inequality` or its string spelling
+    /// (``"le"``/``"<="``, ``"ge"``/``">="``, ``"eq"``/``"=="``).
     #[classmethod]
     #[pyo3(text_signature = "(cls, metric, op, rhs, label=None)")]
     #[pyo3(signature = (metric, op, rhs, label=None))]
     fn metric_bound(
         _cls: &Bound<'_, PyType>,
         metric: PyMetricExpr,
-        op: PyInequality,
+        op: &Bound<'_, PyAny>,
         rhs: f64,
         label: Option<String>,
-    ) -> Self {
-        Self::from_inner(Constraint::MetricBound {
+    ) -> PyResult<Self> {
+        Ok(Self::from_inner(Constraint::MetricBound {
             label,
             metric: metric.inner,
-            op: op.inner,
+            op: extract_inequality(op)?,
             rhs,
-        })
+        }))
     }
 
     /// Weight bounds for positions matching the filter. Returns an error

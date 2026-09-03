@@ -1,21 +1,27 @@
 //! Python bindings for `finstack_quant_models::credit::liability_management`.
 
 use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
-use crate::errors::core_to_py;
+use crate::errors::{core_to_py, serde_json_to_py};
 use finstack_quant_models::credit::liability_management::{
     self as lm, ExchangeOfferAnalysis, ExchangeType, LeverageImpact, LmeAnalysis, LmeType,
+    TENDER_RECOMMENDATION_HURDLE,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
 /// Hold-versus-tender economics of a distressed exchange offer.
+///
+/// ``exchange_type`` is one of ``par_for_par``, ``discount``, ``uptier``,
+/// ``downtier``. Tendering is recommended when ``tender_total`` exceeds
+/// ``old_npv * TENDER_RECOMMENDATION_HURDLE``.
 #[pyclass(
     name = "ExchangeOfferAnalysis",
     module = "finstack_quant.models.credit.liability_management",
     frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PyExchangeOfferAnalysis {
     inner: ExchangeOfferAnalysis,
 }
@@ -74,6 +80,27 @@ impl PyExchangeOfferAnalysis {
     #[getter]
     fn tender_recommended(&self) -> bool {
         self.inner.tender_recommended
+    }
+
+    /// Deserialize from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid ExchangeOfferAnalysis JSON"))?,
+        })
+    }
+
+    /// Serialize to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "ExchangeOfferAnalysis serialization failed"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Export as a single-row pandas ``DataFrame``.
@@ -145,9 +172,10 @@ impl PyExchangeOfferAnalysis {
     name = "LeverageImpact",
     module = "finstack_quant.models.credit.liability_management",
     frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PyLeverageImpact {
     inner: LeverageImpact,
 }
@@ -184,6 +212,45 @@ impl PyLeverageImpact {
         self.inner.leverage_reduction
     }
 
+    /// Deserialize from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid LeverageImpact JSON"))?,
+        })
+    }
+
+    /// Serialize to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "LeverageImpact serialization failed"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``pre_total_debt``, ``post_total_debt``, ``pre_leverage``,
+    /// ``post_leverage``, ``leverage_reduction``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &self.inner,
+            &[
+                "pre_total_debt",
+                "post_total_debt",
+                "pre_leverage",
+                "post_leverage",
+                "leverage_reduction",
+            ],
+        )
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "LeverageImpact(pre_leverage={}, post_leverage={}, leverage_reduction={})",
@@ -193,13 +260,17 @@ impl PyLeverageImpact {
 }
 
 /// Issuer-side economics of a liability management exercise.
+///
+/// ``lme_type`` is one of ``open_market_repurchase``, ``tender_offer``,
+/// ``amend_and_extend``, ``dropdown``. Percentages are decimal fractions.
 #[pyclass(
     name = "LmeAnalysis",
     module = "finstack_quant.models.credit.liability_management",
     frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PyLmeAnalysis {
     inner: LmeAnalysis,
 }
@@ -250,6 +321,27 @@ impl PyLmeAnalysis {
             .leverage_impact
             .clone()
             .map(|inner| PyLeverageImpact { inner })
+    }
+
+    /// Deserialize from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid LmeAnalysis JSON"))?,
+        })
+    }
+
+    /// Serialize to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "LmeAnalysis serialization failed"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     /// Export as a single-row pandas ``DataFrame``.
@@ -328,6 +420,25 @@ impl PyLmeAnalysis {
 }
 
 /// Compare hold-versus-tender economics for a distressed exchange offer.
+///
+/// Parameters
+/// ----------
+/// old_pv : float
+///     Present value of the existing claim if not tendered.
+/// new_pv : float
+///     Present value of the new instrument received on tendering, same units.
+/// consent_fee : float, default 0.0
+///     Cash consent / early-tender fee per unit tendered, same units.
+/// equity_sweetener_value : float, default 0.0
+///     Value of equity or warrants attached to the new instrument, same units.
+/// exchange_type : str, default "par_for_par"
+///     One of ``par_for_par``, ``discount``, ``uptier``, ``downtier``.
+///
+/// Returns an ``ExchangeOfferAnalysis``; tendering is recommended only when
+/// ``tender_total > old_pv * TENDER_RECOMMENDATION_HURDLE``.
+///
+/// Raises ``ValueError`` for an unknown ``exchange_type`` or a negative /
+/// non-finite monetary input.
 #[pyfunction]
 #[pyo3(signature = (old_pv, new_pv, consent_fee=0.0, equity_sweetener_value=0.0, exchange_type="par_for_par"))]
 #[pyo3(
@@ -353,6 +464,27 @@ fn analyze_exchange_offer(
 }
 
 /// Compute discount capture and leverage impact for an LME transaction.
+///
+/// Parameters
+/// ----------
+/// lme_type : str
+///     One of ``open_market_repurchase``, ``tender_offer``,
+///     ``amend_and_extend``, ``dropdown``.
+/// notional : float
+///     Outstanding face amount of the target instrument (> 0).
+/// repurchase_price_pct : float
+///     Price as a decimal fraction of par for repurchases and tenders
+///     (``(0, 1.5]``), the extension fee for amend-and-extend (``[0, 0.1]``),
+///     or the transferred-asset fraction for a dropdown (``[0, 1]``).
+/// opt_acceptance_pct : float, default 1.0
+///     Fraction of holders participating, in [0, 1].
+/// ebitda : float | None, default None
+///     EBITDA in the same units as ``notional``; a positive value adds the
+///     ``leverage_impact`` block.
+///
+/// Returns an ``LmeAnalysis``.
+///
+/// Raises ``ValueError`` for an unknown ``lme_type`` or an out-of-range input.
 #[pyfunction]
 #[pyo3(signature = (lme_type, notional, repurchase_price_pct, opt_acceptance_pct=1.0, ebitda=None))]
 #[pyo3(
@@ -385,6 +517,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "Distressed-exchange hold-versus-tender economics and issuer LME analytics.",
     )?;
 
+    m.add("TENDER_RECOMMENDATION_HURDLE", TENDER_RECOMMENDATION_HURDLE)?;
     m.add_class::<PyExchangeOfferAnalysis>()?;
     m.add_class::<PyLeverageImpact>()?;
     m.add_class::<PyLmeAnalysis>()?;
@@ -397,6 +530,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "ExchangeOfferAnalysis",
             "LeverageImpact",
             "LmeAnalysis",
+            "TENDER_RECOMMENDATION_HURDLE",
             "analyze_exchange_offer",
             "analyze_lme",
         ],

@@ -46,7 +46,10 @@ fn bench_european_pricer(c: &mut Criterion) {
     {
         let &num_paths = &10_000;
         group.bench_with_input(BenchmarkId::new("paths", num_paths), &num_paths, |b, &n| {
-            let pricer = EuropeanPricer::new(n).with_seed(42).with_parallel(false);
+            let pricer = EuropeanPricer::new(n)
+                .expect("positive path count")
+                .with_seed(42)
+                .with_parallel(false);
             b.iter(|| {
                 pricer
                     .price(&process, 100.0, 1.0, 252, &payoff, Currency::USD, df)

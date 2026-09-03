@@ -1,8 +1,9 @@
 //! WASM bindings for the Monte Carlo engine in `finstack-quant-models`.
 //!
 //! Provides the host-neutral subset shared with Python: Heston Monte Carlo
-//! pricing and Black-Scholes analytical references. Advanced Rust processes,
-//! discretizations, RNGs, payoffs, and Greeks remain Rust-only.
+//! pricing. Closed-form Black-Scholes references live in `models.bsPrice`.
+//! Advanced Rust processes, discretizations, RNGs, payoffs, and Greeks remain
+//! Rust-only.
 //!
 
 use std::str::FromStr;
@@ -178,48 +179,6 @@ pub fn price_heston_put(
     )
 }
 
-/// Black-Scholes call price.
-/// @param spot - Current spot price or exchange rate in the same units as the strike.
-/// @param strike - Option strike price in the same price units as the underlying.
-/// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-/// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-/// @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-/// @param expiry - Time to option expiry in years on the model's annual time basis.
-#[wasm_bindgen(js_name = blackScholesCall)]
-pub fn black_scholes_call(
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    expiry: f64,
-) -> f64 {
-    finstack_quant_models::closed_form::black_scholes_spot_call(
-        spot, strike, rate, div_yield, vol, expiry,
-    )
-}
-
-/// Black-Scholes put price.
-/// @param spot - Current spot price or exchange rate in the same units as the strike.
-/// @param strike - Option strike price in the same price units as the underlying.
-/// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-/// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-/// @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-/// @param expiry - Time to option expiry in years on the model's annual time basis.
-#[wasm_bindgen(js_name = blackScholesPut)]
-pub fn black_scholes_put(
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    vol: f64,
-    expiry: f64,
-) -> f64 {
-    finstack_quant_models::closed_form::black_scholes_spot_put(
-        spot, strike, rate, div_yield, vol, expiry,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 fn price_heston(
     is_call: bool,
@@ -291,18 +250,6 @@ mod tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::money::Money;
-
-    #[test]
-    fn black_scholes_call_atm_reasonable() {
-        let price = black_scholes_call(100.0, 100.0, 0.05, 0.0, 0.2, 1.0);
-        assert!(price > 5.0 && price < 15.0, "ATM call price={price}");
-    }
-
-    #[test]
-    fn black_scholes_put_atm_positive() {
-        let price = black_scholes_put(100.0, 100.0, 0.05, 0.0, 0.2, 1.0);
-        assert!(price > 0.0);
-    }
 
     #[test]
     fn mc_result_js_from_estimate_maps_fields() {

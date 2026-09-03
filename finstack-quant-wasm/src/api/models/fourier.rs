@@ -4,8 +4,8 @@
 //! Oosterlee (2008) COS method for European options under Black-Scholes,
 //! Variance Gamma, and Merton jump-diffusion characteristic functions.
 //!
-//! All rates are continuously compounded decimals; `sigma` is annualized vol;
-//! `maturity` is time to expiry in years.
+//! All rates are continuously compounded decimals; `vol` / `sigma` are
+//! annualized vols; `expiry` is time to expiry in years.
 //!
 //! Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008.
 
@@ -24,15 +24,15 @@ use wasm_bindgen::prelude::*;
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-/// @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-/// @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-/// @param maturity - Time to option expiry in years.
+/// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
+/// @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%; must be positive.
+/// @param expiry - Time to option expiry in years.
 /// @param is_call - Whether to value a call (`true`) or put (`false`).
 /// @param n_terms - Optional positive number of COS expansion terms; omit to use the pricer default.
 ///
 /// # Errors
 ///
-/// Throws a JavaScript exception if the model produces a degenerate or invalid
+/// Throws a JavaScript exception if `vol` is not positive, the model produces a degenerate or invalid
 /// COS truncation range, a non-finite characteristic-function value or forward
 /// moment, or a non-finite option price.
 #[wasm_bindgen(js_name = bsCosPrice)]
@@ -41,9 +41,9 @@ pub fn bs_cos_price(
     spot: f64,
     strike: f64,
     rate: f64,
-    dividend: f64,
+    div_yield: f64,
     vol: f64,
-    maturity: f64,
+    expiry: f64,
     is_call: bool,
     n_terms: Option<usize>,
 ) -> Result<f64, JsValue> {
@@ -51,9 +51,9 @@ pub fn bs_cos_price(
         spot,
         strike,
         rate,
-        dividend,
+        div_yield,
         vol,
-        maturity,
+        expiry,
         is_call,
         n_terms,
     })
@@ -67,11 +67,11 @@ pub fn bs_cos_price(
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-/// @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
+/// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
 /// @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
 /// @param theta - Variance-Gamma drift parameter controlling skew in log returns.
 /// @param nu - Variance-Gamma variance-rate parameter; larger values increase tail thickness.
-/// @param maturity - Time to option expiry in years.
+/// @param expiry - Time to option expiry in years.
 /// @param is_call - Whether to value a call (`true`) or put (`false`).
 /// @param n_terms - Optional positive number of COS expansion terms; omit to use the pricer default.
 ///
@@ -86,11 +86,11 @@ pub fn vg_cos_price(
     spot: f64,
     strike: f64,
     rate: f64,
-    dividend: f64,
+    div_yield: f64,
     sigma: f64,
     theta: f64,
     nu: f64,
-    maturity: f64,
+    expiry: f64,
     is_call: bool,
     n_terms: Option<usize>,
 ) -> Result<f64, JsValue> {
@@ -98,11 +98,11 @@ pub fn vg_cos_price(
         spot,
         strike,
         rate,
-        dividend,
+        div_yield,
         sigma,
         theta,
         nu,
-        maturity,
+        expiry,
         is_call,
         n_terms,
     })
@@ -116,12 +116,12 @@ pub fn vg_cos_price(
 /// @param spot - Current spot price or exchange rate in the same units as the strike.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-/// @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
+/// @param div_yield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
 /// @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
 /// @param mu_jump - Mean log jump size in the Merton jump-diffusion model.
 /// @param sigma_jump - Standard deviation of log jump sizes in the Merton jump-diffusion model.
 /// @param lambda - Annual jump-arrival intensity in the Merton jump-diffusion model.
-/// @param maturity - Time to option expiry in years.
+/// @param expiry - Time to option expiry in years.
 /// @param is_call - Whether to value a call (`true`) or put (`false`).
 /// @param n_terms - Optional positive number of COS expansion terms; omit to use the pricer default.
 ///
@@ -136,12 +136,12 @@ pub fn merton_jump_cos_price(
     spot: f64,
     strike: f64,
     rate: f64,
-    dividend: f64,
+    div_yield: f64,
     sigma: f64,
     mu_jump: f64,
     sigma_jump: f64,
     lambda: f64,
-    maturity: f64,
+    expiry: f64,
     is_call: bool,
     n_terms: Option<usize>,
 ) -> Result<f64, JsValue> {
@@ -149,12 +149,12 @@ pub fn merton_jump_cos_price(
         spot,
         strike,
         rate,
-        dividend,
+        div_yield,
         sigma,
         mu_jump,
         sigma_jump,
         lambda,
-        maturity,
+        expiry,
         is_call,
         n_terms,
     })

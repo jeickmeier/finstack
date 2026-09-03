@@ -35,7 +35,7 @@ fn default_margin_calendar(currency: finstack_quant_core::currency::Currency) ->
         Currency::CHF => "chzh",
         Currency::CAD => "cato",
         Currency::AUD => "auce",
-        _ => "weekends",
+        _ => "weekends_only",
     }
 }
 
@@ -53,8 +53,9 @@ pub use repo_cashflows::{
 };
 pub use repo_margin::{RepoMarginSpec, RepoMarginType};
 pub use simm_types::{
-    ordered_credit_sector_pair, ordered_risk_class_pair, ordered_tenor_pair, SimmCreditSector,
-    SimmRiskClass, SimmSensitivities, SimmSensitivitiesJson,
+    commodity_bucket_id, ordered_credit_sector_pair, ordered_risk_class_pair, ordered_tenor_pair,
+    SimmCreditSector, SimmRiskClass, SimmSensitivities, SimmSensitivitiesJson,
+    SIMM_COMMODITY_BUCKET_COUNT, SIMM_TENORS,
 };
 pub use thresholds::{ImParameters, VmParameters};
 
@@ -72,6 +73,6 @@ mod tests {
         assert_eq!(default_margin_calendar(Currency::CHF), "chzh");
         assert_eq!(default_margin_calendar(Currency::CAD), "cato");
         assert_eq!(default_margin_calendar(Currency::AUD), "auce");
-        assert_eq!(default_margin_calendar(Currency::NZD), "weekends");
+        assert_eq!(default_margin_calendar(Currency::NZD), "weekends_only");
     }
 }

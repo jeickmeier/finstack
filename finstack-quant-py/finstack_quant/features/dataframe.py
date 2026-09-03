@@ -26,7 +26,6 @@ Examples:
 
 from collections.abc import Mapping, Sequence
 from importlib import import_module as _import_module
-import json as _json
 from typing import Any
 
 from . import (
@@ -39,7 +38,7 @@ from . import (
     rolling_regression_residual as _rolling_regression_residual,
     transform_cross_sectional as _transform_cross_sectional,
     transform_cross_sectional_grouped as _transform_cross_sectional_grouped,
-    transform_panel_json as _transform_panel_json,
+    transform_panel as _transform_panel,
     transform_timeseries as _transform_timeseries,
     transform_timeseries_pairwise as _transform_timeseries_pairwise,
 )
@@ -303,7 +302,7 @@ def panel(
 ) -> Any:
     """Apply a JSON panel transform pipeline to a DataFrame value column.
 
-    Forwards to :func:`finstack_quant.features.transform_panel_json`. Operations run
+    Forwards to :func:`finstack_quant.features.transform_panel`. Operations run
     sequentially: each reads the previous column by default. Set ``input`` to
     ``"values"`` to branch from the raw column, or to an earlier operation
     name.
@@ -349,7 +348,7 @@ def panel(
     >>> panel(frame, "signal", operations, time_key="date")["rank"].tolist()
     [0.0, 1.0, 0.0, 1.0]
     """
-    pd = _require_pandas()
+    _require_pandas()
     spec: dict[str, Any] = {
         "values": _numeric_column(df, value),
         "operations": [dict(operation) for operation in operations],
@@ -372,10 +371,9 @@ def panel(
             role="time_key",
             default_datetime_index=True,
         )
-    result = _json.loads(_transform_panel_json(_json.dumps(spec)))
-    columns = {column["name"]: column["values"] for column in result["columns"]}
-    ordered = {operation["name"]: columns[operation["name"]] for operation in operations}
-    return pd.DataFrame(ordered, index=df.index)
+    result = _transform_panel(spec)
+    frame = result.to_dataframe(index=df.index)
+    return frame[[operation["name"] for operation in operations]]
 
 
 def grouped(

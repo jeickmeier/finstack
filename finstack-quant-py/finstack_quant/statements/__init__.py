@@ -14,33 +14,39 @@ import sys as _sys
 
 from finstack_quant.finstack_quant import statements as _statements
 
+Adjustment = _statements.Adjustment
+AppliedAdjustment = _statements.AppliedAdjustment
+CapitalStructureCashflows = _statements.CapitalStructureCashflows
+CheckConfig = _statements.CheckConfig
+CheckFinding = _statements.CheckFinding
+CheckReport = _statements.CheckReport
+CheckSuiteSpec = _statements.CheckSuiteSpec
+EcfSweepSpec = _statements.EcfSweepSpec
+Evaluator = _statements.Evaluator
+FinancialModelSpec = _statements.FinancialModelSpec
 ForecastMethod = _statements.ForecastMethod
 ForecastSpec = _statements.ForecastSpec
-NodeType = _statements.NodeType
-NodeId = _statements.NodeId
-NumericMode = _statements.NumericMode
-FinancialModelSpec = _statements.FinancialModelSpec
-ModelBuilder = _statements.ModelBuilder
+FormulaCheckSpec = _statements.FormulaCheckSpec
+MetricDefinition = _statements.MetricDefinition
 MixedNodeBuilder = _statements.MixedNodeBuilder
-Registry = _statements.Registry
-StatementResult = _statements.StatementResult
-Evaluator = _statements.Evaluator
+ModelBuilder = _statements.ModelBuilder
 MonteCarloConfig = _statements.MonteCarloConfig
 MonteCarloResults = _statements.MonteCarloResults
-run_monte_carlo = _statements.run_monte_carlo
-parse_formula_text = _statements.parse_formula_text
-validate_formula = _statements.validate_formula
-AppliedAdjustment = _statements.AppliedAdjustment
+NodeId = _statements.NodeId
+NodeSpec = _statements.NodeSpec
+NodeType = _statements.NodeType
 NormalizationConfig = _statements.NormalizationConfig
 NormalizationResult = _statements.NormalizationResult
-normalize = _statements.normalize
-normalize_json = _statements.normalize_json
-CheckSuiteSpec = _statements.CheckSuiteSpec
-CheckReport = _statements.CheckReport
-EcfSweepSpec = _statements.EcfSweepSpec
+NumericMode = _statements.NumericMode
 PaymentClassSpec = _statements.PaymentClassSpec
 PikToggleSpec = _statements.PikToggleSpec
+Registry = _statements.Registry
+StatementResult = _statements.StatementResult
 WaterfallSpec = _statements.WaterfallSpec
+normalize = _statements.normalize
+normalize_json = _statements.normalize_json
+parse_and_compile = _statements.parse_and_compile
+parse_formula = _statements.parse_formula
 
 # `schema` is a compiled submodule with no pure-Python shim package, so alias it
 # onto the public dotted path that `import finstack_quant.statements.schema` uses.
@@ -48,7 +54,11 @@ schema = _statements.schema
 _sys.modules.setdefault("finstack_quant.statements.schema", schema)
 
 __all__: list[str] = [
+    "Adjustment",
     "AppliedAdjustment",
+    "CapitalStructureCashflows",
+    "CheckConfig",
+    "CheckFinding",
     "CheckReport",
     "CheckSuiteSpec",
     "EcfSweepSpec",
@@ -56,11 +66,14 @@ __all__: list[str] = [
     "FinancialModelSpec",
     "ForecastMethod",
     "ForecastSpec",
+    "FormulaCheckSpec",
+    "MetricDefinition",
     "MixedNodeBuilder",
     "ModelBuilder",
     "MonteCarloConfig",
     "MonteCarloResults",
     "NodeId",
+    "NodeSpec",
     "NodeType",
     "NormalizationConfig",
     "NormalizationResult",
@@ -72,8 +85,7 @@ __all__: list[str] = [
     "WaterfallSpec",
     "normalize",
     "normalize_json",
-    "parse_formula_text",
-    "run_monte_carlo",
+    "parse_and_compile",
+    "parse_formula",
     "schema",
-    "validate_formula",
 ]

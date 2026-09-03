@@ -1,6 +1,7 @@
 //! Python bindings for the `finstack-quant-core` dates module.
 
 pub mod calendar;
+pub mod date_ext;
 pub mod daycount;
 pub mod imm;
 pub mod periods;
@@ -26,6 +27,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     schedule::register(&m)?;
     sifma::register(&m)?;
     imm::register(&m)?;
+    date_ext::register(&m)?;
 
     m.add_function(wrap_pyfunction!(py_create_date, &m)?)?;
     m.add_function(wrap_pyfunction!(py_days_since_epoch, &m)?)?;
@@ -39,6 +41,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     all_names.extend_from_slice(schedule::EXPORTS);
     all_names.extend_from_slice(sifma::EXPORTS);
     all_names.extend_from_slice(imm::EXPORTS);
+    all_names.extend_from_slice(date_ext::EXPORTS);
     all_names.extend_from_slice(&["create_date", "days_since_epoch", "date_from_epoch_days"]);
     all_names.sort_unstable();
 

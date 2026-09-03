@@ -284,7 +284,8 @@ mod shared;
 // Core surface (supported)
 pub use aggregation::{is_additive_metric, metric_aggregation, MetricAggregation};
 pub use core::finite_difference::bump_surface_vol_absolute;
-pub use core::ids::{MetricGroup, MetricId};
+pub(crate) use core::ids::closest_metric_names;
+pub use core::ids::{MetricGroup, MetricId, MetricUnit};
 pub use core::registry::{MetricRegistry, MetricRegistryError};
 pub use core::standard_registry::standard_registry;
 pub use core::traits::{MetricCalculator, MetricContext, Structured2D};

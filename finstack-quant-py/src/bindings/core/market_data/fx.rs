@@ -152,10 +152,20 @@ impl PyFxRateResult {
         serde_object_to_single_row_dataframe_with_schema(py, &row, &["rate", "triangulated"])
     }
 
+    /// The rate as a plain ``float`` (``float(result)``).
+    fn __float__(&self) -> f64 {
+        self.inner.rate
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "FxRateResult(rate={}, triangulated={})",
-            self.inner.rate, self.inner.triangulated,
+            self.inner.rate,
+            if self.inner.triangulated {
+                "True"
+            } else {
+                "False"
+            },
         )
     }
 
@@ -281,8 +291,107 @@ impl PyFxMatrix {
         Ok(PyFxRateResult { inner: result })
     }
 
+    /// Set several explicit FX quotes atomically.
+    ///
+    /// Parameters
+    /// ----------
+    /// quotes : list[tuple[Currency | str, Currency | str, float]]
+    ///     ``(base, quote, rate)`` triples with ``1 base = rate quote``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If any rate is non-finite or non-positive; no quote is applied in that case.
+    #[pyo3(text_signature = "(self, quotes)")]
+    fn set_quotes(&self, quotes: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>, f64)>) -> PyResult<()> {
+        let quotes = quotes
+            .iter()
+            .map(|(base, quote, rate)| {
+                Ok((extract_currency(base)?, extract_currency(quote)?, *rate))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        self.inner.set_quotes(&quotes).map_err(core_to_py)
+    }
+
+    /// Build a matrix from a ``{"EURUSD": 1.1, "GBP/USD": 1.25}`` mapping.
+    ///
+    /// Parameters
+    /// ----------
+    /// quotes : dict[str, float]
+    ///     Keys are six-letter ISO pairs (``"EURUSD"``) or slash-separated
+    ///     pairs (``"EUR/USD"``); values are ``1 base = rate quote``.
+    ///
+    /// Returns
+    /// -------
+    /// FxMatrix
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a key is not a currency pair, a code is unknown, or a rate is invalid.
+    #[staticmethod]
+    #[pyo3(text_signature = "(quotes)")]
+    fn from_dict(quotes: &Bound<'_, pyo3::types::PyDict>) -> PyResult<Self> {
+        let matrix = Self::new();
+        let mut parsed = Vec::with_capacity(quotes.len());
+        for (key, value) in quotes.iter() {
+            let pair: String = key.extract()?;
+            let (base, quote) = match pair.split_once('/') {
+                Some((b, q)) => (b.to_string(), q.to_string()),
+                None if pair.len() == 6 => (pair[..3].to_string(), pair[3..].to_string()),
+                None => {
+                    return Err(crate::errors::value_error(format!(
+                        "invalid FX pair {pair:?}: expected \"EURUSD\" or \"EUR/USD\""
+                    )))
+                }
+            };
+            parsed.push((
+                crate::bindings::module_utils::parse_currency(&base)?,
+                crate::bindings::module_utils::parse_currency(&quote)?,
+                value.extract::<f64>()?,
+            ));
+        }
+        matrix.inner.set_quotes(&parsed).map_err(core_to_py)?;
+        Ok(matrix)
+    }
+
+    /// Explicit pair-global quotes as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``base``, ``quote`` (ISO codes) and ``rate``. Date-scoped
+    /// quotes set with ``set_quote_on`` are not included.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.DataFrame
+    fn quotes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut state: Vec<(String, String, f64)> = self
+            .inner
+            .get_serializable_state()
+            .quotes
+            .into_iter()
+            .map(|(base, quote, rate)| (base.to_string(), quote.to_string(), rate))
+            .collect();
+        state.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+        let data = pyo3::types::PyDict::new(py);
+        data.set_item(
+            "base",
+            state.iter().map(|q| q.0.as_str()).collect::<Vec<_>>(),
+        )?;
+        data.set_item(
+            "quote",
+            state.iter().map(|q| q.1.as_str()).collect::<Vec<_>>(),
+        )?;
+        data.set_item("rate", state.iter().map(|q| q.2).collect::<Vec<_>>())?;
+        crate::bindings::pandas_utils::dict_to_dataframe(py, &data, None)
+    }
+
     fn __repr__(&self) -> String {
-        "FxMatrix(...)".to_string()
+        let state = self.inner.get_serializable_state();
+        format!(
+            "FxMatrix(quotes={}, pinned_quotes={})",
+            state.quotes.len(),
+            state.pinned_quotes.len()
+        )
     }
 }
 

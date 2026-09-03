@@ -54,7 +54,6 @@ use crate::solver::global::GlobalFitOptimizer;
 use crate::solver::multi_start::MultiStartConfig;
 use crate::solver::traits::GlobalSolveTarget;
 use crate::CalibrationReport;
-use finstack_quant_models::rates::hull_white::{HullWhiteCalibrationParams, HullWhiteParams};
 
 mod cap_floor;
 mod pricing;
@@ -68,6 +67,7 @@ pub use cap_floor::{
 };
 pub use finstack_quant_models::rates::hull_white::{
     capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key, hw1f_scalar_keys,
+    HullWhiteCalibrationParams, HullWhiteParams,
 };
 pub use quotes::{
     CapFloorCalibrationConfig, CapFloorQuote, SwapFrequency, SwaptionQuote, SwaptionSchedule,

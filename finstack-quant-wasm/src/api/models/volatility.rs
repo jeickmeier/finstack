@@ -306,6 +306,17 @@ impl JsSabrCalibrator {
         }
     }
 
+    /// Return a copy of this calibrator with an overridden iteration cap,
+    /// preserving all other settings.
+    /// @param max_iterations - Positive cap on solver iterations before a
+    /// non-convergence error; pair a tight tolerance with a larger budget.
+    #[wasm_bindgen(js_name = withMaxIterations)]
+    pub fn with_max_iterations(&self, max_iterations: usize) -> JsSabrCalibrator {
+        Self {
+            inner: self.inner.clone().with_max_iterations(max_iterations),
+        }
+    }
+
     /// Calibrate `(alpha, nu, rho)` to market vols with `beta` fixed.
     /// @param forward - Forward price or rate in the same quote convention as the strike.
     /// @param strikes - Option strikes aligned one-for-one with market_vols.
@@ -369,6 +380,91 @@ impl Default for JsSabrCalibrator {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Convert an ATM volatility quote between normal, lognormal and shifted-lognormal conventions.
+///
+/// Prices are equated at the money (strike = forward) and the target vol is
+/// solved deterministically.
+///
+/// # Arguments
+///
+/// * `vol` - Input volatility in the source convention: decimal Black vol for
+///   `"lognormal"` / shifted-lognormal, absolute vol in the forward's rate units
+///   for `"normal"`. Must be positive.
+/// * `from_convention` - `"normal"`, `"lognormal"`, or
+///   `{"shifted_lognormal": {"shift": s}}` (serde form of `VolatilityConvention`).
+/// * `to_convention` - Target convention in the same encoding.
+/// * `forward_rate` - ATM forward rate or price; must satisfy the target
+///   convention's domain.
+/// * `time_to_expiry` - Time to expiry in years (non-negative).
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if a convention cannot be decoded, an input
+/// is outside its domain, or the price-matching solver fails to converge.
+#[wasm_bindgen(js_name = convertAtmVolatility)]
+pub fn convert_atm_volatility(
+    vol: f64,
+    from_convention: JsValue,
+    to_convention: JsValue,
+    forward_rate: f64,
+    time_to_expiry: f64,
+) -> Result<f64, JsValue> {
+    let from: vol::VolatilityConvention = serde_wasm_bindgen::from_value(from_convention)
+        .map_err(|e| JsValue::from_str(&format!("invalid from_convention: {e}")))?;
+    let to: vol::VolatilityConvention = serde_wasm_bindgen::from_value(to_convention)
+        .map_err(|e| JsValue::from_str(&format!("invalid to_convention: {e}")))?;
+    vol::convert_atm_volatility(vol, from, to, forward_rate, time_to_expiry).map_err(to_js_err)
+}
+
+/// Calibrate Gatheral SVI parameters `{a, b, rho, m, sigma}` to a market smile.
+///
+/// Gatheral (2004): see docs/REFERENCES.md#gatheral-2004-svi.
+///
+/// # Arguments
+///
+/// * `strikes` - Positive strikes (at least five).
+/// * `vols` - Black implied vols (decimal) aligned one-for-one with `strikes`.
+/// * `forward` - Positive forward at `expiry`.
+/// * `expiry` - Positive time to expiry in years.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if lengths differ, fewer than five quotes are
+/// supplied, an input is outside its domain, the optimizer fails to converge,
+/// or the fit violates the SVI no-arbitrage conditions.
+#[wasm_bindgen(js_name = calibrateSvi)]
+pub fn calibrate_svi(
+    strikes: Vec<f64>,
+    vols: Vec<f64>,
+    forward: f64,
+    expiry: f64,
+) -> Result<JsValue, JsValue> {
+    let params =
+        finstack_quant_models::volatility::svi::calibrate_svi(&strikes, &vols, forward, expiry)
+            .map_err(to_js_err)?;
+    to_js_value(&params)
+}
+
+/// Black implied volatility from SVI parameters at log-moneyness `k = ln(K / F)`.
+///
+/// # Arguments
+///
+/// * `params` - SVI parameter object `{a, b, rho, m, sigma}` (validated on decode).
+/// * `k` - Log-moneyness `ln(K / F)`.
+/// * `t` - Positive time to expiry in years.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `params` fails validation, `t` is not
+/// positive, or the total variance at `k` is negative.
+#[wasm_bindgen(js_name = sviImpliedVol)]
+pub fn svi_implied_vol(params: JsValue, k: f64, t: f64) -> Result<f64, JsValue> {
+    let params: finstack_quant_models::volatility::svi::SviParams =
+        serde_wasm_bindgen::from_value(params)
+            .map_err(|e| JsValue::from_str(&format!("invalid SVI params: {e}")))?;
+    params.implied_vol(k, t).map_err(to_js_err)
 }
 
 /// Evaluate Black/lognormal volatility from a core SABR cube.

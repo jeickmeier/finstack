@@ -15,11 +15,13 @@
 //! ```rust
 //! use finstack_quant_models::OptionType;
 //! use finstack_quant_models::closed_form::dispatch::{
-//!     asian_option_price_str, barrier_call_str,
+//!     asian_option_price_str, barrier_call_str, barrier_put_str,
 //! };
 //!
 //! let barrier = barrier_call_str(100.0, 100.0, 90.0, 1.0, 0.05, 0.02, 0.20, "down", "out")?;
 //! assert!(barrier > 0.0);
+//! let barrier_put = barrier_put_str(100.0, 100.0, 90.0, 1.0, 0.05, 0.02, 0.20, "down", "out")?;
+//! assert!(barrier_put >= 0.0);
 //!
 //! let asian = asian_option_price_str(
 //!     100.0, 100.0, 1.0, 0.05, 0.02, 0.20, 12, "arithmetic", OptionType::Call,
@@ -33,7 +35,10 @@ use finstack_quant_core::{Error, Result};
 use super::asian::{
     arithmetic_asian_call_tw, arithmetic_asian_put_tw, geometric_asian_call, geometric_asian_put,
 };
-use super::barrier::{down_in_call, down_out_call, up_in_call, up_out_call};
+use super::barrier::{
+    down_in_call, down_in_put, down_out_call, down_out_put, up_in_call, up_in_put, up_out_call,
+    up_out_put,
+};
 use super::lookback::{
     fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
     floating_strike_lookback_put,
@@ -52,10 +57,10 @@ use crate::types::OptionType;
 /// * `spot` - Current spot price of the underlying.
 /// * `strike` - Option strike price in the same units as `spot`.
 /// * `barrier` - Continuously monitored barrier level in the same units as `spot`.
-/// * `t` - Time to expiry in years.
-/// * `r` - Risk-free rate, continuously compounded decimal.
-/// * `q` - Continuous dividend yield (or foreign rate for FX), decimal.
-/// * `sigma` - Annualized volatility, decimal.
+/// * `expiry` - Time to expiry in years.
+/// * `rate` - Risk-free rate, continuously compounded decimal.
+/// * `div_yield` - Continuous dividend yield (or foreign rate for FX), decimal.
+/// * `vol` - Annualized volatility, decimal.
 /// * `direction` - `"up"` for an upper barrier or `"down"` for a lower barrier.
 /// * `knock` - `"in"` for knock-in or `"out"` for knock-out.
 ///
@@ -68,18 +73,67 @@ pub fn barrier_call_str(
     spot: f64,
     strike: f64,
     barrier: f64,
-    t: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
+    expiry: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
     direction: &str,
     knock: &str,
 ) -> Result<f64> {
     let value = match (direction, knock) {
-        ("up", "in") => up_in_call(spot, strike, barrier, t, r, q, sigma),
-        ("up", "out") => up_out_call(spot, strike, barrier, t, r, q, sigma),
-        ("down", "in") => down_in_call(spot, strike, barrier, t, r, q, sigma),
-        ("down", "out") => down_out_call(spot, strike, barrier, t, r, q, sigma),
+        ("up", "in") => up_in_call(spot, strike, barrier, expiry, rate, div_yield, vol),
+        ("up", "out") => up_out_call(spot, strike, barrier, expiry, rate, div_yield, vol),
+        ("down", "in") => down_in_call(spot, strike, barrier, expiry, rate, div_yield, vol),
+        ("down", "out") => down_out_call(spot, strike, barrier, expiry, rate, div_yield, vol),
+        _ => {
+            return Err(Error::Validation(format!(
+                "unknown barrier spec: direction='{direction}' knock='{knock}'; \
+                 expected direction in {{'up','down'}} and knock in {{'in','out'}}"
+            )));
+        }
+    };
+    checked_closed_form_value(value, "barrier price")
+}
+
+/// Reiner-Rubinstein continuous-monitoring barrier put, selected by strings.
+///
+/// Routes to [`up_in_put`], [`up_out_put`], [`down_in_put`], or
+/// [`down_out_put`] from the `(direction, knock)` pair, mirroring
+/// [`barrier_call_str`].
+///
+/// # Arguments
+///
+/// * `spot` - Current spot price of the underlying.
+/// * `strike` - Option strike price in the same units as `spot`.
+/// * `barrier` - Continuously monitored barrier level in the same units as `spot`.
+/// * `expiry` - Time to expiry in years.
+/// * `rate` - Risk-free rate, continuously compounded decimal.
+/// * `div_yield` - Continuous dividend yield (or foreign rate for FX), decimal.
+/// * `vol` - Annualized volatility, decimal.
+/// * `direction` - `"up"` for an upper barrier or `"down"` for a lower barrier.
+/// * `knock` - `"in"` for knock-in or `"out"` for knock-out.
+///
+/// # Errors
+///
+/// Returns `Error::Validation` if `(direction, knock)` is not a supported
+/// pair, or if the resulting barrier price is non-finite.
+#[allow(clippy::too_many_arguments)]
+pub fn barrier_put_str(
+    spot: f64,
+    strike: f64,
+    barrier: f64,
+    expiry: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    direction: &str,
+    knock: &str,
+) -> Result<f64> {
+    let value = match (direction, knock) {
+        ("up", "in") => up_in_put(spot, strike, barrier, expiry, rate, div_yield, vol),
+        ("up", "out") => up_out_put(spot, strike, barrier, expiry, rate, div_yield, vol),
+        ("down", "in") => down_in_put(spot, strike, barrier, expiry, rate, div_yield, vol),
+        ("down", "out") => down_out_put(spot, strike, barrier, expiry, rate, div_yield, vol),
         _ => {
             return Err(Error::Validation(format!(
                 "unknown barrier spec: direction='{direction}' knock='{knock}'; \
@@ -101,10 +155,10 @@ pub fn barrier_call_str(
 ///
 /// * `spot` - Current spot price of the underlying.
 /// * `strike` - Option strike price in the same units as `spot`.
-/// * `t` - Time to expiry in years.
-/// * `r` - Risk-free rate, continuously compounded decimal.
-/// * `q` - Continuous dividend yield, decimal.
-/// * `sigma` - Annualized volatility, decimal.
+/// * `expiry` - Time to expiry in years.
+/// * `rate` - Risk-free rate, continuously compounded decimal.
+/// * `div_yield` - Continuous dividend yield, decimal.
+/// * `vol` - Annualized volatility, decimal.
 /// * `num_fixings` - Number of equally spaced averaging observations.
 /// * `averaging` - `"arithmetic"` (Turnbull-Wakeman) or `"geometric"` (Kemna-Vorst).
 /// * `option_type` - Call or put payoff convention.
@@ -117,26 +171,26 @@ pub fn barrier_call_str(
 pub fn asian_option_price_str(
     spot: f64,
     strike: f64,
-    t: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
+    expiry: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
     num_fixings: usize,
     averaging: &str,
     option_type: OptionType,
 ) -> Result<f64> {
     let value = match (averaging, option_type) {
         ("arithmetic", OptionType::Call) => {
-            arithmetic_asian_call_tw(spot, strike, t, r, q, sigma, num_fixings)
+            arithmetic_asian_call_tw(spot, strike, expiry, rate, div_yield, vol, num_fixings)
         }
         ("arithmetic", OptionType::Put) => {
-            arithmetic_asian_put_tw(spot, strike, t, r, q, sigma, num_fixings)
+            arithmetic_asian_put_tw(spot, strike, expiry, rate, div_yield, vol, num_fixings)
         }
         ("geometric", OptionType::Call) => {
-            geometric_asian_call(spot, strike, t, r, q, sigma, num_fixings)
+            geometric_asian_call(spot, strike, expiry, rate, div_yield, vol, num_fixings)
         }
         ("geometric", OptionType::Put) => {
-            geometric_asian_put(spot, strike, t, r, q, sigma, num_fixings)
+            geometric_asian_put(spot, strike, expiry, rate, div_yield, vol, num_fixings)
         }
         _ => {
             return Err(Error::Validation(format!(
@@ -157,10 +211,10 @@ pub fn asian_option_price_str(
 ///
 /// * `spot` - Current spot price of the underlying.
 /// * `strike` - Option strike price (ignored for `"floating"`).
-/// * `t` - Time to expiry in years.
-/// * `r` - Risk-free rate, continuously compounded decimal.
-/// * `q` - Continuous dividend yield, decimal.
-/// * `sigma` - Annualized volatility, decimal.
+/// * `expiry` - Time to expiry in years.
+/// * `rate` - Risk-free rate, continuously compounded decimal.
+/// * `div_yield` - Continuous dividend yield, decimal.
+/// * `vol` - Annualized volatility, decimal.
 /// * `extremum` - Observed running extremum to date, in `spot` units.
 /// * `strike_type` - `"fixed"` or `"floating"`.
 /// * `option_type` - Call or put payoff convention.
@@ -173,26 +227,26 @@ pub fn asian_option_price_str(
 pub fn lookback_option_price_str(
     spot: f64,
     strike: f64,
-    t: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
+    expiry: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
     extremum: f64,
     strike_type: &str,
     option_type: OptionType,
 ) -> Result<f64> {
     let value = match (strike_type, option_type) {
         ("fixed", OptionType::Call) => {
-            fixed_strike_lookback_call(spot, strike, t, r, q, sigma, extremum)
+            fixed_strike_lookback_call(spot, strike, expiry, rate, div_yield, vol, extremum)
         }
         ("fixed", OptionType::Put) => {
-            fixed_strike_lookback_put(spot, strike, t, r, q, sigma, extremum)
+            fixed_strike_lookback_put(spot, strike, expiry, rate, div_yield, vol, extremum)
         }
         ("floating", OptionType::Call) => {
-            floating_strike_lookback_call(spot, t, r, q, sigma, extremum)
+            floating_strike_lookback_call(spot, expiry, rate, div_yield, vol, extremum)
         }
         ("floating", OptionType::Put) => {
-            floating_strike_lookback_put(spot, t, r, q, sigma, extremum)
+            floating_strike_lookback_put(spot, expiry, rate, div_yield, vol, extremum)
         }
         _ => {
             return Err(Error::Validation(format!(
@@ -212,7 +266,7 @@ pub fn lookback_option_price_str(
 ///
 /// * `spot` - Spot price of the foreign asset in foreign currency.
 /// * `strike` - Strike in foreign currency.
-/// * `t` - Time to expiry in years.
+/// * `expiry` - Time to expiry in years.
 /// * `rate_domestic` - Domestic risk-free rate, continuously compounded decimal.
 /// * `rate_foreign` - Foreign risk-free rate, continuously compounded decimal.
 /// * `div_yield` - Foreign asset continuous dividend yield, decimal.
@@ -228,7 +282,7 @@ pub fn lookback_option_price_str(
 pub fn quanto_option_price(
     spot: f64,
     strike: f64,
-    t: f64,
+    expiry: f64,
     rate_domestic: f64,
     rate_foreign: f64,
     div_yield: f64,
@@ -241,7 +295,7 @@ pub fn quanto_option_price(
         OptionType::Call => quanto_call(
             spot,
             strike,
-            t,
+            expiry,
             rate_domestic,
             rate_foreign,
             div_yield,
@@ -252,7 +306,7 @@ pub fn quanto_option_price(
         OptionType::Put => quanto_put(
             spot,
             strike,
-            t,
+            expiry,
             rate_domestic,
             rate_foreign,
             div_yield,
@@ -288,6 +342,30 @@ mod tests {
             barrier_call_str(s, k, b_up, t, r, q, sigma, "up", "in").unwrap(),
             up_in_call(s, k, b_up, t, r, q, sigma)
         );
+    }
+
+    #[test]
+    fn barrier_put_dispatch_matches_leaf_functions() {
+        use crate::closed_form::barrier::{down_in_put, down_out_put, up_in_put, up_out_put};
+        let (s, k, b, t, r, q, sigma) = (100.0, 100.0, 90.0, 1.0, 0.05, 0.02, 0.20);
+        assert_eq!(
+            barrier_put_str(s, k, b, t, r, q, sigma, "down", "out").unwrap(),
+            down_out_put(s, k, b, t, r, q, sigma)
+        );
+        assert_eq!(
+            barrier_put_str(s, k, b, t, r, q, sigma, "down", "in").unwrap(),
+            down_in_put(s, k, b, t, r, q, sigma)
+        );
+        let b_up = 120.0;
+        assert_eq!(
+            barrier_put_str(s, k, b_up, t, r, q, sigma, "up", "out").unwrap(),
+            up_out_put(s, k, b_up, t, r, q, sigma)
+        );
+        assert_eq!(
+            barrier_put_str(s, k, b_up, t, r, q, sigma, "up", "in").unwrap(),
+            up_in_put(s, k, b_up, t, r, q, sigma)
+        );
+        assert!(barrier_put_str(s, k, b, t, r, q, sigma, "sideways", "out").is_err());
     }
 
     #[test]

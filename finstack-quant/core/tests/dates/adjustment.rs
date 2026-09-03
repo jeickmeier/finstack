@@ -270,23 +270,59 @@ fn test_all_conventions_infinite_loop_guard_and_error_messages() {
 #[test]
 fn business_day_convention_display_strings() {
     let values = [
-        (BusinessDayConvention::Unadjusted, "Unadjusted"),
-        (BusinessDayConvention::Following, "Following"),
+        (BusinessDayConvention::Unadjusted, "unadjusted"),
+        (BusinessDayConvention::Following, "following"),
         (
             BusinessDayConvention::ModifiedFollowing,
-            "ModifiedFollowing",
+            "modified_following",
         ),
-        (BusinessDayConvention::Preceding, "Preceding"),
+        (BusinessDayConvention::Preceding, "preceding"),
         (
             BusinessDayConvention::ModifiedPreceding,
-            "ModifiedPreceding",
+            "modified_preceding",
         ),
-        (BusinessDayConvention::Nearest, "Nearest"),
+        (BusinessDayConvention::Nearest, "nearest"),
     ];
 
     for (conv, expected) in values {
         assert_eq!(format!("{}", conv), expected);
+        // Display is the serde name, so it round-trips through FromStr and
+        // matches the JSON wire form.
+        assert_eq!(conv.to_string().parse::<BusinessDayConvention>(), Ok(conv));
+        assert_eq!(
+            serde_json::to_string(&conv).expect("serialize"),
+            format!("\"{expected}\"")
+        );
     }
+}
+
+#[test]
+fn business_day_convention_from_str_accepts_short_codes_case_insensitively() {
+    let cases = [
+        ("MF", BusinessDayConvention::ModifiedFollowing),
+        ("mf", BusinessDayConvention::ModifiedFollowing),
+        ("ModFollowing", BusinessDayConvention::ModifiedFollowing),
+        ("F", BusinessDayConvention::Following),
+        ("P", BusinessDayConvention::Preceding),
+        ("MP", BusinessDayConvention::ModifiedPreceding),
+        ("NONE", BusinessDayConvention::Unadjusted),
+        (
+            "Modified_Following",
+            BusinessDayConvention::ModifiedFollowing,
+        ),
+        (" nearest ", BusinessDayConvention::Nearest),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(
+            input.parse::<BusinessDayConvention>(),
+            Ok(expected),
+            "{input}"
+        );
+    }
+    let err = "bogus"
+        .parse::<BusinessDayConvention>()
+        .expect_err("unknown code");
+    assert!(err.contains("bogus") && err.contains("modified_following"));
 }
 
 // Calendar Metadata

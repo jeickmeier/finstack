@@ -2,17 +2,15 @@
 
 use super::types::*;
 use crate::bindings::core::dates::daycount::PyDayCount;
-use crate::bindings::date_utils::{date_to_py, py_to_date};
+use crate::bindings::date_utils::{date_to_py, extract_date, py_to_date};
 use crate::bindings::pandas_utils::{
-    dates_to_datetime_index, dict_to_dataframe, int_values_to_series, table_to_dataframe,
-    values_to_series,
+    dates_to_datetime_index, dict_to_dataframe, int_values_to_series,
+    serde_rows_to_dataframe_with_schema, table_to_dataframe, values_to_series, ColumnSchema,
 };
 use crate::errors::analytics_to_py as core_to_py;
-use crate::errors::value_error;
+use crate::errors::display_to_py;
 use finstack_quant_analytics as fa;
-use finstack_quant_core::dates::{
-    calendar_by_id, DayCount, FiscalConfig, HolidayCalendar, PeriodKind,
-};
+use finstack_quant_core::dates::{calendar_by_id, FiscalConfig, HolidayCalendar, PeriodKind};
 use numpy::PyArray1;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyTypeError;
@@ -32,18 +30,26 @@ fn slice_to_pyarray<'py>(py: Python<'py>, values: &[f64]) -> Bound<'py, PyArray1
     PyArray1::from_slice(py, values)
 }
 
-/// Default fiscal-year start month (January) when callers do not override.
-const DEFAULT_FISCAL_START_MONTH: u8 = 1;
-/// Default fiscal-year start day-of-month.
-const DEFAULT_FISCAL_START_DAY: u8 = 1;
-
 /// Resolve optional fiscal-year-start month/day into a [`FiscalConfig`].
-fn make_fiscal_config(month: Option<u8>, day: Option<u8>) -> PyResult<FiscalConfig> {
-    FiscalConfig::new(
-        month.unwrap_or(DEFAULT_FISCAL_START_MONTH),
-        day.unwrap_or(DEFAULT_FISCAL_START_DAY),
-    )
-    .map_err(core_to_py)
+///
+/// Returns `None` when both are omitted so the Rust default (calendar year)
+/// applies; a partially specified start fills the other half with `1`.
+fn make_fiscal_config(month: Option<u8>, day: Option<u8>) -> PyResult<Option<FiscalConfig>> {
+    if month.is_none() && day.is_none() {
+        return Ok(None);
+    }
+    FiscalConfig::new(month.unwrap_or(1), day.unwrap_or(1))
+        .map(Some)
+        .map_err(core_to_py)
+}
+
+/// Fiscal config for lookback returns, which always need one: the Rust
+/// default is a January-1 fiscal year.
+fn lookback_fiscal_config(month: Option<u8>, day: Option<u8>) -> PyResult<FiscalConfig> {
+    match make_fiscal_config(month, day)? {
+        Some(config) => Ok(config),
+        None => FiscalConfig::new(1, 1).map_err(core_to_py),
+    }
 }
 
 fn resolve_fiscal_calendar(calendar_id: &str) -> PyResult<&'static dyn HolidayCalendar> {
@@ -57,16 +63,6 @@ fn resolve_fiscal_calendar(calendar_id: &str) -> PyResult<&'static dyn HolidayCa
     })
 }
 
-fn parse_cagr_day_count_str(label: &str) -> PyResult<fa::CagrDayCount> {
-    match label {
-        "act365_25" | "act_365_25" | "act/365.25" => Ok(fa::CagrDayCount::Act365_25),
-        other => other
-            .parse::<DayCount>()
-            .map(fa::CagrDayCount::DayCount)
-            .map_err(value_error),
-    }
-}
-
 fn parse_cagr_day_count(day_count: Option<&Bound<'_, PyAny>>) -> PyResult<fa::CagrDayCount> {
     let Some(value) = day_count else {
         return Ok(fa::CagrDayCount::Act365_25);
@@ -78,7 +74,7 @@ fn parse_cagr_day_count(day_count: Option<&Bound<'_, PyAny>>) -> PyResult<fa::Ca
         return Ok(fa::CagrDayCount::DayCount(day_count.inner));
     }
     if let Ok(label) = value.extract::<String>() {
-        return parse_cagr_day_count_str(&label);
+        return label.parse::<fa::CagrDayCount>().map_err(core_to_py);
     }
     Err(PyTypeError::new_err(
         "day_count must be None, 'act365_25', a DayCount name such as 'act_365f', or a DayCount",
@@ -92,24 +88,52 @@ fn resolve_optional_calendar(
 }
 
 fn parse_return_kind(return_kind: &str, risk_free_rate: f64) -> PyResult<fa::ReturnKind> {
-    match return_kind {
-        "excess" => Ok(fa::ReturnKind::Excess),
-        "total" => Ok(fa::ReturnKind::Total { risk_free_rate }),
-        other => Err(value_error(format!(
-            "Unknown return_kind {other:?}; expected 'excess' or 'total'"
-        ))),
-    }
+    return_kind
+        .parse::<fa::ReturnKind>()
+        .map(|kind| kind.with_risk_free_rate(risk_free_rate))
+        .map_err(core_to_py)
 }
 
-/// Parse a frequency string into a [`PeriodKind`].
+/// Parse a frequency token into a [`PeriodKind`].
+///
+/// Accepts the canonical tokens (`daily`, `weekly`, `monthly`, `quarterly`,
+/// `semi_annual`, `annual`) plus the pandas offset aliases `D`/`B`, `W`,
+/// `M`/`ME`, `Q`/`QE`, `A`/`Y`/`YE`; the descriptive error comes from core.
 fn parse_frequency(frequency: &str) -> PyResult<PeriodKind> {
-    frequency.parse::<PeriodKind>().map_err(|_| {
-        crate::errors::value_error(format!(
-            "Unknown frequency {frequency:?}; expected one of: \
-             daily, weekly, monthly, quarterly, semiannual, annual"
-        ))
-    })
+    frequency.parse::<PeriodKind>().map_err(core_to_py)
 }
+
+/// Extract a 1-D float vector from a list, tuple, NumPy array, or pandas
+/// ``Series`` (anything exposing ``to_numpy`` or the sequence protocol).
+fn extract_f64_vec(obj: &Bound<'_, PyAny>, label: &str) -> PyResult<Vec<f64>> {
+    if let Ok(values) = obj.extract::<Vec<f64>>() {
+        return Ok(values);
+    }
+    if obj.hasattr("to_numpy")? {
+        return extract_float64_column(obj, label);
+    }
+    Err(PyTypeError::new_err(format!(
+        "{label} must be a sequence of floats, a NumPy array, or a pandas Series"
+    )))
+}
+
+/// Column schema of `Performance.to_beta_dataframe`.
+const BETA_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("ticker", "str"),
+    ("beta", "float64"),
+    ("std_err", "float64"),
+    ("ci_lower", "float64"),
+    ("ci_upper", "float64"),
+];
+
+/// Column schema of `Performance.to_greeks_dataframe`.
+const GREEKS_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("ticker", "str"),
+    ("alpha", "float64"),
+    ("beta", "float64"),
+    ("r_squared", "float64"),
+    ("adjusted_r_squared", "float64"),
+];
 
 fn ensure_pandas_dataframe(value: &Bound<'_, PyAny>, error_message: &str) -> PyResult<()> {
     let pd = value.py().import("pandas")?;
@@ -153,7 +177,12 @@ fn extract_dataframe(df: &Bound<'_, PyAny>) -> PyResult<DataFramePanel> {
 
     let columns = df.getattr("columns")?;
     let cols_list = columns.call_method0("tolist")?;
-    let ticker_names: Vec<String> = cols_list.extract()?;
+    let ticker_names: Vec<String> = cols_list.extract().map_err(|_| {
+        PyTypeError::new_err(
+            "Performance requires string column labels (ticker names); the DataFrame \
+             columns are not all str — rename them, e.g. df.columns = df.columns.astype(str)",
+        )
+    })?;
 
     let n_tickers = ticker_names.len();
     let mut columns = Vec::with_capacity(n_tickers);
@@ -198,6 +227,22 @@ fn extract_float64_column(series: &Bound<'_, PyAny>, col_label: &str) -> PyResul
             "Column {col_label:?} could not be read as float64 buffer: {err}"
         ))
     })
+}
+
+/// Promote a pandas ``Series`` to a one-column ``DataFrame`` named after the
+/// series (or ``"asset"`` when unnamed); any other object passes through.
+fn series_to_frame<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let pd = value.py().import("pandas")?;
+    if !value.is_instance(&pd.getattr("Series")?)? {
+        return Ok(value.clone());
+    }
+    let name = value.getattr("name")?;
+    let label: String = if name.is_none() {
+        "asset".to_owned()
+    } else {
+        name.str()?.extract()?
+    };
+    value.call_method1("to_frame", (label,))
 }
 
 /// Build a `Performance` from pre-extracted arrays.
@@ -295,13 +340,25 @@ pub(super) struct PyPerformance {
 }
 
 impl PyPerformance {
+    /// Resolve a ``ticker_idx`` argument given as an ``int`` column index or a
+    /// ``str`` ticker name. Names are resolved in Rust
+    /// (`Performance::ticker_index`); a miss raises ``KeyError``.
+    fn resolve_ticker(&self, ticker: &Bound<'_, PyAny>) -> PyResult<usize> {
+        if let Ok(name) = ticker.extract::<String>() {
+            return self.inner.ticker_index(&name).map_err(core_to_py);
+        }
+        ticker.extract::<usize>().map_err(|_| {
+            PyTypeError::new_err("ticker_idx must be an int column index or a str ticker name")
+        })
+    }
+
     fn lookback_returns_inner(
         &self,
         ref_date: time::Date,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
     ) -> PyResult<fa::LookbackReturns> {
-        let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
+        let fc = lookback_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
         Ok(self.inner.lookback_returns(ref_date, fc))
     }
 }
@@ -312,6 +369,26 @@ impl PyPerformance {
     ///
     /// The DataFrame index must contain ``datetime.date`` or ``pd.Timestamp``
     /// values, and each column represents one ticker's price series.
+    ///
+    /// Parameters
+    /// ----------
+    /// prices : pandas.DataFrame
+    ///     Price panel with a date-like index and one ``str`` column per ticker.
+    /// benchmark_ticker : str, optional
+    ///     Benchmark column name; defaults to the first column.
+    /// frequency : str, default "daily"
+    ///     Observation frequency: ``"daily"``, ``"weekly"``, ``"monthly"``,
+    ///     ``"quarterly"``, ``"semi_annual"``, ``"annual"`` or a pandas offset
+    ///     alias (``D``/``B``, ``W``, ``M``, ``Q``, ``A``/``Y``). Sets the
+    ///     annualization factor (252, 52, 12, 4, 2, 1).
+    ///
+    /// Raises
+    /// ------
+    /// TypeError
+    ///     If ``prices`` is not a DataFrame or its columns are not ``str``.
+    /// AnalyticsError
+    ///     If the panel is empty, dates are not strictly ascending, or
+    ///     ``frequency`` is unknown.
     #[new]
     #[pyo3(signature = (prices, benchmark_ticker=None, frequency="daily"))]
     fn new(
@@ -356,11 +433,12 @@ impl PyPerformance {
         )
     }
 
-    /// Construct from a pandas DataFrame of returns.
+    /// Construct from a pandas DataFrame (or Series) of simple returns.
     ///
-    /// The DataFrame index must contain ``datetime.date`` or ``pd.Timestamp``
-    /// values, and each column represents one ticker's simple-return series
-    /// aligned with the index.
+    /// The index must contain ``datetime.date`` or ``pd.Timestamp`` values,
+    /// and each column represents one ticker's simple-return series aligned
+    /// with the index. A ``pandas.Series`` is treated as a single-asset panel
+    /// whose ticker is the series ``name`` (``"asset"`` when unnamed).
     #[staticmethod]
     #[pyo3(signature = (returns, benchmark_ticker=None, frequency="daily"))]
     fn from_returns(
@@ -369,9 +447,10 @@ impl PyPerformance {
         benchmark_ticker: Option<&str>,
         frequency: &str,
     ) -> PyResult<Self> {
+        let returns = series_to_frame(&returns)?;
         let panel = extract_dataframe_panel(
             &returns,
-            "Expected a pandas DataFrame; use Performance.from_returns_arrays() for raw lists",
+            "Expected a pandas DataFrame or Series; use Performance.from_returns_arrays() for raw lists",
         )?;
         build_returns_performance(
             py,
@@ -407,8 +486,8 @@ impl PyPerformance {
 
     /// Restrict analytics to a date window.
     fn reset_date_range(&mut self, start: Bound<'_, PyAny>, end: Bound<'_, PyAny>) -> PyResult<()> {
-        let s = py_to_date(&start)?;
-        let e = py_to_date(&end)?;
+        let s = extract_date(&start)?;
+        let e = extract_date(&end)?;
         self.inner.reset_date_range(s, e);
         Ok(())
     }
@@ -432,9 +511,12 @@ impl PyPerformance {
         self.inner.benchmark_idx()
     }
 
-    /// Observation frequency, as the canonical lowercase token (e.g. ``"daily"``,
-    /// ``"monthly"``, ``"semiannual"``) that round-trips through the ``frequency``
-    /// constructor argument and :meth:`period_stats` ``aggregation_frequency`` parameter.
+    /// Observation frequency, as the canonical lowercase token (``"daily"``,
+    /// ``"weekly"``, ``"monthly"``, ``"quarterly"``, ``"semi_annual"``,
+    /// ``"annual"``) that round-trips through the ``frequency`` constructor
+    /// argument and the :meth:`period_stats` ``aggregation_frequency``
+    /// parameter. Inputs also accept the pandas offset aliases ``D``/``B``,
+    /// ``W``, ``M``, ``Q``, ``A``/``Y``.
     #[getter]
     fn frequency(&self) -> String {
         self.inner.frequency().to_string()
@@ -471,8 +553,9 @@ impl PyPerformance {
     fn active_dates_for_ticker<'py>(
         &self,
         py: Python<'py>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
     ) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         self.inner
             .active_dates_for_ticker(ticker_idx)
             .map_err(core_to_py)?
@@ -532,6 +615,9 @@ impl PyPerformance {
     }
 
     /// Sharpe ratio for each ticker.
+    ///
+    /// ``risk_free_rate`` is an annualized decimal (``0.02`` for 2%),
+    /// geometrically decompounded to the panel frequency before subtraction.
     ///
     /// Returns
     /// -------
@@ -600,7 +686,7 @@ impl PyPerformance {
     ///     Historical value at risk indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
     fn value_at_risk<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.value_at_risk(confidence);
+        let values = self.inner.value_at_risk(confidence).map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "value_at_risk")
     }
 
@@ -616,7 +702,10 @@ impl PyPerformance {
         py: Python<'py>,
         confidence: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.expected_shortfall(confidence);
+        let values = self
+            .inner
+            .expected_shortfall(confidence)
+            .map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "expected_shortfall")
     }
 
@@ -839,7 +928,7 @@ impl PyPerformance {
     ///     Tail ratio indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
     fn tail_ratio<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.tail_ratio(confidence);
+        let values = self.inner.tail_ratio(confidence).map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "tail_ratio")
     }
 
@@ -881,7 +970,10 @@ impl PyPerformance {
         confidence: f64,
         horizon_periods: Option<f64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.parametric_var(confidence, horizon_periods);
+        let values = self
+            .inner
+            .parametric_var(confidence, horizon_periods)
+            .map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "parametric_var")
     }
 
@@ -901,7 +993,10 @@ impl PyPerformance {
         confidence: f64,
         horizon_periods: Option<f64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.cornish_fisher_var(confidence, horizon_periods);
+        let values = self
+            .inner
+            .cornish_fisher_var(confidence, horizon_periods)
+            .map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "cornish_fisher_var")
     }
 
@@ -913,7 +1008,7 @@ impl PyPerformance {
     ///     Conditional drawdown at risk indexed by ticker name.
     #[pyo3(signature = (confidence = 0.95))]
     fn cdar<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.cdar(confidence);
+        let values = self.inner.cdar(confidence).map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "cdar")
     }
 
@@ -948,7 +1043,10 @@ impl PyPerformance {
         risk_free_rate: f64,
         confidence: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.modified_sharpe(risk_free_rate, confidence);
+        let values = self
+            .inner
+            .modified_sharpe(risk_free_rate, confidence)
+            .map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "modified_sharpe")
     }
 
@@ -1005,7 +1103,8 @@ impl PyPerformance {
     }
 
     /// Per-period simple returns for a single ticker.
-    fn returns_for_ticker(&self, ticker_idx: usize) -> PyResult<Vec<f64>> {
+    fn returns_for_ticker(&self, ticker_idx: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         self.inner
             .returns_for_ticker(ticker_idx)
             .map_err(core_to_py)
@@ -1019,7 +1118,8 @@ impl PyPerformance {
     /// Calendar-bucketed compounded returns for each ticker.
     ///
     /// ``frequency`` accepts ``"daily"``, ``"weekly"``, ``"monthly"``,
-    /// ``"quarterly"``, ``"semiannual"``, or ``"annual"``. The outer list is
+    /// ``"quarterly"``, ``"semi_annual"``, or ``"annual"`` (or the pandas
+    /// offset aliases ``D``/``B``, ``W``, ``M``, ``Q``, ``A``/``Y``). The outer list is
     /// ticker-major in :attr:`ticker_names` order. Each inner list contains
     /// chronological ``(period_end_date, compounded_return)`` tuples, where
     /// returns are decimal fractions (``0.01`` means 1%). Chaining the values
@@ -1113,10 +1213,11 @@ impl PyPerformance {
     fn rolling_greeks(
         &self,
         py: Python<'_>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         window: usize,
         risk_free_rate: f64,
     ) -> PyResult<PyRollingGreeks> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let inner = py
             .detach(|| {
                 self.inner
@@ -1131,9 +1232,10 @@ impl PyPerformance {
     fn rolling_volatility(
         &self,
         py: Python<'_>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         window: usize,
     ) -> PyResult<PyDatedSeries> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let inner = py
             .detach(|| self.inner.rolling_volatility(ticker_idx, window))
             .map_err(core_to_py)?;
@@ -1145,10 +1247,11 @@ impl PyPerformance {
     fn rolling_sortino(
         &self,
         py: Python<'_>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         window: usize,
         mar: f64,
     ) -> PyResult<PyDatedSeries> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let inner = py
             .detach(|| self.inner.rolling_sortino(ticker_idx, window, mar))
             .map_err(core_to_py)?;
@@ -1160,10 +1263,11 @@ impl PyPerformance {
     fn rolling_sharpe(
         &self,
         py: Python<'_>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         window: usize,
         risk_free_rate: f64,
     ) -> PyResult<PyDatedSeries> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let inner = py
             .detach(|| {
                 self.inner
@@ -1175,7 +1279,12 @@ impl PyPerformance {
 
     /// Drawdown episodes for a specific ticker.
     #[pyo3(signature = (ticker_idx, n = 5))]
-    fn drawdown_details(&self, ticker_idx: usize, n: usize) -> PyResult<Vec<PyDrawdownEpisode>> {
+    fn drawdown_details(
+        &self,
+        ticker_idx: &Bound<'_, PyAny>,
+        n: usize,
+    ) -> PyResult<Vec<PyDrawdownEpisode>> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         Ok(self
             .inner
             .drawdown_details(ticker_idx, n)
@@ -1195,11 +1304,12 @@ impl PyPerformance {
     fn multi_factor_greeks(
         &self,
         py: Python<'_>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         factor_returns: Vec<Vec<f64>>,
         return_kind: &str,
         risk_free_rate: f64,
     ) -> PyResult<PyMultiFactorResult> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let refs: Vec<&[f64]> = factor_returns.iter().map(|v| v.as_slice()).collect();
         let kind = parse_return_kind(return_kind, risk_free_rate)?;
         py.detach(|| self.inner.multi_factor_greeks(ticker_idx, &refs, kind))
@@ -1212,9 +1322,10 @@ impl PyPerformance {
     fn rolling_returns(
         &self,
         py: Python<'_>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         window: usize,
     ) -> PyResult<PyDatedSeries> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let inner = py
             .detach(|| self.inner.rolling_returns(ticker_idx, window))
             .map_err(core_to_py)?;
@@ -1247,17 +1358,18 @@ impl PyPerformance {
     #[pyo3(signature = (ticker_idx, aggregation_frequency = "monthly", fiscal_year_start_month = None, fiscal_year_start_day = None))]
     fn period_stats(
         &self,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         aggregation_frequency: &str,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
     ) -> PyResult<PyPeriodStats> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let pk = parse_frequency(aggregation_frequency)?;
         let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
         Ok(PyPeriodStats {
             inner: self
                 .inner
-                .period_stats(ticker_idx, pk, Some(fc))
+                .period_stats(ticker_idx, pk, fc)
                 .map_err(core_to_py)?,
         })
     }
@@ -1324,7 +1436,9 @@ impl PyPerformance {
     /// Calendar-bucketed compounded returns as a pandas ``DataFrame``.
     ///
     /// ``frequency`` is one of ``"daily"``, ``"weekly"``, ``"monthly"``,
-    /// ``"quarterly"``, ``"semiannual"``, or ``"annual"``. Returns a DataFrame
+    /// ``"quarterly"``, ``"semi_annual"``, or ``"annual"`` (pandas offset
+    /// aliases ``D``/``B``, ``W``, ``M``, ``Q``, ``A``/``Y`` are accepted too).
+    /// Returns a DataFrame
     /// indexed by period-end date with one column per ticker; buckets reconcile
     /// with :meth:`to_cumulative_returns_dataframe`. This convenience exit is
     /// built from the same canonical Rust result as :meth:`periodic_returns`.
@@ -1348,9 +1462,14 @@ impl PyPerformance {
     /// Correlation matrix as a pandas ``DataFrame``.
     ///
     /// Returns a ticker × ticker matrix with ticker names as index and columns.
+    /// ``df.attrs["repaired"]`` is ``True`` when the estimate was
+    /// Higham-repaired (see :meth:`correlation_matrix_repaired`).
     fn to_correlation_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let names = self.inner.ticker_names();
-        let matrix = self.inner.correlation_matrix().map_err(core_to_py)?;
+        let (matrix, repaired) = self
+            .inner
+            .correlation_matrix_with_repair_flag()
+            .map_err(core_to_py)?;
 
         let pd = py.import("pandas")?;
         let kwargs = PyDict::new(py);
@@ -1358,27 +1477,32 @@ impl PyPerformance {
         let cols: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
         kwargs.set_item("index", idx)?;
         kwargs.set_item("columns", cols)?;
-        pd.call_method("DataFrame", (matrix,), Some(&kwargs))
+        let frame = pd.call_method("DataFrame", (matrix,), Some(&kwargs))?;
+        frame.getattr("attrs")?.set_item("repaired", repaired)?;
+        Ok(frame)
     }
 
     /// Top-N drawdown episodes for a ticker as a pandas ``DataFrame``.
     ///
-    /// Columns: start, valley, end, duration_days, max_drawdown,
-    /// near_recovery_threshold, truncated_at_start.
+    /// Columns: start, valley, end (``datetime64``, ``NaT`` while still in
+    /// drawdown), duration_days, max_drawdown, near_recovery_threshold,
+    /// truncated_at_start.
     #[pyo3(signature = (ticker_idx, n = 5))]
     fn to_drawdown_details_dataframe<'py>(
         &self,
         py: Python<'py>,
-        ticker_idx: usize,
+        ticker_idx: &Bound<'_, PyAny>,
         n: usize,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let ticker_idx = self.resolve_ticker(ticker_idx)?;
         let episodes = self
             .inner
             .drawdown_details(ticker_idx, n)
             .map_err(core_to_py)?;
         let data = PyDict::new(py);
-        let starts: PyResult<Vec<_>> = episodes.iter().map(|e| date_to_py(py, e.start)).collect();
-        let valleys: PyResult<Vec<_>> = episodes.iter().map(|e| date_to_py(py, e.valley)).collect();
+        let pd = py.import("pandas")?;
+        let starts: Vec<time::Date> = episodes.iter().map(|e| e.start).collect();
+        let valleys: Vec<time::Date> = episodes.iter().map(|e| e.valley).collect();
         let ends: PyResult<Vec<_>> = episodes
             .iter()
             .map(|e| match e.end {
@@ -1387,9 +1511,9 @@ impl PyPerformance {
             })
             .collect();
 
-        data.set_item("start", starts?)?;
-        data.set_item("valley", valleys?)?;
-        data.set_item("end", ends?)?;
+        data.set_item("start", dates_to_datetime_index(py, &starts)?)?;
+        data.set_item("valley", dates_to_datetime_index(py, &valleys)?)?;
+        data.set_item("end", pd.call_method1("to_datetime", (ends?,))?)?;
         data.set_item(
             "duration_days",
             episodes.iter().map(|e| e.duration_days).collect::<Vec<_>>(),
@@ -1441,6 +1565,140 @@ impl PyPerformance {
         dict_to_dataframe(py, &data, Some(idx))
     }
 
+    /// Beta regression statistics for every ticker vs the benchmark as a
+    /// pandas ``DataFrame`` indexed by ticker.
+    ///
+    /// Columns: ``beta``, ``std_err``, ``ci_lower``, ``ci_upper`` (95%
+    /// confidence bounds). Non-finite estimates from a degenerate regression
+    /// arrive as ``None``.
+    fn to_beta_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .beta()
+            .iter()
+            .zip(self.inner.ticker_names())
+            .map(|(b, name)| {
+                serde_json::json!({
+                    "ticker": name,
+                    "beta": b.beta,
+                    "std_err": b.std_err,
+                    "ci_lower": b.ci_lower,
+                    "ci_upper": b.ci_upper,
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, BETA_COLUMNS)?
+            .call_method1("set_index", ("ticker",))
+    }
+
+    /// Single-index greeks (annualized Jensen alpha, beta, R², adjusted R²)
+    /// for every ticker vs the benchmark as a pandas ``DataFrame`` indexed by
+    /// ticker.
+    ///
+    /// Parameters
+    /// ----------
+    /// risk_free_rate : float, default 0.0
+    ///     Annualized decimal risk-free rate used for Jensen alpha.
+    #[pyo3(signature = (risk_free_rate = 0.0))]
+    fn to_greeks_dataframe<'py>(
+        &self,
+        py: Python<'py>,
+        risk_free_rate: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .greeks(risk_free_rate)
+            .iter()
+            .zip(self.inner.ticker_names())
+            .map(|(g, name)| {
+                serde_json::json!({
+                    "ticker": name,
+                    "alpha": g.alpha,
+                    "beta": g.beta,
+                    "r_squared": g.r_squared,
+                    "adjusted_r_squared": g.adjusted_r_squared,
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, GREEKS_COLUMNS)?
+            .call_method1("set_index", ("ticker",))
+    }
+
+    /// Excess returns over a risk-free rate as a pandas ``DataFrame`` with a
+    /// date index and one column per ticker.
+    ///
+    /// Parameters
+    /// ----------
+    /// rf : float | pandas.Series | sequence of float
+    ///     Annualized decimal risk-free rate. A scalar is broadcast to every
+    ///     active panel date; a Series/sequence must already be aligned to
+    ///     :meth:`active_dates` (one value per date).
+    /// nperiods : float, optional
+    ///     ``None`` geometrically decompounds the annual rate using the
+    ///     panel frequency; pass ``1.0`` when ``rf`` is already per-period.
+    ///
+    /// Raises
+    /// ------
+    /// AnalyticsError
+    ///     If ``rf`` does not have one value per active date.
+    #[pyo3(signature = (rf, nperiods = None))]
+    fn to_excess_returns_dataframe<'py>(
+        &self,
+        py: Python<'py>,
+        rf: &Bound<'py, PyAny>,
+        nperiods: Option<f64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let rf = if let Ok(rate) = rf.extract::<f64>() {
+            vec![rate; self.inner.active_dates().len()]
+        } else {
+            extract_f64_vec(rf, "rf")?
+        };
+        let excess = self
+            .inner
+            .excess_returns(&rf, nperiods)
+            .map_err(core_to_py)?;
+        panel_to_dataframe(py, &self.inner, excess)
+    }
+
+    /// ``True`` when :meth:`correlation_matrix` had to be Higham-repaired.
+    ///
+    /// The raw pairwise estimate on ragged panels can fail positive
+    /// semi-definiteness; the engine then projects it to the nearest valid
+    /// correlation matrix. This flag distinguishes a clean estimate from a
+    /// repaired one.
+    fn correlation_matrix_repaired(&self, py: Python<'_>) -> PyResult<bool> {
+        py.detach(|| {
+            self.inner
+                .correlation_matrix_with_repair_flag()
+                .map(|(_, repaired)| repaired)
+                .map_err(core_to_py)
+        })
+    }
+
+    /// Serialize the full engine state (dates, returns, spans, benchmark,
+    /// frequency, active window) to compact JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Rebuild an engine from :meth:`to_json` output.
+    ///
+    /// Raises ``ValueError`` when the JSON does not match the engine schema.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: fa::Performance = serde_json::from_str(json)
+            .map_err(|e| crate::errors::serde_json_to_py(e, "invalid Performance JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Support ``pickle`` (and therefore ``copy.deepcopy``, ``joblib``,
+    /// ``multiprocessing``) via the :meth:`to_json` / :meth:`from_json` pair.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     /// Identify this value in notebooks and logs.
     ///
     /// Returns a compact summary of the serialized fields, with collections
@@ -1452,7 +1710,148 @@ impl PyPerformance {
     }
 }
 
+/// Sharpe ratio of one return series.
+///
+/// Annualized excess arithmetic mean over annualized sample volatility, the
+/// same kernel as ``Performance.sharpe``.
+///
+/// Parameters
+/// ----------
+/// returns : sequence of float | numpy.ndarray | pandas.Series
+///     Per-period simple decimal returns (``0.01`` is +1%) in date order.
+/// rf : float, default 0.0
+///     Annualized risk-free rate as a decimal (``0.02`` for 2%),
+///     geometrically decompounded to the observation frequency.
+/// periods_per_year : float, default 252
+///     Observations per year used to annualize (252 daily, 52 weekly,
+///     12 monthly).
+///
+/// Returns
+/// -------
+/// float
+///     Sharpe ratio; ``inf``/``-inf`` when volatility is zero with non-zero
+///     excess return, ``nan`` when ``periods_per_year`` is not positive.
+///
+/// Raises
+/// ------
+/// TypeError
+///     If ``returns`` is not a float sequence, NumPy array, or Series.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.analytics import sharpe
+/// >>> round(sharpe([0.01, -0.02, 0.015, 0.003], 0.0, 252), 4)
+/// 2.0034
+#[pyfunction]
+#[pyo3(signature = (returns, rf = 0.0, periods_per_year = 252.0))]
+fn sharpe(returns: &Bound<'_, PyAny>, rf: f64, periods_per_year: f64) -> PyResult<f64> {
+    let returns = extract_f64_vec(returns, "returns")?;
+    Ok(fa::sharpe(&returns, rf, periods_per_year))
+}
+
+/// Annualized Sortino ratio of one return series.
+///
+/// Parameters
+/// ----------
+/// returns : sequence of float | numpy.ndarray | pandas.Series
+///     Per-period simple decimal returns in date order.
+/// mar : float, default 0.0
+///     Minimum acceptable return **per period** as a decimal (not
+///     annualized), matching ``Performance.sortino``.
+/// periods_per_year : float, default 252
+///     Observations per year used to annualize.
+///
+/// Returns
+/// -------
+/// float
+///     Sortino ratio; ``±inf`` when there is no downside deviation but a
+///     non-zero excess mean, ``nan`` for an invalid ``periods_per_year``.
+///
+/// Raises
+/// ------
+/// TypeError
+///     If ``returns`` is not a float sequence, NumPy array, or Series.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.analytics import sortino
+/// >>> sortino([0.01, -0.02, 0.015, 0.003]) > 0
+/// True
+#[pyfunction]
+#[pyo3(signature = (returns, mar = 0.0, periods_per_year = 252.0))]
+fn sortino(returns: &Bound<'_, PyAny>, mar: f64, periods_per_year: f64) -> PyResult<f64> {
+    let returns = extract_f64_vec(returns, "returns")?;
+    Ok(fa::sortino(&returns, mar, periods_per_year))
+}
+
+/// Annualized sample volatility (n−1 denominator) of one return series.
+///
+/// Parameters
+/// ----------
+/// returns : sequence of float | numpy.ndarray | pandas.Series
+///     Per-period simple decimal returns in date order.
+/// periods_per_year : float, default 252
+///     Observations per year; the per-period standard deviation is scaled by
+///     its square root.
+///
+/// Returns
+/// -------
+/// float
+///     Annualized volatility as a decimal (``0.15`` is 15%); ``0.0`` for an
+///     empty input, ``nan`` for an invalid ``periods_per_year``.
+///
+/// Raises
+/// ------
+/// TypeError
+///     If ``returns`` is not a float sequence, NumPy array, or Series.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.analytics import volatility
+/// >>> round(volatility([0.01, -0.01, 0.01, -0.01], 252), 4)
+/// 0.1833
+#[pyfunction]
+#[pyo3(signature = (returns, periods_per_year = 252.0))]
+fn volatility(returns: &Bound<'_, PyAny>, periods_per_year: f64) -> PyResult<f64> {
+    let returns = extract_f64_vec(returns, "returns")?;
+    Ok(fa::volatility(&returns, periods_per_year))
+}
+
+/// Maximum peak-to-trough drawdown of one return series.
+///
+/// Parameters
+/// ----------
+/// returns : sequence of float | numpy.ndarray | pandas.Series
+///     Per-period simple decimal returns in date order; they are compounded
+///     into a wealth path before the running-peak decline is measured.
+///
+/// Returns
+/// -------
+/// float
+///     Non-positive fraction (``-0.25`` is a 25% loss); ``0.0`` when the
+///     series never falls below its running peak or is empty.
+///
+/// Raises
+/// ------
+/// TypeError
+///     If ``returns`` is not a float sequence, NumPy array, or Series.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.analytics import max_drawdown
+/// >>> round(max_drawdown([0.10, -0.20, 0.05]), 4)
+/// -0.2
+#[pyfunction]
+fn max_drawdown(returns: &Bound<'_, PyAny>) -> PyResult<f64> {
+    let returns = extract_f64_vec(returns, "returns")?;
+    Ok(fa::max_drawdown(&returns))
+}
+
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPerformance>()?;
+    m.add_function(wrap_pyfunction!(sharpe, m)?)?;
+    m.add_function(wrap_pyfunction!(sortino, m)?)?;
+    m.add_function(wrap_pyfunction!(volatility, m)?)?;
+    m.add_function(wrap_pyfunction!(max_drawdown, m)?)?;
     Ok(())
 }

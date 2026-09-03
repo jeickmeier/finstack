@@ -17,15 +17,32 @@ impl DiscountCurve {
     /// flat-forward extrapolation. This preserves `DF(t) = exp(-rate * t)`
     /// for every non-negative maturity.
     ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique curve identifier (for example `"USD-OIS"`).
+    /// * `base_date` - Valuation date anchoring `t = 0`; the curve day count
+    ///   is `Act/365F`.
+    /// * `continuous_rate` - Continuously-compounded zero rate as a decimal
+    ///   fraction (`0.05` is 5%). Magnitudes above `1.0` are rejected because
+    ///   they almost always mean a percentage was passed where a decimal was
+    ///   expected.
+    ///
     /// # Errors
     ///
-    /// Returns an error when `continuous_rate` is non-finite or its one-year
-    /// discount factor cannot be represented as a finite positive value.
+    /// Returns an error when `continuous_rate` is non-finite, has magnitude
+    /// greater than `1.0`, or its one-year discount factor cannot be
+    /// represented as a finite positive value.
     pub fn flat(id: impl AsRef<str>, base_date: Date, continuous_rate: f64) -> crate::Result<Self> {
         if !continuous_rate.is_finite() {
             return Err(crate::Error::Validation(
                 "DiscountCurve: flat continuous rate must be finite".to_string(),
             ));
+        }
+        if continuous_rate.abs() > 1.0 {
+            return Err(crate::Error::Validation(format!(
+                "DiscountCurve: flat continuous rate {continuous_rate} is outside [-1, 1]; \
+                 rates are decimal fractions (pass 0.05 for 5%, not 5.0)"
+            )));
         }
         let one_year_df = crate::math::Compounding::Continuous.df_from_rate(continuous_rate, 1.0);
         if !one_year_df.is_finite() || one_year_df <= 0.0 {
@@ -43,6 +60,117 @@ impl DiscountCurve {
                 allow_non_monotonic: continuous_rate < 0.0,
                 forward_floor: None,
             })
+            .build()
+    }
+
+    /// Construct a discount curve from zero-rate pillars.
+    ///
+    /// Each `(t, r)` pillar is converted to a discount factor under
+    /// `compounding` (`DF = exp(-r t)` for continuous, `(1 + r)^-t` for
+    /// annual, and so on). A pillar at `t = 0` maps to `DF = 1` regardless of
+    /// its rate. The curve uses the builder defaults: `Act/365F` day count,
+    /// monotone-convex interpolation, flat-forward extrapolation and
+    /// market-standard validation.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique curve identifier (for example `"USD-OIS"`).
+    /// * `base_date` - Valuation date anchoring `t = 0`.
+    /// * `points` - `(time_years, zero_rate)` pillars with the rate as a
+    ///   decimal fraction (`0.05` is 5%); times must be finite, non-negative
+    ///   and distinct. Any order is accepted.
+    /// * `compounding` - Compounding convention under which `zero_rate` is
+    ///   quoted.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `points` is empty, a time or rate is non-finite,
+    /// a rate produces a non-positive discount factor, or the resulting knots
+    /// fail curve validation (duplicate times, non-monotonic discount factors,
+    /// implied forwards below the market-standard floor).
+    pub fn from_zero_rates(
+        id: impl Into<CurveId>,
+        base_date: Date,
+        points: &[(f64, f64)],
+        compounding: Compounding,
+    ) -> crate::Result<Self> {
+        if points.is_empty() {
+            return Err(crate::error::InputError::TooFewPoints.into());
+        }
+        let mut knots = Vec::with_capacity(points.len() + 1);
+        for &(t, r) in points {
+            if !t.is_finite() || !r.is_finite() {
+                return Err(crate::Error::Validation(format!(
+                    "DiscountCurve::from_zero_rates requires finite pillars, got (t={t}, r={r})"
+                )));
+            }
+            let df = if t == 0.0 {
+                1.0
+            } else {
+                compounding.df_from_rate(r, t)
+            };
+            if !df.is_finite() || df <= 0.0 {
+                return Err(crate::Error::Validation(format!(
+                    "DiscountCurve::from_zero_rates: rate {r} at t={t} gives invalid discount factor {df}"
+                )));
+            }
+            knots.push((t, df));
+        }
+        if !knots.iter().any(|&(t, _)| t == 0.0) {
+            knots.push((0.0, 1.0));
+        }
+        Self::builder(id).base_date(base_date).knots(knots).build()
+    }
+
+    /// Construct a discount curve from dated discount-factor pillars.
+    ///
+    /// Each pillar date is converted to a year fraction from `base_date`
+    /// under `day_count`, and a `(0, 1)` anchor is added when no pillar falls
+    /// on `base_date`. Other settings use the builder defaults (monotone-convex
+    /// interpolation, flat-forward extrapolation, market-standard validation).
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique curve identifier (for example `"USD-OIS"`).
+    /// * `base_date` - Valuation date anchoring `t = 0`.
+    /// * `points` - `(date, discount_factor)` pillars; dates must not precede
+    ///   `base_date` and discount factors must be finite and positive. Any
+    ///   order is accepted.
+    /// * `day_count` - Day-count convention used to convert pillar dates to
+    ///   curve times; `None` uses the `Act/365F` builder default.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `points` is empty, a pillar date precedes
+    /// `base_date`, a year fraction cannot be computed, or the resulting knots
+    /// fail curve validation.
+    pub fn from_dates(
+        id: impl Into<CurveId>,
+        base_date: Date,
+        points: &[(Date, f64)],
+        day_count: Option<DayCount>,
+    ) -> crate::Result<Self> {
+        if points.is_empty() {
+            return Err(crate::error::InputError::TooFewPoints.into());
+        }
+        let day_count = day_count.unwrap_or(DayCount::Act365F);
+        let mut knots = Vec::with_capacity(points.len() + 1);
+        for &(date, df) in points {
+            if date < base_date {
+                return Err(crate::Error::Validation(format!(
+                    "DiscountCurve::from_dates pillar {date} precedes base date {base_date}"
+                )));
+            }
+            let t = super::super::common::year_fraction_to(base_date, date, day_count)?;
+            knots.push((t, df));
+        }
+        if !knots.iter().any(|&(t, _)| t == 0.0) {
+            knots.push((0.0, 1.0));
+        }
+        Self::builder(id)
+            .base_date(base_date)
+            .day_count(day_count)
+            .knots(knots)
             .build()
     }
 

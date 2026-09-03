@@ -15,7 +15,7 @@
 
 mod assignment;
 mod budget_whatif;
-mod config;
+pub(crate) mod config;
 mod contributions;
 mod credit_vol;
 mod functions;
@@ -39,7 +39,7 @@ use credit_vol::{
 };
 use functions::{
     historical_var_decomposition, parametric_es_decomposition, parametric_var_decomposition,
-    position_component_var,
+    position_component_var, PyParametricEsDecompositionView, PyPositionEsContributionView,
 };
 use stress::{
     build_stress_attribution, factor_stress, PyStressAttribution, PyStressPositionEntry,
@@ -80,6 +80,12 @@ pub(crate) fn register_risk(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTailScenarioBreakdown>()?;
     m.add_class::<PyStressAttribution>()?;
     m.add_class::<PyDecompositionConfig>()?;
+    m.add_class::<PyPositionEsContributionView>()?;
+    m.add_class::<PyParametricEsDecompositionView>()?;
+    m.add(
+        "DEFAULT_UTILIZATION_THRESHOLD",
+        finstack_quant_models::factor::risk::DEFAULT_UTILIZATION_THRESHOLD,
+    )?;
 
     m.add_function(wrap_pyfunction!(parametric_var_decomposition, m)?)?;
     m.add_function(wrap_pyfunction!(parametric_es_decomposition, m)?)?;

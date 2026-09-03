@@ -27,13 +27,15 @@ Rust is the single source of truth for all API topology and naming:
 Two documented deviations from strict crate-mirroring, both recorded in
 `parity_contract.toml`:
 
-- Correlation is split by ownership. Matrix/statistical helpers
-  (`validate_correlation_matrix`, `nearest_correlation_matrix`) live in
-  `finstack_quant_analytics::correlation` and are bound under
-  `finstack_quant.analytics`; copulas, recovery and portfolio-loss models live in
-  `finstack_quant_models::correlation` and are bound under
-  `finstack_quant.models.correlation`. There is no `valuations.correlation`
-  namespace.
+- Correlation is split by ownership in Rust but bound in one place. The
+  matrix/statistical helpers (`validate_correlation_matrix`,
+  `nearest_correlation_matrix`) live in `finstack_quant_analytics::correlation`;
+  copulas, recovery and portfolio-loss models live in
+  `finstack_quant_models::correlation`. Both are bound under
+  `finstack_quant.models.correlation` (the analytics helpers as
+  `validate_correlation_matrix` and `nearest_correlation`); `finstack_quant.analytics`
+  exposes only `Performance`, its result types and the scalar free functions.
+  There is no `valuations.correlation` namespace.
 - `reporting` is a pure-Python presentation layer (tear sheets, tables, charts) with
   no Rust crate; it is explicitly exempt from crate-mirroring and has no WASM parity.
 

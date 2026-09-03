@@ -51,11 +51,12 @@ fn test_parse_strict_error_includes_available_metrics() {
             available,
         } => {
             assert_eq!(metric_id, "invalid_metric");
-            // Should include standard metrics
+            // Suggestions are capped at the closest few standard metrics.
             assert!(!available.is_empty());
-            assert!(available.contains(&"dv01".to_string()));
-            assert!(available.contains(&"theta".to_string()));
-            assert!(available.contains(&"cs01".to_string()));
+            assert!(available.len() <= MAX_METRIC_SUGGESTIONS);
+            for name in &available {
+                assert!(MetricId::ALL_STANDARD.iter().any(|m| m.as_str() == name));
+            }
         }
         _ => panic!("Expected UnknownMetric error"),
     }
@@ -222,10 +223,7 @@ fn test_group_union_equals_all_standard() {
 fn composite_codec_round_trips_utf8_empty_and_reserved_components() {
     let key = MetricId::composite(&MetricId::BucketedDv01, &["USD-OIS", "10_y", "", "Δ"]);
 
-    assert_eq!(
-        key.as_str(),
-        "bucketed_dv01::USD_x2dOIS::10_x5fy::_empty::_xce_x94"
-    );
+    assert_eq!(key.as_str(), "bucketed_dv01::USD-OIS::10_y::_empty::Δ");
     assert_eq!(
         key.decode_components(&MetricId::BucketedDv01),
         Some(vec![
@@ -249,6 +247,35 @@ fn composite_codec_matches_only_the_exact_base_identifier() {
 }
 
 #[test]
+fn composite_codec_decodes_legacy_fully_escaped_keys() {
+    let legacy = MetricId::custom("pv01::USD_x2dOIS");
+    assert_eq!(
+        legacy.decode_components(&MetricId::Pv01),
+        Some(vec!["USD-OIS".to_string()])
+    );
+    let legacy = MetricId::custom("bucketed_dv01::usd_x5fois::10y");
+    assert_eq!(
+        legacy.decode_components(&MetricId::BucketedDv01),
+        Some(vec!["usd_ois".to_string(), "10y".to_string()])
+    );
+}
+
+#[test]
+fn composite_codec_writes_ordinary_identifiers_literally() {
+    let per_curve = MetricId::composite(&MetricId::Pv01, &["USD-OIS"]);
+    assert_eq!(per_curve.as_str(), "pv01::USD-OIS");
+    let underscore = MetricId::composite(&MetricId::Pv01, &["usd_ois"]);
+    assert_eq!(underscore.as_str(), "pv01::usd_ois");
+    assert!(!per_curve.as_str().contains("_x"));
+    let bucket = MetricId::composite(&MetricId::BucketedDv01, &["USD-SOFR-3M", "10y"]);
+    assert_eq!(bucket.as_str(), "bucketed_dv01::USD-SOFR-3M::10y");
+    assert_eq!(
+        bucket.decode_components(&MetricId::BucketedDv01),
+        Some(vec!["USD-SOFR-3M".to_string(), "10y".to_string()])
+    );
+}
+
+#[test]
 fn composite_codec_preserves_legacy_and_malformed_escape_markers_literally() {
     for component in ["curve_xray", "curve_x", "curve_xg1", "curve_x2"] {
         let key = MetricId::custom(format!("bucketed_dv01::{component}"));
@@ -264,6 +291,15 @@ fn composite_codec_decodes_a_genuine_escaped_delimiter_component() {
     let key = MetricId::composite(&MetricId::BucketedDv01, &["USD::OIS"]);
 
     assert_eq!(key.as_str(), "bucketed_dv01::USD_x3a_x3aOIS");
+    let literal_marker = MetricId::composite(&MetricId::BucketedDv01, &["curve_x2d", "_empty"]);
+    assert_eq!(
+        literal_marker.as_str(),
+        "bucketed_dv01::curve_x5fx2d::_x5fempty"
+    );
+    assert_eq!(
+        literal_marker.decode_components(&MetricId::BucketedDv01),
+        Some(vec!["curve_x2d".to_string(), "_empty".to_string()])
+    );
     assert_eq!(
         key.decode_components(&MetricId::BucketedDv01),
         Some(vec!["USD::OIS".to_string()])

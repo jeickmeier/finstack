@@ -10,13 +10,14 @@ contract about how disruptive future changes are likely to be.
 
 **Stable** — covered by golden tests and meant to round-trip across releases:
 
-* ``Portfolio``, ``PortfolioValuation``, ``PortfolioResult``,
-  ``PortfolioCashflows`` (the typed handles)
+* ``Portfolio``, ``PortfolioBuilder``, ``PortfolioValuation``,
+  ``PositionValue``, ``PortfolioResult``, ``PortfolioCashflows`` (the typed
+  handles)
 * ``parse_portfolio_spec_json``, ``build_portfolio_from_spec_json``
 * ``value_portfolio``, ``aggregate_full_cashflows``,
   ``apply_scenario_and_revalue``
-* ``aggregate_metrics``, ``portfolio_result_total_value``,
-  ``portfolio_result_get_metric``
+* ``aggregate_metrics`` (scalar reads go through ``PortfolioResult``
+  methods such as ``total_value`` and ``get_metric``)
 * ``replay_portfolio``
 
 **Stable, typed contracts may evolve** — function signatures are stable, but
@@ -45,9 +46,9 @@ existing ``except ValueError`` keeps working unchanged. Its canonical home is
 Examples:
 --------
 >>> from finstack_quant.portfolio import Portfolio
->>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
->>> (Portfolio.from_spec(spec).id, len(Portfolio.from_spec(spec)))
-('empty', 0)
+>>> pf = Portfolio.builder("book", "USD", "2025-01-01").build()
+>>> (pf.id, pf.base_currency, len(pf))
+('book', 'USD', 0)
 """
 
 import sys as _sys
@@ -65,6 +66,9 @@ MalformedContractSchemaError = _portfolio.MalformedContractSchemaError
 ContractLimitExceededError = _portfolio.ContractLimitExceededError
 
 Portfolio = _portfolio.Portfolio
+PortfolioBuilder = _portfolio.PortfolioBuilder
+PositionValue = _portfolio.PositionValue
+ReconciliationReport = _portfolio.ReconciliationReport
 InstrumentArtifactCache = _portfolio.InstrumentArtifactCache
 MaterializationReport = _portfolio.MaterializationReport
 PortfolioValuation = _portfolio.PortfolioValuation
@@ -92,8 +96,6 @@ WeightAllocationResult = _portfolio.WeightAllocationResult
 
 parse_portfolio_spec_json = _portfolio.parse_portfolio_spec_json
 build_portfolio_from_spec_json = _portfolio.build_portfolio_from_spec_json
-portfolio_result_total_value = _portfolio.portfolio_result_total_value
-portfolio_result_get_metric = _portfolio.portfolio_result_get_metric
 aggregate_metrics = _portfolio.aggregate_metrics
 aggregate_metrics_json = _portfolio.aggregate_metrics_json
 value_portfolio = _portfolio.value_portfolio
@@ -183,7 +185,7 @@ schema = _portfolio.schema
 if "finstack_quant.portfolio.schema" not in _sys.modules:
     _sys.modules["finstack_quant.portfolio.schema"] = schema
 
-__all__: list[str] = [
+__all__ = [
     "BrinsonPeriodResult",
     "CandidatePosition",
     "CarinoLinkedAttribution",
@@ -219,6 +221,7 @@ __all__: list[str] = [
     "PerPositionMetric",
     "Portfolio",
     "PortfolioAttribution",
+    "PortfolioBuilder",
     "PortfolioCashflows",
     "PortfolioError",
     "PortfolioMetrics",
@@ -228,7 +231,9 @@ __all__: list[str] = [
     "PortfolioValuation",
     "PositionAssignment",
     "PositionFilter",
+    "PositionValue",
     "PositionVolContribution",
+    "ReconciliationReport",
     "ReplayResult",
     "ScenarioPnl",
     "ScenarioPnlBatchItem",
@@ -285,8 +290,6 @@ __all__: list[str] = [
     "net_in_currency_by_date",
     "optimize_portfolio",
     "parse_portfolio_spec_json",
-    "portfolio_result_get_metric",
-    "portfolio_result_total_value",
     "position_what_if",
     "replay_portfolio",
     "replay_portfolio_json",

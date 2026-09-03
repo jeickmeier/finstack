@@ -19,6 +19,7 @@ import datetime
 import pandas as pd
 
 from finstack_quant.core.market_data.curves import HazardCurve
+from finstack_quant.core.types import CreditRating
 from typing import Any
 
 __all__ = [
@@ -28,9 +29,226 @@ __all__ = [
     "DynamicRecoverySpec",
     "EndogenousHazardSpec",
     "MertonModel",
+    "RatingFactorTable",
     "SimulatedPaths",
     "ToggleExerciseModel",
 ]
+
+class RatingFactorTable:
+    """
+    Rating-factor table (Moody's WARF methodology) from the embedded credit registry.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.credit import RatingFactorTable
+    >>> table = RatingFactorTable.moodys_standard()
+    >>> (table.get_factor("B"), table.agency)
+    (2720.0, "Moody's")
+
+    """
+
+    @staticmethod
+    def moodys_standard() -> RatingFactorTable:
+        """
+        Load the embedded Moody's standard WARF table.
+
+        Returns
+        -------
+        RatingFactorTable
+            Default rating-factor table.
+
+        Raises
+        ------
+        ValueError
+            If the embedded registry is invalid or its default table is missing.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import RatingFactorTable
+        >>> RatingFactorTable.moodys_standard().default_factor > 0.0
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_registry_id(id: str) -> RatingFactorTable:
+        """
+        Load a named rating-factor table from the embedded registry.
+
+        Parameters
+        ----------
+        id : str
+            Exact registry identifier of the methodology; an unknown id never
+            falls back to the default table.
+
+        Returns
+        -------
+        RatingFactorTable
+            The named table.
+
+        Raises
+        ------
+        KeyError
+            If ``id`` is unknown.
+        ValueError
+            If the embedded registry is invalid.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import RatingFactorTable
+        >>> RatingFactorTable.from_registry_id("moodys_standard").agency
+        "Moody's"
+        """
+        ...
+
+    def get_factor(self, rating: str | CreditRating) -> float:
+        """
+        Rating factor for an exact rating notch.
+
+        Parameters
+        ----------
+        rating : str | CreditRating
+            Rating notch as a ``core.types.CreditRating`` or a rating string
+            (``"BBB-"``, ``"Baa3"``).
+
+        Returns
+        -------
+        float
+            Rating factor.
+
+        Raises
+        ------
+        ValueError
+            If the notch has no factor in this table or the string is not a
+            recognised rating.
+        TypeError
+            If ``rating`` is neither a string nor a ``CreditRating``.
+        """
+        ...
+
+    @property
+    def agency(self) -> str:
+        """
+        Agency the table is sourced from (e.g. ``"moodys"``).
+
+        Returns
+        -------
+        str
+            Agency label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def methodology(self) -> str:
+        """
+        Methodology label recorded in the registry for this table.
+
+        Returns
+        -------
+        str
+            Methodology label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def default_factor(self) -> float:
+        """
+        Factor assigned to unrated or defaulted names.
+
+        Returns
+        -------
+        float
+            Default rating factor.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> RatingFactorTable:
+        """
+        Deserialize a ``RatingFactorTable`` from its canonical JSON form.
+
+        Parameters
+        ----------
+        json : str
+            JSON text produced by :meth:`to_json` (strict serde; unknown or
+            invalid fields are rejected).
+
+        Returns
+        -------
+        RatingFactorTable
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is not valid ``RatingFactorTable`` JSON.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import RatingFactorTable
+        >>> value = RatingFactorTable.moodys_standard()
+        >>> RatingFactorTable.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact canonical JSON.
+
+        Returns
+        -------
+        str
+            JSON text accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Support ``pickle`` through the canonical JSON representation.
+
+        Returns
+        -------
+        tuple[Any, tuple[str]]
+            ``(from_json, (json,))`` so unpickling rebuilds the value.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+    def __repr__(self) -> str:
+        """
+        Python-style representation rendered from the canonical fields.
+
+        Returns
+        -------
+        str
+            ``Name(field=value, ...)`` with Python literals.
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
 
 class BarrierType:
     """
@@ -441,6 +659,36 @@ class SimulatedPaths:
         """
         ...
 
+    @property
+    def values_per_path(self) -> int:
+        """
+        Number of stored values per path (``num_steps + 1``, including ``t = 0``).
+
+        Returns
+        -------
+        int
+            Number of stored values per path (``num_steps + 1``, including ``t = 0``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+    def to_dataframe(self) -> pandas.DataFrame:
+        """
+        Long frame with ``path`` (int), ``time`` (float, years), ``asset_value`` (float); one row per path per grid point, ordered by path then time.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Long frame with ``path`` (int), ``time`` (float, years), ``asset_value`` (float); one row per path per grid point, ordered by path then time.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized into a pandas object.
+        """
+        ...
     def get(self, path_idx: int, time_idx: int) -> float | None:
         """
         Return one asset value by path and time-grid index.
@@ -1157,6 +1405,28 @@ class MertonModel:
         """
         ...
 
+    def default_probabilities(self, horizons: list[float]) -> pd.Series:
+        """
+        Risk-neutral cumulative default probabilities over several horizons.
+
+        Parameters
+        ----------
+        horizons : list[float]
+            Horizons in years; each must be finite and strictly positive.
+
+        Returns
+        -------
+        pandas.Series
+            Float series named ``default_probability`` indexed by the horizon
+            labels (``str(horizon)``), in input order.
+
+        Raises
+        ------
+        ValueError
+            If any horizon is non-finite or non-positive.
+        """
+        ...
+
     def default_probability_with_drift(self, asset_drift: float, horizon: float) -> float:
         """
         Return physical-measure default probability (theoretical EDF).
@@ -1469,6 +1739,149 @@ class DynamicRecoverySpec:
         ...
 
     @staticmethod
+    def inverse_linear(base_recovery: float, base_notional: float) -> DynamicRecoverySpec:
+        """
+        Recovery inversely proportional to notional: ``R(N) = R_0 * N_0 / N``.
+
+        Parameters
+        ----------
+        base_recovery : float
+            Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+        base_notional : float
+            Reference notional ``N_0`` (strictly positive), in the instrument's currency.
+
+        Returns
+        -------
+        DynamicRecoverySpec
+            Specification with ``kind == "inverse_linear"``.
+
+        Raises
+        ------
+        ValueError
+            On non-finite or out-of-range inputs.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import DynamicRecoverySpec
+        >>> DynamicRecoverySpec.inverse_linear(0.4, 100.0).recovery_at_notional(200.0)
+        0.2
+        """
+        ...
+
+    @staticmethod
+    def inverse_power(base_recovery: float, base_notional: float, exponent: float) -> DynamicRecoverySpec:
+        """
+        Recovery decaying as a power of notional: ``R(N) = R_0 * (N_0 / N)**exponent``.
+
+        Parameters
+        ----------
+        base_recovery : float
+            Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+        base_notional : float
+            Reference notional ``N_0`` (strictly positive), in the instrument's currency.
+        exponent : float
+            Non-negative decay exponent (``1.0`` reproduces ``inverse_linear``).
+
+        Returns
+        -------
+        DynamicRecoverySpec
+            Specification with ``kind == "inverse_power"``.
+
+        Raises
+        ------
+        ValueError
+            On non-finite or out-of-range inputs.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import DynamicRecoverySpec
+        >>> DynamicRecoverySpec.inverse_power(0.4, 100.0, 1.0).kind
+        'inverse_power'
+        """
+        ...
+
+    @staticmethod
+    def floored_inverse(base_recovery: float, base_notional: float, floor: float) -> DynamicRecoverySpec:
+        """
+        Inverse-linear recovery floored at a minimum: ``max(R_0 * N_0 / N, floor)``.
+
+        Parameters
+        ----------
+        base_recovery : float
+            Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+        base_notional : float
+            Reference notional ``N_0`` (strictly positive), in the instrument's currency.
+        floor : float
+            Minimum recovery as a decimal in ``[0, base_recovery]``.
+
+        Returns
+        -------
+        DynamicRecoverySpec
+            Specification with ``kind == "floored_inverse"``.
+
+        Raises
+        ------
+        ValueError
+            On non-finite or out-of-range inputs.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import DynamicRecoverySpec
+        >>> DynamicRecoverySpec.floored_inverse(0.4, 100.0, 0.3).recovery_at_notional(400.0)
+        0.3
+        """
+        ...
+
+    @staticmethod
+    def linear_decline(base_recovery: float, base_notional: float, slope: float, floor: float) -> DynamicRecoverySpec:
+        """
+        Recovery declining linearly with accretion: ``max(R_0 - slope * (N - N_0) / N_0, floor)``.
+
+        Parameters
+        ----------
+        base_recovery : float
+            Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+        base_notional : float
+            Reference notional ``N_0`` (strictly positive), in the instrument's currency.
+        slope : float
+            Non-negative recovery decline per unit of relative accretion.
+        floor : float
+            Minimum recovery as a decimal in ``[0, base_recovery]``.
+
+        Returns
+        -------
+        DynamicRecoverySpec
+            Specification with ``kind == "linear_decline"``.
+
+        Raises
+        ------
+        ValueError
+            On non-finite or out-of-range inputs.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import DynamicRecoverySpec
+        >>> DynamicRecoverySpec.linear_decline(0.4, 100.0, 0.1, 0.2).kind
+        'linear_decline'
+        """
+        ...
+
+    @property
+    def kind(self) -> str:
+        """
+        Canonical name of the active recovery model: ``"constant"``, ``"inverse_linear"``, ``"inverse_power"``, ``"floored_inverse"`` or ``"linear_decline"``.
+
+        Returns
+        -------
+        str
+            Canonical name of the active recovery model: ``"constant"``, ``"inverse_linear"``, ``"inverse_power"``, ``"floored_inverse"`` or ``"linear_decline"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
+    @staticmethod
     def from_json(json: str) -> DynamicRecoverySpec:
         """
         Deserialize a recovery specification from JSON.
@@ -1651,6 +2064,86 @@ class EndogenousHazardSpec:
         """
         ...
 
+    @staticmethod
+    def exponential(base_hazard: float, base_leverage: float, sensitivity: float) -> EndogenousHazardSpec:
+        """
+        Exponential feedback: ``lambda(L) = lambda_0 * exp(sensitivity * (L - L_0))``.
+
+        Parameters
+        ----------
+        base_hazard : float
+            Reference annualized hazard rate ``lambda_0`` (non-negative decimal).
+        base_leverage : float
+            Reference leverage ``L_0`` (strictly positive ratio).
+        sensitivity : float
+            Non-negative exponential sensitivity per unit of leverage.
+
+        Returns
+        -------
+        EndogenousHazardSpec
+            Specification with ``kind == "exponential"``.
+
+        Raises
+        ------
+        ValueError
+            On non-finite or out-of-range inputs.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import EndogenousHazardSpec
+        >>> EndogenousHazardSpec.exponential(0.02, 4.0, 0.5).hazard_at_leverage(4.0)
+        0.02
+        """
+        ...
+
+    @staticmethod
+    def tabular(leverage_points: list[float], hazard_points: list[float]) -> EndogenousHazardSpec:
+        """
+        Piecewise-linear tabular feedback through ``(leverage, hazard)`` points.
+
+        Parameters
+        ----------
+        leverage_points : list[float]
+            Strictly increasing leverage ratios (at least two).
+        hazard_points : list[float]
+            Non-negative annualized hazard rates, one per leverage point; the
+            base leverage and base hazard are taken from the first point.
+
+        Returns
+        -------
+        EndogenousHazardSpec
+            Specification with ``kind == "tabular"``.
+
+        Raises
+        ------
+        ValueError
+            If the lists differ in length, have fewer than two points, are not
+            strictly increasing in leverage, or contain non-finite or negative
+            values.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import EndogenousHazardSpec
+        >>> EndogenousHazardSpec.tabular([2.0, 6.0], [0.01, 0.05]).hazard_at_leverage(4.0)
+        0.03
+        """
+        ...
+
+    @property
+    def kind(self) -> str:
+        """
+        Canonical name of the active leverage-to-hazard mapping: ``"power_law"``, ``"exponential"`` or ``"tabular"``.
+
+        Returns
+        -------
+        str
+            Canonical name of the active leverage-to-hazard mapping: ``"power_law"``, ``"exponential"`` or ``"tabular"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored or derived value.
+        """
+        ...
     @staticmethod
     def from_json(json: str) -> EndogenousHazardSpec:
         """
@@ -2110,6 +2603,63 @@ class ToggleExerciseModel:
         >>> model = ToggleExerciseModel.optimal(100, 0.12, 0.3, 0.05, 1.0)
         >>> json.loads(model.to_json())["optimal_exercise"]["nested_paths"]
         100
+        """
+        ...
+
+    @staticmethod
+    def stochastic(variable: str, intercept: float, sensitivity: float) -> ToggleExerciseModel:
+        """
+        Stochastic rule: PIK with probability ``logistic(intercept + sensitivity * x)``.
+
+        Parameters
+        ----------
+        variable : str
+            Credit-state variable ``x`` observed: ``"hazard_rate"``,
+            ``"distance_to_default"`` or ``"leverage"``.
+        intercept : float
+            Logit intercept.
+        sensitivity : float
+            Logit slope per unit of the variable.
+
+        Returns
+        -------
+        ToggleExerciseModel
+            Rule with ``kind == "stochastic"``.
+
+        Raises
+        ------
+        ValueError
+            For an unknown variable string.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import ToggleExerciseModel
+        >>> ToggleExerciseModel.stochastic("leverage", -2.0, 0.5).kind
+        'stochastic'
+        """
+        ...
+
+    def should_pik_with_uniform(self, state: CreditState, u: float) -> bool:
+        """
+        Whether the rule elects PIK for ``state`` given one uniform draw.
+
+        Parameters
+        ----------
+        state : CreditState
+            Observed credit state at the decision date.
+        u : float
+            Uniform draw in ``[0, 1)``; ignored by threshold rules, used as the
+            Bernoulli draw by stochastic rules. Optimal-exercise rules need
+            nested simulation and return ``False`` here.
+
+        Returns
+        -------
+        bool
+            ``True`` when the coupon is paid in kind.
+
+        Notes
+        -----
+        This method does not raise.
         """
         ...
 

@@ -404,19 +404,18 @@ fn next_id(len: usize) -> u32 {
     u32::try_from(len).unwrap_or(u32::MAX)
 }
 
-fn standard_metrics() -> Vec<MetricId> {
-    vec![
-        MetricId::Theta,
-        MetricId::Dv01,
-        MetricId::BucketedDv01,
-        MetricId::Cs01,
-        MetricId::BucketedCs01,
-        MetricId::Delta,
-        MetricId::Gamma,
-        MetricId::Vega,
-        MetricId::Rho,
-        MetricId::Pv01,
-    ]
+/// Risk metrics requested by [`RequestedMetrics::Standard`].
+///
+/// The default plan is deliberately small: PV is always produced, and the
+/// only additional standard metric is `dv01`. Every pricer that carries rate
+/// exposure supports `dv01`, so a plain book (bonds, swaps, deposits) values
+/// under `strict_risk = true` without a per-instrument opt-out. Metrics that
+/// only some pricers support (`theta`, `cs01`, Greeks, bucketed ladders) are
+/// opt-in through [`RequestedMetrics::Only`] or
+/// [`RequestedMetrics::StandardPlus`], so a request for them is always
+/// explicit and a failure is never a surprise.
+pub(crate) fn standard_metrics() -> Vec<MetricId> {
+    vec![MetricId::Dv01]
 }
 
 fn stable_unique(metrics: &[MetricId]) -> Vec<MetricId> {

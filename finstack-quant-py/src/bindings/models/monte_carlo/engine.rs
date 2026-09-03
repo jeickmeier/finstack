@@ -17,6 +17,40 @@ pub(super) fn py_mc_defaults() -> PyResult<&'static ConvenienceDefaults> {
 }
 
 /// Simulate a compact set of GBM spot paths through Rust path capture.
+///
+/// Parameters
+/// ----------
+/// spot : float
+///     Positive initial underlying price.
+/// rate : float
+///     Continuously compounded annual risk-free rate (decimal).
+/// div_yield : float
+///     Continuously compounded annual dividend or carry yield (decimal).
+/// vol : float
+///     Annualized GBM volatility (decimal); must be strictly positive.
+/// expiry : float
+///     Positive simulation horizon in years.
+/// num_steps : int
+///     Number of equally spaced steps over the horizon.
+/// num_paths : int
+///     Number of captured paths (at most ``100_000``).
+/// seed : int, optional
+///     Deterministic Philox seed. ``None`` uses the Rust ``GbmPathConfig``
+///     default seed (``42``), so two calls without a seed are identical.
+/// antithetic : bool, default False
+///     Antithetic pairing request; path capture rejects ``True``.
+///
+/// Returns
+/// -------
+/// GbmPathSummary
+///     Shared time grid and captured spot paths.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If an input is out of domain (non-positive ``spot`` / ``vol`` /
+///     ``expiry``, zero ``num_steps`` or ``num_paths``, the path cap is
+///     exceeded) or ``antithetic`` is ``True``.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (spot, rate, div_yield, vol, expiry, num_steps, num_paths, seed=None, antithetic=false))]
@@ -32,12 +66,13 @@ fn simulate_gbm_paths(
     seed: Option<u64>,
     antithetic: bool,
 ) -> PyResult<PyGbmPathSummary> {
-    let seed = seed.unwrap_or(py_mc_defaults()?.european_pricer.seed);
-    let config = finstack_quant_models::monte_carlo::GbmPathConfig::new(
+    let mut config = finstack_quant_models::monte_carlo::GbmPathConfig::new(
         spot, rate, div_yield, vol, expiry, num_steps, num_paths,
     )
-    .with_seed(seed)
     .with_antithetic(antithetic);
+    if let Some(seed) = seed {
+        config = config.with_seed(seed);
+    }
     py.detach(move || finstack_quant_models::monte_carlo::simulate_gbm_paths(&config))
         .map(PyGbmPathSummary::from_inner)
         .map_err(core_to_py)

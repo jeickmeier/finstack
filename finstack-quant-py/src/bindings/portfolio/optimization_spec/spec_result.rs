@@ -5,9 +5,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyType};
 
 use finstack_quant_portfolio::optimization::{
-    CandidatePosition, MissingMetricPolicy, OptimizationStatus, PortfolioOptimizationResult,
+    CandidatePosition, OptimizationStatus, PortfolioOptimizationResult,
     PortfolioOptimizationResultWire, PortfolioOptimizationSpec, TradeType, TradeUniverse,
-    WeightingScheme,
 };
 use finstack_quant_portfolio::types::PositionId;
 
@@ -20,11 +19,9 @@ use super::enums::{PyMissingMetricPolicy, PyWeightingScheme};
 use super::expressions::{PyConstraint, PyObjective, PyPositionFilter};
 use super::status_trade::{PyOptimizationStatus, PyTradeSpec};
 
-/// Candidate instrument that could be added to the portfolio.
-///
-/// Construction from Python is not yet supported (requires the instrument
-/// binding bridge). The wrapper is exposed so result types and getters can
-/// return it.
+/// Candidate instrument that could be added to the portfolio by the
+/// optimizer (starts at weight zero; bounded by ``min_weight`` /
+/// ``max_weight``).
 #[pyclass(
     name = "CandidatePosition",
     module = "finstack_quant.portfolio",
@@ -43,21 +40,109 @@ impl PyCandidatePosition {
 
 #[pymethods]
 impl PyCandidatePosition {
+    /// Create a candidate.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Identifier that becomes the position id if the optimizer trades it.
+    /// entity_id : str
+    ///     Owning entity for the candidate.
+    /// instrument : Bond | InterestRateSwap | ... | str
+    ///     Typed instrument wrapper or canonical instrument-envelope JSON.
+    /// unit : str | dict | None
+    ///     Position unit (``"units"`` default, ``"face_value"``,
+    ///     ``"percentage"``, ``"notional"`` or ``{"notional": "USD"}``).
+    /// max_weight : float
+    ///     Maximum weight the candidate may receive (default ``1.0``).
+    /// min_weight : float
+    ///     Minimum weight when included (default ``0.0`` lets the optimizer
+    ///     skip the candidate).
+    /// attributes : dict[str, str | float] | None
+    ///     Attributes used by filters and exposure constraints.
+    #[new]
+    #[pyo3(
+        signature = (id, entity_id, instrument, unit=None, max_weight=1.0, min_weight=0.0, attributes=None),
+        text_signature = "(id, entity_id, instrument, unit=None, max_weight=1.0, min_weight=0.0, attributes=None)"
+    )]
+    fn new(
+        py: Python<'_>,
+        id: &str,
+        entity_id: &str,
+        instrument: &Bound<'_, PyAny>,
+        unit: Option<&Bound<'_, PyAny>>,
+        max_weight: f64,
+        min_weight: f64,
+        attributes: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let envelope_json = crate::bindings::extract::extract_instrument_json(instrument)?;
+        let envelope: finstack_quant_valuations::instruments::InstrumentEnvelope =
+            serde_json::from_str(&envelope_json).map_err(crate::errors::display_to_py)?;
+        let boxed = envelope
+            .into_boxed()
+            .map_err(crate::errors::display_to_py)?;
+        let unit: finstack_quant_portfolio::position::PositionUnit =
+            match unit {
+                None => finstack_quant_portfolio::position::PositionUnit::Units,
+                Some(obj) => match obj.extract::<String>() {
+                    Ok(ref s) if s == "notional" => {
+                        finstack_quant_portfolio::position::PositionUnit::Notional(None)
+                    }
+                    Ok(s) => serde_json::from_value(serde_json::Value::String(s.clone())).map_err(
+                        |_| crate::errors::value_error(format!("unknown position unit {s:?}")),
+                    )?,
+                    Err(_) => crate::bindings::module_utils::py_to_serde(py, obj, "position unit")?,
+                },
+            };
+        let mut inner = CandidatePosition::new(id, entity_id, std::sync::Arc::from(boxed), unit)
+            .with_max_weight(max_weight)
+            .with_min_weight(min_weight);
+        if let Some(attributes) = attributes {
+            inner.attributes =
+                crate::bindings::module_utils::py_to_serde(py, attributes.as_any(), "attributes")?;
+        }
+        Ok(Self::from_inner(inner))
+    }
+
+    /// Support `pickle` via the same serde round-trip as ``to_json``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Parse from JSON (instrument carried as its canonical tagged payload).
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
+        let inner: CandidatePosition = deserialize_json(json_str)?;
+        Ok(Self::from_inner(inner))
+    }
+
+    /// Serialize to JSON.
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serialize_json(&self.inner)
+    }
+
+    /// Candidate identifier (becomes the position id when traded).
     #[getter]
     fn id(&self) -> String {
         self.inner.id.as_str().to_owned()
     }
 
+    /// Owning entity identifier.
     #[getter]
     fn entity_id(&self) -> String {
         self.inner.entity_id.as_str().to_owned()
     }
 
+    /// Maximum admissible weight (fraction).
     #[getter]
     fn max_weight(&self) -> f64 {
         self.inner.max_weight
     }
 
+    /// Minimum admissible weight when included (fraction).
     #[getter]
     fn min_weight(&self) -> f64 {
         self.inner.min_weight
@@ -67,6 +152,12 @@ impl PyCandidatePosition {
     #[getter]
     fn instrument_id(&self) -> String {
         self.inner.instrument.id().to_owned()
+    }
+
+    /// Candidate attributes as a ``dict[str, str | float]``.
+    #[getter]
+    fn attributes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner.attributes)
     }
 
     fn __repr__(&self) -> String {
@@ -81,9 +172,10 @@ impl PyCandidatePosition {
 
 /// Universe of tradeable existing positions and candidate additions.
 ///
-/// Construction from Python is not yet supported (candidate instruments
-/// require the instrument binding bridge). The wrapper exists so callers
-/// can hold an existing universe and inspect it.
+/// Build with :meth:`all_positions` or :meth:`filtered`, then chain
+/// :meth:`with_candidate` / :meth:`allow_shorting_candidates` and attach the
+/// universe to a :class:`PortfolioOptimizationSpec` via
+/// ``with_trade_universe``.
 #[pyclass(
     name = "TradeUniverse",
     module = "finstack_quant.portfolio",
@@ -108,11 +200,52 @@ impl PyTradeUniverse {
         Self::from_inner(TradeUniverse::all_positions())
     }
 
+    /// Universe where only positions matching ``filter`` may trade.
+    #[classmethod]
+    #[pyo3(text_signature = "(cls, filter)")]
+    fn filtered(_cls: &Bound<'_, PyType>, filter: PyPositionFilter) -> Self {
+        Self::from_inner(TradeUniverse::filtered(filter.inner))
+    }
+
+    /// Return a copy with ``candidate`` appended.
+    #[pyo3(text_signature = "(self, candidate)")]
+    fn with_candidate(&self, candidate: PyCandidatePosition) -> Self {
+        Self::from_inner(self.inner.clone().with_candidate(candidate.inner))
+    }
+
+    /// Return a copy that allows candidates to receive negative weights.
+    #[pyo3(text_signature = "(self)")]
+    fn allow_shorting_candidates(&self) -> Self {
+        Self::from_inner(self.inner.clone().allow_shorting_candidates())
+    }
+
+    /// Support `pickle` via the same serde round-trip as ``to_json``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Parse from JSON.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json_str)")]
+    fn from_json(json_str: &str) -> PyResult<Self> {
+        let inner: TradeUniverse = deserialize_json(json_str)?;
+        Ok(Self::from_inner(inner))
+    }
+
+    /// Serialize to JSON.
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serialize_json(&self.inner)
+    }
+
+    /// Filter selecting the existing positions the optimizer may resize.
     #[getter]
     fn tradeable_filter(&self) -> PyPositionFilter {
         PyPositionFilter::from_inner(self.inner.tradeable_filter.clone())
     }
 
+    /// Filter selecting positions frozen at their current weight, if any.
     #[getter]
     fn held_filter(&self) -> Option<PyPositionFilter> {
         self.inner
@@ -121,6 +254,7 @@ impl PyTradeUniverse {
             .map(PyPositionFilter::from_inner)
     }
 
+    /// Candidate instruments not currently held.
     #[getter]
     fn candidates(&self) -> Vec<PyCandidatePosition> {
         self.inner
@@ -131,6 +265,7 @@ impl PyTradeUniverse {
             .collect()
     }
 
+    /// Whether candidates may take negative (short) weights.
     #[getter]
     fn allow_short_candidates(&self) -> bool {
         self.inner.allow_short_candidates
@@ -140,7 +275,11 @@ impl PyTradeUniverse {
         format!(
             "TradeUniverse(candidates={}, allow_short_candidates={})",
             self.inner.candidates.len(),
-            self.inner.allow_short_candidates,
+            if self.inner.allow_short_candidates {
+                "True"
+            } else {
+                "False"
+            },
         )
     }
 }
@@ -169,25 +308,44 @@ impl PyPortfolioOptimizationSpec {
 
 #[pymethods]
 impl PyPortfolioOptimizationSpec {
-    /// Build a spec from a portfolio JSON spec + objective. Constraints,
-    /// weighting, and policy default to the Rust defaults.
+    /// Build a spec from a portfolio and an objective. Constraints,
+    /// weighting, policy and trade universe start at the Rust defaults.
+    ///
+    /// Parameters
+    /// ----------
+    /// portfolio : Portfolio | str
+    ///     Built :class:`Portfolio` (its canonical spec is captured) or a
+    ///     ``PortfolioSpec`` JSON string.
+    /// objective : Objective
+    ///     Optimization objective.
     #[classmethod]
-    #[pyo3(text_signature = "(cls, portfolio_spec_json, objective)")]
+    #[pyo3(text_signature = "(cls, portfolio, objective)")]
     fn new(
         _cls: &Bound<'_, PyType>,
-        portfolio_spec_json: &str,
+        portfolio: &Bound<'_, PyAny>,
         objective: PyObjective,
     ) -> PyResult<Self> {
         let portfolio: finstack_quant_portfolio::portfolio::PortfolioSpec =
-            deserialize_json(portfolio_spec_json)?;
-        Ok(Self::from_inner(PortfolioOptimizationSpec {
+            if let Ok(built) = portfolio.cast::<crate::bindings::portfolio::types::PyPortfolio>() {
+                built.borrow().inner.to_spec()
+            } else {
+                let json: String = portfolio.extract().map_err(|_| {
+                    pyo3::exceptions::PyTypeError::new_err(
+                        "expected a Portfolio or a canonical PortfolioSpec JSON string",
+                    )
+                })?;
+                deserialize_json(&json)?
+            };
+        Ok(Self::from_inner(PortfolioOptimizationSpec::new(
             portfolio,
-            objective: objective.inner,
-            constraints: Vec::new(),
-            weighting: WeightingScheme::ValueWeight,
-            missing_metric_policy: MissingMetricPolicy::Zero,
-            label: None,
-        }))
+            objective.inner,
+        )))
+    }
+
+    /// Replace the trade universe (tradeable/held filters and candidates).
+    #[pyo3(text_signature = "(self, universe)")]
+    fn with_trade_universe(&self, universe: PyTradeUniverse) -> Self {
+        Self::from_inner(self.inner.clone().with_trade_universe(universe.inner))
     }
 
     /// Append a constraint (returns a new spec).
@@ -288,6 +446,16 @@ impl PyPortfolioOptimizationSpec {
         self.inner.label.clone()
     }
 
+    /// Trade universe restricting the optimizer, or ``None`` for the default
+    /// (every position tradeable, no candidates).
+    #[getter]
+    fn trade_universe(&self) -> Option<PyTradeUniverse> {
+        self.inner
+            .trade_universe
+            .clone()
+            .map(PyTradeUniverse::from_inner)
+    }
+
     /// Portfolio specification body (raw JSON).
     #[pyo3(text_signature = "(self)")]
     fn portfolio_spec_json(&self) -> PyResult<String> {
@@ -333,12 +501,20 @@ const TRADE_COLUMNS: [ColumnSchema<'static>; 9] = [
 )]
 pub(super) struct PyPortfolioOptimizationResult {
     pub(crate) inner: PortfolioOptimizationResultWire,
+    /// Rebalanced portfolio built eagerly from the live problem (which does
+    /// not survive the wire round-trip), or the reason it is unavailable.
+    rebalanced: Result<std::sync::Arc<finstack_quant_portfolio::Portfolio>, String>,
 }
 
 impl PyPortfolioOptimizationResult {
     pub(crate) fn from_inner(inner: PortfolioOptimizationResult) -> Self {
+        let rebalanced = inner
+            .to_rebalanced_portfolio()
+            .map(std::sync::Arc::new)
+            .map_err(|e| e.to_string());
         Self {
             inner: PortfolioOptimizationResultWire::from(&inner),
+            rebalanced,
         }
     }
 }
@@ -367,7 +543,35 @@ impl PyPortfolioOptimizationResult {
     fn from_json(json_str: &str) -> PyResult<Self> {
         let inner = serde_json::from_str(json_str)
             .map_err(|e| crate::errors::serde_json_to_py(e, "invalid optimization result JSON"))?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            rebalanced: Err(
+                "rebalanced portfolio is only available on a result returned by \
+                 optimize_portfolio, not on one rebuilt from JSON"
+                    .to_owned(),
+            ),
+        })
+    }
+
+    /// Rebuild the portfolio with the implied post-trade quantities.
+    ///
+    /// Existing positions take their ``implied_quantities`` entry (positions
+    /// outside the trade universe keep their quantity) and traded candidates
+    /// become new positions.
+    ///
+    /// Raises
+    /// ------
+    /// RuntimeError
+    ///     If the solution is infeasible, or this result was rebuilt from
+    ///     JSON / unpickled (the live problem is not part of the wire form).
+    #[pyo3(text_signature = "(self)")]
+    fn to_rebalanced_portfolio(&self) -> PyResult<crate::bindings::portfolio::types::PyPortfolio> {
+        match &self.rebalanced {
+            Ok(portfolio) => Ok(crate::bindings::portfolio::types::PyPortfolio {
+                inner: std::sync::Arc::clone(portfolio),
+            }),
+            Err(message) => Err(pyo3::exceptions::PyRuntimeError::new_err(message.clone())),
+        }
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).

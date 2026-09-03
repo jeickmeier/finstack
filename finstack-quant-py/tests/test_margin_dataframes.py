@@ -11,6 +11,7 @@ stay self-contained.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 
 import pandas as pd
@@ -61,6 +62,8 @@ def _sort_keys(df: pd.DataFrame) -> list[tuple[object, ...]]:
 
 
 VM_COLUMNS = [
+    "date",
+    "settlement_date",
     "gross_exposure",
     "net_exposure",
     "delivery_amount",
@@ -88,7 +91,7 @@ def _threshold_csa() -> CsaSpec:
 
 
 def _vm_result() -> VmResult:
-    return VmCalculator(_threshold_csa()).calculate(1_000_000.0, 250_000.0, "USD", 2025, 6, 30)
+    return VmCalculator(_threshold_csa()).calculate(1_000_000.0, 250_000.0, "USD", "2025-06-30")
 
 
 def test_vm_result_to_dataframe_is_one_row() -> None:
@@ -100,6 +103,10 @@ def test_vm_result_to_dataframe_is_one_row() -> None:
     assert list(df.columns) == VM_COLUMNS
     row = df.iloc[0]
     assert row["currency"] == "USD"
+    assert row["date"] == "2025-06-30"
+    assert result.date == dt.date(2025, 6, 30)
+    assert row["settlement_date"] == result.settlement_date.isoformat()
+    assert result.settlement_date > result.date
     assert row["gross_exposure"] == pytest.approx(result.gross_exposure) == pytest.approx(1_000_000.0)
     # 1,000,000 - 300,000 threshold + 100,000 IA: distinct from the gross.
     assert row["net_exposure"] == pytest.approx(result.net_exposure) == pytest.approx(800_000.0)
@@ -118,7 +125,7 @@ def test_vm_result_to_dataframe_renders_a_collateral_return() -> None:
     ``net_margin`` equal the other, so the two legs are only distinguishable
     across a pair of results.
     """
-    result = VmCalculator(_threshold_csa()).calculate(1_000_000.0, 1_200_000.0, "USD", 2025, 6, 30)
+    result = VmCalculator(_threshold_csa()).calculate(1_000_000.0, 1_200_000.0, "USD", dt.date(2025, 6, 30))
     row = result.to_dataframe().iloc[0]
 
     assert row["gross_exposure"] == pytest.approx(1_000_000.0)
@@ -138,7 +145,7 @@ def _im_result() -> ImResult:
     sensitivities.add_equity_delta("AAPL", 250_000.0)
     sensitivities.add_fx_delta("EUR", 75_000.0)
     calculator = SimmCalculator("v2_6")
-    return calculator.calculate_from_sensitivities(sensitivities, "USD", 2025, 6, 30)
+    return calculator.calculate_from_sensitivities(sensitivities, "USD", "2025-06-30")
 
 
 def test_im_result_to_dataframe_is_one_row() -> None:
@@ -192,7 +199,7 @@ def test_im_result_breakdown_dataframe_keeps_schema_when_empty() -> None:
     was ``1 == 1`` and the empty path was never taken. An unpopulated SIMM
     sensitivity set is the genuinely empty case.
     """
-    result = SimmCalculator("v2_6").calculate_from_sensitivities(SimmSensitivities("USD"), "USD", 2025, 6, 30)
+    result = SimmCalculator("v2_6").calculate_from_sensitivities(SimmSensitivities("USD"), "USD", "2025-06-30")
 
     assert result.breakdown_keys() == []
     assert result.amount == pytest.approx(0.0)
@@ -206,7 +213,7 @@ def test_im_result_breakdown_dataframe_keeps_schema_when_empty() -> None:
 def test_schedule_im_breakdown_dataframe_has_one_row_per_asset_class() -> None:
     """The schedule methodology publishes exactly its one asset class."""
     result = ScheduleImCalculator.bcbs_standard().calculate_for_notional(
-        10_000_000.0, "USD", "interest_rate", 7.0, 2025, 6, 30
+        10_000_000.0, "USD", "interest_rate", 7.0, "2025-06-30"
     )
     df = result.to_breakdown_dataframe()
 
@@ -296,7 +303,7 @@ def test_frtb_sensitivities_to_dataframe_is_long_and_sorted() -> None:
     sens = FrtbSensitivities("USD")
     sens.add_girr_delta("5Y", 12_000.0)
     sens.add_girr_delta("2Y", 8_000.0)
-    sens.add_csr_delta("ACME", 3, "5Y", 4_000.0)
+    sens.add_csr_nonsec_delta("ACME", 3, "5Y", 4_000.0)
     sens.add_equity_delta("AAPL", 1, 25_000.0)
     sens.add_fx_delta("EUR", "USD", 9_000.0)
     sens.add_girr_curvature(500.0, -400.0)

@@ -21,6 +21,10 @@ from typing import Any
 
 import pandas as pd
 
+from finstack_quant.core.currency import Currency
+from finstack_quant.core.market_data import MarketContext
+from finstack_quant.core.money import Money
+
 from finstack_quant.attribution import schema as schema
 
 __all__ = [
@@ -28,9 +32,11 @@ __all__ = [
     "ReturnContributionResult",
     "attribute_pnl",
     "attribute_pnl_envelope_json",
+    "attribute_pnl_many",
     "attribute_return_contribution",
     "default_attribution_metrics",
     "default_waterfall_order",
+    "pnl_bridge",
     "schema",
     "validate_attribution_json",
     "validate_return_contribution_json",
@@ -417,14 +423,14 @@ class PnlAttribution:
         ...
 
     @property
-    def t0(self) -> str:
+    def t0(self) -> datetime.date:
         """
-        Start date (T₀) as ISO string.
+        Start date (T₀).
 
         Returns
         -------
-        str
-            Start date (T₀) as ISO string.
+        datetime.date
+            Opening valuation date of the attribution window.
 
         Notes
         -----
@@ -433,18 +439,39 @@ class PnlAttribution:
         ...
 
     @property
-    def t1(self) -> str:
+    def t1(self) -> datetime.date:
         """
-        End date (T₁) as ISO string.
+        Closing date of the attribution window, at which the ending P&L is
+        struck (T₁).
 
         Returns
         -------
-        str
-            End date (T₁) as ISO string.
+        datetime.date
+            Calendar date, strictly after :attr:`t0`. All explained and
+            residual P&L components describe the move from ``t0`` to this
+            date.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def required_metrics(self) -> list[str]:
+        """
+        Risk metric ids the attribution method consumes.
+
+        Returns
+        -------
+        list[str]
+            Canonical snake-case metric ids (``theta``, ``dv01``, ``cs01``,
+            ``bucketed_cs01``, ``vega``, ... plus second-order terms) for
+            ``metrics_based``; an empty list for the repricing methods, which
+            use no pre-computed metrics.
+
+        Notes
+        -----
+        This method does not raise; it returns the stored or derived value.
         """
         ...
 
@@ -914,6 +941,10 @@ class PnlAttribution:
                 ``"vol"``, ``"cross_factor"``, ``"scalars"``,
                 ``"credit_factor"``, ``"carry"``, ``"inflation"``,
                 ``"correlations"``, ``"model_params"``).
+            sub: ``kind`` with the ``factor.`` prefix removed
+                (``"by_curve"``, ``"coupon_income.rates"``), so
+                ``df.pivot_table(index="factor", columns="sub", values="amount")``
+                works without string surgery.
             key_a: primary identifier (curve_id, pair label, vol_surface_id,
                 equity_id, level_name, sub-component name).
             key_b: secondary key when present (tenor, ``to``-currency, bucket
@@ -942,7 +973,9 @@ class PnlAttribution:
         """
         Export the carry decomposition as a typed long DataFrame.
 
-        Columns are the same as :meth:`to_long_dataframe` but the kind values
+        Columns (``kind``, ``factor``, ``sub``, ``key_a``, ``key_b``,
+        ``amount``, ``currency``) are the same as :meth:`to_long_dataframe`
+        but the kind values
         are limited to the ``"carry.*"`` family — useful when you only want the
         carry split (coupon income, pull-to-par, roll-down, funding cost),
         including the optional rates/credit splits when a credit
@@ -990,6 +1023,22 @@ class PnlAttribution:
         Returns
         -------
         str
+        """
+        ...
+
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
         """
         ...
 
@@ -1139,12 +1188,66 @@ class ReturnContributionResult:
         -------
         pd.DataFrame
             One row per instrument with ``id``, ``weight``, ``return``,
-            ``contribution``, and ``active_contribution`` columns.
+            ``contribution``, and ``active_contribution`` (``NaN`` when no
+            benchmark was supplied) columns; the schema columns are present
+            even for an empty result.
 
         Raises
         ------
         ValueError
             If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_group_dataframe(self) -> pd.DataFrame:
+        """
+        Group-bucket contributions as a long pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``dimension`` (the ``group:<dimension>`` label name),
+            ``key`` (bucket) and ``contribution``; empty with schema columns
+            when the spec carried no group labels.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_factor_dataframe(self) -> pd.DataFrame:
+        """
+        Factor contributions as a pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``factor``, ``exposure``, ``factor_return``,
+            ``contribution``; empty with schema columns when no factor rows
+            were supplied.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
         """
         ...
 
@@ -1215,14 +1318,14 @@ class ReturnContributionResult:
 # Entry Points
 
 def attribute_pnl(
-    instrument_json: str,
-    market_t0_json: str,
-    market_t1_json: str,
+    instrument: object,
+    market_t0: MarketContext | str,
+    market_t1: MarketContext | str,
     as_of_t0: datetime.date | str,
     as_of_t1: datetime.date | str,
     method: str | dict[str, Any],
-    config: dict[str, Any] | None = None,
-    full_cross_attribution: bool | None = None,
+    config: dict[str, Any] | str | None = None,
+    full_cross_attribution: bool = False,
     model_params_t0_json: str | None = None,
     credit_factor_model_json: str | None = None,
 ) -> PnlAttribution:
@@ -1230,35 +1333,43 @@ def attribute_pnl(
     Run P&L attribution for a single instrument.
 
     This is the main entry point. Accepts the instrument, two market
-    snapshots, valuation dates, and a method descriptor and returns the
-    typed attribution result. Use :func:`attribute_pnl_envelope_json` when you
-    want the raw JSON envelope round-trip instead.
+    snapshots, valuation dates, and a method descriptor — typed objects or
+    their canonical JSON — and returns the typed attribution result. Use
+    :func:`attribute_pnl_envelope_json` when you want the raw JSON envelope
+    round-trip instead, :func:`attribute_pnl_many` for a book.
 
     Parameters
     ----------
-    instrument_json : str
-        Canonical v1 instrument envelope
+    instrument : Bond | TermLoan | InterestRateSwap | Swaption | CapFloor | CreditDefaultSwap | CDSIndex | CDSTranche | FxForward | FxOption | ConvertibleBond | EquityOption | StructuredCredit | CompositeInstrument | str
+        Typed instrument wrapper from ``finstack_quant.valuations`` or a
+        canonical v1 instrument envelope JSON string
         (``{"schema": "finstack_quant.instrument/1", "instrument": {...}}``).
-    market_t0_json : str
-        JSON-serialized ``MarketContext`` at T₀.
-    market_t1_json : str
-        JSON-serialized ``MarketContext`` at T₁.
-    as_of_t0 : datetime.date | str
-        Valuation date T₀ in ISO 8601 format.
-    as_of_t1 : datetime.date | str
-        Valuation date T₁ in ISO 8601 format.
+    market_t0 : MarketContext | str
+        Market snapshot at T₀ (typed ``MarketContext`` or its JSON).
+    market_t1 : MarketContext | str
+        Market snapshot at T₁ (typed ``MarketContext`` or its JSON).
+    as_of_t0 : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Valuation date T₀; strings are ISO 8601 (``YYYY-MM-DD``).
+    as_of_t1 : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Valuation date T₁ in the same forms; must not precede ``as_of_t0``.
     method : str or dict[str, Any]
-        Attribution method — one of ``"parallel"``,
-        ``{"waterfall": ["carry", "rates_curves", ...]}``,
-        ``"metrics_based"``, or ``{"taylor": {"include_gamma": True, ...}}``.
-    config : dict[str, Any] or None
-        Optional config overrides (tolerance, metrics, bump sizes,
-        target currency, or ``{"execution_policy": "parallel"}`` to
-        opt into inner Rayon when the caller is not already
-        parallelizing at the portfolio/batch level). Serial is the
-        default.
-    full_cross_attribution : bool or None
-        Option to compute all 36 cross-factor pairs when enabled.
+        Attribution method — one of ``"parallel"``, ``"metrics_based"``,
+        ``{"taylor": {"include_gamma": True, ...}}``, or
+        ``{"waterfall": [...]}`` with factor tokens in application order
+        drawn from ``carry``, ``rates_curves``, ``credit_curves``,
+        ``inflation_curves``, ``correlations``, ``fx``, ``volatility``,
+        ``model_parameters``, ``market_scalars`` (the order must start with
+        ``carry``; :func:`default_waterfall_order` is the canonical full list).
+    config : dict[str, Any] or str or None
+        Optional config overrides (``tolerance_abs``, ``tolerance_pct``,
+        ``metrics``, ``strict_validation``, ``rounding_scale``,
+        ``rate_bump_bp``, ``target_currency``, or
+        ``{"execution_policy": "parallel"}`` to opt into inner Rayon when the
+        caller is not already parallelizing at the portfolio/batch level).
+        Serial is the default.
+    full_cross_attribution : bool, default False
+        Compute every pairwise cross-factor term (parallel method only)
+        instead of the default seven economic pairs.
     model_params_t0_json : str or None
         Serialized opening ``ModelParamsSnapshot``. When omitted, model-
         parameter P&L is isolated from the instrument's current snapshot.
@@ -1293,6 +1404,135 @@ def attribute_pnl(
     RuntimeError
         If calibration or solver convergence fails, or attribution encounters
         an internal operational failure.
+    """
+    ...
+
+def attribute_pnl_many(
+    instruments: list[object],
+    market_t0: MarketContext | str,
+    market_t1: MarketContext | str,
+    as_of_t0: datetime.date | str,
+    as_of_t1: datetime.date | str,
+    method: str | dict[str, Any],
+    config: dict[str, Any] | str | None = None,
+    full_cross_attribution: bool = False,
+    model_params_t0_json: str | None = None,
+    credit_factor_model_json: str | None = None,
+) -> pd.DataFrame:
+    """
+    Run one attribution set-up against many instruments and tabulate.
+
+    Every instrument shares the markets, dates, method and config; the batch
+    runs in Rust (``attribute_pnl_many``) in input order and stops at the
+    first failing instrument.
+
+    Parameters
+    ----------
+    instruments : list[object]
+        Typed instrument wrappers or canonical instrument envelope JSON
+        strings, in the row order wanted.
+    market_t0 : MarketContext | str
+        Market snapshot at T₀.
+    market_t1 : MarketContext | str
+        Market snapshot at T₁.
+    as_of_t0 : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Valuation date T₀.
+    as_of_t1 : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Valuation date T₁.
+    method : str or dict[str, Any]
+        Attribution method, as for :func:`attribute_pnl`.
+    config : dict[str, Any] or str or None
+        Config overrides, as for :func:`attribute_pnl`.
+    full_cross_attribution : bool, default False
+        Evaluate every pairwise cross-factor term (parallel method only).
+    model_params_t0_json : str or None
+        Serialized opening ``ModelParamsSnapshot`` applied to every instrument.
+    credit_factor_model_json : str or None
+        Serialized ``CreditFactorModel`` applied to every instrument.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per instrument with the columns of
+        :meth:`PnlAttribution.to_dataframe` (``instrument_id``, ``method``,
+        ``t0``, ``t1``, ``currency``, ``total_pnl``, every factor P&L,
+        ``residual``, ``residual_pct``, ``num_repricings``,
+        ``result_invalid``); empty with schema columns for an empty list.
+
+    Raises
+    ------
+    ValueError
+        If any input cannot be parsed, an instrument's attribution fails
+        validation / pricing, or a result mixes currencies across factors.
+    KeyError
+        If a required curve, market item, calendar, or FX leg is missing.
+    RuntimeError
+        If the engine reports an internal failure for any instrument.
+
+    Examples
+    --------
+    >>> from finstack_quant.attribution import attribute_pnl_many
+    >>> try:
+    ...     attribute_pnl_many(["{}"], "{}", "{}", "2025-01-15", "2025-01-16", "parallel")
+    ... except ValueError as exc:
+    ...     "instrument envelope" in str(exc)
+    True
+    """
+    ...
+
+def pnl_bridge(
+    instrument: object,
+    market_t0: MarketContext | str,
+    market_t1: MarketContext | str,
+    as_of_t0: datetime.date | str,
+    as_of_t1: datetime.date | str,
+    target_currency: Currency | str,
+) -> Money:
+    """
+    Headline P&L bridge ``value(T₁) − value(T₀)`` in one currency.
+
+    The cheapest attribution entry point — two repricings, no factor loop.
+    FX conversion into ``target_currency`` uses ``market_t0`` for the T₀
+    value and ``market_t1`` for the T₁ value.
+
+    Parameters
+    ----------
+    instrument : object
+        Typed instrument wrapper or canonical instrument envelope JSON.
+    market_t0 : MarketContext | str
+        Opening market state.
+    market_t1 : MarketContext | str
+        Closing market state.
+    as_of_t0 : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Opening valuation date.
+    as_of_t1 : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Closing valuation date.
+    target_currency : Currency | str
+        ISO-4217 currency the P&L is reported in.
+
+    Returns
+    -------
+    Money
+        ``value(T₁) − value(T₀)`` in ``target_currency``.
+
+    Raises
+    ------
+    ValueError
+        If the instrument JSON, a market, a date, or the currency is
+        malformed, or pricing fails validation.
+    KeyError
+        If a curve or FX rate needed for pricing or conversion is missing.
+    RuntimeError
+        If a pricer's solver fails to converge.
+
+    Examples
+    --------
+    >>> from finstack_quant.attribution import pnl_bridge
+    >>> try:
+    ...     pnl_bridge("{}", "{}", "{}", "2025-01-15", "2025-01-16", "USD")
+    ... except ValueError as exc:
+    ...     "instrument envelope" in str(exc)
+    True
     """
     ...
 
@@ -1337,42 +1577,73 @@ def attribute_pnl_envelope_json(spec_json: str) -> str:
     """
     ...
 
-def attribute_return_contribution(spec_json: str) -> ReturnContributionResult:
+def attribute_return_contribution(
+    spec: dict[str, Any] | str | pd.DataFrame,
+    as_of: datetime.date | str | None = None,
+    weighting: str | None = None,
+    factors: list[dict[str, Any]] | None = None,
+) -> ReturnContributionResult:
     """
     Compute single-period return contribution attribution.
 
     Parameters
     ----------
-    spec_json : str
-        JSON-serialized return contribution specification.
+    spec : dict[str, Any] or str or pandas.DataFrame
+        A ``dict`` or JSON ``str`` carries ``as_of``, ``positions``, optional
+        ``factors`` and ``weighting`` exactly as the wire schema (``as_of``
+        may be a ``datetime.date`` in the dict form). A ``DataFrame`` is one
+        position per row with columns ``id`` (or the index), exactly one of
+        ``market_value`` / ``weight``, ``return``, optional
+        ``benchmark_weight`` / ``benchmark_return``, and any number of
+        ``group:<dimension>`` label columns; missing optional cells may be
+        ``NaN``.
+    as_of : datetime.date or str, optional
+        Attribution date label. Required with a ``DataFrame`` spec; fills a
+        missing ``as_of`` in the dict form.
+    weighting : str, optional
+        ``"gross"`` (default) or ``"net_market_value"`` for market-value
+        positions; ``DataFrame`` form only.
+    factors : list[dict[str, Any]], optional
+        Factor rows ``{"factor", "exposure", "factor_return"}``;
+        ``DataFrame`` form only.
 
     Returns
     -------
     ReturnContributionResult
         Typed result. Use ``.to_json()`` for the wire form,
-        ``.to_dataframe()`` for per-instrument rows, and ``.to_series()`` for
-        contributions indexed by instrument id.
+        ``.to_dataframe()`` / ``.to_group_dataframe()`` /
+        ``.to_factor_dataframe()`` for tabular views, and ``.to_series()``
+        for contributions indexed by instrument id.
 
     Examples
     --------
-    >>> import json
+    >>> import pandas as pd
     >>> from finstack_quant.attribution import attribute_return_contribution
     >>> spec = {
     ...     "as_of": "2026-01-02",
-    ...     "weighting": "gross",
-    ...     "factors": [],
-    ...     "positions": [{"id": "A", "market_value": 100.0, "return": 0.02, "groups": {}}],
+    ...     "positions": [{"id": "A", "market_value": 100.0, "return": 0.02}],
     ... }
-    >>> attribute_return_contribution(json.dumps(spec)).portfolio_return
+    >>> attribute_return_contribution(spec).portfolio_return
     0.02
+    >>> frame = pd.DataFrame({
+    ...     "id": ["A", "B"],
+    ...     "weight": [0.6, 0.4],
+    ...     "return": [0.02, -0.01],
+    ...     "group:sector": ["tech", "energy"],
+    ... })
+    >>> round(attribute_return_contribution(frame, as_of="2026-01-02").portfolio_return, 6)
+    0.008
 
     Raises
     ------
     ValueError
-        If ``spec_json`` is malformed; required identifiers or positions are
-        empty; numeric inputs are non-finite; position weighting modes are
-        mixed or incomplete; factor or benchmark inputs are incomplete; or
-        benchmark-relative weights do not sum to one.
+        If the spec is malformed; ``as_of`` is missing for a DataFrame;
+        required identifiers or positions are empty; numeric inputs are
+        non-finite; position weighting modes are mixed or incomplete; factor
+        or benchmark inputs are incomplete; or benchmark-relative weights do
+        not sum to one.
+    TypeError
+        If ``spec`` is none of ``dict``, ``str``, ``pandas.DataFrame``.
     RuntimeError
         If result serialization fails or an internal post-validation invariant
         is violated.
@@ -1459,7 +1730,11 @@ def default_waterfall_order() -> list[str]:
     Returns
     -------
     list[str]
-        Canonical snake-case factor names in the default waterfall order.
+        Canonical snake-case factor tokens in the default waterfall order
+        (``carry``, ``rates_curves``, ``credit_curves``, ``inflation_curves``,
+        ``correlations``, ``fx``, ``volatility``, ``model_parameters``,
+        ``market_scalars``); pass a prefix or reordering to
+        ``attribute_pnl(method={"waterfall": [...]})``.
 
     Notes
     -----
@@ -1480,7 +1755,10 @@ def default_attribution_metrics() -> list[str]:
     Returns
     -------
     list[str]
-        Metric identifier strings.
+        Canonical snake-case metric ids (``theta``, ``dv01``, ``cs01``,
+        ``bucketed_cs01``, ``vega``, ...) — the tokens accepted by
+        ``config={"metrics": [...]}`` and returned by
+        :meth:`PnlAttribution.required_metrics`.
 
     Notes
     -----

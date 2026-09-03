@@ -516,23 +516,31 @@ class TestForwardCurveParity:
         )
         assert curve.rate(1.0) == pytest.approx(0.045, abs=1e-10)
 
-    def test_preexisting_optional_arguments_remain_positional(self) -> None:
-        """day_count, interp, and extrapolation preserve their positional order.
+    def test_optional_arguments_are_keyword_only(self) -> None:
+        """Everything after ``knots`` is keyword-only.
 
-        Positional order is ``(id, tenor, base_date, knots, ...)``, matching
-        the WASM constructor and the DiscountCurve convention.
+        Positional order is ``(id, tenor, base_date, knots)``; options such as
+        ``day_count`` must be named so a reordering can never be silent.
         """
         curve = ForwardCurve(
             "USD-SOFR",
             0.25,
             date(2024, 1, 1),
             [(0.0, 0.04), (1.0, 0.045)],
-            "act_360",
-            "linear",
-            "flat_forward",
+            day_count="act_360",
+            interp="linear",
+            extrapolation="flat_forward",
         )
         assert curve.rate(1.0) == pytest.approx(0.045, abs=1e-10)
         assert curve.projection_grid is None
+        with pytest.raises(TypeError):
+            ForwardCurve(  # type: ignore[misc]
+                "USD-SOFR",
+                0.25,
+                date(2024, 1, 1),
+                [(0.0, 0.04), (1.0, 0.045)],
+                "act_360",
+            )
 
     def test_reset_lag_is_constructible_and_readonly(self) -> None:
         curve = ForwardCurve(
@@ -540,11 +548,10 @@ class TestForwardCurveParity:
             0.25,
             date(2024, 1, 1),
             [(0.0, 0.04), (1.0, 0.045)],
-            "act_360",
-            "linear",
-            "flat_forward",
-            None,
-            3,
+            day_count="act_360",
+            interp="linear",
+            extrapolation="flat_forward",
+            reset_lag=3,
         )
         assert curve.reset_lag == 3
         with pytest.raises(AttributeError):
@@ -592,7 +599,7 @@ class TestForwardCurveParity:
 
     def test_constructor_runtime_signature_matches_stub(self) -> None:
         assert str(signature(ForwardCurve)) == (
-            "(id, tenor, base_date, knots, day_count=None, interp=None, "
+            "(id, tenor, base_date, knots, *, day_count=None, interp=None, "
             "extrapolation=None, projection_grid=None, reset_lag=None)"
         )
 
@@ -736,7 +743,7 @@ class TestMarketContextParity:
             "CDX-IG-HAZARD",
             date(2024, 1, 1),
             [(0.0, 0.01), (5.0, 0.015)],
-            0.40,
+            recovery_rate=0.40,
         )
         correlation = BaseCorrelationCurve("CDX-IG-CORR", [(3.0, 0.20), (10.0, 0.45)])
         index = CreditIndexData(125, 0.40, hazard, correlation)
@@ -762,7 +769,7 @@ class TestMarketContextParity:
             "BOUNDARY-RECOVERY",
             date(2024, 1, 1),
             [(0.0, 0.01), (5.0, 0.015)],
-            recovery,
+            recovery_rate=recovery,
         )
         assert curve.recovery_rate == recovery
 
@@ -977,11 +984,12 @@ class TestLinalgParity:
         assert x == pytest.approx([0.125, 0.25])
 
     def test_cholesky_solve_singular_raises(self) -> None:
-        """Singular factor triggers the dedicated CholeskyError."""
+        """Singular factor maps through core_to_py to a plain ValueError."""
         from finstack_quant.core.math.linalg import CholeskyError, cholesky_solve
 
-        with pytest.raises(CholeskyError, match=r"(?i)invalid|singular|zero|solve"):
+        with pytest.raises(ValueError, match=r"(?i)invalid|singular|zero|solve") as excinfo:
             cholesky_solve([[0.0]], [1.0])
+        assert not isinstance(excinfo.value, CholeskyError)
 
 
 class TestScheduleParity:

@@ -16,6 +16,32 @@ pub enum Inequality {
     Eq,
 }
 
+impl std::str::FromStr for Inequality {
+    type Err = crate::error::Error;
+
+    /// Parse an inequality from its serde name or symbol alias.
+    ///
+    /// Accepts `le`/`<=`, `ge`/`>=` and `eq`/`==`.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - Operator text; matching is exact (no trimming, no case folding).
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-input error naming the unrecognised text.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "le" | "<=" => Ok(Self::Le),
+            "ge" | ">=" => Ok(Self::Ge),
+            "eq" | "==" => Ok(Self::Eq),
+            other => Err(crate::error::Error::invalid_input(format!(
+                "Unknown inequality {other:?}; expected one of le/ge/eq or <=/>=/=="
+            ))),
+        }
+    }
+}
+
 /// Declarative constraint specification.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]

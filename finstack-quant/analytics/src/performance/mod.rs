@@ -58,7 +58,7 @@ mod table;
 /// assert_eq!(perf.cagr(finstack_quant_analytics::CagrDayCount::Act365_25, None)?.len(), 2);
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Performance {
     price_dates: Vec<Date>,
     dates: Vec<Date>,
@@ -73,7 +73,7 @@ pub struct Performance {
     end_idx: usize,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 struct TickerSpan {
     start: usize,
     end: usize,
@@ -733,6 +733,63 @@ impl Performance {
         );
     }
 
+    /// Resolve a ticker name to its zero-based column index.
+    ///
+    /// Hosts use this to accept either an index or a name wherever a
+    /// per-ticker method takes `ticker_idx`.
+    ///
+    /// # Arguments
+    ///
+    /// * `ticker` - Ticker name exactly as supplied in `ticker_names` at
+    ///   construction (case-sensitive).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::InputError::NotFound`] when `ticker` is not
+    /// among the loaded ticker names.
+    pub fn ticker_index(&self, ticker: &str) -> crate::Result<usize> {
+        self.ticker_names
+            .iter()
+            .position(|name| name == ticker)
+            .ok_or_else(|| {
+                crate::error::InputError::NotFound {
+                    id: format!("ticker '{ticker}' (loaded: {:?})", self.ticker_names),
+                }
+                .into()
+            })
+    }
+
+    /// Reject a tail `confidence` outside the open interval `(0, 1)`.
+    ///
+    /// Tail metrics (`value_at_risk`, `expected_shortfall`, `tail_ratio`,
+    /// `cdar`, `parametric_var`, `cornish_fisher_var`, `modified_sharpe`)
+    /// route through this guard so a confidence such as `95.0` or `1.0`
+    /// surfaces as an explicit error rather than a `NaN` column.
+    fn ensure_confidence(confidence: f64) -> crate::Result<()> {
+        if confidence.is_finite() && confidence > 0.0 && confidence < 1.0 {
+            Ok(())
+        } else {
+            Err(crate::error::Error::Validation(format!(
+                "confidence must lie in the open interval (0, 1); got {confidence}"
+            )))
+        }
+    }
+
+    /// Reject a zero rolling `window`.
+    ///
+    /// A window longer than the active series still yields an empty
+    /// [`crate::DatedSeries`] (there is simply no complete window); a zero
+    /// window is a caller error and is rejected here.
+    fn ensure_window(window: usize) -> crate::Result<()> {
+        if window == 0 {
+            Err(crate::error::Error::Validation(
+                "rolling window must be at least 1 observation".to_string(),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Reject `ticker_idx` outside the loaded ticker columns.
     ///
     /// Per-ticker public methods route through this guard so an invalid index
@@ -894,6 +951,8 @@ impl Performance {
 /// Lookback returns for each period horizon.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LookbackReturns {
+    /// Ticker names aligned with every per-ticker vector below.
+    pub ticker_names: Vec<String>,
     /// Month-to-date compounded return per ticker.
     pub mtd: Vec<f64>,
     /// Quarter-to-date compounded return per ticker.

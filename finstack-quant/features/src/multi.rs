@@ -7,7 +7,8 @@
 use crate::cross_sectional::apply_cross_sectional_op;
 use crate::index::{sorted_indices, try_for_each_entity, try_for_each_trailing_window};
 use crate::types::{
-    bool_param, finite, op_from_str, usize_param, validate_lengths, ZERO_TOLERANCE,
+    bool_param, finite, op_from_str, reject_unknown_params, usize_param, validate_lengths,
+    ZERO_TOLERANCE,
 };
 use crate::{transform_cross_sectional, transform_cross_sectional_with_op, CrossSectionalOp};
 use finstack_quant_core::math::linalg::{cholesky_decomposition, cholesky_solve};
@@ -34,7 +35,31 @@ impl FromStr for PairwiseOp {
     type Err = Error;
 
     fn from_str(op: &str) -> Result<Self> {
-        op_from_str(op, "pairwise time-series")
+        op_from_str(op, "pairwise time-series", &Self::names())
+    }
+}
+
+impl PairwiseOp {
+    /// Every operation, in declaration order.
+    pub const ALL: &'static [Self] = &[Self::RollingCov, Self::RollingCorr, Self::RollingBeta];
+
+    /// Canonical snake_case name accepted by [`transform_timeseries_pairwise`].
+    #[must_use]
+    pub fn name(self) -> String {
+        crate::types::op_name(&self)
+    }
+
+    /// Canonical names of every operation, in [`Self::ALL`] order.
+    #[must_use]
+    pub fn names() -> Vec<String> {
+        Self::ALL.iter().map(|op| op.name()).collect()
+    }
+
+    /// JSON parameter keys every pairwise operation reads (`window`,
+    /// `min_periods`); any other key is rejected.
+    #[must_use]
+    pub fn param_keys(self) -> &'static [&'static str] {
+        &["window", "min_periods"]
     }
 }
 
@@ -94,6 +119,7 @@ pub fn transform_cross_sectional_grouped_with_op(
         values.len(),
         &[("time_key", time_key.len()), ("groups", groups.len())],
     )?;
+    reject_unknown_params(params, &op.name(), op.param_keys())?;
     let partitions = crate::index::partition_by_pair(time_key, groups);
 
     let mut output = vec![None; values.len()];
@@ -131,6 +157,7 @@ pub fn neutralize(
 ) -> Result<Vec<Option<f64>>> {
     validate_exposures(values.len(), exposures)?;
     validate_lengths(values.len(), &[("time_key", time_key.len())])?;
+    reject_unknown_params(params, "neutralize", &["fit_intercept"])?;
     let fit_intercept = bool_param(params, "fit_intercept", true)?;
     let partitions = crate::index::partition_by_key(time_key);
 
@@ -220,6 +247,7 @@ pub fn transform_timeseries_pairwise_with_op(
             ("order", order.len()),
         ],
     )?;
+    reject_unknown_params(params, &op.name(), op.param_keys())?;
     let window = usize_param(params, "window", 1)?;
     let min_periods = usize_param(params, "min_periods", window)?;
     let required = min_periods.max(2);
@@ -279,6 +307,11 @@ pub fn rolling_regression_residual(
     validate_lengths(
         values.len(),
         &[("entity", entity.len()), ("order", order.len())],
+    )?;
+    reject_unknown_params(
+        params,
+        "rolling_regression_residual",
+        &["window", "min_periods", "fit_intercept"],
     )?;
     let window = usize_param(params, "window", 1)?;
     let min_periods = usize_param(params, "min_periods", window)?;
@@ -385,7 +418,14 @@ pub fn normalize_signal(
     params: Option<&Value>,
 ) -> Result<Vec<Option<f64>>> {
     let method = string_param(params, "method", "zscore")?;
-    transform_cross_sectional(values, time_key, method, params)
+    // `method` selects the op; strip it so the op's own strict parameter check
+    // only sees the keys that op reads.
+    let op_params = params.and_then(|value| {
+        let mut object = value.as_object()?.clone();
+        object.remove("method");
+        Some(Value::Object(object))
+    });
+    transform_cross_sectional(values, time_key, method, op_params.as_ref())
 }
 
 /// Convert cross-sectional ranks into gross-normalized long/short weights.

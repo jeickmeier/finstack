@@ -87,8 +87,13 @@ impl PyPrincipalEvent {
     /// Debug-style representation.
     fn __repr__(&self) -> String {
         format!(
-            "PrincipalEvent(date={}, kind='{}')",
-            self.inner.date, self.inner.kind
+            "PrincipalEvent(date='{}', delta={} {}, cash={} {}, kind='{}')",
+            self.inner.date,
+            self.inner.delta.amount(),
+            self.inner.delta.currency(),
+            self.inner.cash.amount(),
+            self.inner.cash.currency(),
+            self.inner.kind
         )
     }
 }
@@ -363,8 +368,21 @@ impl PyCashFlowBuilder {
             .map_err(core_to_py)
     }
 
-    /// Debug-style representation.
+    /// Python-style summary of what has been configured so far.
     fn __repr__(&self) -> String {
-        "CashFlowBuilder(...)".to_string()
+        let principal = self.inner.principal_notional().map_or_else(
+            || "None".to_string(),
+            |n| format!("{} {}", n.initial.amount(), n.initial.currency()),
+        );
+        let horizon = match (self.inner.issue_date(), self.inner.maturity_date()) {
+            (Some(issue), Some(maturity)) => format!("'{issue}'..'{maturity}'"),
+            _ => "None".to_string(),
+        };
+        format!(
+            "CashFlowBuilder(principal={principal}, horizon={horizon}, coupon_legs={}, fees={}, principal_events={})",
+            self.inner.coupon_leg_count(),
+            self.inner.fee_count(),
+            self.inner.principal_event_count(),
+        )
     }
 }

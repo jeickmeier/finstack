@@ -2032,7 +2032,7 @@ export interface LmeAnalysis {
  * ```typescript
  * import init, { core } from "finstack-quant-wasm";
  * await init();
- * console.log(core.meanArray([1, 2, 3]));
+ * console.log(core.mean([1, 2, 3]));
  * ```
  */
 export interface CoreNamespace {
@@ -2709,6 +2709,10 @@ export interface MultiFactorResult {
  */
 export interface LookbackReturns {
   /**
+   * Ticker names aligned with every per-ticker vector below.
+   */
+  ticker_names: string[];
+  /**
    * Month-to-date simple returns per ticker in `tickerNames()` order.
    */
   mtd: number[];
@@ -2895,12 +2899,14 @@ export declare class Performance {
    * Historical value-at-risk per asset at the given confidence level.
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @throws Error - Rejects a `confidence` outside the open interval (0, 1).
    */
   valueAtRisk(confidence?: number): Float64Array;
   /**
    * Expected shortfall (CVaR) per asset at the given confidence level.
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @throws Error - Rejects a `confidence` outside the open interval (0, 1).
    */
   expectedShortfall(confidence?: number): Float64Array;
   /**
@@ -3004,6 +3010,7 @@ export declare class Performance {
    * Tail ratio of upper to lower return quantiles per asset.
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @throws Error - Rejects a `confidence` outside the open interval (0, 1).
    */
   tailRatio(confidence?: number): Float64Array;
   /**
@@ -3024,6 +3031,7 @@ export declare class Performance {
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
    * @param horizonPeriods - Optional horizon in observation periods; omitted is one-period VaR.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @throws Error - Rejects a `confidence` outside the open interval (0, 1).
    */
   parametricVar(confidence?: number, horizonPeriods?: number): Float64Array;
   /**
@@ -3034,12 +3042,14 @@ export declare class Performance {
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
    * @param horizonPeriods - Optional horizon in observation periods; omitted is one-period VaR.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @throws Error - Rejects a `confidence` outside the open interval (0, 1).
    */
   cornishFisherVar(confidence?: number, horizonPeriods?: number): Float64Array;
   /**
    * Conditional drawdown-at-risk per asset at the given confidence level.
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @throws Error - Rejects a `confidence` outside the open interval (0, 1).
    */
   cdar(confidence?: number): Float64Array;
   /**
@@ -3055,6 +3065,7 @@ export declare class Performance {
    * @param riskFreeRate - Annualized decimal risk-free rate, decompounded to the panel frequency before constructing annualized excess return; defaults to 0.0.
    * @param confidence - Annual-horizon tail confidence as a decimal probability; defaults to 0.95.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+   * @throws Error - Rejects a `confidence` outside the open interval (0, 1).
    */
   modifiedSharpe(riskFreeRate?: number, confidence?: number): Float64Array;
   /**
@@ -3123,7 +3134,7 @@ export declare class Performance {
    * const [[point]] = perf.periodicReturns();
    * console.log(point.date, point.value); // "2024-01-02", 0.0302
    * ```
-   * @param frequency - Optional calendar frequency token: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"semiannual"`, or `"annual"`; defaults to `"monthly"`.
+   * @param frequency - Optional calendar frequency token: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"semi_annual"`, or `"annual"` (pandas offset aliases `D`/`B`, `W`, `M`, `Q`, `A`/`Y` are accepted too); defaults to `"monthly"`.
    * @returns Ticker-major nested arrays of chronological period-end points with simple decimal returns.
    * @throws Error - Rejects an unsupported frequency or a failure to create a point property on the JavaScript result object.
    */
@@ -3143,6 +3154,12 @@ export declare class Performance {
    * @throws Error - Rejects a degenerate pair or a matrix that cannot be repaired to a valid correlation matrix.
    */
   correlationMatrix(): Float64Array[];
+  /**
+   * `true` when `correlationMatrix()` had to be Higham-repaired to the nearest valid correlation matrix (ragged panels can yield a raw pairwise estimate that is not positive semi-definite).
+   * @returns `true` when the estimate was projected to the nearest correlation matrix.
+   * @throws Error - Rejects when a ticker pair is degenerate or Higham repair fails.
+   */
+  correlationMatrixRepaired(): boolean;
   /**
    * Cumulative outperformance versus the benchmark per asset.
    * @returns One Float64Array per ticker in `tickerNames()` order.
@@ -3331,6 +3348,40 @@ export interface AnalyticsNamespace {
     returns: NumericArray,
     weights: NumericArray
   ): Float64Array;
+  /**
+   * Sharpe ratio of one return series (annualized excess mean over
+   * annualized sample volatility; the same kernel as `Performance.sharpe`).
+   * @param returns - Per-period simple decimal returns in date order.
+   * @param rf - Annualized risk-free rate as a decimal; defaults to `0`.
+   * @param periodsPerYear - Observations per year used to annualize; defaults to `252`.
+   * @returns The Sharpe ratio; `±Infinity` when volatility is zero with a non-zero excess return, `NaN` for an invalid `periodsPerYear`.
+   * @throws Error - Rejects a `returns` value that is not a numeric array.
+   */
+  sharpe(returns: NumericArray, rf?: number, periodsPerYear?: number): number;
+  /**
+   * Annualized Sortino ratio of one return series.
+   * @param returns - Per-period simple decimal returns in date order.
+   * @param mar - Minimum acceptable return per period as a decimal; defaults to `0`.
+   * @param periodsPerYear - Observations per year used to annualize; defaults to `252`.
+   * @returns The Sortino ratio; `±Infinity` with no downside deviation but a non-zero excess mean, `NaN` for an invalid `periodsPerYear`.
+   * @throws Error - Rejects a `returns` value that is not a numeric array.
+   */
+  sortino(returns: NumericArray, mar?: number, periodsPerYear?: number): number;
+  /**
+   * Annualized sample volatility (n−1 denominator) of one return series.
+   * @param returns - Per-period simple decimal returns in date order.
+   * @param periodsPerYear - Observations per year; the per-period standard deviation is scaled by its square root. Defaults to `252`.
+   * @returns Annualized volatility as a decimal; `0` for an empty array, `NaN` for an invalid `periodsPerYear`.
+   * @throws Error - Rejects a `returns` value that is not a numeric array.
+   */
+  volatility(returns: NumericArray, periodsPerYear?: number): number;
+  /**
+   * Maximum peak-to-trough drawdown of one return series.
+   * @param returns - Per-period simple decimal returns in date order.
+   * @returns Non-positive fraction (`-0.25` is a 25% loss); `0` when the series never falls below its running peak or is empty.
+   * @throws Error - Rejects a `returns` value that is not a numeric array.
+   */
+  maxDrawdown(returns: NumericArray): number;
 }
 
 /**
@@ -4268,10 +4319,10 @@ export interface CopulaSpecConstructor {
   /**
    * Student-t copula with specified degrees of freedom (must be > 2).
    * @returns A `CopulaSpec` handle for deferred construction.
-   * @param df - Positive Student-t copula degrees of freedom controlling tail thickness.
-   * @throws Error - Throws a JavaScript exception if `df` is not finite and strictly greater than two.
+   * @param degreesOfFreedom - Student-t degrees of freedom controlling tail thickness; finite and strictly greater than two.
+   * @throws Error - Throws a JavaScript exception if `degreesOfFreedom` is not finite and strictly greater than two.
    */
-  studentT(df: number): CopulaSpec;
+  studentT(degreesOfFreedom: number): CopulaSpec;
   /**
    * Random Factor Loading copula with stochastic correlation.
    * @returns A `CopulaSpec` handle for deferred construction.
@@ -4569,8 +4620,8 @@ export interface CorrelationNamespace {
 }
 
 // --- models.monteCarlo ----------------------------------------------------------
-// Host-neutral subset shared with Python: Heston Monte Carlo pricing and
-// Black-Scholes analytical references.
+// Host-neutral subset shared with Python: Heston Monte Carlo pricing. The
+// closed-form Black-Scholes references live at `models.bsPrice`.
 
 /**
  * Namespaced TypeScript entry points for Monte Carlo calculations.
@@ -4578,8 +4629,10 @@ export interface CorrelationNamespace {
  * ```typescript
  * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const price = models.monteCarlo.blackScholesCall(100, 100, 0.03, 0, 0.2, 1);
- * console.log(price);
+ * const est = models.monteCarlo.priceHestonCall(
+ *   100, 100, 0.05, 0.0, 2.0, 0.04, 0.3, -0.7, 0.04, 1.0, 5000, 42n,
+ * );
+ * console.log(est.mean);
  * ```
  */
 export interface MonteCarloNamespace {
@@ -4653,42 +4706,6 @@ export interface MonteCarloNamespace {
     numSteps?: number,
     currency?: string
   ): MonteCarloEstimateJson;
-  /**
-   * Black-Scholes call price.
-   * @returns Discounted call price in the same units as `spot`.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   */
-  blackScholesCall(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number
-  ): number;
-  /**
-   * Black-Scholes put price.
-   * @returns Discounted put price in the same units as `spot`.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   */
-  blackScholesPut(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number
-  ): number;
 }
 
 /**
@@ -5027,7 +5044,7 @@ export interface CovenantsNamespace {
    * @param interestCoverage - Minimum EBITDA-to-cash-interest coverage ratio.
    * @param fixedChargeCoverage - Minimum EBITDA-to-fixed-charges coverage ratio.
    * @param maxCapex - Maximum capital expenditure amount or ratio in the covenant convention.
-   * @throws Error - Throws a JavaScript exception if the generated covenant package cannot be serialized to JSON.
+   * @throws Error - Throws a JavaScript exception if any threshold is `NaN`, infinite or negative, or if the generated covenant package cannot be serialized to JSON.
    */
   lboStandardJson(
     initialLeverage: number,
@@ -5040,7 +5057,7 @@ export interface CovenantsNamespace {
    * @returns Covenant-lite package as canonical JSON.
    * @param maxLeverage - Maximum total debt-to-EBITDA leverage ratio.
    * @param maxSeniorLeverage - Maximum senior-debt-to-EBITDA leverage ratio.
-   * @throws Error - Throws a JavaScript exception if the generated covenant package cannot be serialized to JSON.
+   * @throws Error - Throws a JavaScript exception if any threshold is `NaN`, infinite or negative, or if the generated covenant package cannot be serialized to JSON.
    */
   covLiteJson(maxLeverage: number, maxSeniorLeverage: number): string;
   /**
@@ -5049,7 +5066,7 @@ export interface CovenantsNamespace {
    * @param minDscr - Minimum debt-service coverage ratio.
    * @param minDebtYield - Minimum net-operating-income debt yield expressed as a decimal.
    * @param maxLtv - Maximum loan-to-value ratio expressed as a decimal.
-   * @throws Error - Throws a JavaScript exception if the generated covenant package cannot be serialized to JSON.
+   * @throws Error - Throws a JavaScript exception if any threshold is `NaN`, infinite or negative, or if the generated covenant package cannot be serialized to JSON.
    */
   realEstateJson(minDscr: number, minDebtYield: number, maxLtv: number): string;
   /**
@@ -5059,7 +5076,7 @@ export interface CovenantsNamespace {
    * @param distributionLockupDscr - DSCR threshold below which borrower distributions are locked up.
    * @param minLiquidity - Minimum required liquidity reserve in the model's monetary units.
    * @param maxNetLeverage - Maximum net-debt-to-EBITDA leverage ratio.
-   * @throws Error - Throws a JavaScript exception if the generated covenant package cannot be serialized to JSON.
+   * @throws Error - Throws a JavaScript exception if any threshold is `NaN`, infinite or negative, or if the generated covenant package cannot be serialized to JSON.
    */
   projectFinanceJson(
     minDscr: number,
@@ -6377,6 +6394,13 @@ export interface SabrCalibrator extends WasmOwned {
    */
   withTolerance(tolerance: number): SabrCalibrator;
   /**
+   * Return a copy of this calibrator with an overridden iteration cap,
+   * preserving all other settings.
+   * @returns A `SabrCalibrator` handle.
+   * @param maxIterations - Positive cap on solver iterations before a non-convergence error; pair a tight tolerance with a larger budget.
+   */
+  withMaxIterations(maxIterations: number): SabrCalibrator;
+  /**
    * Calibrate `(alpha, nu, rho)` to market vols with `beta` fixed.
    * @returns A `SabrParameters` handle.
    * @param forward - Forward price or rate in the same quote convention as the strike.
@@ -6647,7 +6671,7 @@ export interface ModelCreditNamespace {
     recovery: number,
     totalDebt: number,
     riskFreeRate: number,
-    maturity: number,
+    expiry: number,
     assetValue: number,
     payoutRate: number
   ): string;
@@ -7351,6 +7375,66 @@ export interface VolatilityNamespace {
    * @param expiry - Positive option expiry in years.
    */
   strikeToDelta(strike: number, forward: number, volatility: number, expiry: number): number;
+  /**
+   * Convert an ATM volatility quote between normal, lognormal and shifted-lognormal conventions.
+   * @returns Volatility in the target convention (decimal Black vol, or absolute normal vol).
+   * @param vol - Input volatility in the source convention; positive.
+   * @param fromConvention - `"normal"`, `"lognormal"`, or `{ shifted_lognormal: { shift } }` with `shift` in the forward's rate units.
+   * @param toConvention - Target convention in the same encoding.
+   * @param forwardRate - ATM forward rate or price used as both forward and strike.
+   * @param timeToExpiry - Time to expiry in years (non-negative).
+   * @throws Error - Throws a JavaScript exception if a convention cannot be decoded, an input is outside its domain, or the price-matching solver fails to converge.
+   */
+  convertAtmVolatility(
+    vol: number,
+    fromConvention: VolatilityConvention,
+    toConvention: VolatilityConvention,
+    forwardRate: number,
+    timeToExpiry: number
+  ): number;
+  /**
+   * Calibrate Gatheral SVI parameters to a market smile.
+   * @returns Validated SVI parameters `{ a, b, rho, m, sigma }`.
+   * @param strikes - Positive strikes (at least five).
+   * @param vols - Black implied vols (decimal) aligned one-for-one with `strikes`.
+   * @param forward - Positive forward at `expiry`.
+   * @param expiry - Positive time to expiry in years.
+   * @throws Error - Throws a JavaScript exception if lengths differ, fewer than five quotes are supplied, an input is outside its domain, the optimizer fails to converge, or the fit violates the SVI no-arbitrage conditions.
+   */
+  calibrateSvi(strikes: number[], vols: number[], forward: number, expiry: number): SviParams;
+  /**
+   * Black implied volatility from SVI parameters at log-moneyness `k = ln(K / F)`.
+   * @returns Annualized Black volatility as a decimal.
+   * @param params - SVI parameter object `{ a, b, rho, m, sigma }`; validated on decode.
+   * @param k - Log-moneyness `ln(K / F)`.
+   * @param t - Positive time to expiry in years.
+   * @throws Error - Throws a JavaScript exception if `params` fails validation, `t` is not positive, or the total variance at `k` is negative.
+   */
+  sviImpliedVol(params: SviParams, k: number, t: number): number;
+}
+
+/**
+ * Volatility quoting convention (serde form of the Rust `VolatilityConvention` enum).
+ */
+export type VolatilityConvention =
+  | 'normal'
+  | 'lognormal'
+  | { shifted_lognormal: { shift: number } };
+
+/**
+ * Gatheral SVI total-variance parameters `w(k) = a + b (rho (k - m) + sqrt((k - m)^2 + sigma^2))`.
+ */
+export interface SviParams {
+  /** Overall total-variance level. */
+  a: number;
+  /** Wing slope (non-negative). */
+  b: number;
+  /** Rotation / asymmetry in `(-1, 1)`. */
+  rho: number;
+  /** Log-moneyness translation of the minimum-variance point. */
+  m: number;
+  /** Vertex smoothing (positive). */
+  sigma: number;
 }
 
 /**
@@ -7433,13 +7517,46 @@ export interface LiquidityNamespace {
   ): ImpactEstimate;
   /**
    * Estimate price-space Kyle lambda using an Amihud-ratio proxy.
-   * @param volumesJson - JSON array of positive volume observations.
-   * @param returnsJson - JSON array of decimal returns aligned with the volumes.
+   *
+   * Argument order matches `amihudIlliquidity`: returns first, then volumes.
+   * @param returnsJson - JSON array of decimal returns in time order.
+   * @param volumesJson - JSON array of positive volume observations aligned with the returns.
    * @param referencePrice - Positive price per share or contract.
    * @returns Estimated price-space impact coefficient, or `undefined` for invalid inputs.
    * @throws Error - Throws a JavaScript exception if either JSON input is malformed or is not a numeric array. Invalid estimator samples return `undefined`.
    */
-  kyleLambda(volumesJson: string, returnsJson: string, referencePrice: number): number | undefined;
+  kyleLambda(returnsJson: string, volumesJson: string, referencePrice: number): number | undefined;
+}
+
+/**
+ * Black-Scholes / Garman-Kohlhagen Greeks (canonical Rust `BsGreeks` fields).
+ * `vega`, `rho_r`, `rho_q` are per 1% move; `theta` is per day.
+ */
+export interface BsGreeks {
+  /** Spot delta per unit of underlying. */
+  delta: number;
+  /** Gamma per unit of underlying. */
+  gamma: number;
+  /** Vega per 1% (0.01) move in volatility. */
+  vega: number;
+  /** Theta per day under the `thetaDays` basis. */
+  theta: number;
+  /** Rho to the domestic / risk-free rate per 1% move. */
+  rho_r: number;
+  /** Rho to the dividend yield / foreign rate per 1% move. */
+  rho_q: number;
+}
+
+/**
+ * Undiscounted forward-measure Greeks returned by `black76Greeks` / `bachelierGreeks`.
+ */
+export interface ForwardGreeks {
+  /** Forward delta. */
+  delta: number;
+  /** Forward gamma. */
+  gamma: number;
+  /** Vega per unit (1.0) change in the model volatility. */
+  vega: number;
 }
 
 /**
@@ -7497,10 +7614,10 @@ export interface ModelsNamespace {
    * const price = models.bsPrice(
    *   100,    // spot
    *   100,    // strike (ATM)
-   *   0.05,   // r = 5%
-   *   0.0,    // q = 0
-   *   0.20,   // sigma = 20%
-   *   1.0,    // 1 year
+   *   0.05,   // rate = 5%
+   *   0.0,    // divYield = 0
+   *   0.20,   // vol = 20%
+   *   1.0,    // expiry = 1 year
    *   true,   // call
    * );
    * // price ≈ 10.45
@@ -7508,10 +7625,10 @@ export interface ModelsNamespace {
    *
    * @param spot - Spot price of the underlying.
    * @param strike - Strike of the option.
-   * @param r - Risk-free rate, **decimal** continuously compounded (e.g. `0.05` for 5%).
-   * @param q - Continuous dividend yield (or foreign rate for FX), **decimal** continuously compounded.
-   * @param sigma - Annualized volatility, **decimal** (e.g. `0.20` for 20%).
-   * @param t - Time to expiry in **years**.
+   * @param rate - Risk-free rate, **decimal** continuously compounded (e.g. `0.05` for 5%).
+   * @param divYield - Continuous dividend yield (or foreign rate for FX), **decimal** continuously compounded.
+   * @param vol - Annualized volatility, **decimal** (e.g. `0.20` for 20%).
+   * @param expiry - Time to expiry in **years**.
    * @param isCall - `true` for a call, `false` for a put.
    * @returns Per-unit option price.
    * @throws If the inputs produce a non-finite price (e.g. negative volatility).
@@ -7519,10 +7636,10 @@ export interface ModelsNamespace {
   bsPrice(
     spot: number,
     strike: number,
-    r: number,
-    q: number,
-    sigma: number,
-    t: number,
+    rate: number,
+    divYield: number,
+    vol: number,
+    expiry: number,
     isCall: boolean
   ): number;
   /**
@@ -7548,7 +7665,7 @@ export interface ModelsNamespace {
     isCall: boolean
   ): number;
   /**
-   * Black-Scholes / Garman-Kohlhagen Greeks as a `{delta, gamma, vega, theta, rho, rho_q}` object.
+   * Black-Scholes / Garman-Kohlhagen Greeks as a `{delta, gamma, vega, theta, rho_r, rho_q}` object.
    *
    * Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973.
    * Merton (1973): see docs/REFERENCES.md#merton-1973.
@@ -7561,32 +7678,25 @@ export interface ModelsNamespace {
    * ```
    * @param spot - Spot price of the underlying.
    * @param strike - Strike of the option.
-   * @param r - Risk-free rate, **decimal** continuously compounded.
-   * @param q - Dividend yield (or foreign rate for FX), **decimal** continuously compounded.
-   * @param sigma - Annualized volatility, **decimal**.
-   * @param t - Time to expiry in **years**.
+   * @param rate - Risk-free rate, **decimal** continuously compounded.
+   * @param divYield - Dividend yield (or foreign rate for FX), **decimal** continuously compounded.
+   * @param vol - Annualized volatility, **decimal**; must be positive.
+   * @param expiry - Time to expiry in **years**; must be positive.
    * @param isCall - `true` for a call, `false` for a put.
    * @param thetaDays - Day-count denominator for theta. Default `365`. Pass `252` for trading-day theta.
-   * @returns Object `{ delta, gamma, vega, theta, rho, rho_q }` (snake_case keys matching the Rust/Python canonical names). `vega` and both rho values are **per 1% move**; `theta` is **per day** under `thetaDays`.
-   * @throws If serialization to JS fails (should not happen on valid inputs).
+   * @returns Object `{ delta, gamma, vega, theta, rho_r, rho_q }` (snake_case keys matching the Rust/Python canonical `BsGreeks` fields). `vega` and both rho values are **per 1% move**; `theta` is **per day** under `thetaDays`.
+   * @throws If an input is non-finite or `vol` / `expiry` / `thetaDays` is not positive.
    */
   bsGreeks(
     spot: number,
     strike: number,
-    r: number,
-    q: number,
-    sigma: number,
-    t: number,
+    rate: number,
+    divYield: number,
+    vol: number,
+    expiry: number,
     isCall: boolean,
     thetaDays?: number
-  ): {
-    delta: number;
-    gamma: number;
-    vega: number;
-    theta: number;
-    rho: number;
-    rho_q: number;
-  };
+  ): BsGreeks;
   /**
    * Solve for Black-Scholes / Garman-Kohlhagen implied volatility.
    *
@@ -7601,20 +7711,20 @@ export interface ModelsNamespace {
    * ```
    * @param spot - Spot price of the underlying.
    * @param strike - Strike of the option.
-   * @param r - Risk-free rate, **decimal** continuously compounded.
-   * @param q - Dividend yield, **decimal** continuously compounded.
-   * @param t - Time to expiry in **years**.
+   * @param rate - Risk-free rate, **decimal** continuously compounded.
+   * @param divYield - Dividend yield, **decimal** continuously compounded.
+   * @param expiry - Time to expiry in **years**; must be positive.
    * @param price - Observed option price (per unit).
    * @param isCall - `true` for a call, `false` for a put.
    * @returns Annualized implied volatility, **decimal** (e.g. `0.20`).
-   * @throws If `price` is below intrinsic value, above the no-arbitrage upper bound, or the solver fails to converge.
+   * @throws If `expiry` is not positive, `price` is below intrinsic value, above the no-arbitrage upper bound, or the solver fails to converge.
    */
   bsImpliedVol(
     spot: number,
     strike: number,
-    r: number,
-    q: number,
-    t: number,
+    rate: number,
+    divYield: number,
+    expiry: number,
     price: number,
     isCall: boolean
   ): number;
@@ -7622,22 +7732,140 @@ export interface ModelsNamespace {
    * Solve for Black-76 (forward-based) implied volatility.
    *
    * Black (1976): see docs/REFERENCES.md#black-1976.
-   * @returns Annualized Black-76 implied volatility as a decimal, or 0 when `t` is not positive.
+   * @returns Annualized Black-76 implied volatility as a decimal.
    * @param forward - Forward price or rate in the same quote convention as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param df - Discount factor from valuation to expiry, expressed as a positive decimal.
-   * @param t - Time from the curve base date in years.
+   * @param expiry - Time to expiry in years; must be positive.
    * @param price - Observed option price in the same units as the forward.
    * @param isCall - Whether to value a call (`true`) or put (`false`).
-   * @throws Error - Throws a JavaScript exception if an input is non-finite; `forward`, `strike`, `df`, or `price` is not positive; the price is not above intrinsic value or cannot be bracketed; or the implied-volatility solver does not converge. A non-positive `t` returns zero volatility.
+   * @throws Error - Throws a JavaScript exception if an input is non-finite; `expiry`, `forward`, `strike`, `df`, or `price` is not positive; the price is not above intrinsic value or cannot be bracketed; or the implied-volatility solver does not converge.
    */
   black76ImpliedVol(
     forward: number,
     strike: number,
     df: number,
-    t: number,
+    expiry: number,
     price: number,
     isCall: boolean
+  ): number;
+  /**
+   * Black-76 per-unit price of a European option on a forward: `df * Black(F, K, vol, expiry)`.
+   *
+   * Black (1976): see docs/REFERENCES.md#black-1976.
+   * @returns Discounted per-unit option price in the units of `forward`.
+   * @param forward - Forward price or rate at expiry.
+   * @param strike - Strike in the same units as `forward`.
+   * @param df - Discount factor from valuation to expiry (positive decimal).
+   * @param expiry - Time to expiry in years.
+   * @param vol - Annualized lognormal (Black) volatility, decimal.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
+   * @throws Error - Throws a JavaScript exception if the inputs produce a non-finite price.
+   */
+  black76Price(
+    forward: number,
+    strike: number,
+    df: number,
+    expiry: number,
+    vol: number,
+    isCall: boolean
+  ): number;
+  /**
+   * Black-76 undiscounted forward Greeks `{ delta, gamma, vega }`.
+   *
+   * `delta` / `gamma` are with respect to the forward; `vega` is per unit (1.0) change in `vol`.
+   * Black (1976): see docs/REFERENCES.md#black-1976.
+   * @returns Object `{ delta, gamma, vega }`.
+   * @param forward - Forward price or rate at expiry.
+   * @param strike - Strike in the same units as `forward`.
+   * @param expiry - Time to expiry in years.
+   * @param vol - Annualized lognormal (Black) volatility, decimal.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
+   * @throws Error - Throws a JavaScript exception if any Greek is non-finite.
+   */
+  black76Greeks(
+    forward: number,
+    strike: number,
+    expiry: number,
+    vol: number,
+    isCall: boolean
+  ): ForwardGreeks;
+  /**
+   * Bachelier (normal-model) undiscounted per-unit option price.
+   *
+   * Bachelier (1900): see docs/REFERENCES.md#bachelier-1900.
+   * @returns Undiscounted per-unit option value in the units of `forward`.
+   * @param forward - Forward price or rate at expiry (may be negative).
+   * @param strike - Strike in the same units as `forward`.
+   * @param normalVol - Annualized **absolute** (normal) volatility in the units of `forward` (e.g. `0.0075` for 75 bp on decimal rates).
+   * @param expiry - Time to expiry in years.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
+   * @throws Error - Throws a JavaScript exception if the inputs produce a non-finite price.
+   */
+  bachelierPrice(
+    forward: number,
+    strike: number,
+    normalVol: number,
+    expiry: number,
+    isCall: boolean
+  ): number;
+  /**
+   * Bachelier (normal-model) undiscounted forward Greeks `{ delta, gamma, vega }`.
+   *
+   * `vega` is per unit (1.0) change in `normalVol` (absolute units).
+   * Bachelier (1900): see docs/REFERENCES.md#bachelier-1900.
+   * @returns Object `{ delta, gamma, vega }`.
+   * @param forward - Forward price or rate at expiry (may be negative).
+   * @param strike - Strike in the same units as `forward`.
+   * @param normalVol - Annualized absolute (normal) volatility in the units of `forward`.
+   * @param expiry - Time to expiry in years.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
+   * @throws Error - Throws a JavaScript exception if any Greek is non-finite.
+   */
+  bachelierGreeks(
+    forward: number,
+    strike: number,
+    normalVol: number,
+    expiry: number,
+    isCall: boolean
+  ): ForwardGreeks;
+  /**
+   * Shifted (displaced) Black undiscounted per-unit price for negative-rate markets.
+   *
+   * Prices `Black(forward + shift, strike + shift, vol, expiry)`.
+   * @returns Undiscounted per-unit option value in the units of `forward`.
+   * @param forward - Forward rate at expiry (decimal; may be negative).
+   * @param strike - Strike (decimal, same units as `forward`).
+   * @param vol - Annualized shifted-lognormal volatility, decimal.
+   * @param expiry - Time to expiry in years.
+   * @param shift - Displacement added to forward and strike, in rate units (e.g. `0.03`); both shifted values must be positive.
+   * @param isCall - Whether to value a call (`true`) or put (`false`).
+   * @throws Error - Throws a JavaScript exception if the inputs produce a non-finite price.
+   */
+  blackShiftedPrice(
+    forward: number,
+    strike: number,
+    vol: number,
+    expiry: number,
+    shift: number,
+    isCall: boolean
+  ): number;
+  /**
+   * Shifted (displaced) Black vega per unit (1.0) change in `vol`, undiscounted.
+   * @returns Undiscounted vega in the units of `forward` per unit vol.
+   * @param forward - Forward rate at expiry (decimal; may be negative).
+   * @param strike - Strike (decimal, same units as `forward`).
+   * @param vol - Annualized shifted-lognormal volatility, decimal.
+   * @param expiry - Time to expiry in years.
+   * @param shift - Displacement added to forward and strike, in rate units.
+   * @throws Error - Throws a JavaScript exception if the inputs produce a non-finite vega.
+   */
+  blackShiftedVega(
+    forward: number,
+    strike: number,
+    vol: number,
+    expiry: number,
+    shift: number
   ): number;
   /**
    * Reiner-Rubinstein continuous-monitoring barrier call price.
@@ -7648,10 +7876,10 @@ export interface ModelsNamespace {
    * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param barrier - Continuously monitored barrier level in the same price units as spot.
-   * @param r - Continuously compounded risk-free rate, expressed as a decimal.
-   * @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
-   * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param t - Time from the curve base date in years.
+   * @param rate - Continuously compounded risk-free rate, expressed as a decimal.
+   * @param divYield - Continuous dividend yield or foreign rate, expressed as a decimal.
+   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
+   * @param expiry - Time to expiry in years.
    * @param direction - Barrier direction: `"up"` for an upper barrier or `"down"` for a lower barrier.
    * @param knock - Barrier activation: `"in"` for knock-in or `"out"` for knock-out.
    * @throws Error - Throws a JavaScript exception if `direction` or `knock` is unsupported, or the supplied model inputs produce a non-finite barrier price.
@@ -7660,10 +7888,38 @@ export interface ModelsNamespace {
     spot: number,
     strike: number,
     barrier: number,
-    r: number,
-    q: number,
-    sigma: number,
-    t: number,
+    rate: number,
+    divYield: number,
+    vol: number,
+    expiry: number,
+    direction: 'up' | 'down',
+    knock: 'in' | 'out'
+  ): number;
+  /**
+   * Reiner-Rubinstein continuous-monitoring barrier put price.
+   *
+   * `direction` is `"up"` or `"down"`, `knock` is `"in"` or `"out"`.
+   * Reiner-Rubinstein (1991): see docs/REFERENCES.md#reiner-rubinstein-1991.
+   * @returns Discounted barrier-put price in the same units as `spot`.
+   * @param spot - Current spot price or exchange rate in the same units as the strike.
+   * @param strike - Option strike price in the same price units as the underlying.
+   * @param barrier - Continuously monitored barrier level in the same price units as spot.
+   * @param rate - Continuously compounded risk-free rate, expressed as a decimal.
+   * @param divYield - Continuous dividend yield or foreign rate, expressed as a decimal.
+   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
+   * @param expiry - Time to expiry in years.
+   * @param direction - Barrier direction: `"up"` for an upper barrier or `"down"` for a lower barrier.
+   * @param knock - Barrier activation: `"in"` for knock-in or `"out"` for knock-out.
+   * @throws Error - Throws a JavaScript exception if `direction` or `knock` is unsupported, or the supplied model inputs produce a non-finite barrier price.
+   */
+  barrierPut(
+    spot: number,
+    strike: number,
+    barrier: number,
+    rate: number,
+    divYield: number,
+    vol: number,
+    expiry: number,
     direction: 'up' | 'down',
     knock: 'in' | 'out'
   ): number;
@@ -7675,10 +7931,10 @@ export interface ModelsNamespace {
    * @returns Discounted Asian option price in the same units as `spot`.
    * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
-   * @param r - Continuously compounded risk-free rate, expressed as a decimal.
-   * @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
-   * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param t - Time from the curve base date in years.
+   * @param rate - Continuously compounded risk-free rate, expressed as a decimal.
+   * @param divYield - Continuous dividend yield or foreign rate, expressed as a decimal.
+   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
+   * @param expiry - Time to expiry in years.
    * @param numFixings - Positive number of equally spaced averaging observations before expiry.
    * @param averaging - Asian averaging convention: `"arithmetic"` (default) or `"geometric"`.
    * @param isCall - Whether to value a call (`true`) or put (`false`).
@@ -7687,10 +7943,10 @@ export interface ModelsNamespace {
   asianOptionPrice(
     spot: number,
     strike: number,
-    r: number,
-    q: number,
-    sigma: number,
-    t: number,
+    rate: number,
+    divYield: number,
+    vol: number,
+    expiry: number,
     numFixings: number,
     averaging?: 'arithmetic' | 'geometric',
     isCall?: boolean
@@ -7704,10 +7960,10 @@ export interface ModelsNamespace {
    * @returns Discounted lookback option price in the same units as `spot`.
    * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
-   * @param r - Continuously compounded risk-free rate, expressed as a decimal.
-   * @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
-   * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param t - Time from the curve base date in years.
+   * @param rate - Continuously compounded risk-free rate, expressed as a decimal.
+   * @param divYield - Continuous dividend yield or foreign rate, expressed as a decimal.
+   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
+   * @param expiry - Time to expiry in years.
    * @param extremum - Observed running minimum for a call or maximum for a put, in spot-price units.
    * @param strikeType - Lookback payoff convention: `"fixed"` (default) or `"floating"`.
    * @param isCall - Whether to value a call (`true`) or put (`false`).
@@ -7716,10 +7972,10 @@ export interface ModelsNamespace {
   lookbackOptionPrice(
     spot: number,
     strike: number,
-    r: number,
-    q: number,
-    sigma: number,
-    t: number,
+    rate: number,
+    divYield: number,
+    vol: number,
+    expiry: number,
     extremum: number,
     strikeType?: 'fixed' | 'floating',
     isCall?: boolean
@@ -7733,7 +7989,7 @@ export interface ModelsNamespace {
    * @returns Discounted quanto option price in domestic currency units.
    * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
-   * @param t - Time from the curve base date in years.
+   * @param expiry - Time to expiry in years.
    * @param rateDomestic - Domestic continuously compounded risk-free rate, expressed as a decimal.
    * @param rateForeign - Foreign continuously compounded risk-free rate, expressed as a decimal.
    * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
@@ -7746,13 +8002,44 @@ export interface ModelsNamespace {
   quantoOptionPrice(
     spot: number,
     strike: number,
-    t: number,
+    expiry: number,
     rateDomestic: number,
     rateForeign: number,
     divYield: number,
     volAsset: number,
     volFx: number,
     correlation: number,
+    isCall?: boolean
+  ): number;
+  /**
+   * Closed-form (Fourier) Heston price of a European option.
+   *
+   * Heston (1993): see docs/REFERENCES.md#heston-1993.
+   * @returns Present-value per-unit option price.
+   * @param spot - Current spot price in the same units as the strike.
+   * @param strike - Option strike price.
+   * @param expiry - Time to expiry in years; a non-positive value returns intrinsic.
+   * @param rate - Continuously compounded risk-free rate, decimal.
+   * @param divYield - Continuous dividend yield or foreign rate, decimal.
+   * @param kappa - Mean-reversion speed of the variance process (per year).
+   * @param theta - Long-run variance level (variance units).
+   * @param sigmaV - Volatility of variance (vol-of-vol).
+   * @param rho - Spot/variance correlation in `(-1, 1)`.
+   * @param v0 - Initial instantaneous variance (variance, not volatility).
+   * @param isCall - Whether to value a call (`true`, default) or put (`false`).
+   * @throws Error - Throws a JavaScript exception if a parameter is non-finite or outside its domain, or the Fourier integration fails to produce a finite price.
+   */
+  hestonPrice(
+    spot: number,
+    strike: number,
+    expiry: number,
+    rate: number,
+    divYield: number,
+    kappa: number,
+    theta: number,
+    sigmaV: number,
+    rho: number,
+    v0: number,
     isCall?: boolean
   ): number;
   /**
@@ -7764,20 +8051,20 @@ export interface ModelsNamespace {
    * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param maturity - Time to option expiry in years.
+   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
+   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%; must be positive.
+   * @param expiry - Time to option expiry in years.
    * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @param nTerms - Optional positive number of COS expansion terms; omit to use the pricer default.
-   * @throws Error - Throws a JavaScript exception if the model produces a degenerate or invalid COS truncation range, a non-finite characteristic-function value or forward moment, or a non-finite option price.
+   * @throws Error - Throws a JavaScript exception if `vol` is not positive, the model produces a degenerate or invalid COS truncation range, a non-finite characteristic-function value or forward moment, or a non-finite option price.
    */
   bsCosPrice(
     spot: number,
     strike: number,
     rate: number,
-    dividend: number,
+    divYield: number,
     vol: number,
-    maturity: number,
+    expiry: number,
     isCall: boolean,
     nTerms?: number
   ): number;
@@ -7790,11 +8077,11 @@ export interface ModelsNamespace {
    * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
+   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
    * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
    * @param theta - Variance-Gamma drift parameter controlling skew in log returns.
    * @param nu - Variance-Gamma variance-rate parameter; larger values increase tail thickness.
-   * @param maturity - Time to option expiry in years.
+   * @param expiry - Time to option expiry in years.
    * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @param nTerms - Optional positive number of COS expansion terms; omit to use the pricer default.
    * @throws Error - Throws a JavaScript exception if the model produces a degenerate or invalid COS truncation range, a non-finite characteristic-function value or forward moment, or a non-finite option price.
@@ -7803,11 +8090,11 @@ export interface ModelsNamespace {
     spot: number,
     strike: number,
     rate: number,
-    dividend: number,
+    divYield: number,
     sigma: number,
     theta: number,
     nu: number,
-    maturity: number,
+    expiry: number,
     isCall: boolean,
     nTerms?: number
   ): number;
@@ -7820,12 +8107,12 @@ export interface ModelsNamespace {
    * @param spot - Current spot price or exchange rate in the same units as the strike.
    * @param strike - Option strike price in the same price units as the underlying.
    * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param dividend - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
+   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
    * @param sigma - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
    * @param muJump - Mean log jump size in the Merton jump-diffusion model.
    * @param sigmaJump - Standard deviation of log jump sizes in the Merton jump-diffusion model.
    * @param lambda - Annual jump-arrival intensity in the Merton jump-diffusion model.
-   * @param maturity - Time to option expiry in years.
+   * @param expiry - Time to option expiry in years.
    * @param isCall - Whether to value a call (`true`) or put (`false`).
    * @param nTerms - Optional positive number of COS expansion terms; omit to use the pricer default.
    * @throws Error - Throws a JavaScript exception if the model produces a degenerate or invalid COS truncation range, a non-finite characteristic-function value or forward moment, or a non-finite option price.
@@ -7834,12 +8121,12 @@ export interface ModelsNamespace {
     spot: number,
     strike: number,
     rate: number,
-    dividend: number,
+    divYield: number,
     sigma: number,
     muJump: number,
     sigmaJump: number,
     lambda: number,
-    maturity: number,
+    expiry: number,
     isCall: boolean,
     nTerms?: number
   ): number;
@@ -8981,18 +9268,18 @@ export interface StatementsAnalyticsNamespace {
    * Generate a credit assessment report as formatted text.
    * @returns Returns a human-readable text report, not JSON.
    * @param resultsJson - Evaluated statement-result JSON.
-   * @param asOf - Statement period identifier, such as `2025Q4` or `2025A`.
-   * @throws Error - Rejects malformed `results_json` or an `as_of` value that is not a valid statement period identifier.
+   * @param period - Statement period identifier, such as `2025Q4` or `2025A`.
+   * @throws Error - Rejects malformed `results_json` or an `period` value that is not a valid statement period identifier.
    */
-  creditAssessmentReportText(resultsJson: string, asOf: string): string;
+  creditAssessmentReportText(resultsJson: string, period: string): string;
   /**
    * Compute a credit assessment from statement results (JSON in/out).
    * @returns Credit-assessment result object from the statement results.
    * @param resultsJson - Evaluated statement-result JSON.
-   * @param asOf - Statement period identifier, such as `2025Q4` or `2025A`.
-   * @throws Error - Rejects malformed `results_json`, an `as_of` value that is not a valid statement period identifier, or failure to serialize the assessment to JavaScript.
+   * @param period - Statement period identifier, such as `2025Q4` or `2025A`.
+   * @throws Error - Rejects malformed `results_json`, an `period` value that is not a valid statement period identifier, or failure to serialize the assessment to JavaScript.
    */
-  creditAssessment(resultsJson: string, asOf: string): Record<string, unknown>;
+  creditAssessment(resultsJson: string, period: string): Record<string, unknown>;
   /**
    * Run checks from a suite spec against a model.
    *
@@ -9050,26 +9337,26 @@ export interface StatementsAnalyticsNamespace {
   renderCheckReportHtml(reportJson: string): string;
   // Comps — comparable company analysis
   /**
-   * Percentile rank of `value` within `data` on a 0-1 scale.
+   * Percentile rank of `value` within `data` on a 0-1 scale (Rust `percentile_rank(values, value)` argument order).
    *
    * Returns `undefined` when `data` is empty rather than a synthetic 0.5.
    * @returns Percentile rank in `[0, 1]`, or `undefined` when `data` is empty.
-   * @param value - Subject-company metric value to rank against the peer sample.
    * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @param value - Subject-company metric value to rank against the peer sample.
    * @throws Error - Rejects when `data` is not a numeric JavaScript array or the finite rank cannot be serialized. Empty/non-finite peer data or a non-finite `value` return `undefined` rather than rejecting.
    */
-  percentileRank(value: number, data: number[]): number | undefined;
+  percentileRank(data: number[], value: number): number | undefined;
   /**
-   * Z-score of `value` within `data`.
+   * Z-score of `value` within `data` (Rust `z_score(values, value)` argument order).
    *
    * Returns `undefined` when fewer than two observations are provided or the
    * peer variance is zero, instead of a synthetic zero.
    * @returns Standardized z-score, or `undefined` when variance is zero or the sample is too small.
-   * @param value - Subject-company metric value to standardize against the peer sample.
    * @param data - Non-empty numeric observation array used by the requested statistic.
+   * @param value - Subject-company metric value to standardize against the peer sample.
    * @throws Error - Rejects when `data` is not a numeric JavaScript array or the computed score cannot be serialized. Insufficient data, zero variance, or a non-finite `value` return `undefined` rather than rejecting.
    */
-  zScore(value: number, data: number[]): number | undefined;
+  zScore(data: number[], value: number): number | undefined;
   /**
    * Descriptive statistics over a peer distribution.
    *
@@ -9956,7 +10243,7 @@ export interface PortfolioNamespace {
    * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param strictRisk - Optional; when omitted or `undefined`, defaults to `true` (fail closed on unavailable requested risk metrics), matching Rust `PortfolioValuationOptions`. Pass `false` only for an intentional PV-preserving fallback.
-   * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set; an empty array performs PV-only valuation. Names are validated strictly against the standard `MetricId` set — an unknown name throws. Mirrors the Python `metrics=` keyword.
+   * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set (PV plus `dv01`; pricer-specific metrics such as `theta` or `cs01` must be listed explicitly); an empty array performs PV-only valuation. Names are validated strictly against the standard `MetricId` set — an unknown name throws. Mirrors the Python `metrics=` keyword.
    * @throws Error - Throws a JavaScript exception if the portfolio or market JSON is malformed, a requested metric name is unknown, portfolio construction or valuation fails, strict risk calculation cannot produce a requested metric, a required FX conversion is unavailable, or the valuation cannot be converted to a JavaScript value.
    */
   valuePortfolio(
@@ -9974,7 +10261,7 @@ export interface PortfolioNamespace {
    * @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param strictRisk - Optional; when omitted or `undefined`, defaults to `true` (fail closed on unavailable requested risk metrics), matching Rust `PortfolioValuationOptions`. Pass `false` only for an intentional PV-preserving fallback.
-   * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set; an empty array performs PV-only valuation. Names are validated strictly against the standard `MetricId` set — an unknown name throws instead of silently degrading to PV-only valuation. Mirrors the Python `metrics=` keyword.
+   * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set (PV plus `dv01`; pricer-specific metrics such as `theta` or `cs01` must be listed explicitly); an empty array performs PV-only valuation. Names are validated strictly against the standard `MetricId` set — an unknown name throws instead of silently degrading to PV-only valuation. Mirrors the Python `metrics=` keyword.
    * @throws Error - Throws a JavaScript exception if `marketJson` is malformed, a requested metric name is unknown, portfolio valuation fails, strict risk calculation cannot produce a requested metric, a required FX conversion is unavailable, or the valuation cannot be converted to a JavaScript value.
    */
   valuePortfolioBuilt(

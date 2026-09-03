@@ -846,7 +846,8 @@ pub(crate) fn batting_average(returns: &[f64], benchmark: &[f64]) -> f64 {
 ///
 /// Factor series are always treated as already-excess (Fama–French style).
 /// Only the dependent series is adjusted when [`ReturnKind::Total`] is used.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ReturnKind {
     /// `returns` are already excess returns. Alpha is the annualized OLS
     /// intercept of excess `y` on the supplied (already-excess) factors.
@@ -859,6 +860,46 @@ pub enum ReturnKind {
         /// Annualized risk-free rate in decimal form (e.g. `0.02` for 2%).
         risk_free_rate: f64,
     },
+}
+
+impl ReturnKind {
+    /// Attach an annualized risk-free rate to a [`ReturnKind::Total`] kind.
+    ///
+    /// [`ReturnKind::Excess`] ignores the rate and is returned unchanged, so
+    /// hosts can parse a label and then apply the caller's rate uniformly.
+    ///
+    /// # Arguments
+    ///
+    /// * `risk_free_rate` - Annualized risk-free rate in decimal form
+    ///   (`0.02` for 2%), geometrically decompounded to the observation
+    ///   frequency before it is subtracted from the dependent series.
+    #[must_use]
+    pub fn with_risk_free_rate(self, risk_free_rate: f64) -> Self {
+        match self {
+            Self::Excess => Self::Excess,
+            Self::Total { .. } => Self::Total { risk_free_rate },
+        }
+    }
+}
+
+impl std::str::FromStr for ReturnKind {
+    type Err = crate::error::Error;
+
+    /// Parse `"excess"` or `"total"`.
+    ///
+    /// `"total"` yields [`ReturnKind::Total`] with a zero risk-free rate;
+    /// use [`ReturnKind::with_risk_free_rate`] to attach the caller's rate.
+    fn from_str(label: &str) -> Result<Self, Self::Err> {
+        match label {
+            "excess" => Ok(Self::Excess),
+            "total" => Ok(Self::Total {
+                risk_free_rate: 0.0,
+            }),
+            other => Err(crate::error::Error::Validation(format!(
+                "unknown return_kind {other:?}; expected \"excess\" or \"total\""
+            ))),
+        }
+    }
 }
 
 /// Result of a multi-factor regression.

@@ -5,9 +5,59 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 /// Parse a snake_case operation name through the enum's serde representation.
-pub(crate) fn op_from_str<T: DeserializeOwned>(op: &str, kind: &str) -> Result<T> {
-    serde_json::from_value(Value::String(op.to_owned()))
-        .map_err(|_| Error::Validation(format!("unsupported {kind} transform op '{op}'")))
+///
+/// The error lists every accepted name so a typo is self-correcting at the
+/// binding boundary.
+pub(crate) fn op_from_str<T: DeserializeOwned>(
+    op: &str,
+    kind: &str,
+    accepted: &[String],
+) -> Result<T> {
+    serde_json::from_value(Value::String(op.to_owned())).map_err(|_| {
+        Error::Validation(format!(
+            "unsupported {kind} transform op '{op}'; accepted ops: {}",
+            accepted.join(", ")
+        ))
+    })
+}
+
+/// Canonical snake_case wire name of a serde-tagged unit enum variant.
+pub(crate) fn op_name<T: serde::Serialize>(op: &T) -> String {
+    serde_json::to_value(op)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+/// Reject `params` that are not a JSON object or carry keys the operation
+/// does not read, so a misspelt key (`"windows"`) fails instead of silently
+/// falling back to the default.
+pub(crate) fn reject_unknown_params(
+    params: Option<&Value>,
+    op: &str,
+    allowed: &[&str],
+) -> Result<()> {
+    let Some(params) = params else {
+        return Ok(());
+    };
+    let Some(object) = params.as_object() else {
+        return Err(Error::Validation(format!(
+            "panel transform parameters for '{op}' must be a JSON object"
+        )));
+    };
+    for key in object.keys() {
+        if !allowed.contains(&key.as_str()) {
+            let accepted = if allowed.is_empty() {
+                "none".to_string()
+            } else {
+                allowed.join(", ")
+            };
+            return Err(Error::Validation(format!(
+                "unknown panel transform parameter '{key}' for op '{op}'; accepted parameters: {accepted}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Numerical tolerance used for zero-denominator checks.

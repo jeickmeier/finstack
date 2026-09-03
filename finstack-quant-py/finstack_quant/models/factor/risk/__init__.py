@@ -24,6 +24,9 @@ StressPositionEntry = _risk.StressPositionEntry
 TailScenarioBreakdown = _risk.TailScenarioBreakdown
 StressAttribution = _risk.StressAttribution
 DecompositionConfig = _risk.DecompositionConfig
+DEFAULT_UTILIZATION_THRESHOLD = _risk.DEFAULT_UTILIZATION_THRESHOLD
+ParametricEsDecompositionView = _risk.ParametricEsDecompositionView
+PositionEsContributionView = _risk.PositionEsContributionView
 parametric_var_decomposition = _risk.parametric_var_decomposition
 parametric_es_decomposition = _risk.parametric_es_decomposition
 historical_var_decomposition = _risk.historical_var_decomposition
@@ -32,10 +35,13 @@ build_stress_attribution = _risk.build_stress_attribution
 position_component_var = _risk.position_component_var
 
 __all__: list[str] = [
+    "DEFAULT_UTILIZATION_THRESHOLD",
     "DecompositionConfig",
     "FactorContribution",
+    "ParametricEsDecompositionView",
     "PositionBudgetEntry",
     "PositionEsContribution",
+    "PositionEsContributionView",
     "PositionFactorContribution",
     "PositionResidualContribution",
     "PositionRiskDecomposition",

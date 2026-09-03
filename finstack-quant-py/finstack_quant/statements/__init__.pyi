@@ -15,8 +15,9 @@ Examples
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -28,34 +29,40 @@ from finstack_quant.core.table import ArrowTable
 from finstack_quant.statements import schema as schema
 
 __all__ = [
-    "schema",
+    "Adjustment",
+    "AppliedAdjustment",
+    "CapitalStructureCashflows",
+    "CheckConfig",
+    "CheckFinding",
+    "CheckReport",
+    "CheckSuiteSpec",
+    "EcfSweepSpec",
+    "Evaluator",
+    "FinancialModelSpec",
     "ForecastMethod",
     "ForecastSpec",
-    "NodeType",
-    "NodeId",
-    "NumericMode",
-    "FinancialModelSpec",
-    "ModelBuilder",
+    "FormulaCheckSpec",
+    "MetricDefinition",
     "MixedNodeBuilder",
-    "Registry",
+    "ModelBuilder",
     "MonteCarloConfig",
     "MonteCarloResults",
-    "StatementResult",
-    "Evaluator",
-    "parse_formula_text",
-    "run_monte_carlo",
-    "validate_formula",
-    "AppliedAdjustment",
+    "NodeId",
+    "NodeSpec",
+    "NodeType",
     "NormalizationConfig",
     "NormalizationResult",
-    "normalize",
-    "normalize_json",
-    "CheckSuiteSpec",
-    "CheckReport",
-    "EcfSweepSpec",
+    "NumericMode",
     "PaymentClassSpec",
     "PikToggleSpec",
+    "Registry",
+    "StatementResult",
     "WaterfallSpec",
+    "normalize",
+    "normalize_json",
+    "parse_and_compile",
+    "parse_formula",
+    "schema",
 ]
 
 class MonteCarloConfig:
@@ -158,7 +165,7 @@ class MonteCarloConfig:
         -------
         str
             Canonical JSON accepted by :meth:`from_json` and
-            :func:`run_monte_carlo`.
+            :meth:`Evaluator.evaluate_monte_carlo`.
 
         Raises
         ------
@@ -257,7 +264,7 @@ class MonteCarloResults:
         Parameters
         ----------
         json : str
-            JSON payload returned by :func:`run_monte_carlo` or a matching
+            JSON payload returned by :meth:`Evaluator.evaluate_monte_carlo` or a matching
             serialized result.
 
         Returns
@@ -434,43 +441,6 @@ class MonteCarloResults:
         """
         ...
 
-def run_monte_carlo(
-    model: FinancialModelSpec | str,
-    config: MonteCarloConfig | str,
-) -> MonteCarloResults:
-    """
-    Run Monte Carlo simulation on a financial model.
-
-    Parameters
-    ----------
-    model : FinancialModelSpec or str
-        Typed model or its canonical JSON serialization.
-    config : MonteCarloConfig or str
-        Typed sampling configuration or its canonical JSON serialization.
-
-    Returns
-    -------
-    MonteCarloResults
-        Percentile summaries and optional retained path data.
-
-    Raises
-    ------
-    ValueError
-        If either JSON payload is malformed or evaluation rejects the model or
-        configuration.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements import ModelBuilder, MonteCarloConfig, run_monte_carlo
-    >>> builder = ModelBuilder("demo")
-    >>> _ = builder.periods("2025Q1..Q2", "2025Q1")
-    >>> _ = builder.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
-    >>> run_monte_carlo(builder.build(), MonteCarloConfig(2, 7, [0.5])).n_paths
-    2
-
-    """
-    ...
-
 class ForecastMethod:
     """
     Available forecast methods for projecting node values.
@@ -623,14 +593,14 @@ class ForecastMethod:
         ...
 
     @staticmethod
-    def override_method() -> ForecastMethod:
+    def override() -> ForecastMethod:
         """
         Explicit per-period overrides, forward-filling the periods in between.
 
         The method reads an ``overrides`` parameter mapping period-identifier
         strings (e.g. ``"2025Q2"``) to values; any forecast period without an
-        entry inherits the most recent value. Named ``override_method`` on the
-        Python side because the Rust variant is ``Override``.
+        entry inherits the most recent value. Mirrors the Rust ``Override``
+        variant; the wire form is ``"override"``.
 
         Returns
         -------
@@ -644,7 +614,7 @@ class ForecastMethod:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastMethod
-        >>> ForecastMethod.override_method() == ForecastMethod.override_method()
+        >>> ForecastMethod.override() == ForecastMethod.override()
         True
         """
         ...
@@ -817,7 +787,7 @@ class ForecastSpec:
 
     """
 
-    def __init__(self, method: ForecastMethod, params_json: str | None = None) -> None:
+    def __init__(self, method: ForecastMethod, params: Mapping[str, Any] | str | None = None) -> None:
         """
         Build a forecast spec from a method plus its method-specific parameters.
 
@@ -826,8 +796,8 @@ class ForecastSpec:
         method:
             A :class:`ForecastMethod` describing the projection rule applied
             to forecast periods.
-        params_json:
-            JSON object of method-specific parameters (``rate``, ``curve``,
+        params:
+            Mapping (or JSON object string) of method-specific parameters (``rate``, ``curve``,
             ``mean``, ``std_dev``, ``seed``, ``overrides``, ``season_length``,
             ``target``, ``shape``, ``half_life``, ``long_run_mean``,
             ``reversion_speed``, ``historical``, ``mode``, ``phi``, ...).
@@ -839,7 +809,7 @@ class ForecastSpec:
         Raises
         ------
         ValueError
-            If params_json is not valid JSON for the method parameter mapping.
+            If ``params`` is not a valid parameter mapping for the method.
 
         """
         ...
@@ -993,7 +963,7 @@ class ForecastSpec:
         Examples
         --------
         >>> from finstack_quant.statements import ForecastSpec
-        >>> spec = ForecastSpec.lognormal(0.0, 0.1, 7)
+        >>> spec = ForecastSpec.log_normal(0.0, 0.1, 7)
         >>> ForecastSpec.from_json(spec.to_json()).to_json() == spec.to_json()
         True
         """
@@ -1009,7 +979,7 @@ class ForecastSpec:
         steps, reaching it exactly at the final forecast period. For the
         ``"geometric"`` (CAGR-to-terminal) or ``"exponential"`` (half-life)
         shapes, construct ``ForecastSpec(ForecastMethod.fade_to_target(),
-        params_json)`` with ``shape`` and, for exponential, ``half_life``.
+        params)`` with ``shape`` and, for exponential, ``half_life``.
 
         Parameters
         ----------
@@ -1084,7 +1054,7 @@ class ForecastSpec:
 
         The history must be strictly positive in growth mode. For additive
         resampling of level changes (series that cross zero), construct
-        ``ForecastSpec(ForecastMethod.bootstrap(), params_json)`` with
+        ``ForecastSpec(ForecastMethod.bootstrap(), params)`` with
         ``mode = "diff"``.
 
         Parameters
@@ -1942,7 +1912,7 @@ class ModelBuilder:
         """
         ...
 
-    def with_meta(self, key: str, value_json: str) -> ModelBuilder:
+    def with_meta(self, key: str, value: Any) -> ModelBuilder:
         """
         Add model-level metadata from a JSON payload.
 
@@ -1951,7 +1921,7 @@ class ModelBuilder:
         key:
             Namespaced model-metadata key used to identify the supplied JSON
             value in serialized model output.
-        value_json:
+        value:
             JSON-serialized metadata value.
 
         Returns
@@ -1962,7 +1932,7 @@ class ModelBuilder:
         Raises
         ------
         ValueError
-            If value_json is malformed, periods are not configured, or the builder
+            If ``value`` is not JSON-serialisable, periods are not configured, or the builder
             has already been consumed.
 
         """
@@ -2255,7 +2225,7 @@ class ModelBuilder:
         """
         ...
 
-    def add_debt(self, id: str, spec_json: str) -> ModelBuilder:
+    def add_debt(self, id: str, instrument: Any | str) -> ModelBuilder:
         """
         Add a debt instrument via its canonical v1 instrument envelope.
 
@@ -2267,7 +2237,7 @@ class ModelBuilder:
                 ----------
                 id:
                     Instrument identifier.
-                spec_json:
+                instrument:
                     ``finstack_quant.instrument/1`` envelope containing the debt instrument.
 
                 Returns
@@ -3228,48 +3198,90 @@ class Evaluator:
         """
         ...
 
-def parse_formula_text(formula: str) -> str:
+    def evaluate_monte_carlo(
+        self,
+        model: FinancialModelSpec,
+        config: MonteCarloConfig,
+    ) -> MonteCarloResults:
+        """
+        Run a Monte Carlo simulation of ``model`` under this evaluator.
+
+        Parameters
+        ----------
+        model : FinancialModelSpec
+            Model whose stochastic forecast nodes are sampled.
+        config : MonteCarloConfig
+            Path count, seed and requested percentiles.
+
+        Returns
+        -------
+        MonteCarloResults
+            Percentile summaries, warnings and optional retained paths.
+
+        Raises
+        ------
+        ValueError
+            If the model or configuration is rejected.
+        RuntimeError
+            If simulation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import Evaluator, ModelBuilder, MonteCarloConfig
+        >>> builder = ModelBuilder("demo")
+        >>> _ = builder.periods("2025Q1..Q2", "2025Q1")
+        >>> _ = builder.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
+        >>> Evaluator().evaluate_monte_carlo(builder.build(), MonteCarloConfig(2, 7, [0.5])).n_paths
+        2
+
+        """
+        ...
+
+def parse_formula(formula: str) -> str:
     """
-    Parse a DSL formula and return a debug string for its AST.
+    Parse a DSL formula and render it back as canonical DSL source text.
+
+    Parentheses are emitted only where operator precedence requires them, so
+    the returned text re-parses to an identical expression.
 
     Parameters
     ----------
-    formula:
+    formula : str
         Source expression in the statements DSL.
 
     Returns
     -------
     str
-        Debug representation of the parsed abstract syntax tree.
+        Canonical rendering of the parsed expression.
 
     Raises
     ------
     ValueError
-        If parsing fails.
+        If ``formula`` is not valid statements DSL.
 
     Examples
     --------
-    >>> from finstack_quant.statements import parse_formula_text
-    >>> "revenue" in parse_formula_text("revenue - cogs")
-    True
+    >>> from finstack_quant.statements import parse_formula
+    >>> parse_formula("(revenue - cogs)/revenue")
+    '(revenue - cogs) / revenue'
 
     """
     ...
 
-def validate_formula(formula: str) -> None:
+def parse_and_compile(formula: str) -> None:
     """
     Validate that ``formula`` parses and compiles successfully.
 
     Parameters
     ----------
-    formula:
+    formula : str
         DSL expression to validate.
 
     Returns
     -------
     None
         Returns nothing on success. Validation is reported by raising, so
-        ``if validate_formula(f):`` is not a validity check.
+        ``if parse_and_compile(f):`` is not a validity check.
 
     Raises
     ------
@@ -3278,8 +3290,8 @@ def validate_formula(formula: str) -> None:
 
     Examples
     --------
-    >>> from finstack_quant.statements import validate_formula
-    >>> validate_formula("revenue - cogs") is None
+    >>> from finstack_quant.statements import parse_and_compile
+    >>> parse_and_compile("revenue - cogs") is None
     True
 
     """
@@ -4793,6 +4805,1681 @@ class WaterfallSpec:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class NodeSpec:
+    """One node of a :class:`FinancialModelSpec`: type, values, formula, forecast.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import ModelBuilder
+    >>> b = ModelBuilder("demo")
+    >>> _ = b.periods("2025Q1..Q2", "2025Q1")
+    >>> _ = b.value("revenue", [("2025Q1", 100.0)])
+    >>> b.build().get_node("revenue").node_type.kind
+    'value'
+
+    """
+
+    def __init__(
+        self,
+        node_id: str,
+        node_type: NodeType,
+        name: str | None = None,
+        values: Mapping[str, float] | None = None,
+        formula_text: str | None = None,
+        forecast: ForecastSpec | None = None,
+    ) -> None:
+        """Construct a node specification.
+
+        Parameters
+        ----------
+        node_id : str
+            Node identifier; must not use a reserved prefix or DSL keyword.
+        node_type : NodeType
+            ``value``, ``calculated`` or ``mixed``.
+        name : str, optional
+            Human-readable label.
+        values : Mapping[str, float], optional
+            Explicit observations keyed by period id (e.g. ``"2025Q1"``).
+        formula_text : str, optional
+            Statements DSL expression for calculated and mixed nodes.
+        forecast : ForecastSpec, optional
+            Forecast rule applied to forecast periods.
+
+        Raises
+        ------
+        ValueError
+            If the node id, formula or period ids are rejected.
+
+        """
+        ...
+
+    @property
+    def node_id(self) -> str:
+        """
+        Identifier of this node.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Identifier of this node.
+        """
+        ...
+
+    @property
+    def name(self) -> str | None:
+        """
+        Human-readable label, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Human-readable label, or ``None``.
+        """
+        ...
+
+    @property
+    def node_type(self) -> NodeType:
+        """
+        Whether the node is ``value``, ``calculated`` or ``mixed``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        NodeType
+            Whether the node is ``value``, ``calculated`` or ``mixed``.
+        """
+        ...
+
+    @property
+    def values(self) -> dict[str, float] | None:
+        """
+        Explicit observations keyed by period id, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        dict[str, float] | None
+            Explicit observations keyed by period id, or ``None``.
+        """
+        ...
+
+    @property
+    def availability_dates(self) -> dict[str, date]:
+        """
+        Publication date of each explicit observation, keyed by period id.
+
+        This property does not raise.
+
+        Returns
+        -------
+        dict[str, date]
+            Publication date of each explicit observation, keyed by period id.
+        """
+        ...
+
+    @property
+    def forecast(self) -> ForecastSpec | None:
+        """
+        Forecast rule applied to forecast periods, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        ForecastSpec | None
+            Forecast rule applied to forecast periods, or ``None``.
+        """
+        ...
+
+    @property
+    def formula_text(self) -> str | None:
+        """
+        Statements DSL expression, or ``None`` for pure value nodes.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Statements DSL expression, or ``None`` for pure value nodes.
+        """
+        ...
+
+    @property
+    def where_text(self) -> str | None:
+        """
+        DSL guard restricting the periods the node applies to, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            DSL guard restricting the periods the node applies to, or ``None``.
+        """
+        ...
+
+    @property
+    def tags(self) -> list[str]:
+        """
+        Free-form classification tags.
+
+        This property does not raise.
+
+        Returns
+        -------
+        list[str]
+            Free-form classification tags.
+        """
+        ...
+
+    @property
+    def value_type(self) -> str | None:
+        """
+        ``"scalar"`` or ``"money"``, or ``None`` when unset.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            ``"scalar"`` or ``"money"``, or ``None`` when unset.
+        """
+        ...
+
+    @property
+    def currency(self) -> str | None:
+        """
+        ISO-4217 code for money-typed nodes, otherwise ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            ISO-4217 code for money-typed nodes, otherwise ``None``.
+        """
+        ...
+
+    @property
+    def meta(self) -> dict[str, object]:
+        """
+        Arbitrary JSON metadata attached to the node.
+
+        This property does not raise.
+
+        Returns
+        -------
+        dict[str, object]
+            Arbitrary JSON metadata attached to the node.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Payload accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str, /) -> NodeSpec:
+        """
+        Deserialize from the canonical JSON wire form.
+
+        Parameters
+        ----------
+        json : str
+            Payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        NodeSpec
+            Reconstructed node specification.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import NodeSpec
+        >>> NodeSpec.from_json("{")
+        Traceback (most recent call last):
+        ValueError: ...
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class MetricDefinition:
+    """A registry metric: its formula, dependencies and classification.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import Registry
+    >>> Registry.with_builtins().get("fin.gross_margin").id
+    'gross_margin'
+
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Unqualified metric identifier.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Unqualified metric identifier.
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Human-readable metric name.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Human-readable metric name.
+        """
+        ...
+
+    @property
+    def formula(self) -> str:
+        """
+        Statements DSL expression computing the metric.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Statements DSL expression computing the metric.
+        """
+        ...
+
+    @property
+    def description(self) -> str | None:
+        """
+        Prose description, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Prose description, or ``None``.
+        """
+        ...
+
+    @property
+    def category(self) -> str | None:
+        """
+        Classification bucket (e.g. ``"profitability"``), or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Classification bucket (e.g. ``"profitability"``), or ``None``.
+        """
+        ...
+
+    @property
+    def unit_type(self) -> str | None:
+        """
+        Result unit (e.g. ``"ratio"``, ``"percent"``), or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Result unit (e.g. ``"ratio"``, ``"percent"``), or ``None``.
+        """
+        ...
+
+    @property
+    def requires(self) -> list[str]:
+        """
+        Node ids the formula reads.
+
+        This property does not raise.
+
+        Returns
+        -------
+        list[str]
+            Node ids the formula reads.
+        """
+        ...
+
+    @property
+    def tags(self) -> list[str]:
+        """
+        Free-form classification tags.
+
+        This property does not raise.
+
+        Returns
+        -------
+        list[str]
+            Free-form classification tags.
+        """
+        ...
+
+    @property
+    def meta(self) -> dict[str, object]:
+        """
+        Arbitrary JSON metadata attached to the definition.
+
+        This property does not raise.
+
+        Returns
+        -------
+        dict[str, object]
+            Arbitrary JSON metadata attached to the definition.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            Payload accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str, /) -> MetricDefinition:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        MetricDefinition
+            Reconstructed metric definition.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import MetricDefinition
+        >>> MetricDefinition.from_json("{")
+        Traceback (most recent call last):
+        ValueError: ...
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class Adjustment:
+    """A normalization adjustment: a fixed add-back or a percentage of a node.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import Adjustment
+    >>> Adjustment.fixed("a1", "Add-back", {"2025Q1": 2.0}).value_type
+    'fixed'
+
+    """
+
+    @staticmethod
+    def fixed(id: str, name: str, amounts: Mapping[str, float]) -> Adjustment:
+        """Build an adjustment of explicit per-period amounts.
+
+        Parameters
+        ----------
+        id : str
+            Adjustment identifier, unique within a configuration.
+        name : str
+            Human-readable label carried into the result.
+        amounts : Mapping[str, float]
+            Amounts keyed by period id, in the target node's units.
+
+        Returns
+        -------
+        Adjustment
+            Fixed-amount adjustment.
+
+        Raises
+        ------
+        ValueError
+            If a period id cannot be parsed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import Adjustment
+        >>> Adjustment.fixed("a1", "Add-back", {"2025Q1": 2.0}).value_type
+        'fixed'
+
+        """
+        ...
+
+    @staticmethod
+    def percentage(id: str, name: str, node_id: str, percentage: float) -> Adjustment:
+        """Build an adjustment equal to a percentage of another node.
+
+        Parameters
+        ----------
+        id : str
+            Adjustment identifier, unique within a configuration.
+        name : str
+            Human-readable label carried into the result.
+        node_id : str
+            Node whose per-period value the percentage is applied to.
+        percentage : float
+            Decimal fraction (``0.05`` = 5%), not percentage points.
+
+        Returns
+        -------
+        Adjustment
+            Percentage-of-node adjustment.
+
+        This constructor stores the inputs verbatim and does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import Adjustment
+        >>> Adjustment.percentage("a2", "Rent add-back", "revenue", 0.05).value_type
+        'percentage_of_node'
+
+        """
+        ...
+
+    def with_cap(self, base_node: str | None, value: float) -> Adjustment:
+        """Return a copy capped at ``value``.
+
+        Parameters
+        ----------
+        base_node : str or None
+            Node the cap is measured against; ``None`` caps on an absolute
+            amount in the target node's units.
+        value : float
+            Cap magnitude: an absolute amount when ``base_node`` is ``None``,
+            otherwise a decimal fraction of that node's value.
+
+        Returns
+        -------
+        Adjustment
+            Capped copy; the receiver is unchanged.
+
+        This method rewrites an in-memory field and does not raise.
+
+        """
+        ...
+
+    def with_cap_mode(self, base_node: str | None, value: float, base_mode: str) -> Adjustment:
+        """Return a copy capped at ``value`` under an explicit base mode.
+
+        Parameters
+        ----------
+        base_node : str or None
+            Node the cap is measured against, or ``None`` for an absolute cap.
+        value : float
+            Cap magnitude, interpreted per ``base_mode``.
+        base_mode : str
+            How the base value is read across periods (e.g. ``"same_period"``).
+
+        Returns
+        -------
+        Adjustment
+            Capped copy; the receiver is unchanged.
+
+        Raises
+        ------
+        ValueError
+            If ``base_mode`` is not a recognized mode.
+
+        """
+        ...
+
+    def with_category(self, category: str) -> Adjustment:
+        """Return a copy tagged with ``category``.
+
+        Parameters
+        ----------
+        category : str
+            Free-form classification label.
+
+        Returns
+        -------
+        Adjustment
+            Tagged copy; the receiver is unchanged.
+
+        This method rewrites an in-memory field and does not raise.
+
+        """
+        ...
+
+    @property
+    def id(self) -> str:
+        """
+        Adjustment identifier.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Adjustment identifier.
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Human-readable label.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Human-readable label.
+        """
+        ...
+
+    @property
+    def category(self) -> str | None:
+        """
+        Classification label, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Classification label, or ``None``.
+        """
+        ...
+
+    @property
+    def value_type(self) -> str:
+        """
+        ``"fixed"`` or ``"percentage"``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            ``"fixed"`` or ``"percentage"``.
+        """
+        ...
+
+    @property
+    def has_cap(self) -> bool:
+        """
+        Whether a cap is configured.
+
+        This property does not raise.
+
+        Returns
+        -------
+        bool
+            Whether a cap is configured.
+        """
+        ...
+
+    @property
+    def cap_base_node(self) -> str | None:
+        """
+        Node the cap is measured against, or ``None`` for an absolute cap.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Node the cap is measured against, or ``None`` for an absolute cap.
+        """
+        ...
+
+    @property
+    def cap_value(self) -> float | None:
+        """
+        Cap magnitude, or ``None`` when uncapped.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float | None
+            Cap magnitude, or ``None`` when uncapped.
+        """
+        ...
+
+    @property
+    def cap_base_mode(self) -> str | None:
+        """
+        Cap base mode, or ``None`` when uncapped.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Cap base mode, or ``None`` when uncapped.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            Payload accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str, /) -> Adjustment:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        Adjustment
+            Reconstructed adjustment.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import Adjustment
+        >>> Adjustment.from_json("{")
+        Traceback (most recent call last):
+        ValueError: ...
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class CheckConfig:
+    """Tolerances and severity floor applied by a check suite.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import CheckConfig
+    >>> CheckConfig(default_tolerance=0.05).default_tolerance
+    0.05
+
+    """
+
+    def __init__(
+        self,
+        default_tolerance: float = 0.01,
+        default_relative_tolerance: float = 1e-9,
+        materiality_threshold: float = 0.0,
+        min_severity: str = "info",
+    ) -> None:
+        """Configure check tolerances.
+
+        Parameters
+        ----------
+        default_tolerance : float
+            Absolute tolerance in the checked node's units.
+        default_relative_tolerance : float
+            Relative tolerance as a decimal fraction of the reference value.
+        materiality_threshold : float
+            Absolute magnitude below which a breach is not reported.
+        min_severity : str
+            Lowest severity retained: ``"info"``, ``"warning"`` or ``"error"``.
+
+        Raises
+        ------
+        ValueError
+            If ``min_severity`` is not a recognized severity.
+
+        """
+        ...
+
+    @property
+    def default_tolerance(self) -> float:
+        """
+        Absolute tolerance in the checked node's units.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float
+            Absolute tolerance in the checked node's units.
+        """
+        ...
+
+    @property
+    def default_relative_tolerance(self) -> float:
+        """
+        Relative tolerance as a decimal fraction.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float
+            Relative tolerance as a decimal fraction.
+        """
+        ...
+
+    @property
+    def materiality_threshold(self) -> float:
+        """
+        Absolute magnitude below which breaches are suppressed.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float
+            Absolute magnitude below which breaches are suppressed.
+        """
+        ...
+
+    @property
+    def min_severity(self) -> str:
+        """
+        Lowest severity retained in the report.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Lowest severity retained in the report.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            Payload accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str, /) -> CheckConfig:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CheckConfig
+            Reconstructed configuration.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import CheckConfig
+        >>> CheckConfig.from_json("{")
+        Traceback (most recent call last):
+        ValueError: ...
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class FormulaCheckSpec:
+    """A user-defined check expressed as a statements DSL predicate.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import FormulaCheckSpec
+    >>> FormulaCheckSpec("c1", "Positive revenue", "revenue > 0", "revenue <= 0").severity
+    'error'
+
+    """
+
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        formula: str,
+        message_template: str,
+        category: str = "internal_consistency",
+        severity: str = "error",
+        tolerance: float | None = None,
+    ) -> None:
+        """Define a formula check.
+
+        Parameters
+        ----------
+        id : str
+            Check identifier, unique within a suite.
+        name : str
+            Human-readable label.
+        formula : str
+            DSL predicate that must hold; a false result raises a finding.
+        message_template : str
+            Message emitted when the predicate fails.
+        category : str
+            Classification bucket, e.g. ``"internal_consistency"``.
+        severity : str
+            ``"info"``, ``"warning"`` or ``"error"``.
+        tolerance : float, optional
+            Absolute tolerance overriding the suite default.
+
+        Raises
+        ------
+        ValueError
+            If ``formula`` does not compile, or ``category`` / ``severity`` are
+            not recognized.
+
+        """
+        ...
+
+    @property
+    def id(self) -> str:
+        """
+        Check identifier.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Check identifier.
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Human-readable label.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Human-readable label.
+        """
+        ...
+
+    @property
+    def formula(self) -> str:
+        """
+        DSL predicate that must hold.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            DSL predicate that must hold.
+        """
+        ...
+
+    @property
+    def message_template(self) -> str:
+        """
+        Message emitted when the predicate fails.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Message emitted when the predicate fails.
+        """
+        ...
+
+    @property
+    def category(self) -> str:
+        """
+        Classification bucket.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Classification bucket.
+        """
+        ...
+
+    @property
+    def severity(self) -> str:
+        """
+        Severity assigned to findings from this check.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Severity assigned to findings from this check.
+        """
+        ...
+
+    @property
+    def tolerance(self) -> float | None:
+        """
+        Absolute tolerance override, or ``None`` to use the suite default.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float | None
+            Absolute tolerance override, or ``None`` to use the suite default.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            Payload accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str, /) -> FormulaCheckSpec:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        FormulaCheckSpec
+            Reconstructed check specification.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import FormulaCheckSpec
+        >>> FormulaCheckSpec.from_json("{")
+        Traceback (most recent call last):
+        ValueError: ...
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class CheckFinding:
+    """One breach reported by a check, with its materiality context.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import CheckFinding
+    >>> payload = '{"check_id":"c1","severity":"error","message":"broken","nodes":[]}'
+    >>> CheckFinding.from_json(payload).severity
+    'error'
+
+    """
+
+    @property
+    def check_id(self) -> str:
+        """
+        Identifier of the check that produced this finding.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Identifier of the check that produced this finding.
+        """
+        ...
+
+    @property
+    def severity(self) -> str:
+        """
+        ``"info"``, ``"warning"`` or ``"error"``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            ``"info"``, ``"warning"`` or ``"error"``.
+        """
+        ...
+
+    @property
+    def message(self) -> str:
+        """
+        Rendered description of the breach.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str
+            Rendered description of the breach.
+        """
+        ...
+
+    @property
+    def period(self) -> str | None:
+        """
+        Period id the breach was found in, or ``None`` if model-wide.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Period id the breach was found in, or ``None`` if model-wide.
+        """
+        ...
+
+    @property
+    def nodes(self) -> list[str]:
+        """
+        Node ids implicated in the breach.
+
+        This property does not raise.
+
+        Returns
+        -------
+        list[str]
+            Node ids implicated in the breach.
+        """
+        ...
+
+    @property
+    def materiality_absolute(self) -> float | None:
+        """
+        Absolute breach magnitude in the node's units, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float | None
+            Absolute breach magnitude in the node's units, or ``None``.
+        """
+        ...
+
+    @property
+    def materiality_relative_pct(self) -> float | None:
+        """
+        Breach magnitude as a percentage of the reference value, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float | None
+            Breach magnitude as a percentage of the reference value, or ``None``.
+        """
+        ...
+
+    @property
+    def materiality_reference_value(self) -> float | None:
+        """
+        Value the relative materiality is measured against, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        float | None
+            Value the relative materiality is measured against, or ``None``.
+        """
+        ...
+
+    @property
+    def materiality_reference_label(self) -> str | None:
+        """
+        Label describing the reference value, or ``None``.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            Label describing the reference value, or ``None``.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            Payload accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str, /) -> CheckFinding:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CheckFinding
+            Reconstructed finding.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import CheckFinding
+        >>> CheckFinding.from_json("{")
+        Traceback (most recent call last):
+        ValueError: ...
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class CapitalStructureCashflows:
+    """Per-instrument, per-period debt cashflows produced by an evaluation.
+
+    Amounts are floats stated in the model's reporting currency, reported by
+    :attr:`reporting_currency`.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import CapitalStructureCashflows
+    >>> payload = (
+    ...     '{"by_instrument":{},"totals":{},"totals_by_currency":{},'
+    ...     '"reporting_currency":"USD","equity_distribution":{}}'
+    ... )
+    >>> CapitalStructureCashflows.from_json(payload).instrument_ids
+    []
+
+    """
+
+    @property
+    def instrument_ids(self) -> list[str]:
+        """
+        Debt instrument identifiers present in the cashflows.
+
+        This property does not raise.
+
+        Returns
+        -------
+        list[str]
+            Debt instrument identifiers present in the cashflows.
+        """
+        ...
+
+    @property
+    def periods(self) -> list[str]:
+        """
+        Period ids covered, in model order.
+
+        This property does not raise.
+
+        Returns
+        -------
+        list[str]
+            Period ids covered, in model order.
+        """
+        ...
+
+    @property
+    def reporting_currency(self) -> str | None:
+        """
+        ISO-4217 code the amounts are stated in, or ``None`` when scalar.
+
+        This property does not raise.
+
+        Returns
+        -------
+        str | None
+            ISO-4217 code the amounts are stated in, or ``None`` when scalar.
+        """
+        ...
+
+    @property
+    def equity_distribution(self) -> dict[str, float]:
+        """
+        Residual cash to equity, keyed by period id.
+
+        This property does not raise.
+
+        Returns
+        -------
+        dict[str, float]
+            Residual cash to equity, keyed by period id.
+        """
+        ...
+
+    def get_interest(self, instrument_id: str, period: str) -> float:
+        """Total interest accrued on one instrument in one period.
+
+        Parameters
+        ----------
+        instrument_id : str
+            Debt instrument identifier.
+        period : str
+            Period id (e.g. ``"2025Q1"``).
+
+        Returns
+        -------
+        float
+            Interest amount in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the instrument or period is unknown.
+
+        """
+        ...
+
+    def get_interest_cash(self, instrument_id: str, period: str) -> float:
+        """Cash-paid portion of the period's interest.
+
+        Parameters
+        ----------
+        instrument_id : str
+            Debt instrument identifier.
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Cash interest in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the instrument or period is unknown.
+
+        """
+        ...
+
+    def get_interest_pik(self, instrument_id: str, period: str) -> float:
+        """Payment-in-kind portion of the period's interest.
+
+        Parameters
+        ----------
+        instrument_id : str
+            Debt instrument identifier.
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            PIK interest in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the instrument or period is unknown.
+
+        """
+        ...
+
+    def get_principal(self, instrument_id: str, period: str) -> float:
+        """Principal repaid on one instrument in one period.
+
+        Parameters
+        ----------
+        instrument_id : str
+            Debt instrument identifier.
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Principal repayment in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the instrument or period is unknown.
+
+        """
+        ...
+
+    def get_debt_balance(self, instrument_id: str, period: str) -> float:
+        """Closing debt balance for one instrument in one period.
+
+        Parameters
+        ----------
+        instrument_id : str
+            Debt instrument identifier.
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Closing balance in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the instrument or period is unknown.
+
+        """
+        ...
+
+    def get_fees(self, instrument_id: str, period: str) -> float:
+        """Fees charged on one instrument in one period.
+
+        Parameters
+        ----------
+        instrument_id : str
+            Debt instrument identifier.
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Fee amount in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the instrument or period is unknown.
+
+        """
+        ...
+
+    def get_accrued_interest(self, instrument_id: str, period: str) -> float:
+        """Interest accrued but unpaid at the end of one period.
+
+        Parameters
+        ----------
+        instrument_id : str
+            Debt instrument identifier.
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Accrued interest in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the instrument or period is unknown.
+
+        """
+        ...
+
+    def get_total_interest(self, period: str) -> float:
+        """Interest across all instruments in one period.
+
+        Parameters
+        ----------
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Total interest in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the period is unknown.
+
+        """
+        ...
+
+    def get_total_principal(self, period: str) -> float:
+        """Principal repaid across all instruments in one period.
+
+        Parameters
+        ----------
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Total principal in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the period is unknown.
+
+        """
+        ...
+
+    def get_total_debt_balance(self, period: str) -> float:
+        """Closing debt across all instruments in one period.
+
+        Parameters
+        ----------
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Total closing balance in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the period is unknown.
+
+        """
+        ...
+
+    def get_total_fees(self, period: str) -> float:
+        """Fees across all instruments in one period.
+
+        Parameters
+        ----------
+        period : str
+            Period identifier such as ``"2025Q1"``, matching the labels of
+            the projection the cashflows were built from.
+
+        Returns
+        -------
+        float
+            Total fees in the reporting currency.
+
+        Raises
+        ------
+        KeyError
+            If the period is unknown.
+
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """Long frame of per-instrument flows.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``instrument_id``, ``period``, ``flow_type``, ``amount``
+            and ``currency``.
+
+        Raises
+        ------
+        RuntimeError
+            If pandas is not installed.
+
+        """
+        ...
+
+    def to_totals_dataframe(self) -> pd.DataFrame:
+        """Long frame of per-period totals across all instruments.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``period``, ``flow_type``, ``amount`` and ``currency``.
+
+        Raises
+        ------
+        RuntimeError
+            If pandas is not installed.
+
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            Payload accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str, /) -> CapitalStructureCashflows:
+        """
+        Deserialize from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Payload produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CapitalStructureCashflows
+            Reconstructed cashflows.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import CapitalStructureCashflows
+        >>> CapitalStructureCashflows.from_json("{")
+        Traceback (most recent call last):
+        ValueError: ...
         """
         ...
 

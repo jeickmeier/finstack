@@ -414,7 +414,6 @@ where
             return Ok(0.0);
         }
 
-        let base = self.config.series_id.as_str();
         let mut curve_totals = Vec::with_capacity(curves.len());
         // Cashflow schedules are a conservative risk-horizon source. Empty or
         // unavailable schedules disable pruning so this optimization cannot
@@ -430,7 +429,7 @@ where
         };
 
         for (curve_id, kind) in curves.iter() {
-            let curve_metric_id = MetricId::custom(format!("{}::{}", base, curve_id.as_str()));
+            let curve_metric_id = MetricId::composite(&self.config.series_id, &[curve_id.as_str()]);
             let risk_horizon = last_cashflow_date.and_then(|date| {
                 curve_risk_horizon_years(context.curves.as_ref(), curve_id, *kind, date)
             });

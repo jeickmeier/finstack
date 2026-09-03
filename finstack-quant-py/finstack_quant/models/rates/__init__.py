@@ -7,6 +7,6 @@ Examples:
 2
 """
 
-from finstack_quant.models.rates import dtsm as dtsm
+from finstack_quant.models.rates import dtsm as dtsm, hull_white as hull_white
 
-__all__: list[str] = ["dtsm"]
+__all__: list[str] = ["dtsm", "hull_white"]

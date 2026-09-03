@@ -123,6 +123,7 @@ pub use metrics::price_yield_spread::asw::{asw_market_with_forward, asw_par_with
 pub use metrics::{DiscountMarginCalculator, ZSpreadCalculator};
 pub use types::AmortizationSpec;
 pub use types::Bond;
+pub use types::BondBuilder;
 pub use types::BondSettlementConvention;
 pub use types::CallPut;
 pub use types::CallPutSchedule;

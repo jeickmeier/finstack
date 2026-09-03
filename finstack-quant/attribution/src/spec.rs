@@ -319,6 +319,45 @@ impl AttributionSpec {
     }
 }
 
+/// Run one attribution specification against many instruments.
+///
+/// Every instrument is attributed with the same markets, dates, method and
+/// configuration carried by `template` (its own `instrument` field is
+/// ignored). Results come back in input order, one per instrument; the
+/// loop is serial and deterministic, and the first failing instrument aborts
+/// the batch with its error. Panics are contained per instrument exactly as
+/// in [`AttributionSpec::execute_contained`].
+///
+/// # Arguments
+///
+/// * `template` - Attribution run whose markets, valuation dates, method,
+///   config, model-parameter snapshot and credit-factor model are shared by
+///   every instrument.
+/// * `instruments` - Instrument payloads to attribute, in output order.
+///
+/// # Errors
+///
+/// Returns the first instrument's error — see [`AttributionSpec::execute`].
+///
+/// # Returns
+///
+/// One [`PnlAttribution`] per entry of `instruments`, in the same order.
+pub fn attribute_pnl_many(
+    template: &AttributionSpec,
+    instruments: Vec<InstrumentJson>,
+) -> Result<Vec<PnlAttribution>> {
+    instruments
+        .into_iter()
+        .map(|instrument| {
+            let spec = AttributionSpec {
+                instrument,
+                ..template.clone()
+            };
+            spec.execute_contained().map(|result| result.attribution)
+        })
+        .collect()
+}
+
 /// Default set of metrics for metrics-based attribution.
 ///
 /// Delegates to [`AttributionMethod::required_metrics`] on the `MetricsBased` variant.

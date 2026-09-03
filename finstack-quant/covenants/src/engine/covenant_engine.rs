@@ -15,14 +15,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 /// Covenant engine for evaluation and consequence application.
-#[derive(Debug, Serialize, Deserialize)]
+///
+/// Only `specs` is required on the wire: `breach_history`, `windows` and
+/// `waivers` default to empty, so `{"specs": [...]}` is a complete engine
+/// document.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CovenantEngine {
     /// Active covenant specifications
     pub specs: Vec<CovenantSpec>,
     /// Historical breaches
+    #[serde(default)]
     pub breach_history: Vec<CovenantBreach>,
     /// Covenant testing windows
+    #[serde(default)]
     pub windows: Vec<CovenantWindow>,
     /// Active waivers and amendments
     #[serde(default)]

@@ -574,6 +574,137 @@ fn default_gearing_includes_spread() -> bool {
     true
 }
 
+impl FloatingRateSpec {
+    /// Shared preset skeleton: unit gearing, no floors/caps, `Error` fallback.
+    fn preset(
+        index_id: &str,
+        spread_bp: Decimal,
+        reset_frequency: Tenor,
+        index_tenor: Option<Tenor>,
+        reset_lag_days: i32,
+        fixing_calendar_id: &str,
+    ) -> Self {
+        Self {
+            index_id: CurveId::from(index_id),
+            spread_bp,
+            gearing: default_gearing(),
+            gearing_includes_spread: true,
+            index_floor_bp: None,
+            all_in_floor_bp: None,
+            all_in_cap_bp: None,
+            index_cap_bp: None,
+            overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
+            reset_frequency,
+            index_tenor,
+            reset_lag_days,
+            fixing_calendar_id: Some(fixing_calendar_id.to_string()),
+            overnight_compounding: None,
+            overnight_basis: None,
+            fallback: FloatingRateFallback::Error,
+        }
+    }
+
+    /// USD SOFR compounded in arrears (ARRC / ISDA 2021 conventions).
+    ///
+    /// Index id `USD-SOFR`, quarterly resets, daily compounding in arrears on
+    /// an Act/360 basis, no reset lag (the ARRC convention places the lag on
+    /// payment, see [`super::ScheduleParams::usd_sofr_swap`]), USNY fixing
+    /// calendar, unit gearing, no floors or caps, `Error` fallback.
+    ///
+    /// # Arguments
+    ///
+    /// * `spread_bp` - Spread over compounded SOFR in basis points
+    ///   (`dec!(50)` means +50 bp per annum).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_cashflows::builder::{FloatingRateSpec, OvernightCompoundingMethod};
+    /// use rust_decimal_macros::dec;
+    ///
+    /// let spec = FloatingRateSpec::sofr(dec!(50));
+    /// assert_eq!(spec.index_id.as_str(), "USD-SOFR");
+    /// assert_eq!(spec.overnight_compounding, Some(OvernightCompoundingMethod::CompoundedInArrears));
+    /// assert!(spec.validate().is_ok());
+    /// ```
+    ///
+    /// # References
+    ///
+    /// - `docs/REFERENCES.md#arrc-sofr-users-guide`
+    pub fn sofr(spread_bp: Decimal) -> Self {
+        Self {
+            overnight_compounding: Some(OvernightCompoundingMethod::CompoundedInArrears),
+            overnight_basis: Some(DayCount::Act360),
+            ..Self::preset("USD-SOFR", spread_bp, Tenor::quarterly(), None, 0, "usny")
+        }
+    }
+
+    /// GBP SONIA compounded in arrears (BoE / ISDA 2021 conventions).
+    ///
+    /// Index id `GBP-SONIA`, annual resets, daily compounding in arrears on an
+    /// Act/365F basis, no reset lag, GBLO fixing calendar, unit gearing, no
+    /// floors or caps, `Error` fallback. Pair with
+    /// [`super::ScheduleParams::gbp_sonia_swap`].
+    ///
+    /// # Arguments
+    ///
+    /// * `spread_bp` - Spread over compounded SONIA in basis points
+    ///   (`dec!(25)` means +25 bp per annum).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_cashflows::builder::FloatingRateSpec;
+    /// use finstack_quant_core::dates::DayCount;
+    /// use rust_decimal_macros::dec;
+    ///
+    /// let spec = FloatingRateSpec::sonia(dec!(25));
+    /// assert_eq!(spec.index_id.as_str(), "GBP-SONIA");
+    /// assert_eq!(spec.overnight_basis, Some(DayCount::Act365F));
+    /// ```
+    pub fn sonia(spread_bp: Decimal) -> Self {
+        Self {
+            overnight_compounding: Some(OvernightCompoundingMethod::CompoundedInArrears),
+            overnight_basis: Some(DayCount::Act365F),
+            ..Self::preset("GBP-SONIA", spread_bp, Tenor::annual(), None, 0, "gblo")
+        }
+    }
+
+    /// EUR 3-month EURIBOR term rate (ISDA 2006 EUR conventions).
+    ///
+    /// Index id `EUR-EURIBOR-3M`, quarterly resets fixed in advance with a
+    /// two-business-day reset lag on the TARGET2 calendar, explicit 3M index
+    /// tenor, unit gearing, no floors or caps, `Error` fallback.
+    ///
+    /// # Arguments
+    ///
+    /// * `spread_bp` - Spread over 3M EURIBOR in basis points
+    ///   (`dec!(100)` means +100 bp per annum).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_cashflows::builder::FloatingRateSpec;
+    /// use finstack_quant_core::dates::Tenor;
+    /// use rust_decimal_macros::dec;
+    ///
+    /// let spec = FloatingRateSpec::euribor_3m(dec!(100));
+    /// assert_eq!(spec.index_id.as_str(), "EUR-EURIBOR-3M");
+    /// assert_eq!(spec.index_tenor, Some(Tenor::quarterly()));
+    /// assert_eq!(spec.reset_lag_days, 2);
+    /// ```
+    pub fn euribor_3m(spread_bp: Decimal) -> Self {
+        Self::preset(
+            "EUR-EURIBOR-3M",
+            spread_bp,
+            Tenor::quarterly(),
+            Some(Tenor::quarterly()),
+            2,
+            "target2",
+        )
+    }
+}
+
 /// Floating coupon specification (composes FloatingRateSpec).
 ///
 /// Used by the cashflow builder for instruments with floating rate coupons.

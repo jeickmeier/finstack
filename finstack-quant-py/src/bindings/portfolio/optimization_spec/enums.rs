@@ -156,6 +156,16 @@ impl std::hash::Hash for PyInequality {
 
 #[pymethods]
 impl PyInequality {
+    /// Parse from a string: ``"le"``/``"<="``, ``"ge"``/``">="`` or
+    /// ``"eq"``/``"=="``. Raises ``ValueError`` for anything else.
+    #[new]
+    #[pyo3(text_signature = "(op)")]
+    fn new(op: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: op.parse().map_err(crate::errors::portfolio_to_py)?,
+        })
+    }
+
     #[classmethod]
     fn le(_cls: &Bound<'_, PyType>) -> Self {
         Self {

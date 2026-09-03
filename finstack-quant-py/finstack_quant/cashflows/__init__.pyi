@@ -1,7 +1,7 @@
 """
-Cashflow schedule JSON construction and validation.
+Cashflow schedule construction (typed and JSON), validation, and dated-flow extraction.
 
-JSON-first bindings for ``finstack-quant-cashflows``. Build schedules from a
+Root bindings for ``finstack-quant-cashflows``. Build schedules from a
 ``CashflowScheduleBuildSpec``, validate canonical payloads, extract dated flows,
 and compute accrued interest.
 
@@ -17,29 +17,281 @@ Examples
 
 from __future__ import annotations
 
+from typing import Any
+
 import datetime
 
 from finstack_quant.cashflows import accrual as accrual
+from finstack_quant.cashflows.builder import CashFlowMeta, CashFlowSchedule
+from finstack_quant.cashflows.primitives import CashFlow, CFKind
+from finstack_quant.core.dates import DayCount
+from finstack_quant.core.market_data import MarketContext
+from finstack_quant.core.money import Money
 from finstack_quant.cashflows import aggregation as aggregation
 from finstack_quant.cashflows import builder as builder
 from finstack_quant.cashflows import primitives as primitives
 from finstack_quant.cashflows import schema as schema
 
 __all__ = [
+    "ScheduleBuildOpts",
     "accrual",
     "accrued_interest",
     "aggregation",
+    "build_cashflow_schedule",
     "build_cashflow_schedule_json",
     "builder",
     "cdr_to_mdr",
     "cpr_to_smm",
+    "dated_flows",
     "dated_flows_json",
     "mdr_to_cdr",
     "primitives",
+    "schedule_from_classified_flows",
+    "schedule_from_dated_flows",
     "schema",
     "smm_to_cpr",
     "validate_cashflow_schedule_json",
 ]
+
+class ScheduleBuildOpts:
+    """
+    Schedule-level inputs shared by :func:`schedule_from_dated_flows` and
+    :func:`schedule_from_classified_flows`.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows import ScheduleBuildOpts
+    >>> from finstack_quant.core.money import Money
+    >>> ScheduleBuildOpts(notional_hint=Money(100.0, "USD")).notional_hint.amount
+    100.0
+    """
+
+    def __init__(self, notional_hint: Money | None = None, meta: CashFlowMeta | None = None) -> None:
+        """
+        Construct build options.
+
+        Parameters
+        ----------
+        notional_hint : Money, optional
+            Notional stamped on the resulting schedule; when omitted a zero
+            notional in the first flow's currency (USD if none) is used.
+        meta : CashFlowMeta, optional
+            Schedule-level metadata (default contractual, no calendars).
+
+        Notes
+        -----
+        The constructor does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows import ScheduleBuildOpts
+        >>> ScheduleBuildOpts().notional_hint is None
+        True
+        """
+        ...
+
+    @property
+    def notional_hint(self) -> Money | None:
+        """
+        Notional stamped on the resulting schedule, if provided.
+
+        Returns
+        -------
+        Money or None
+            The hint, or ``None`` for currency-inferred zero notional.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def meta(self) -> CashFlowMeta:
+        """
+        Schedule-level metadata.
+
+        Returns
+        -------
+        CashFlowMeta
+            Metadata stamped on built schedules.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+def build_cashflow_schedule(spec: dict[str, Any] | str, market: MarketContext | str | None = None) -> CashFlowSchedule:
+    """
+    Build a typed ``CashFlowSchedule`` from a build spec (typed twin of
+    :func:`build_cashflow_schedule_json`).
+
+    Parameters
+    ----------
+    spec : dict or str
+        ``CashflowScheduleBuildSpec`` as a JSON string or an equivalent dict
+        (``notional``, ``issue``, ``maturity``, ``coupon_program``,
+        ``payment_program``, ``fees``, ``principal_events``,
+        ``principal_exchange``).
+    market : MarketContext or str, optional
+        Market context (or its JSON) for floating-rate projection.
+
+    Returns
+    -------
+    CashFlowSchedule
+        Canonical typed schedule with ``to_dataframe()``.
+
+    Raises
+    ------
+    ValueError
+        If the spec is malformed or the schedule fails validation.
+    KeyError
+        If a floating leg references a curve missing from ``market``.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows import build_cashflow_schedule
+    >>> spec = {
+    ...     "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "none"},
+    ...     "issue": "2025-01-15",
+    ...     "maturity": "2026-01-15",
+    ...     "coupon_program": [
+    ...         {
+    ...             "kind": "fixed",
+    ...             "spec": {
+    ...                 "rate": "0.05",
+    ...                 "frequency": {"count": 6, "unit": "months"},
+    ...                 "day_count": "30_360",
+    ...                 "calendar_id": "weekends_only",
+    ...             },
+    ...         }
+    ...     ],
+    ... }
+    >>> build_cashflow_schedule(spec).get_flows()[0].kind.name
+    'notional'
+    """
+    ...
+
+def dated_flows(schedule: CashFlowSchedule | str) -> list[tuple[datetime.date, Money]]:
+    """
+    Settlement cash entries of a schedule (typed twin of :func:`dated_flows_json`).
+
+    Parameters
+    ----------
+    schedule : CashFlowSchedule or str
+        Typed schedule or its canonical JSON.
+
+    Returns
+    -------
+    list[tuple[datetime.date, Money]]
+        Cash-settling rows in schedule order; PIK capitalizations and
+        default write-downs are omitted.
+
+    Raises
+    ------
+    ValueError
+        If ``schedule`` is a malformed JSON string.
+    TypeError
+        If ``schedule`` is neither a ``CashFlowSchedule`` nor a string.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.cashflows import dated_flows, schedule_from_dated_flows
+    >>> from finstack_quant.core.dates import DayCount
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = schedule_from_dated_flows(
+    ...     [(datetime.date(2025, 6, 15), Money(100.0, "USD"))], "fixed", DayCount.ACT_360
+    ... )
+    >>> dated_flows(schedule)[0][1].amount
+    100.0
+    """
+    ...
+
+def schedule_from_dated_flows(
+    flows: list[tuple[datetime.date, Money]],
+    kind: CFKind | str,
+    day_count: DayCount,
+    opts: ScheduleBuildOpts | None = None,
+) -> CashFlowSchedule:
+    """
+    Build a ``CashFlowSchedule`` from dated flows sharing one classification.
+
+    Parameters
+    ----------
+    flows : list[tuple[datetime.date, Money]]
+        Dated amounts in any order.
+    kind : CFKind or str
+        Classification stamped on every row (e.g. ``"fixed"``).
+    day_count : DayCount
+        Representative day-count convention.
+    opts : ScheduleBuildOpts, optional
+        Notional hint and metadata.
+
+    Returns
+    -------
+    CashFlowSchedule
+        Canonical schedule with zero accrual factors and no rates.
+
+    Raises
+    ------
+    ValueError
+        If ``kind`` is not a known label or a date cannot be parsed.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.cashflows import schedule_from_dated_flows
+    >>> from finstack_quant.core.dates import DayCount
+    >>> from finstack_quant.core.money import Money
+    >>> schedule_from_dated_flows(
+    ...     [(datetime.date(2025, 6, 15), Money(100.0, "USD"))], "fixed", DayCount.THIRTY_360
+    ... ).get_flows()[0].amount.amount
+    100.0
+    """
+    ...
+
+def schedule_from_classified_flows(
+    flows: list[CashFlow],
+    day_count: DayCount,
+    opts: ScheduleBuildOpts | None = None,
+) -> CashFlowSchedule:
+    """
+    Build a ``CashFlowSchedule`` from pre-classified ``CashFlow`` rows.
+
+    Parameters
+    ----------
+    flows : list[CashFlow]
+        Classified rows in any order; kinds preserved.
+    day_count : DayCount
+        Representative day-count convention.
+    opts : ScheduleBuildOpts, optional
+        Notional hint and metadata.
+
+    Returns
+    -------
+    CashFlowSchedule
+        Canonical schedule holding the sorted rows.
+
+    Notes
+    -----
+    This function does not raise.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.cashflows import schedule_from_classified_flows
+    >>> from finstack_quant.cashflows.primitives import CashFlow, CFKind
+    >>> from finstack_quant.core.dates import DayCount
+    >>> from finstack_quant.core.money import Money
+    >>> flow = CashFlow(datetime.date(2025, 6, 15), Money(100.0, "USD"), CFKind.PIK)
+    >>> schedule_from_classified_flows([flow], DayCount.ACT_360).get_flows()[0].kind.name
+    'pik'
+    """
+    ...
 
 def build_cashflow_schedule_json(spec_json: str, market_json: str | None = None) -> str:
     """

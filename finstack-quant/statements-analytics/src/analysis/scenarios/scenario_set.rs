@@ -74,6 +74,17 @@ pub struct ScenarioDefinition {
     /// node's scalar or monetary type and currency.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub overrides: IndexMap<String, AmountOrScalar>,
+
+    /// Typed per-period overrides for model nodes, keyed `node_id` then
+    /// period id.
+    ///
+    /// A per-period override applies only to the named forecast period and
+    /// takes precedence over a model-wide `overrides` entry for the same node
+    /// in that period. Across a parent chain the child's per-period value wins
+    /// for that (node, period), but a child's model-wide override does not
+    /// clear a parent's per-period overrides for other periods.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub period_overrides: IndexMap<String, IndexMap<PeriodId, AmountOrScalar>>,
 }
 
 /// Registry of named scenarios built on top of a base model.
@@ -152,6 +163,7 @@ impl ScenarioSet {
     ///     "base".to_string(),
     ///     ScenarioDefinition {
     ///         parent: None,
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::new(),
     ///     },
     /// );
@@ -159,6 +171,7 @@ impl ScenarioSet {
     ///     "downside".to_string(),
     ///     ScenarioDefinition {
     ///         parent: Some("base".to_string()),
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::from([(
     ///             "revenue".to_string(),
     ///             AmountOrScalar::scalar(90.0),
@@ -238,10 +251,12 @@ impl ScenarioSet {
     /// let scenarios = IndexMap::from([
     ///     ("base".to_string(), ScenarioDefinition {
     ///         parent: None,
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::new(),
     ///     }),
     ///     ("downside".to_string(), ScenarioDefinition {
     ///         parent: Some("base".to_string()),
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::from([(
     ///             "revenue".to_string(),
     ///             AmountOrScalar::scalar(90.0),
@@ -324,10 +339,12 @@ impl ScenarioSet {
     /// let scenarios = IndexMap::from([
     ///     ("base".to_string(), ScenarioDefinition {
     ///         parent: None,
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::new(),
     ///     }),
     ///     ("stress".to_string(), ScenarioDefinition {
     ///         parent: Some("base".to_string()),
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::new(),
     ///     }),
     /// ]);
@@ -374,8 +391,10 @@ impl ScenarioSet {
     ///
     /// Later scenarios in the chain override earlier ones for the same
     /// `node_id`.
-    fn resolve_overrides(&self, name: &str) -> Result<IndexMap<String, AmountOrScalar>> {
+    fn resolve_overrides(&self, name: &str) -> Result<ResolvedOverrides> {
         let mut merged = IndexMap::new();
+        let mut merged_periods: IndexMap<String, IndexMap<PeriodId, AmountOrScalar>> =
+            IndexMap::new();
         let mut stack = Vec::new();
         let mut seen = IndexSet::new();
         let mut current = Some(name);
@@ -409,11 +428,26 @@ impl ScenarioSet {
                 for (node_id, value) in &def.overrides {
                     merged.insert(node_id.clone(), *value);
                 }
+                for (node_id, by_period) in &def.period_overrides {
+                    let entry = merged_periods.entry(node_id.clone()).or_default();
+                    for (period, value) in by_period {
+                        entry.insert(*period, *value);
+                    }
+                }
             }
         }
 
-        Ok(merged)
+        Ok(ResolvedOverrides {
+            model_wide: merged,
+            per_period: merged_periods,
+        })
     }
+}
+
+/// Overrides merged along a scenario's parent chain.
+struct ResolvedOverrides {
+    model_wide: IndexMap<String, AmountOrScalar>,
+    per_period: IndexMap<String, IndexMap<PeriodId, AmountOrScalar>>,
 }
 
 impl ScenarioResults {
@@ -464,7 +498,7 @@ impl ScenarioResults {
     /// - `metric` (Utf8)
     /// - One Float64 column per scenario (named by scenario).
     /// - For each non-baseline scenario, an additional Float64 column
-    ///   `<scenario>_vs_<baseline>_pct` computed as:
+    ///   `<scenario>_vs_<baseline>_frac` computed as:
     ///   `(scenario - baseline) / baseline`, with `0.0` used when the
     ///   baseline is effectively zero to avoid infinities/NaNs.
     ///
@@ -504,10 +538,12 @@ impl ScenarioResults {
     /// let scenarios = IndexMap::from([
     ///     ("base".to_string(), ScenarioDefinition {
     ///         parent: None,
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::new(),
     ///     }),
     ///     ("downside".to_string(), ScenarioDefinition {
     ///         parent: Some("base".to_string()),
+    ///         period_overrides: IndexMap::new(),
     ///         overrides: IndexMap::from([(
     ///             "revenue".to_string(),
     ///             AmountOrScalar::scalar(90.0),
@@ -635,10 +671,10 @@ impl ScenarioResults {
                     .iter()
                     .position(|name| *name == *scenario_name)
                 {
-                    let pct_col_name = format!("{}_vs_{}_pct", scenario_name, baseline_name);
+                    let frac_col_name = format!("{}_vs_{}_frac", scenario_name, baseline_name);
                     columns.push(
                         TableColumn::new(
-                            pct_col_name,
+                            frac_col_name,
                             TableColumnData::NullableFloat64(pct_values[pct_idx].clone()),
                         )
                         .with_role(TableColumnRole::Measure),
@@ -657,11 +693,13 @@ impl ScenarioResults {
 }
 
 /// Apply typed scenario overrides to forecast periods.
-fn apply_overrides(
-    model: &mut FinancialModelSpec,
-    overrides: &IndexMap<String, AmountOrScalar>,
-) -> Result<()> {
-    if overrides.is_empty() {
+///
+/// Model-wide overrides are written to every forecast period first; per-period
+/// overrides are then written on top, so they win for their own period. A
+/// per-period override naming a period that is not a forecast period of the
+/// model is rejected.
+fn apply_overrides(model: &mut FinancialModelSpec, overrides: &ResolvedOverrides) -> Result<()> {
+    if overrides.model_wide.is_empty() && overrides.per_period.is_empty() {
         return Ok(());
     }
 
@@ -672,33 +710,8 @@ fn apply_overrides(
         .map(|p| p.id)
         .collect();
 
-    for (node_id, value) in overrides {
-        let node = model
-            .get_node_mut(node_id)
-            .ok_or_else(|| Error::invalid_input(format!("Node '{node_id}' not found in model")))?;
-        match (node.value_type, value) {
-            (
-                Some(finstack_quant_statements::types::NodeValueType::Monetary { currency }),
-                AmountOrScalar::Amount(money),
-            ) if currency == money.currency() => {}
-            (
-                Some(finstack_quant_statements::types::NodeValueType::Scalar),
-                AmountOrScalar::Scalar(_),
-            ) => {}
-            (Some(expected), supplied) => {
-                return Err(Error::invalid_input(format!(
-                    "Scenario override for node '{node_id}' is incompatible with {expected:?}: \
-                     got {supplied:?}"
-                )));
-            }
-            (None, _) => {
-                return Err(Error::invalid_input(format!(
-                    "Scenario override for node '{node_id}' requires a declared or inferred \
-                     value_type"
-                )));
-            }
-        }
-
+    for (node_id, value) in &overrides.model_wide {
+        let node = override_target(model, node_id, value)?;
         let mut values = node.values.clone().unwrap_or_default();
         for period_id in &forecast_period_ids {
             values.insert(*period_id, *value);
@@ -706,7 +719,57 @@ fn apply_overrides(
         node.values = Some(values);
     }
 
+    for (node_id, by_period) in &overrides.per_period {
+        for (period_id, value) in by_period {
+            if !forecast_period_ids.contains(period_id) {
+                return Err(Error::invalid_input(format!(
+                    "Scenario override for node '{node_id}' names period '{period_id}', which is \
+                     not a forecast period of the model"
+                )));
+            }
+            let node = override_target(model, node_id, value)?;
+            let mut values = node.values.clone().unwrap_or_default();
+            values.insert(*period_id, *value);
+            node.values = Some(values);
+        }
+    }
+
     Ok(())
+}
+
+/// Resolve the node an override targets, checking its declared value type
+/// against the supplied amount or scalar.
+fn override_target<'m>(
+    model: &'m mut FinancialModelSpec,
+    node_id: &str,
+    value: &AmountOrScalar,
+) -> Result<&'m mut finstack_quant_statements::types::NodeSpec> {
+    let node = model
+        .get_node_mut(node_id)
+        .ok_or_else(|| Error::invalid_input(format!("Node '{node_id}' not found in model")))?;
+    match (node.value_type, value) {
+        (
+            Some(finstack_quant_statements::types::NodeValueType::Monetary { currency }),
+            AmountOrScalar::Amount(money),
+        ) if currency == money.currency() => {}
+        (
+            Some(finstack_quant_statements::types::NodeValueType::Scalar),
+            AmountOrScalar::Scalar(_),
+        ) => {}
+        (Some(expected), supplied) => {
+            return Err(Error::invalid_input(format!(
+                "Scenario override for node '{node_id}' is incompatible with {expected:?}: \
+                 got {supplied:?}"
+            )));
+        }
+        (None, _) => {
+            return Err(Error::invalid_input(format!(
+                "Scenario override for node '{node_id}' requires a declared or inferred \
+                 value_type"
+            )));
+        }
+    }
+    Ok(node)
 }
 
 #[cfg(test)]
@@ -721,6 +784,7 @@ mod tests {
             "base".to_string(),
             ScenarioDefinition {
                 parent: None,
+                period_overrides: IndexMap::new(),
                 overrides: IndexMap::new(),
             },
         );
@@ -731,6 +795,7 @@ mod tests {
             "downside".to_string(),
             ScenarioDefinition {
                 parent: Some("base".to_string()),
+                period_overrides: IndexMap::new(),
                 overrides: downside_overrides,
             },
         );
@@ -741,6 +806,7 @@ mod tests {
             "stress".to_string(),
             ScenarioDefinition {
                 parent: Some("downside".to_string()),
+                period_overrides: IndexMap::new(),
                 overrides: stress_overrides,
             },
         );
@@ -750,13 +816,13 @@ mod tests {
         let base = set
             .resolve_overrides("base")
             .expect("base overrides should resolve");
-        assert!(base.is_empty());
+        assert!(base.model_wide.is_empty());
 
         let downside = set
             .resolve_overrides("downside")
             .expect("downside overrides should resolve");
         assert_eq!(
-            downside.get("revenue"),
+            downside.model_wide.get("revenue"),
             Some(&AmountOrScalar::scalar(90_000.0))
         );
 
@@ -764,7 +830,7 @@ mod tests {
             .resolve_overrides("stress")
             .expect("stress overrides should resolve");
         assert_eq!(
-            stress.get("revenue"),
+            stress.model_wide.get("revenue"),
             Some(&AmountOrScalar::scalar(80_000.0))
         );
     }

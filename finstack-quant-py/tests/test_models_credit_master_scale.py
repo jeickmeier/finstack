@@ -42,20 +42,40 @@ def test_map_pd_rejects_non_finite() -> None:
             scale.map_pd(bad)
 
 
-def test_map_pd_clamps_out_of_range_probabilities() -> None:
-    """Out-of-range PDs clamp to the end bands rather than raising.
-
-    This is deliberate — core pins it in `pd_exceeds_all_grades` — but it means
-    an invalid probability produces a confident grade: a sign error maps to the
-    best grade and a percent/decimal mix-up (5.0 for "5%") to the worst. Callers
-    that need input validation must do it before calling.
-    """
+def test_map_pd_rejects_out_of_range_probabilities() -> None:
+    """A sign error or a percent/decimal mix-up (5.0 for "5%") raises."""
     scale = pd.MasterScale.sp_assumptions()
 
-    assert scale.map_pd(-0.1).grade == scale.grades[0].label
-    assert scale.map_pd(1.5).grade == scale.grades[-1].label
-    # The input PD is preserved verbatim, so the clamp is at least visible.
-    assert scale.map_pd(1.5).input_pd == pytest.approx(1.5)
+    for bad in (-0.1, 1.5, 5.0):
+        with pytest.raises(ValueError, match=r"outside \[0, 1\]"):
+            scale.map_pd(bad)
+    # The closed unit interval itself is accepted.
+    assert scale.map_pd(0.0).grade == scale.grades[0].label
+    assert scale.map_pd(1.0).grade == scale.grades[-1].label
+
+
+def test_map_pds_builds_a_grading_table() -> None:
+    scale = pd.MasterScale.sp_assumptions()
+    table = scale.map_pds([0.0005, 0.003, 0.05])
+    assert list(table.columns) == ["grade", "grade_index", "input_pd", "central_pd"]
+    assert list(table["grade"]) == ["AA", "BBB", "B"]
+    assert list(scale.map_pds([]).columns) == ["grade", "grade_index", "input_pd", "central_pd"]
+
+
+def test_master_scale_json_pickle_and_frame() -> None:
+    import pickle
+
+    scale = pd.MasterScale.sp_assumptions()
+    assert pd.MasterScale.from_json(scale.to_json()).n_grades == scale.n_grades
+    assert pickle.loads(pickle.dumps(scale))  # noqa: S301 - trusted in-process round trip.grades == scale.grades
+    frame = scale.to_dataframe()
+    assert list(frame.columns) == ["label", "upper_pd", "central_pd"]
+    assert len(frame) == scale.n_grades
+    grade = scale.grades[0]
+    assert pd.MasterScaleGrade.from_json(grade.to_json()) == grade
+    assert repr(grade).startswith("MasterScaleGrade(")
+    assert 'label="AAA"' in repr(grade)
+    assert pd.apply_basel_irb_pd_floor(0.0001) == pd.BASEL_IRB_PD_FLOOR
 
 
 def test_custom_scale_round_trips() -> None:

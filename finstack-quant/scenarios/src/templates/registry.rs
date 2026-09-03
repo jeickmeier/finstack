@@ -150,6 +150,26 @@ impl TemplateRegistry {
         Ok(registry)
     }
 
+    /// Process-wide registry of the embedded built-in templates.
+    ///
+    /// The embedded JSON documents are parsed and validated once, on first
+    /// access, and the resulting registry is shared for the lifetime of the
+    /// process. Hosts that only read templates (list, build, decompose) should
+    /// use this instead of re-parsing via
+    /// [`with_embedded_builtins`](Self::with_embedded_builtins) on every call.
+    ///
+    /// # Errors
+    ///
+    /// Returns the (cached) parse or validation error when the embedded
+    /// documents are malformed.
+    pub fn embedded_builtins() -> Result<&'static Self> {
+        static REGISTRY: std::sync::OnceLock<Result<TemplateRegistry>> = std::sync::OnceLock::new();
+        REGISTRY
+            .get_or_init(Self::with_embedded_builtins)
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
     /// Register or replace a template from a parsed JSON document.
     pub(crate) fn register_json_document(&mut self, document: JsonTemplateDocument) -> Result<()> {
         let entry = RegisteredTemplate::from_json_document(document)?;

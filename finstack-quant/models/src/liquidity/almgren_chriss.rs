@@ -127,6 +127,13 @@ impl AlmgrenChrissModel {
     pub fn eta(&self) -> f64 {
         self.eta
     }
+
+    /// Power-law exponent of the temporary impact (delta), in `(0, 1]`.
+    #[inline]
+    #[must_use]
+    pub fn delta(&self) -> f64 {
+        self.delta
+    }
 }
 
 impl AlmgrenChrissModel {

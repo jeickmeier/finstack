@@ -280,6 +280,80 @@ pub(crate) fn allowed_params(method: crate::types::ForecastMethod) -> &'static [
     }
 }
 
+/// Expected JSON shape of each forecast parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParamShape {
+    Number,
+    UnsignedInt,
+    NumberArray,
+    Text,
+    Object,
+}
+
+/// JSON shape each parameter key must carry, independent of method.
+///
+/// Every key in [`allowed_params`] appears here exactly once, so type
+/// validation cannot drift from key validation.
+fn param_shape(key: &str) -> Option<ParamShape> {
+    Some(match key {
+        "rate" | "mean" | "std_dev" | "correlation" | "long_run_mean" | "reversion_speed"
+        | "alpha" | "beta" | "phi" | "growth" | "target" | "half_life" | "min" | "max" => {
+            ParamShape::Number
+        }
+        "seed" | "season_length" | "window" => ParamShape::UnsignedInt,
+        "curve" | "historical" => ParamShape::NumberArray,
+        "correlation_with" | "mode" | "method" | "shape" => ParamShape::Text,
+        "overrides" => ParamShape::Object,
+        _ => return None,
+    })
+}
+
+/// Check that every parameter value has the JSON shape its key requires.
+///
+/// Keys not in the shared vocabulary are ignored here; [`validate_params`]
+/// rejects them per method. Value *ranges* are checked by the method
+/// implementations when the forecast runs.
+///
+/// # Arguments
+///
+/// * `params` - Forecast parameter map as stored on a `ForecastSpec`
+///
+/// # Errors
+///
+/// Returns a forecast error naming the first key whose value has the wrong
+/// JSON type (for example a string where a number is expected).
+pub(crate) fn validate_param_types(
+    params: &indexmap::IndexMap<String, serde_json::Value>,
+) -> Result<()> {
+    for (key, value) in params {
+        let Some(shape) = param_shape(key) else {
+            continue;
+        };
+        let ok = match shape {
+            ParamShape::Number => value.as_f64().is_some(),
+            ParamShape::UnsignedInt => value.as_u64().is_some(),
+            ParamShape::NumberArray => value
+                .as_array()
+                .is_some_and(|items| items.iter().all(|v| v.as_f64().is_some())),
+            ParamShape::Text => value.is_string(),
+            ParamShape::Object => value.is_object(),
+        };
+        if !ok {
+            let expected = match shape {
+                ParamShape::Number => "a number",
+                ParamShape::UnsignedInt => "a non-negative integer",
+                ParamShape::NumberArray => "an array of numbers",
+                ParamShape::Text => "a string",
+                ParamShape::Object => "an object keyed by period id",
+            };
+            return Err(crate::error::Error::forecast(format!(
+                "Forecast parameter '{key}' must be {expected}, got {value}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Clamp generated forecast values to optional `min` / `max` bounds.
 ///
 /// Bounds are a cross-cutting feature accepted by every forecast method:
@@ -509,6 +583,63 @@ mod tests {
         for value in clamped.values() {
             assert!((99.0..=101.0).contains(value));
         }
+    }
+
+    #[test]
+    fn every_allowed_param_has_a_declared_shape() {
+        use crate::types::ForecastMethod;
+        for method in [
+            ForecastMethod::ForwardFill,
+            ForecastMethod::GrowthPct,
+            ForecastMethod::CurvePct,
+            ForecastMethod::Normal,
+            ForecastMethod::LogNormal,
+            ForecastMethod::Override,
+            ForecastMethod::TimeSeries,
+            ForecastMethod::Seasonal,
+            ForecastMethod::FadeToTarget,
+            ForecastMethod::MeanReverting,
+            ForecastMethod::Bootstrap,
+        ] {
+            for key in allowed_params(method) {
+                assert!(
+                    param_shape(key).is_some(),
+                    "{method:?} parameter '{key}' has no declared JSON shape"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn spec_validate_rejects_wrong_value_types() {
+        let mut spec = ForecastSpec::growth(0.05);
+        spec.validate().expect("well-typed growth spec");
+        spec.params.insert("rate".into(), serde_json::json!("x"));
+        let err = spec.validate().expect_err("string rate must be rejected");
+        assert!(err.to_string().contains("'rate' must be a number"), "{err}");
+
+        let mut spec = ForecastSpec::forward_fill();
+        spec.params.insert("sigma".into(), serde_json::json!(1.0));
+        let err = spec.validate().expect_err("unknown key must be rejected");
+        assert!(
+            err.to_string().contains("Unknown parameter 'sigma'"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn convenience_ctors_produce_valid_specs() {
+        let mut overrides = indexmap::IndexMap::new();
+        overrides.insert(PeriodId::quarter(2025, 3), 120.0);
+        ForecastSpec::overrides(overrides)
+            .validate()
+            .expect("override spec");
+        ForecastSpec::seasonal(vec![1.0; 8], 4, crate::types::SeasonalMode::Additive)
+            .validate()
+            .expect("seasonal spec");
+        ForecastSpec::time_series(vec![1.0, 2.0, 3.0])
+            .validate()
+            .expect("time-series spec");
     }
 
     #[test]

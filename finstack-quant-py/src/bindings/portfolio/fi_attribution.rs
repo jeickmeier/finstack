@@ -428,7 +428,7 @@ fn run_campisi_reconciliation_check(
 ///
 /// Parameters
 /// ----------
-/// portfolio_json : str
+/// portfolio_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``FiPositionSnapshot`` objects (``sector``, ``weight``,
 ///     ``total_return``, ``yield_annual``, ``modified_duration``,
 ///     ``spread_duration``, ``spread``, ``delta_treasury_yield``,
@@ -438,10 +438,10 @@ fn run_campisi_reconciliation_check(
 ///     G-spread, and discount-margin values must not be mixed into these
 ///     fields. Because the direct JSON shape carries numeric values but no
 ///     metric IDs, the binding cannot detect mislabeled spread provenance.
-/// benchmark_json : str
+/// benchmark_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``FiPositionSnapshot`` objects for the benchmark, subject
 ///     to the same quote-reproducing Z-spread basis contract.
-/// config_json : str
+/// config_json : str | dict | list | pandas.DataFrame
 ///     JSON ``FiAttributionConfig``; ``period_years`` is its only field and is
 ///     required (no default). Unknown keys are rejected.
 ///
@@ -464,10 +464,18 @@ fn run_campisi_reconciliation_check(
 #[pyo3(text_signature = "(portfolio_json, benchmark_json, config_json)")]
 fn campisi_attribution(
     py: Python<'_>,
-    portfolio_json: &str,
-    benchmark_json: &str,
-    config_json: &str,
+    portfolio_json: &Bound<'_, PyAny>,
+    benchmark_json: &Bound<'_, PyAny>,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<PyFiAttributionResult> {
+    let portfolio_json =
+        crate::bindings::extract::extract_records_json(py, portfolio_json, "portfolio")?;
+    let portfolio_json: &str = &portfolio_json;
+    let benchmark_json =
+        crate::bindings::extract::extract_records_json(py, benchmark_json, "benchmark")?;
+    let benchmark_json: &str = &benchmark_json;
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     Ok(PyFiAttributionResult {
         inner: run_campisi_attribution(py, portfolio_json, benchmark_json, config_json)?,
     })
@@ -485,10 +493,18 @@ fn campisi_attribution(
 #[pyo3(text_signature = "(portfolio_json, benchmark_json, config_json)")]
 fn campisi_attribution_json(
     py: Python<'_>,
-    portfolio_json: &str,
-    benchmark_json: &str,
-    config_json: &str,
+    portfolio_json: &Bound<'_, PyAny>,
+    benchmark_json: &Bound<'_, PyAny>,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
+    let portfolio_json =
+        crate::bindings::extract::extract_records_json(py, portfolio_json, "portfolio")?;
+    let portfolio_json: &str = &portfolio_json;
+    let benchmark_json =
+        crate::bindings::extract::extract_records_json(py, benchmark_json, "benchmark")?;
+    let benchmark_json: &str = &benchmark_json;
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     let result = run_campisi_attribution(py, portfolio_json, benchmark_json, config_json)?;
     serde_json::to_string(&result).map_err(|err| serde_json_to_py(err, "serialize Campisi result"))
 }
@@ -502,7 +518,7 @@ fn campisi_attribution_json(
 ///
 /// Parameters
 /// ----------
-/// periods_json : str
+/// periods_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``FiAttributionResult`` objects, in chronological order,
 ///     as returned by :func:`campisi_attribution_json` (or
 ///     ``FiAttributionResult.to_json()``).
@@ -530,7 +546,12 @@ fn campisi_attribution_json(
 ///     ``FiAttributionResult`` schema.
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
-fn campisi_carino_link(py: Python<'_>, periods_json: &str) -> PyResult<PyFiCarinoLinkedResult> {
+fn campisi_carino_link(
+    py: Python<'_>,
+    periods_json: &Bound<'_, PyAny>,
+) -> PyResult<PyFiCarinoLinkedResult> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
     Ok(PyFiCarinoLinkedResult {
         inner: run_campisi_carino_link(py, periods_json)?,
     })
@@ -546,7 +567,9 @@ fn campisi_carino_link(py: Python<'_>, periods_json: &str) -> PyResult<PyFiCarin
 ///     JSON-serialized ``FiCarinoLinkedResult``.
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
-fn campisi_carino_link_json(py: Python<'_>, periods_json: &str) -> PyResult<String> {
+fn campisi_carino_link_json(py: Python<'_>, periods_json: &Bound<'_, PyAny>) -> PyResult<String> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
     let result = run_campisi_carino_link(py, periods_json)?;
     serde_json::to_string(&result)
         .map_err(|err| serde_json_to_py(err, "serialize Campisi linked result"))
@@ -560,10 +583,10 @@ fn campisi_carino_link_json(py: Python<'_>, periods_json: &str) -> PyResult<Stri
 ///
 /// Parameters
 /// ----------
-/// periods_json : str
+/// periods_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``FiPeriodInput`` objects, each with ``portfolio`` and
 ///     ``benchmark`` arrays of ``FiPositionSnapshot``.
-/// config_json : str
+/// config_json : str | dict | list | pandas.DataFrame
 ///     JSON ``FiAttributionConfig`` shared across periods.
 ///
 /// Returns
@@ -576,9 +599,13 @@ fn campisi_carino_link_json(py: Python<'_>, periods_json: &str) -> PyResult<Stri
 #[pyo3(text_signature = "(periods_json, config_json)")]
 fn campisi_carino_link_from_snapshots(
     py: Python<'_>,
-    periods_json: &str,
-    config_json: &str,
+    periods_json: &Bound<'_, PyAny>,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<PyFiCarinoLinkedResult> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     Ok(PyFiCarinoLinkedResult {
         inner: run_campisi_carino_link_from_snapshots(py, periods_json, config_json)?,
     })
@@ -597,9 +624,13 @@ fn campisi_carino_link_from_snapshots(
 #[pyo3(text_signature = "(periods_json, config_json)")]
 fn campisi_carino_link_from_snapshots_json(
     py: Python<'_>,
-    periods_json: &str,
-    config_json: &str,
+    periods_json: &Bound<'_, PyAny>,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     let result = run_campisi_carino_link_from_snapshots(py, periods_json, config_json)?;
     serde_json::to_string(&result)
         .map_err(|err| serde_json_to_py(err, "serialize Campisi linked result"))
@@ -615,7 +646,7 @@ fn campisi_carino_link_from_snapshots_json(
 ///
 /// Parameters
 /// ----------
-/// result_json : str
+/// result_json : str | dict | list | pandas.DataFrame
 ///     JSON ``FiAttributionResult``, as returned by
 ///     :func:`campisi_attribution_json` (or
 ///     ``FiAttributionResult.to_json()``).
@@ -633,9 +664,11 @@ fn campisi_carino_link_from_snapshots_json(
 #[pyo3(text_signature = "(result_json, tolerance)")]
 fn campisi_reconciliation_check(
     py: Python<'_>,
-    result_json: &str,
+    result_json: &Bound<'_, PyAny>,
     tolerance: f64,
 ) -> PyResult<PyFiReconciliationReport> {
+    let result_json = crate::bindings::extract::extract_records_json(py, result_json, "result")?;
+    let result_json: &str = &result_json;
     Ok(PyFiReconciliationReport {
         inner: run_campisi_reconciliation_check(py, result_json, tolerance)?,
     })
@@ -654,9 +687,11 @@ fn campisi_reconciliation_check(
 #[pyo3(text_signature = "(result_json, tolerance)")]
 fn campisi_reconciliation_check_json(
     py: Python<'_>,
-    result_json: &str,
+    result_json: &Bound<'_, PyAny>,
     tolerance: f64,
 ) -> PyResult<String> {
+    let result_json = crate::bindings::extract::extract_records_json(py, result_json, "result")?;
+    let result_json: &str = &result_json;
     let report = run_campisi_reconciliation_check(py, result_json, tolerance)?;
     serde_json::to_string(&report)
         .map_err(|err| serde_json_to_py(err, "serialize Campisi reconciliation report"))

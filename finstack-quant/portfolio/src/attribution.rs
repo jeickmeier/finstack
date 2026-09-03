@@ -191,7 +191,7 @@ pub struct PortfolioAttribution {
 /// Report from reconciling position-level P&L attribution against portfolio totals.
 ///
 /// Verifies that the sum of all factor P&L buckets plus FX translation equals `total_pnl`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReconciliationReport {
     /// Total residual: `total_pnl - (sum of factor buckets + fx_translation_pnl)`.
     pub total_residual: f64,

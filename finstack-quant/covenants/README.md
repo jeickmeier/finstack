@@ -198,7 +198,8 @@ or a leverage ratio on negative EBITDA.
 
 ## Templates
 
-`templates` returns `Vec<CovenantSpec>` ready to feed a `CovenantEngine`:
+`templates` validates its thresholds (finite, non-negative) and returns
+`Result<Vec<CovenantSpec>>` ready to feed a `CovenantEngine`:
 
 | Function | Signature | Package |
 |----------|-----------|---------|
@@ -243,11 +244,15 @@ non-overlapping windows, and valid threshold schedules.
 
 ## Bindings
 
-- **Python** — `finstack_quant.covenants`: the `CovenantReport` type,
-  `evaluate_engine` (returns a dict of instance key → typed `CovenantReport`),
-  the three `validate_covenant_*_json` functions, and the JSON template builders
-  `lbo_standard_json` / `cov_lite_json` / `real_estate_json` /
-  `project_finance_json`.
+- **Python** — `finstack_quant.covenants`: typed `Covenant`, `CovenantType`,
+  `CovenantSpec`, `ThresholdSchedule`, `CovenantWaiver`, `SpringingCondition`,
+  `CovenantConsequence`, `CovenantEngine` (`evaluate` / `evaluate_and_track` /
+  `evaluate_series`), `CovenantBreach`, `CovenantReport`; typed templates
+  `lbo_standard` / `cov_lite` / `real_estate` / `project_finance`;
+  DataFrame-backed `forecast_covenant` / `forecast_breaches` with
+  `CovenantForecastConfig`, `CovenantForecast`, `FutureBreach`; plus the JSON
+  surface (`evaluate_engine`, the three `validate_covenant_*_json` functions,
+  and the `*_json` template twins).
 - **WASM** — `covenants` namespace in
   `finstack-quant-wasm/exports/covenants.js`: `evaluateEngine`, the
   `validate*Json` validators, and `lboStandardJson` / `covLiteJson` /

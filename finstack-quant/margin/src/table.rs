@@ -430,6 +430,26 @@ impl SimmSensitivities {
                 *amount,
             );
         }
+        for ((sector, name, tenor), amount) in &self.credit_qualifying_vega {
+            rows.push(
+                "credit_qualifying",
+                "vega",
+                Some(name.clone()),
+                Some(serde_label(sector)?),
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
+        for ((name, tenor), amount) in &self.credit_non_qualifying_vega {
+            rows.push(
+                "credit_non_qualifying",
+                "vega",
+                Some(name.clone()),
+                None,
+                Some(tenor.clone()),
+                *amount,
+            );
+        }
         for (underlier, amount) in &self.equity_delta {
             rows.push(
                 "equity",
@@ -467,6 +487,16 @@ impl SimmSensitivities {
             rows.push(
                 "commodity",
                 "delta",
+                None,
+                Some(bucket.clone()),
+                None,
+                *amount,
+            );
+        }
+        for (bucket, amount) in &self.commodity_vega {
+            rows.push(
+                "commodity",
+                "vega",
                 None,
                 Some(bucket.clone()),
                 None,

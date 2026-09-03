@@ -86,7 +86,7 @@ def test_composite_round_trip_and_flat_execution() -> None:
     resolved = fixed_spec().initialize(MarketContext(), dt.date(2025, 1, 1)).instrument
     restored = CompositeInstrument.from_json(resolved.to_json())
     assert restored.state.resolved_quantities == resolved.state.resolved_quantities
-    assert json.loads(restored.execution_trades()) == [
+    assert restored.execution_trades() == [
         {"instrument_id": "A", "instrument_type": "equity", "quantity_delta": 1.0},
         {"instrument_id": "B", "instrument_type": "equity", "quantity_delta": -1.0},
     ]

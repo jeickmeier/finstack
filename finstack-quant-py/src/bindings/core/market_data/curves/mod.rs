@@ -1,13 +1,13 @@
 //! Python bindings for `finstack_quant_core::market_data::term_structures` curve types.
 
-mod credit;
-mod discount;
-mod forward;
-mod hazard;
+pub mod credit;
+pub mod discount;
+pub mod forward;
+pub mod hazard;
 pub(crate) mod helpers;
-mod inflation;
-mod price;
-mod surfaces;
+pub mod inflation;
+pub mod price;
+pub mod surfaces;
 
 pub use credit::{PyBaseCorrelationCurve, PyCreditIndexData};
 pub use discount::PyDiscountCurve;
@@ -15,7 +15,7 @@ pub use forward::PyForwardCurve;
 pub use hazard::PyHazardCurve;
 pub use inflation::PyInflationCurve;
 pub use price::PyPriceCurve;
-pub use surfaces::{PyFxDeltaVolSurface, PyVolCube, PyVolSurface, PyVolatilityIndexCurve};
+pub use surfaces::{PyFxDeltaVolSurface, PySabrParameterData, PyVolCube, PyVolSurface};
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -29,9 +29,9 @@ pub(super) const EXPORTS: &[&str] = &[
     "HazardCurve",
     "InflationCurve",
     "PriceCurve",
+    "SabrParameterData",
     "VolCube",
     "VolSurface",
-    "VolatilityIndexCurve",
 ];
 
 /// Register the `finstack_quant.core.market_data.curves` submodule.
@@ -39,7 +39,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "curves")?;
     m.setattr(
         "__doc__",
-        "Market-data bindings: discount, forward, hazard, inflation, price, vol surface, vol cube, and vol-index.",
+        "Market-data bindings: discount, forward, hazard, inflation, price (incl. vol-index) curves, vol surfaces, SABR cubes and FX delta surfaces.",
     )?;
 
     m.add_class::<PyDiscountCurve>()?;
@@ -51,8 +51,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPriceCurve>()?;
     m.add_class::<PyVolSurface>()?;
     m.add_class::<PyFxDeltaVolSurface>()?;
+    m.add_class::<PySabrParameterData>()?;
     m.add_class::<PyVolCube>()?;
-    m.add_class::<PyVolatilityIndexCurve>()?;
 
     let all = PyList::new(py, EXPORTS)?;
     m.setattr("__all__", all)?;

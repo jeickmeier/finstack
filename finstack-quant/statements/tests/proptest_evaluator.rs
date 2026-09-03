@@ -102,7 +102,7 @@ proptest! {
             .periods("2025Q1..Q4", Some("2025Q1"))
             .unwrap()
             .value("revenue", &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100_000.0))])
-            .forecast("revenue", ForecastSpec::lognormal(mean, std_dev, seed))
+            .forecast("revenue", ForecastSpec::log_normal(mean, std_dev, seed))
             .build()
             .unwrap();
 

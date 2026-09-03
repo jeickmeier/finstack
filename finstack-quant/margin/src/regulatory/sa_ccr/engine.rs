@@ -47,6 +47,12 @@ impl SaCcrEngine {
         Ok(Self { alpha })
     }
 
+    /// Alpha multiplier applied to `RC + PFE` (1.4 unless overridden).
+    #[must_use]
+    pub fn alpha(&self) -> f64 {
+        self.alpha
+    }
+
     /// Compute EAD for a netting set.
     ///
     /// `EAD = alpha * (RC + PFE)` where `PFE = multiplier * AddOn_aggregate`.

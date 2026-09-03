@@ -100,6 +100,6 @@ pub fn zmijewski_score(input: &ZmijewskiInput) -> Result<ScoringResult, CreditSc
         score: y,
         zone,
         implied_pd: Some(implied_pd),
-        model: "Zmijewski Probit (1984)",
+        model: "Zmijewski Probit (1984)".to_string(),
     })
 }

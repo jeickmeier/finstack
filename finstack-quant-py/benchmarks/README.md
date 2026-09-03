@@ -48,9 +48,9 @@ Every class is marked `perf`. Selection within the suite is by class or by the
 | `TestCoreBenchmarks` | `Currency`, `Money` arithmetic, `DayCount.year_fraction`, `DiscountCurve.df`, `ForwardCurve.rate`, `FxMatrix.rate`, `Tenor.parse`, `Rate` conversions, `linalg.cholesky_decomposition`, `stats.mean`/`variance` |
 | `TestAnalyticsBenchmarks` | `Performance` over a 10,000-point two-series panel: `sharpe`, `sortino`, `calmar`, `volatility`, `returns`, `cumulative_returns`, drawdown series and details, VaR/ES, moments, `beta`, `tracking_error`, `rolling_sharpe`, `period_stats`, `longest_positive_run`. Construction (`Performance.from_arrays`) is benched separately on a 252-point single-series panel |
 | `TestCorrelationBenchmarks` | `models.correlation`: `CopulaSpec`, `CorrelatedBernoulli`, `RecoverySpec`, `LatentFactorSpec`/`LatentSingleFactor`, `correlation_bounds`, `validate_correlation_matrix` |
-| `TestMonteCarloBenchmarks` | Closed-form `black_scholes_call`/`_put`, plus `EuropeanPricer`, `LsmcPricer`, and `PathDependentPricer` at 5,000–10,000 paths |
+| `TestMonteCarloBenchmarks` | Closed-form `models.bs_price`, plus `EuropeanPricer`, `LsmcPricer`, and `PathDependentPricer` at 5,000–10,000 paths |
 | `TestMarginBenchmarks` | `CsaSpec.usd_regulatory`, `VmCalculator.calculate`, `NettingSetId`, `XvaConfig`, `FundingConfig`, `MarginUtilization` |
-| `TestStatementsBenchmarks` | `FinancialModelSpec.from_json`, `ModelBuilder`, `Evaluator.evaluate`, `parse_formula_text`, `validate_formula`, `normalize` |
+| `TestStatementsBenchmarks` | `FinancialModelSpec.from_json`, `ModelBuilder`, `Evaluator.evaluate`, `parse_formula`, `parse_and_compile`, `normalize` |
 | `TestStatementsAnalyticsBenchmarks` | Sensitivity, variance, scenario sets, goal seek, dependency tracing, `explain_formula` — each benched **twice**, once on the JSON path and once on the typed path, so the serialization overhead of the wire surface is directly visible. `backtest_forecast` is the one unpaired case |
 | `TestPortfolioBenchmarks` | `Portfolio.from_materialization` (cold-unique, cold-dedup, warm-dedup) and `parse_portfolio_spec_json` / `build_portfolio_from_spec_json` |
 | `TestPortfolioCompoundWorkflow` | The realistic calling pattern (value + metrics + cashflows) over 500 positions, JSON path vs. typed `Portfolio`/`MarketContext` path |

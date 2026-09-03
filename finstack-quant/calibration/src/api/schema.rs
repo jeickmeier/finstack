@@ -2,6 +2,13 @@
 //!
 //! Defines the JSON contract for plan-driven calibration.
 
+// `EnvelopeError` is intentionally large (carries available-IDs lists and
+// strict-load diagnostics) because the cross-binding consumers want all the
+// diagnostic context in one shot. Boxing the error would harm ergonomics on a
+// cold error path. Mirrors the same allowance in `api::engine` and
+// `api::validate`.
+#![allow(clippy::result_large_err)]
+
 use crate::api::market_datum::MarketDatum;
 use crate::api::prior_market::PriorMarketObject;
 use crate::config::{CalibrationConfig, CalibrationMethod, RatesStepConventions};
@@ -379,6 +386,16 @@ impl CalibrationEnvelope {
         }
     }
 
+    /// Serialize this request envelope as canonical pretty-printed JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`super::errors::EnvelopeError::JsonSerialize`] if
+    /// serialization fails.
+    pub fn to_json_pretty(&self) -> Result<String, super::errors::EnvelopeError> {
+        super::validate::serialize_pretty_json(self, "CalibrationEnvelope")
+    }
+
     /// Compute the versioned SHA-256 hash of this request envelope's canonical JSON.
     ///
     /// # Errors
@@ -460,6 +477,7 @@ pub struct CalibrationPlan {
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct CalibrationStep {
     /// Unique identifier for the object being calibrated in this step.
     pub id: String,

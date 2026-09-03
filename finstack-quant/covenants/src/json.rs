@@ -79,10 +79,11 @@ pub fn validate_covenant_report_json(json: &str) -> Result<String> {
 
 /// Validate and canonicalize a [`CovenantEngine`] encoded as JSON.
 ///
-/// An engine includes the full covenant package and its configuration. Use
-/// this boundary to reject an invalid imported package before it is evaluated;
-/// the returned JSON is the stable serialized representation of the validated
-/// engine.
+/// An engine includes the full covenant package and its configuration. Only
+/// `specs` is required; `breach_history`, `windows` and `waivers` default to
+/// empty. Use this boundary to reject an invalid imported package before it is
+/// evaluated; the returned JSON is the stable serialized representation of the
+/// validated engine.
 ///
 /// # Arguments
 ///
@@ -175,10 +176,9 @@ pub fn evaluate_engine_map(
 ///
 /// # Errors
 ///
-/// Returns [`finstack_quant_core::Error::Validation`] if the generated
-/// template cannot be serialized to JSON. Inputs are not independently
-/// validated here; validate the returned package with
-/// [`validate_covenant_engine_json`] after incorporating it into an engine.
+/// Returns [`finstack_quant_core::Error::Validation`] if any threshold is
+/// `NaN`, infinite, or negative, or if the generated template cannot be
+/// serialized to JSON.
 ///
 /// # Arguments
 ///
@@ -200,7 +200,7 @@ pub fn lbo_standard_json(
         interest_coverage,
         fixed_charge_coverage,
         max_capex,
-    ))
+    )?)
     .map_err(|e| {
         finstack_quant_core::Error::Validation(format!("Serialize covenant template: {e}"))
     })
@@ -217,9 +217,9 @@ pub fn lbo_standard_json(
 ///
 /// # Errors
 ///
-/// Returns [`finstack_quant_core::Error::Validation`] if the generated
-/// template cannot be serialized to JSON. Validate the completed engine before
-/// use, since this helper does not independently validate threshold values.
+/// Returns [`finstack_quant_core::Error::Validation`] if any threshold is
+/// `NaN`, infinite, or negative, or if the generated template cannot be
+/// serialized to JSON.
 ///
 /// # Arguments
 ///
@@ -227,7 +227,7 @@ pub fn lbo_standard_json(
 /// * `max_senior_leverage` - Maximum senior-debt-to-EBITDA threshold in
 ///   turns.
 pub fn cov_lite_json(max_leverage: f64, max_senior_leverage: f64) -> Result<String> {
-    serde_json::to_string(&templates::cov_lite(max_leverage, max_senior_leverage)).map_err(|e| {
+    serde_json::to_string(&templates::cov_lite(max_leverage, max_senior_leverage)?).map_err(|e| {
         finstack_quant_core::Error::Validation(format!("Serialize covenant template: {e}"))
     })
 }
@@ -244,9 +244,9 @@ pub fn cov_lite_json(max_leverage: f64, max_senior_leverage: f64) -> Result<Stri
 ///
 /// # Errors
 ///
-/// Returns [`finstack_quant_core::Error::Validation`] if the generated
-/// template cannot be serialized to JSON. Validate the completed engine before
-/// use, since this helper does not independently validate threshold values.
+/// Returns [`finstack_quant_core::Error::Validation`] if any threshold is
+/// `NaN`, infinite, or negative, or if the generated template cannot be
+/// serialized to JSON.
 ///
 /// # Arguments
 ///
@@ -257,9 +257,9 @@ pub fn cov_lite_json(max_leverage: f64, max_senior_leverage: f64) -> Result<Stri
 /// * `max_ltv` - Maximum loan-to-value ratio as a decimal fraction, such as
 ///   `0.65` for 65%.
 pub fn real_estate_json(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Result<String> {
-    serde_json::to_string(&templates::real_estate(min_dscr, min_debt_yield, max_ltv)).map_err(|e| {
-        finstack_quant_core::Error::Validation(format!("Serialize covenant template: {e}"))
-    })
+    serde_json::to_string(&templates::real_estate(min_dscr, min_debt_yield, max_ltv)?).map_err(
+        |e| finstack_quant_core::Error::Validation(format!("Serialize covenant template: {e}")),
+    )
 }
 
 /// Build the infrastructure or project-finance package as compact JSON.
@@ -275,9 +275,9 @@ pub fn real_estate_json(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Res
 ///
 /// # Errors
 ///
-/// Returns [`finstack_quant_core::Error::Validation`] if the generated
-/// template cannot be serialized to JSON. Validate the completed engine before
-/// use, since this helper does not independently validate threshold values.
+/// Returns [`finstack_quant_core::Error::Validation`] if any threshold is
+/// `NaN`, infinite, or negative, or if the generated template cannot be
+/// serialized to JSON.
 ///
 /// # Arguments
 ///
@@ -298,7 +298,7 @@ pub fn project_finance_json(
         distribution_lockup_dscr,
         min_liquidity,
         max_net_leverage,
-    ))
+    )?)
     .map_err(|e| {
         finstack_quant_core::Error::Validation(format!("Serialize covenant template: {e}"))
     })

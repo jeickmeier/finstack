@@ -3,15 +3,26 @@
 use finstack_quant_cashflows::accrual::{
     accrued_interest_amount, AccrualConfig, AccrualIndex, AccrualMethod, ExCouponRule,
 };
+use finstack_quant_core::money::Money;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule, PyType};
 
 use crate::bindings::cashflows::builder::schedule::PyCashFlowSchedule;
-use crate::bindings::core::dates::tenor::extract_tenor;
-use crate::bindings::date_utils::{date_to_py, py_to_date};
+use crate::bindings::core::dates::tenor::{extract_tenor, PyTenor};
+use crate::bindings::core::money::PyMoney;
+use crate::bindings::date_utils::{date_to_py, extract_date};
 use crate::errors::core_to_py;
 
-/// Wrapper for [`AccrualMethod`] (`finstack_quant.cashflows.accrual.AccrualMethod`).
+/// Accrual method selector (``AccrualMethod.LINEAR`` / ``AccrualMethod.COMPOUNDED``).
+///
+/// ``LINEAR`` is the ICMA Rule 251.1 bond convention; ``COMPOUNDED`` uses true
+/// exponential compounding within a coupon period and is not ICMA-compliant.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.cashflows.accrual import AccrualMethod
+/// >>> AccrualMethod.LINEAR == AccrualMethod.LINEAR
+/// True
 #[pyclass(
     name = "AccrualMethod",
     module = "finstack_quant.cashflows.accrual",
@@ -29,9 +40,6 @@ pub struct PyAccrualMethod {
 #[pymethods]
 impl PyAccrualMethod {
     /// Linear accrual: ``Accrued = Coupon × (elapsed / period)`` (default; ICMA 251.1).
-    ///
-    /// ICMA Rule 251.1 prescribes linear accrual for bond accrued-interest
-    /// calculations. Use this method for bond-style instruments.
     #[classattr]
     #[allow(non_snake_case)]
     fn LINEAR() -> Self {
@@ -41,11 +49,6 @@ impl PyAccrualMethod {
     }
 
     /// Compounded accrual: ``Accrued = N × [(1 + r)^f − 1]`` (not ICMA-style).
-    ///
-    /// This variant uses true exponential compounding and is **not**
-    /// ICMA-compliant; do not cite it as ICMA-style accrual. It is intended
-    /// for instruments that genuinely compound within a coupon period (e.g.
-    /// some leveraged loans).
     #[classattr]
     #[allow(non_snake_case)]
     fn COMPOUNDED() -> Self {
@@ -54,13 +57,42 @@ impl PyAccrualMethod {
         }
     }
 
-    /// Debug-style representation.
+    /// Canonical snake_case label (``"linear"`` / ``"compounded"``).
+    #[getter]
+    fn name(&self) -> &'static str {
+        match self.inner {
+            AccrualMethod::Linear => "linear",
+            AccrualMethod::Compounded => "compounded",
+            _ => "unknown",
+        }
+    }
+
+    /// Python-style representation (``AccrualMethod.LINEAR``).
     fn __repr__(&self) -> String {
-        format!("AccrualMethod({:?})", self.inner)
+        match self.inner {
+            AccrualMethod::Linear => "AccrualMethod.LINEAR".to_string(),
+            AccrualMethod::Compounded => "AccrualMethod.COMPOUNDED".to_string(),
+            _ => "AccrualMethod(...)".to_string(),
+        }
     }
 }
 
-/// Wrapper for [`ExCouponRule`] (`finstack_quant.cashflows.accrual.ExCouponRule`).
+/// Ex-coupon convention: the instrument trades ex-coupon from
+/// ``days_before_coupon`` days before each payment date.
+///
+/// Parameters
+/// ----------
+/// days_before_coupon : int
+///     Number of days before the coupon date that go ex (max 366).
+/// calendar_id : str, optional
+///     Business-day calendar for counting the window; when omitted, calendar
+///     days are used.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.cashflows.accrual import ExCouponRule
+/// >>> ExCouponRule(7).days_before_coupon
+/// 7
 #[pyclass(
     name = "ExCouponRule",
     module = "finstack_quant.cashflows.accrual",
@@ -75,14 +107,7 @@ pub struct PyExCouponRule {
 
 #[pymethods]
 impl PyExCouponRule {
-    /// Ex-coupon convention applied to coupon flows.
-    ///
-    /// Parameters
-    /// ----------
-    /// days_before_coupon : int
-    ///     Number of days before the coupon date that go ex (max 366).
-    /// calendar_id : str, optional
-    ///     Business-day calendar; when omitted, calendar days are used.
+    /// Construct an ex-coupon rule; see the class docstring for parameters.
     #[new]
     #[pyo3(
         signature = (days_before_coupon, calendar_id=None),
@@ -113,7 +138,7 @@ impl PyExCouponRule {
     ///
     /// Parameters
     /// ----------
-    /// payment_date : datetime.date
+    /// payment_date : datetime.date or str
     ///     Payment date of the coupon this ex-coupon window precedes.
     ///
     /// Returns
@@ -136,18 +161,65 @@ impl PyExCouponRule {
     ) -> PyResult<Bound<'py, PyAny>> {
         let d = self
             .inner
-            .ex_date(py_to_date(payment_date)?)
+            .ex_date(extract_date(payment_date)?)
             .map_err(core_to_py)?;
         date_to_py(py, d)
     }
 
-    /// Debug-style representation.
+    /// Serialize to JSON.
+    #[allow(clippy::wrong_self_convention)]
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|e| crate::errors::serde_json_to_py(e, "failed to serialize ExCouponRule"))
+    }
+
+    /// Deserialize from JSON.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        serde_json::from_str::<ExCouponRule>(json)
+            .map(|inner| Self { inner })
+            .map_err(|e| crate::errors::serde_json_to_py(e, "invalid ExCouponRule JSON"))
+    }
+
+    /// Support ``pickle`` through the JSON wire form.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Python-style field summary.
     fn __repr__(&self) -> String {
-        format!("ExCouponRule({:?})", self.inner)
+        crate::bindings::repr_support::repr_from_serde("ExCouponRule", &self.inner)
     }
 }
 
-/// Wrapper for [`AccrualConfig`] (`finstack_quant.cashflows.accrual.AccrualConfig`).
+/// Configuration for schedule-driven interest accrual.
+///
+/// Parameters
+/// ----------
+/// method : AccrualMethod, optional
+///     Accrual method; defaults to the Rust ``AccrualConfig::default()``
+///     method (``AccrualMethod.LINEAR``, ICMA 251.1).
+/// ex_coupon : ExCouponRule, optional
+///     Ex-coupon window rule; ``None`` disables ex-coupon handling.
+/// include_pik : bool, default True
+///     Whether PIK (capitalized) interest counts toward the accrued amount.
+/// frequency : Tenor or str, optional
+///     Coupon frequency (e.g. ``"6M"``); required for the ACT/ACT ICMA day
+///     count and ignored otherwise.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.cashflows.accrual import AccrualConfig
+/// >>> AccrualConfig().include_pik
+/// True
 #[pyclass(
     name = "AccrualConfig",
     module = "finstack_quant.cashflows.accrual",
@@ -162,34 +234,11 @@ pub struct PyAccrualConfig {
 
 #[pymethods]
 impl PyAccrualConfig {
-    /// Generic configuration for schedule-driven interest accrual.
-    ///
-    /// Parameters
-    /// ----------
-    /// method : AccrualMethod, optional
-    ///     Accrual method. When omitted, follows the Rust
-    ///     `AccrualConfig::default().method` (currently
-    ///     :attr:`AccrualMethod.LINEAR`, ICMA 251.1; illustrative only —
-    ///     see :class:`AccrualMethod` and the Rust `Default` impl for the
-    ///     authoritative value). The alternative, compounded accrual, is
-    ///     not ICMA-compliant.
-    /// ex_coupon : ExCouponRule, optional
-    ///     Ex-coupon window rule.
-    /// include_pik : bool, optional
-    ///     Whether to include PIK interest in the accrued amount. When
-    ///     omitted, follows the Rust `AccrualConfig::default().include_pik`
-    ///     value (currently ``True``; illustrative only — see the Rust
-    ///     `Default` impl for the authoritative value).
-    /// frequency : Tenor or str, optional
-    ///     Coupon frequency — required for ACT/ACT ISMA day count.
+    /// Construct an accrual configuration; see the class docstring for parameters.
     #[new]
     #[pyo3(
-        // NOTE: `include_pik`'s default in `signature` is derived from
-        // `AccrualConfig::default()` so it always tracks the Rust default at
-        // call time. `text_signature` is a static string PyO3 requires for
-        // `help()`/introspection and cannot reference a Rust expression;
-        // keep the literal below in sync with `AccrualConfig::default()`
-        // whenever that default changes (it currently evaluates to `true`).
+        // `include_pik`'s runtime default tracks `AccrualConfig::default()`;
+        // the static text_signature literal must be kept in sync by hand.
         signature = (method=None, ex_coupon=None, include_pik=AccrualConfig::default().include_pik, frequency=None),
         text_signature = "(method=None, ex_coupon=None, include_pik=True, frequency=None)"
     )]
@@ -199,9 +248,6 @@ impl PyAccrualConfig {
         include_pik: bool,
         frequency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        // Fall back to `AccrualConfig::default()` rather than re-encoding
-        // Rust's defaults here, so a future change to the Rust default
-        // flows through automatically.
         let default = AccrualConfig::default();
         Ok(Self {
             inner: AccrualConfig {
@@ -213,13 +259,83 @@ impl PyAccrualConfig {
         })
     }
 
-    /// Debug-style representation.
+    /// Accrual method in force.
+    #[getter]
+    fn method(&self) -> PyAccrualMethod {
+        PyAccrualMethod {
+            inner: self.inner.method.clone(),
+        }
+    }
+
+    /// Ex-coupon rule, if any.
+    #[getter]
+    fn ex_coupon(&self) -> Option<PyExCouponRule> {
+        self.inner
+            .ex_coupon
+            .clone()
+            .map(|inner| PyExCouponRule { inner })
+    }
+
+    /// Whether PIK interest is included in the accrued amount.
+    #[getter]
+    fn include_pik(&self) -> bool {
+        self.inner.include_pik
+    }
+
+    /// Coupon frequency used for ACT/ACT ICMA, if set.
+    #[getter]
+    fn frequency(&self) -> Option<PyTenor> {
+        self.inner.frequency.map(PyTenor::from_inner)
+    }
+
+    /// Serialize to JSON.
+    #[allow(clippy::wrong_self_convention)]
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|e| crate::errors::serde_json_to_py(e, "failed to serialize AccrualConfig"))
+    }
+
+    /// Deserialize from JSON.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        serde_json::from_str::<AccrualConfig>(json)
+            .map(|inner| Self { inner })
+            .map_err(|e| crate::errors::serde_json_to_py(e, "invalid AccrualConfig JSON"))
+    }
+
+    /// Support ``pickle`` through the JSON wire form.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Python-style field summary.
     fn __repr__(&self) -> String {
-        format!("AccrualConfig({:?})", self.inner)
+        crate::bindings::repr_support::repr_from_serde("AccrualConfig", &self.inner)
     }
 }
 
-/// Wrapper for [`AccrualIndex`] (`finstack_quant.cashflows.accrual.AccrualIndex`).
+/// Prebuilt accrual state for repeated ``accrued_at`` queries on one schedule.
+///
+/// Build with ``AccrualIndex.build(schedule, config=None)``.
+///
+/// Examples
+/// --------
+/// >>> import datetime
+/// >>> from finstack_quant.cashflows import schedule_from_dated_flows
+/// >>> from finstack_quant.cashflows.accrual import AccrualIndex
+/// >>> from finstack_quant.core.dates import DayCount
+/// >>> from finstack_quant.core.money import Money
+/// >>> schedule = schedule_from_dated_flows([(datetime.date(2025, 6, 15), Money(100.0, "USD"))], "fixed", DayCount.ACT_360)
+/// >>> AccrualIndex.build(schedule).accrued_at(datetime.date(2024, 1, 1)).amount
+/// 0.0
 #[pyclass(
     name = "AccrualIndex",
     module = "finstack_quant.cashflows.accrual",
@@ -230,6 +346,10 @@ impl PyAccrualConfig {
 pub struct PyAccrualIndex {
     /// Inner prebuilt accrual state.
     pub(crate) inner: AccrualIndex,
+    /// Currency of the indexed schedule (for repr and Money results).
+    currency: finstack_quant_core::currency::Currency,
+    /// Number of coupon periods indexed (for repr).
+    periods: usize,
 }
 
 #[pymethods]
@@ -249,8 +369,7 @@ impl PyAccrualIndex {
     /// Returns
     /// -------
     /// AccrualIndex
-    ///     Prebuilt accrual state; call :meth:`accrued_at` for repeated
-    ///     queries against the same schedule and config.
+    ///     Prebuilt accrual state.
     ///
     /// Raises
     /// ------
@@ -269,9 +388,15 @@ impl PyAccrualIndex {
         config: Option<PyRef<'_, PyAccrualConfig>>,
     ) -> PyResult<Self> {
         let schedule = schedule.inner.clone();
+        let currency = schedule.get_notional().currency();
+        let periods = schedule.coupons().count();
         let cfg = config.map_or_else(AccrualConfig::default, |c| c.inner.clone());
         py.detach(move || AccrualIndex::build(&schedule, &cfg))
-            .map(|inner| Self { inner })
+            .map(|inner| Self {
+                inner,
+                currency,
+                periods,
+            })
             .map_err(core_to_py)
     }
 
@@ -279,29 +404,33 @@ impl PyAccrualIndex {
     ///
     /// Parameters
     /// ----------
-    /// as_of : datetime.date
-    ///     Accrual cut-off date; dates outside all coupon periods return 0.0.
+    /// as_of : datetime.date or str
+    ///     Accrual cut-off date; dates outside all coupon periods return 0.
     ///
     /// Returns
     /// -------
-    /// float
-    ///     Accrued interest in the schedule's currency space; negative
-    ///     inside an active ex-coupon window.
+    /// Money
+    ///     Accrued interest in the schedule currency; negative inside an
+    ///     active ex-coupon window.
     ///
     /// Raises
     /// ------
     /// KeyError
     ///     If a configured ex-coupon calendar id cannot be resolved.
     #[pyo3(text_signature = "(self, as_of)")]
-    fn accrued_at(&self, as_of: &Bound<'_, PyAny>) -> PyResult<f64> {
+    fn accrued_at(&self, as_of: &Bound<'_, PyAny>) -> PyResult<PyMoney> {
         self.inner
-            .accrued_at(py_to_date(as_of)?)
+            .accrued_at(extract_date(as_of)?)
+            .map(|amount| PyMoney::from_inner(Money::new(amount, self.currency)))
             .map_err(core_to_py)
     }
 
-    /// Debug-style representation.
+    /// Python-style summary.
     fn __repr__(&self) -> String {
-        "AccrualIndex(...)".to_string()
+        format!(
+            "AccrualIndex(periods={}, currency='{}')",
+            self.periods, self.currency
+        )
     }
 }
 
@@ -311,16 +440,16 @@ impl PyAccrualIndex {
 /// ----------
 /// schedule : CashFlowSchedule
 ///     Canonical cashflow schedule.
-/// as_of : datetime.date
-///     Accrual cut-off date; dates outside all coupon periods return 0.0.
+/// as_of : datetime.date or str
+///     Accrual cut-off date; dates outside all coupon periods return 0.
 /// config : AccrualConfig, optional
 ///     Accrual method and ex-coupon configuration (default linear, PIK included).
 ///
 /// Returns
 /// -------
-/// float
-///     Accrued interest in the schedule's currency space; negative inside an
-///     active ex-coupon window.
+/// Money
+///     Accrued interest in the schedule's notional currency; negative inside
+///     an active ex-coupon window.
 ///
 /// Raises
 /// ------
@@ -339,11 +468,13 @@ fn py_accrued_interest_amount(
     schedule: PyRef<'_, PyCashFlowSchedule>,
     as_of: &Bound<'_, PyAny>,
     config: Option<PyRef<'_, PyAccrualConfig>>,
-) -> PyResult<f64> {
-    let as_of = py_to_date(as_of)?;
+) -> PyResult<PyMoney> {
+    let as_of = extract_date(as_of)?;
     let schedule = schedule.inner.clone();
+    let currency = schedule.get_notional().currency();
     let cfg = config.map_or_else(AccrualConfig::default, |c| c.inner.clone());
     py.detach(move || accrued_interest_amount(&schedule, as_of, &cfg))
+        .map(|amount| PyMoney::from_inner(Money::new(amount, currency)))
         .map_err(core_to_py)
 }
 

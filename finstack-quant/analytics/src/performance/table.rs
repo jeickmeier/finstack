@@ -113,9 +113,11 @@ impl Performance {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::cagr`] and [`Self::calmar`] failures (for example a
-    /// panel too short to annualize).
+    /// Rejects a `confidence` outside `(0, 1)` and propagates [`Self::cagr`]
+    /// and [`Self::calmar`] failures (for example a panel too short to
+    /// annualize).
     pub fn summary(&self, risk_free_rate: f64, confidence: f64) -> crate::Result<TableEnvelope> {
+        Self::ensure_confidence(confidence)?;
         let (var, es) = self.value_at_risk_and_es(confidence);
         let (skew, kurt) = self.skew_kurt();
         let metrics: [(&str, Vec<f64>); 22] = [
@@ -139,7 +141,7 @@ impl Performance {
             ("ulcer_index", self.ulcer_index()),
             ("pain_index", self.pain_index()),
             ("recovery_factor", self.recovery_factor()),
-            ("tail_ratio", self.tail_ratio(confidence)),
+            ("tail_ratio", self.tail_ratio(confidence)?),
             ("r_squared", self.r_squared()),
         ];
         let mut columns = Vec::with_capacity(metrics.len() + 1);

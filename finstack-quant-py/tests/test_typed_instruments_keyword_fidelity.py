@@ -251,7 +251,7 @@ def test_convertible_bond_builder_setters_accept_keyword_value() -> None:
         .maturity(value=datetime.date(2029, 1, 15))
         .discount_curve_id(value="USD-OIS")
         .credit_curve_id(value="USD-CREDIT-BBB")
-        .conversion_json(value=conversion)
+        .conversion(value=conversion)
         .underlying_equity_id(value="ACME")
         .settlement_days(value=2)
         .recovery_rate(value=0.4)
@@ -389,7 +389,7 @@ def test_structured_credit_analytics_function_accepts_keyword_arguments() -> Non
     market.insert_series(ScalarTimeSeries("FIXING:SOFR-3M", [(datetime.date(2023, 12, 28), 0.04)]))
 
     result = structured_credit_tranche_breakeven_cdr(
-        instrument_json=deal,
+        instrument=deal,
         tranche_id="CLONOTES-A",
         market=market,
         as_of="2024-01-01",

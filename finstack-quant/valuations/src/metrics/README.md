@@ -89,7 +89,7 @@ will be missing whenever the caller did not request it earlier in the list.
 
 Both also flatten every cell into `computed` under a stable composite key built
 by `MetricId::composite` — `base::bucket` for a series, `base::row::col` for a
-matrix, with non-alphanumeric label bytes escaped as `_xHH`. The flattened cells
+matrix. Labels are written literally (`bucketed_dv01::USD-OIS::10y`, `pv01::USD-OIS`); only the `::` delimiter, a literal `_x` and the reserved `_empty` spelling are escaped as `_xHH`. The flattened cells
 are custom `MetricId`s, so they survive into `ValuationResult::measures`
 alongside the scalar metrics and can be read back with
 `ValuationResult::metric_series`.

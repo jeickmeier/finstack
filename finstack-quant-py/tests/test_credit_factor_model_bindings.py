@@ -25,6 +25,7 @@ from finstack_quant.models.factor.credit import (
     FactorModelConfig,
     LevelsAtDate,
     PeriodDecomposition,
+    VolHorizon,
     decompose_levels,
     decompose_period,
 )
@@ -354,8 +355,8 @@ def test_decompose_levels_level_index_out_of_range_raises() -> None:
 def test_decompose_levels_unknown_issuer_raises() -> None:
     model, _ = _simple_decompose_model_and_spreads()
     # Supply a spread for an issuer not in the model and not in runtime_tags.
-    bad = json.dumps({"UNKNOWN-ISSUER": 200.0})
-    with pytest.raises(ValueError, match="UNKNOWN-ISSUER"):
+    bad = {"UNKNOWN-ISSUER": 0.0200}
+    with pytest.raises(KeyError, match="UNKNOWN-ISSUER"):
         decompose_levels(model, bad, 0.0100, "2024-03-31")
 
 
@@ -480,10 +481,13 @@ def test_factor_covariance_forecast_invalid_horizon_raises() -> None:
 def test_factor_covariance_forecast_factor_model_at_runs() -> None:
     model = _calibrate()
     fcf = FactorCovarianceForecast(model)
-    config = fcf.factor_model_at("one_step", '"variance"')
+    config = fcf.factor_model_at("one_step", "variance")
     assert isinstance(config, FactorModelConfig)
     assert config.factor_ids == config.covariance.factor_ids
     assert config.risk_measure == "variance"
+    var_config = fcf.factor_model_at(VolHorizon.n_steps(2), {"var": {"confidence": 0.99}})
+    assert var_config.risk_measure == {"var": {"confidence": 0.99}}
+    assert fcf.factor_model_at("one_step").risk_measure == "variance"
     assert FactorModelConfig.from_json(config.to_json()).factor_ids == config.factor_ids
 
 

@@ -130,7 +130,7 @@ def _payer_swap_hand_written_json() -> str:
                     "business_day_convention": "modified_following",
                     "calendar_id": None,
                     "stub": "short_front",
-                    "reset_lag_days": -1,
+                    "reset_lag_days": 0,
                     "fixing_calendar_id": None,
                     "start": "2024-01-15",
                     "end": "2029-01-15",
@@ -170,7 +170,7 @@ class TestInterestRateSwapTyped:
             InterestRateSwap.from_json(TermLoan.example().to_json())
 
     def test_builder_missing_required_field_raises(self) -> None:
-        with pytest.raises(ValueError, match="Invalid input data"):
+        with pytest.raises(ValueError, match="missing required field"):
             InterestRateSwap.builder().id("IRS-BAD").build()
 
     def test_invalid_side_raises_value_error(self) -> None:
@@ -311,7 +311,7 @@ class TestFloatLegSpecTyped:
             business_day_convention="modified_following",
             calendar_id=None,
             stub="short_front",
-            reset_lag_days=-1,
+            reset_lag_days=2,
             fixing_calendar_id=None,
             payment_lag_days=0,
             end_of_month=False,

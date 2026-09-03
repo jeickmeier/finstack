@@ -149,3 +149,54 @@ fn test_flat_curve_clone() {
     assert_eq!(cloned.day_count(), curve.day_count());
     assert!((cloned.df(1.0) - curve.df(1.0)).abs() < 1e-12);
 }
+
+#[test]
+fn test_flat_curve_rejects_percentage_typed_as_decimal() {
+    let err = DiscountCurve::flat("PCT", base_date(), 4.0).expect_err("4.0 must be rejected");
+    assert!(err.to_string().contains("decimal fractions"), "{err}");
+    assert!(DiscountCurve::flat("NEG", base_date(), -0.5).is_ok());
+}
+
+#[test]
+fn test_from_zero_rates_continuous_matches_flat() {
+    use finstack_quant_core::math::Compounding;
+    let curve = DiscountCurve::from_zero_rates(
+        "ZR",
+        base_date(),
+        &[(1.0, 0.05), (2.0, 0.05), (5.0, 0.05)],
+        Compounding::Continuous,
+    )
+    .expect("valid zero-rate curve");
+    assert_eq!(curve.knots(), &[0.0, 1.0, 2.0, 5.0]);
+    assert!((curve.df(2.0) - (-0.10_f64).exp()).abs() < 1e-12);
+
+    let annual = DiscountCurve::from_zero_rates(
+        "ZR-ANN",
+        base_date(),
+        &[(0.0, 0.0), (1.0, 0.05), (2.0, 0.05)],
+        Compounding::Annual,
+    )
+    .expect("valid annual zero-rate curve");
+    assert!((annual.df(2.0) - 1.05_f64.powi(-2)).abs() < 1e-12);
+    assert!(
+        DiscountCurve::from_zero_rates("EMPTY", base_date(), &[], Compounding::Annual).is_err()
+    );
+}
+
+#[test]
+fn test_from_dates_uses_day_count_for_pillar_times() {
+    let one_year = Date::from_calendar_date(2026, Month::January, 1).expect("valid date");
+    let curve = DiscountCurve::from_dates(
+        "DATED",
+        base_date(),
+        &[(one_year, 0.95)],
+        Some(DayCount::Act365F),
+    )
+    .expect("valid dated curve");
+    assert_eq!(curve.day_count(), DayCount::Act365F);
+    assert_eq!(curve.knots().len(), 2);
+    assert!((curve.df(1.0) - 0.95).abs() < 1e-12);
+
+    let before = Date::from_calendar_date(2024, Month::June, 1).expect("valid date");
+    assert!(DiscountCurve::from_dates("BAD", base_date(), &[(before, 0.99)], None).is_err());
+}

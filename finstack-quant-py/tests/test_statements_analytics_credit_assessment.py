@@ -30,18 +30,18 @@ def _results() -> StatementResult:
 def test_credit_assessment_returns_structured_scalars() -> None:
     # Pass the StatementResult object (exercises the object-input path).
     out = credit_assessment(_results(), "2025Q4")
-    assert out["as_of"] == "2025Q4"
-    assert out["leverage_ratio"] == 300.0 / 100.0  # debt / TTM EBITDA(=100)
-    assert out["interest_coverage"] == 100.0 / 10.0  # TTM EBITDA / TTM interest(=10)
-    assert out["free_cash_flow"] is None  # node absent
+    assert out.period == "2025Q4"
+    assert out.leverage_ratio == 300.0 / 100.0  # debt / TTM EBITDA(=100)
+    assert out.interest_coverage == 100.0 / 10.0  # TTM EBITDA / TTM interest(=10)
+    assert out.free_cash_flow is None  # node absent
 
 
 def test_credit_assessment_accepts_json_and_series_ascending() -> None:
     # Pass JSON (exercises the JSON-input path).
     out = credit_assessment(_results().to_json(), "2025Q4")
-    periods = [pt["period"] for pt in out["series"]]
+    periods = [pt.period for pt in out.series]
     assert periods == sorted(periods)
-    q4 = next(pt for pt in out["series"] if pt["period"] == "2025Q4")
-    assert q4["leverage_ratio"] == 3.0
-    q1 = next(pt for pt in out["series"] if pt["period"] == "2025Q1")
-    assert q1["leverage_ratio"] is None  # incomplete TTM window
+    q4 = next(pt for pt in out.series if pt.period == "2025Q4")
+    assert q4.leverage_ratio == 3.0
+    q1 = next(pt for pt in out.series if pt.period == "2025Q1")
+    assert q1.leverage_ratio is None  # incomplete TTM window

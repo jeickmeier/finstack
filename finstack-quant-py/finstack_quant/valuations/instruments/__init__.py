@@ -16,12 +16,18 @@ from finstack_quant.finstack_quant import valuations as _valuations
 AssetPool = _valuations.instruments.AssetPool
 BarrierCrossing = _valuations.instruments.BarrierCrossing
 Bond = _valuations.instruments.Bond
+BondBuilder = _valuations.instruments.BondBuilder
 CDSIndex = _valuations.instruments.CDSIndex
 CDSIndexBuilder = _valuations.instruments.CDSIndexBuilder
+CDSIndexConstituent = _valuations.instruments.CDSIndexConstituent
+CDSIndexParams = _valuations.instruments.CDSIndexParams
 CDSTranche = _valuations.instruments.CDSTranche
 CDSTrancheBuilder = _valuations.instruments.CDSTrancheBuilder
+CDSTrancheParams = _valuations.instruments.CDSTrancheParams
+CallPutSchedule = _valuations.instruments.CallPutSchedule
 CapFloor = _valuations.instruments.CapFloor
 CapFloorBuilder = _valuations.instruments.CapFloorBuilder
+ConversionSpec = _valuations.instruments.ConversionSpec
 ConvertibleBond = _valuations.instruments.ConvertibleBond
 ConvertibleBondBuilder = _valuations.instruments.ConvertibleBondBuilder
 CreditDefaultSwap = _valuations.instruments.CreditDefaultSwap
@@ -36,8 +42,10 @@ FxOption = _valuations.instruments.FxOption
 FxOptionBuilder = _valuations.instruments.FxOptionBuilder
 InterestRateSwap = _valuations.instruments.InterestRateSwap
 InterestRateSwapBuilder = _valuations.instruments.InterestRateSwapBuilder
+MarketHistory = _valuations.instruments.MarketHistory
 MertonMcConfig = _valuations.instruments.MertonMcConfig
 MertonMcResult = _valuations.instruments.MertonMcResult
+MetricPricingOverrides = _valuations.instruments.MetricPricingOverrides
 OasResult = _valuations.instruments.OasResult
 PathStatistics = _valuations.instruments.PathStatistics
 PikMode = _valuations.instruments.PikMode
@@ -51,6 +59,7 @@ StructuredCreditBuilder = _valuations.instruments.StructuredCreditBuilder
 Swaption = _valuations.instruments.Swaption
 SwaptionBuilder = _valuations.instruments.SwaptionBuilder
 TermLoan = _valuations.instruments.TermLoan
+TermLoanBuilder = _valuations.instruments.TermLoanBuilder
 Tranche = _valuations.instruments.Tranche
 TrancheBuilder = _valuations.instruments.TrancheBuilder
 TrancheMetrics = _valuations.instruments.TrancheMetrics
@@ -77,12 +86,18 @@ __all__: list[str] = [
     "AssetPool",
     "BarrierCrossing",
     "Bond",
+    "BondBuilder",
     "CDSIndex",
     "CDSIndexBuilder",
+    "CDSIndexConstituent",
+    "CDSIndexParams",
     "CDSTranche",
     "CDSTrancheBuilder",
+    "CDSTrancheParams",
+    "CallPutSchedule",
     "CapFloor",
     "CapFloorBuilder",
+    "ConversionSpec",
     "ConvertibleBond",
     "ConvertibleBondBuilder",
     "CreditDefaultSwap",
@@ -97,8 +112,10 @@ __all__: list[str] = [
     "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "MarketHistory",
     "MertonMcConfig",
     "MertonMcResult",
+    "MetricPricingOverrides",
     "OasResult",
     "PathStatistics",
     "PikMode",
@@ -112,6 +129,7 @@ __all__: list[str] = [
     "Swaption",
     "SwaptionBuilder",
     "TermLoan",
+    "TermLoanBuilder",
     "Tranche",
     "TrancheBuilder",
     "TrancheMetrics",

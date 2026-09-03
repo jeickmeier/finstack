@@ -261,14 +261,14 @@ fn run_excess_returns(
 ///
 /// Parameters
 /// ----------
-/// reference_json : str
+/// reference_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``ReferenceReturn`` objects (``duration``,
 ///     ``total_return``, both decimals with duration in years); must be
 ///     non-empty. Unknown fields are rejected.
 /// base_label : str
 ///     Label identifying the resulting curve (e.g. ``"UST"``), carried
 ///     through to the output's ``base_label`` for policy visibility.
-/// config_json : str
+/// config_json : str | dict | list | pandas.DataFrame
 ///     JSON ``CellConfig``; ``width`` is its only field (cell width in
 ///     years, finite and positive) and is required — there is no default.
 ///
@@ -308,10 +308,15 @@ fn run_excess_returns(
 #[pyo3(text_signature = "(reference_json, base_label, config_json)")]
 fn cell_returns_from_reference(
     py: Python<'_>,
-    reference_json: &str,
+    reference_json: &Bound<'_, PyAny>,
     base_label: &str,
-    config_json: &str,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<PyDurationCellTable> {
+    let reference_json =
+        crate::bindings::extract::extract_records_json(py, reference_json, "reference")?;
+    let reference_json: &str = &reference_json;
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     Ok(PyDurationCellTable {
         inner: run_cell_returns_from_reference(py, reference_json, base_label, config_json)?,
     })
@@ -330,10 +335,15 @@ fn cell_returns_from_reference(
 #[pyo3(text_signature = "(reference_json, base_label, config_json)")]
 fn cell_returns_from_reference_json(
     py: Python<'_>,
-    reference_json: &str,
+    reference_json: &Bound<'_, PyAny>,
     base_label: &str,
-    config_json: &str,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
+    let reference_json =
+        crate::bindings::extract::extract_records_json(py, reference_json, "reference")?;
+    let reference_json: &str = &reference_json;
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     let table = run_cell_returns_from_reference(py, reference_json, base_label, config_json)?;
     serde_json::to_string(&table)
         .map_err(|err| serde_json_to_py(err, "serialize DurationCellTable"))
@@ -363,7 +373,7 @@ fn cell_returns_from_reference_json(
 /// base_label : str
 ///     Label identifying the base curve (e.g. ``"UST"``, ``"USD-SOFR"``),
 ///     stamped into the result purely for policy visibility.
-/// config_json : str
+/// config_json : str | dict | list | pandas.DataFrame
 ///     JSON ``CellConfig``; ``width`` is its only field and is required.
 ///
 /// Returns
@@ -411,8 +421,10 @@ fn cell_returns_from_curves(
     horizon_years: f64,
     max_duration: f64,
     base_label: &str,
-    config_json: &str,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<PyDurationCellTable> {
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     Ok(PyDurationCellTable {
         inner: run_cell_returns_from_curves(
             py,
@@ -444,8 +456,10 @@ fn cell_returns_from_curves_json(
     horizon_years: f64,
     max_duration: f64,
     base_label: &str,
-    config_json: &str,
+    config_json: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
+    let config_json = crate::bindings::extract::extract_records_json(py, config_json, "config")?;
+    let config_json: &str = &config_json;
     let table = run_cell_returns_from_curves(
         py,
         start,
@@ -469,11 +483,11 @@ fn cell_returns_from_curves_json(
 ///
 /// Parameters
 /// ----------
-/// positions_json : str
+/// positions_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``ExcessReturnPosition`` objects (``id``, ``weight``,
 ///     ``duration``, ``total_return``); weights must sum to ``1.0`` within
 ///     ``1e-6``.
-/// table_json : str
+/// table_json : str | dict | list | pandas.DataFrame
 ///     JSON ``DurationCellTable``, as returned by
 ///     :func:`cell_returns_from_reference_json`,
 ///     :func:`cell_returns_from_curves_json`, or
@@ -516,9 +530,14 @@ fn cell_returns_from_curves_json(
 #[pyo3(text_signature = "(positions_json, table_json)")]
 fn excess_returns(
     py: Python<'_>,
-    positions_json: &str,
-    table_json: &str,
+    positions_json: &Bound<'_, PyAny>,
+    table_json: &Bound<'_, PyAny>,
 ) -> PyResult<PyExcessReturnResult> {
+    let positions_json =
+        crate::bindings::extract::extract_records_json(py, positions_json, "positions")?;
+    let positions_json: &str = &positions_json;
+    let table_json = crate::bindings::extract::extract_records_json(py, table_json, "table")?;
+    let table_json: &str = &table_json;
     Ok(PyExcessReturnResult {
         inner: run_excess_returns(py, positions_json, table_json)?,
     })
@@ -534,7 +553,16 @@ fn excess_returns(
 ///     JSON-serialized ``ExcessReturnResult``.
 #[pyfunction]
 #[pyo3(text_signature = "(positions_json, table_json)")]
-fn excess_returns_json(py: Python<'_>, positions_json: &str, table_json: &str) -> PyResult<String> {
+fn excess_returns_json(
+    py: Python<'_>,
+    positions_json: &Bound<'_, PyAny>,
+    table_json: &Bound<'_, PyAny>,
+) -> PyResult<String> {
+    let positions_json =
+        crate::bindings::extract::extract_records_json(py, positions_json, "positions")?;
+    let positions_json: &str = &positions_json;
+    let table_json = crate::bindings::extract::extract_records_json(py, table_json, "table")?;
+    let table_json: &str = &table_json;
     let result = run_excess_returns(py, positions_json, table_json)?;
     serde_json::to_string(&result)
         .map_err(|err| serde_json_to_py(err, "serialize ExcessReturnResult"))

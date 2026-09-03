@@ -175,7 +175,7 @@ pub enum DecompositionError {
     /// An issuer appeared in `observed_spreads` but had no
     /// [`IssuerBetaRow`] in the model and no entry in `runtime_tags`.
     #[error(
-        "issuer {issuer_id:?} is not in CreditFactorModel.issuer_betas and no \
+        "issuer {issuer_id} is not in CreditFactorModel.issuer_betas and no \
          runtime_tags entry was supplied"
     )]
     UnknownIssuer {
@@ -184,7 +184,7 @@ pub enum DecompositionError {
     },
     /// An issuer (model-resident or runtime-supplied) was missing the tag for
     /// a hierarchy dimension.
-    #[error("issuer {issuer_id:?} is missing the tag for dimension {dimension:?}")]
+    #[error("issuer {issuer_id} is missing the tag for dimension {dimension}")]
     MissingTag {
         /// The issuer with the missing tag.
         issuer_id: IssuerId,
@@ -207,7 +207,7 @@ pub enum DecompositionError {
     },
     /// The two snapshots passed to [`decompose_period`] are out of order
     /// (`from.date > to.date`).
-    #[error("decompose_period requires from.date <= to.date, got from={from:?} to={to:?}")]
+    #[error("decompose_period requires from.date <= to.date, got from={from} to={to}")]
     DateMismatchInPeriod {
         /// Date supplied as `from` (the later of the two).
         from: Date,

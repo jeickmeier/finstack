@@ -181,13 +181,8 @@ impl TrancheCoupon {
                     .fixing_calendar_id
                     .as_deref()
                     .unwrap_or("weekends_only");
-                let canonical_calendar_id = if calendar_id == "weekends_only" {
-                    "weekends"
-                } else {
-                    calendar_id
-                };
-                let calendar = finstack_quant_core::dates::calendar_by_id(canonical_calendar_id)
-                    .ok_or_else(|| {
+                let calendar =
+                    finstack_quant_core::dates::calendar_by_id(calendar_id).ok_or_else(|| {
                         finstack_quant_core::Error::Validation(format!(
                             "structured-credit tranche fixing calendar '{}' is not registered",
                             calendar_id

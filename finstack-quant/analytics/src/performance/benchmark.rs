@@ -148,6 +148,7 @@ impl Performance {
         risk_free_rate: f64,
     ) -> crate::Result<RollingGreeks> {
         self.ensure_ticker_idx(ticker_idx)?;
+        Self::ensure_window(window)?;
         let (r, bench) = self.active_pair_returns(ticker_idx);
         Ok(rolling_greeks(
             r,

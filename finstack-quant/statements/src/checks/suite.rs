@@ -324,6 +324,22 @@ pub enum BuiltinCheckSpec {
 }
 
 impl BuiltinCheckSpec {
+    /// Serde `type` tags of every built-in check, in declaration order.
+    ///
+    /// These are the strings a suite spec's `builtin_checks[].type` field
+    /// accepts. Host bindings expose the list so callers can discover the
+    /// catalog without reading the schema.
+    pub const fn names() -> &'static [&'static str] {
+        &[
+            "balance_sheet_articulation",
+            "retained_earnings_reconciliation",
+            "cash_reconciliation",
+            "missing_value",
+            "sign_convention",
+            "non_finite",
+        ]
+    }
+
     /// Convert this spec into a boxed [`Check`] implementation.
     pub fn to_check(&self) -> Box<dyn Check> {
         match self {
@@ -362,4 +378,40 @@ pub struct FormulaCheckSpec {
     /// Numeric tolerance for floating-point comparisons.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every advertised builtin name must be the serde `type` tag of exactly
+    /// one variant, so the discovery list cannot drift from the wire format.
+    #[test]
+    fn builtin_names_match_serde_tags() {
+        // A known tag with missing fields fails on the *fields*; an unknown
+        // tag fails on the variant. Only the latter means the list drifted.
+        for name in BuiltinCheckSpec::names() {
+            let attempt: std::result::Result<BuiltinCheckSpec, serde_json::Error> =
+                serde_json::from_value(serde_json::json!({ "type": name }));
+            if let Err(err) = attempt {
+                assert!(
+                    !err.to_string().contains("unknown variant"),
+                    "'{name}' is not a BuiltinCheckSpec tag: {err}"
+                );
+            }
+        }
+        let unknown: std::result::Result<BuiltinCheckSpec, serde_json::Error> =
+            serde_json::from_value(serde_json::json!({ "type": "no_such_check" }));
+        assert!(unknown
+            .expect_err("unknown tag must fail")
+            .to_string()
+            .contains("unknown variant"));
+        // Tag-only construction succeeds for the checks whose fields all
+        // default, which is what a host's `builtin_checks=["non_finite"]`
+        // shorthand relies on.
+        for name in ["non_finite", "sign_convention"] {
+            serde_json::from_value::<BuiltinCheckSpec>(serde_json::json!({ "type": name }))
+                .expect("defaultable builtin");
+        }
+    }
 }

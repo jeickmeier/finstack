@@ -236,6 +236,28 @@ impl CreditRating {
         matches!(self, Self::D)
     }
 
+    /// Signed notch distance from `self` to `other` on the 23-step scale.
+    ///
+    /// Positive when `other` is weaker (further down the scale), negative when
+    /// it is stronger, zero when equal. `NR` sits between `C` and `D`, so
+    /// distances involving `NR` follow that ordinal placement.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - Rating to measure against; `self.notches_to(other)` equals
+    ///   `-(other.notches_to(self))`
+    ///
+    /// # Example
+    /// ```rust
+    /// use finstack_quant_core::types::CreditRating;
+    ///
+    /// assert_eq!(CreditRating::BBB.notches_to(CreditRating::BB), 3);
+    /// assert_eq!(CreditRating::BB.notches_to(CreditRating::BBB), -3);
+    /// ```
+    pub fn notches_to(self, other: Self) -> i32 {
+        i32::from(other.ordinal()) - i32::from(self.ordinal())
+    }
+
     /// S&P/Fitch-style string representation.
     fn to_generic_string(self) -> &'static str {
         match self {
@@ -430,6 +452,15 @@ fn parse_credit_rating(value: &str) -> Result<CreditRating, crate::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notches_to_is_signed_and_antisymmetric() {
+        assert_eq!(CreditRating::BBB.notches_to(CreditRating::BB), 3);
+        assert_eq!(CreditRating::BB.notches_to(CreditRating::BBB), -3);
+        assert_eq!(CreditRating::AAA.notches_to(CreditRating::AAA), 0);
+        assert_eq!(CreditRating::C.notches_to(CreditRating::NR), 1);
+        assert_eq!(CreditRating::NR.notches_to(CreditRating::D), 1);
+    }
 
     #[test]
     fn test_credit_rating_investment_grade() {

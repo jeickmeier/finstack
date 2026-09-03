@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import pickle
 
+import pandas as pd
 import pytest
 
 from finstack_quant.margin import (
@@ -12,12 +14,18 @@ from finstack_quant.margin import (
     FrtbSbaEngine,
     FrtbSbaResult,
     FrtbSensitivities,
+    NettingSetId,
     SaCcrEngine,
     SaCcrNettingSetConfig,
     SaCcrTrade,
     frtb_sba_charge,
     saccr_ead,
 )
+
+
+def unmargined_config(as_of: str = "2025-01-15") -> SaCcrNettingSetConfig:
+    """Zero-collateral bilateral netting set for the shared fixtures."""
+    return SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, as_of)
 
 
 def linear_trade_payload() -> dict[str, object]:
@@ -38,30 +46,49 @@ def linear_trade_payload() -> dict[str, object]:
     }
 
 
-def test_sa_ccr_trade_requires_validated_canonical_json() -> None:
+def test_sa_ccr_trade_keyword_constructor_matches_json() -> None:
     payload = linear_trade_payload()
-    trade = SaCcrTrade.from_json(json.dumps(payload))
+    from_json = SaCcrTrade.from_json(json.dumps(payload))
+    typed = SaCcrTrade(
+        trade_id="IRS-1",
+        asset_class="interest_rate",
+        notional=1_000_000.0,
+        start_date=dt.date(2025, 1, 15),
+        end_date="2030-01-15",
+        underlier="USD-SOFR",
+        hedging_set="USD-IR",
+        direction=1.0,
+        supervisory_delta=1.0,
+        mtm=10_000.0,
+    )
 
-    assert trade.trade_id == "IRS-1"
-    assert trade.asset_class == "interest_rate"
-    assert trade.notional == pytest.approx(1_000_000.0)
+    assert typed.to_json() == from_json.to_json()
+    assert typed.trade_id == "IRS-1"
+    assert typed.asset_class == "interest_rate"
+    assert typed.notional == pytest.approx(1_000_000.0)
+    assert typed.start_date == dt.date(2025, 1, 15)
+    assert typed.end_date == dt.date(2030, 1, 15)
+    assert typed.underlier == "USD-SOFR"
+    assert typed.hedging_set == "USD-IR"
+    assert typed.direction == 1.0
+    assert typed.supervisory_delta == 1.0
+    assert typed.is_option is False
+    assert typed.option_type is None
 
-    with pytest.raises(TypeError, match=r"cannot create .*SaCcrTrade.* instances"):
-        SaCcrTrade(
-            "IRS-1",
-            "interest_rate",
-            1_000_000.0,
-            2025,
-            1,
-            15,
-            2030,
-            1,
-            15,
-            "USD-SOFR",
-            "USD-IR",
-            1.0,
-            10_000.0,
-        )
+    with pytest.raises(ValueError, match="agree in sign"):
+        SaCcrTrade("X", "credit", 1.0, "2025-01-15", "2026-01-15", "ACME", "HS", 1.0, -1.0, 0.0)
+
+
+def test_sa_ccr_trade_dataframe_round_trip() -> None:
+    trade = SaCcrTrade.from_json(json.dumps(linear_trade_payload()))
+    frame = trade.to_dataframe()
+    assert list(frame.columns)[:3] == ["trade_id", "asset_class", "notional"]
+    assert frame.iloc[0]["start_date"] == "2025-01-15"
+
+    tape = pd.concat([frame, frame.assign(trade_id="IRS-2", direction=-1.0, supervisory_delta=-1.0)])
+    trades = SaCcrTrade.from_dataframe(tape)
+    assert [t.trade_id for t in trades] == ["IRS-1", "IRS-2"]
+    assert trades[1].direction == -1.0
 
 
 def test_sa_ccr_trade_from_json_validates_regulatory_semantics() -> None:
@@ -98,7 +125,7 @@ def test_saccr_ead_returns_typed_result() -> None:
     """`saccr_ead` returns the full `EadResult`, not a lossy 3-tuple."""
     trade = SaCcrTrade.from_json(json.dumps(linear_trade_payload()))
 
-    result = saccr_ead([trade], 2025, 1, 15)
+    result = saccr_ead([trade], unmargined_config())
 
     assert isinstance(result, EadResult)
     assert result.ead == pytest.approx(result.alpha * (result.rc + result.pfe))
@@ -112,7 +139,7 @@ def test_saccr_ead_returns_typed_result() -> None:
 
 def test_ead_result_wire_and_frame_surfaces() -> None:
     trade = SaCcrTrade.from_json(json.dumps(linear_trade_payload()))
-    result = saccr_ead([trade], 2025, 1, 15)
+    result = saccr_ead([trade], unmargined_config())
 
     round_tripped = EadResult.from_json(result.to_json())
     assert round_tripped.ead == pytest.approx(result.ead)
@@ -141,7 +168,7 @@ def test_ead_result_wire_and_frame_surfaces() -> None:
 
 
 def test_sa_ccr_engine_calculate_ead_returns_typed_result() -> None:
-    config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+    config = unmargined_config()
 
     result = SaCcrEngine(alpha=1.5).calculate_ead(config, [])
 
@@ -199,3 +226,96 @@ def test_frtb_scenario_selection_still_honoured() -> None:
 
     assert only_low.binding_scenario == "low"
     assert set(only_low.scenario_charges) == {"low"}
+
+
+def test_saccr_ead_is_a_thin_engine_wrapper() -> None:
+    trade = SaCcrTrade.from_json(json.dumps(linear_trade_payload()))
+    config = SaCcrNettingSetConfig.margined(
+        NettingSetId.cleared("LCH"),
+        collateral=250_000.0,
+        threshold=100_000.0,
+        mta=50_000.0,
+        nica=0.0,
+        mpor_days=5,
+        as_of=dt.date(2025, 1, 15),
+    )
+    assert config.netting_set_id == NettingSetId.cleared("LCH")
+    assert config.netting_set_id.is_cleared
+    assert config.as_of == dt.date(2025, 1, 15)
+    assert (config.threshold, config.mta, config.nica, config.mpor_days) == (100_000.0, 50_000.0, 0.0, 5)
+    assert "mpor_days=5" in repr(config)
+
+    via_function = saccr_ead([trade], config, alpha=1.5)
+    via_engine = SaCcrEngine(alpha=1.5).calculate_ead(config, [trade])
+    assert via_function.to_json() == via_engine.to_json()
+    assert SaCcrEngine(alpha=1.5).alpha == 1.5
+    assert via_function.meta["numeric_mode"] is not None
+
+    with pytest.raises(ValueError, match="MPOR"):
+        SaCcrNettingSetConfig.margined(NettingSetId.bilateral("A", "B"), 0.0, 0.0, 0.0, 0.0, 0, "2025-01-15")
+
+
+def test_netting_set_id_is_hashable_and_picklable() -> None:
+    lch = NettingSetId.cleared("LCH")
+    assert lch == NettingSetId.cleared("LCH")
+    assert {lch: 1}[NettingSetId.cleared("LCH")] == 1
+    assert pickle.loads(pickle.dumps(lch)) == lch  # noqa: S301
+    assert NettingSetId.from_json(lch.to_json()) == lch
+
+
+def test_frtb_engine_configuration_and_scenario_frame() -> None:
+    engine = FrtbSbaEngine(scenarios=["high"], risk_classes=["girr", "equity"])
+    assert engine.scenarios == ["high"]
+    assert engine.risk_classes == ["girr", "equity"]
+    result = engine.calculate(sample_sensitivities())
+    frame = result.to_scenario_dataframe()
+    assert list(frame.columns) == ["scenario", "charge", "binding"]
+    assert frame["scenario"].tolist() == ["high"]
+    assert bool(frame["binding"].iloc[0]) is True
+    assert result.meta["numeric_mode"] is not None
+
+    with pytest.raises(ValueError, match=r"unknown variant `extreme`"):
+        FrtbSbaEngine(scenarios=["extreme"])
+
+
+def test_frtb_sensitivities_adders_and_dataframe_round_trip() -> None:
+    sens = FrtbSensitivities("USD")
+    sens.add_girr_delta("5Y", 25_000.0)
+    sens.add_girr_inflation_delta(1_000.0)
+    sens.add_girr_xccy_basis_delta(500.0, "EUR")
+    sens.add_girr_vega("1Y", "5Y", 2_000.0)
+    sens.add_girr_curvature(300.0, -200.0)
+    sens.add_csr_nonsec_delta("ACME", 3, "5Y", 4_000.0)
+    sens.add_csr_nonsec_vega("ACME", 3, "1Y", 400.0)
+    sens.add_csr_nonsec_curvature("ACME", 3, 50.0, -40.0)
+    sens.add_csr_sec_ctp_delta("CDX-T", 1, "5Y", 1_000.0)
+    sens.add_csr_sec_ctp_vega("CDX-T", 1, "1Y", 100.0)
+    sens.add_csr_sec_ctp_curvature("CDX-T", 1, 10.0, -8.0)
+    sens.add_csr_sec_nonctp_delta("ABS-1", 1, "5Y", 1_000.0)
+    sens.add_csr_sec_nonctp_vega("ABS-1", 1, "1Y", 100.0)
+    sens.add_csr_sec_nonctp_curvature("ABS-1", 1, 10.0, -8.0)
+    sens.add_equity_delta("ACME", 1, 12_000.0)
+    sens.add_equity_vega("ACME", 1, "1Y", 600.0)
+    sens.add_equity_curvature("ACME", 1, 70.0, -60.0)
+    sens.add_commodity_delta("WTI", 2, "1Y", 3_000.0)
+    sens.add_commodity_vega("WTI", 2, "1Y", 300.0)
+    sens.add_commodity_curvature("WTI", 2, 30.0, -20.0)
+    sens.add_fx_delta("EUR", "USD", 9_000.0)
+    sens.add_fx_vega("EUR", "USD", "1Y", 900.0)
+    sens.add_fx_curvature("EUR", "USD", 90.0, -80.0)
+    sens.add_rrao_position("EXOTIC-1", 5_000_000.0, True)
+    sens.add_rrao_position("PLAIN-1", 5_000_000.0)
+    sens.validate()
+
+    restored = FrtbSensitivities.from_dataframe(sens.to_dataframe(), "USD")
+    assert restored.to_json() == sens.to_json()
+    assert "delta=9" in repr(sens)
+
+    sens.add_drc_position("ACME", 1_000_000.0, 3, "financials_corporate", "senior_unsecured", "corporate")
+    charged = frtb_sba_charge(sens)
+    assert charged.drc > 0.0
+    with pytest.raises(ValueError, match="add_drc_position"):
+        FrtbSensitivities.from_dataframe(sens.to_dataframe())
+
+    empty = frtb_sba_charge(FrtbSensitivities("USD"))
+    assert repr(empty.rrao) == "0.0"

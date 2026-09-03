@@ -201,7 +201,53 @@ pub fn migration_to_py(e: finstack_quant_models::credit::migration::MigrationErr
 /// `ValueError`, so existing callers catching `ValueError` remain compatible
 /// while analytics users can opt into a narrower exception type.
 pub fn analytics_to_py(e: finstack_quant_core::Error) -> PyErr {
-    AnalyticsError::new_err(format_chain(&e))
+    use finstack_quant_core::error::ErrorKind;
+
+    let message = format_chain(&e);
+    match e.kind() {
+        ErrorKind::NotFound => PyKeyError::new_err(message),
+        ErrorKind::Computation => PyRuntimeError::new_err(message),
+        ErrorKind::Validation => AnalyticsError::new_err(message),
+    }
+}
+
+/// Convert a `finstack_quant_scenarios::Error` into a Python exception.
+///
+/// Lookup misses (`MarketDataNotFound`, `NodeNotFound`, `TenorNotFound`,
+/// `InstrumentNotFound`) raise `KeyError`; engine/computation failures
+/// (`Internal`) raise `RuntimeError`; wrapped core/statements/valuations
+/// errors delegate to their own mappers; everything else (validation,
+/// unsupported operation, malformed tenor/period) raises `ValueError`.
+pub fn scenarios_to_py(e: finstack_quant_scenarios::Error) -> PyErr {
+    use finstack_quant_scenarios::Error as SErr;
+    match e {
+        SErr::Core(core) => core_to_py(core),
+        SErr::Statements(inner) => statements_to_py(inner),
+        SErr::Valuations(inner) => core_to_py(inner.into()),
+        err @ (SErr::MarketDataNotFound { .. }
+        | SErr::NodeNotFound { .. }
+        | SErr::TenorNotFound { .. }
+        | SErr::InstrumentNotFound(_)) => PyKeyError::new_err(format_chain(&err)),
+        err @ SErr::Internal(_) => PyRuntimeError::new_err(format_chain(&err)),
+        err => PyValueError::new_err(format_chain(&err)),
+    }
+}
+
+/// Convert a factor-model `DecompositionError` into a Python exception.
+///
+/// `UnknownIssuer` is a lookup miss and raises `KeyError`; `ModelInconsistent`
+/// is an operational invariant failure and raises `RuntimeError`; the
+/// remaining shape/tag validation failures raise `ValueError`.
+pub fn decomposition_error_to_py(
+    e: finstack_quant_models::factor::credit::decomposition::DecompositionError,
+) -> PyErr {
+    use finstack_quant_models::factor::credit::decomposition::DecompositionError as E;
+    let message = format_chain(&e);
+    match &e {
+        E::UnknownIssuer { .. } => PyKeyError::new_err(message),
+        E::ModelInconsistent { .. } => PyRuntimeError::new_err(message),
+        _ => PyValueError::new_err(message),
+    }
 }
 
 /// Convert a `finstack_quant_portfolio::Error` into a portfolio-domain Python exception.
@@ -400,4 +446,23 @@ pub fn value_error(message: impl Into<String>) -> PyErr {
 /// ```
 pub fn serde_json_to_py(err: serde_json::Error, context: &str) -> PyErr {
     PyValueError::new_err(format!("{context}: {err}"))
+}
+
+/// Convert a `CreditScoringError` into a Python exception.
+///
+/// Every variant (non-finite ratio, non-binary indicator) is a validation
+/// failure of the caller's inputs, so all map to `ValueError`.
+pub fn scoring_to_py(e: finstack_quant_models::credit::scoring::CreditScoringError) -> PyErr {
+    PyValueError::new_err(format_chain(&e))
+}
+
+/// Convert a `finstack_quant_models::correlation::Error` into a Python
+/// exception through the canonical core taxonomy.
+///
+/// Iterative failures (nearest-correlation non-convergence, eigendecomposition
+/// failure) become `RuntimeError`; every other variant (matrix shape,
+/// symmetry, bounds, PSD, volatility, recovery and degrees-of-freedom
+/// validation) becomes `ValueError`.
+pub fn correlation_to_py(e: finstack_quant_models::correlation::Error) -> PyErr {
+    core_to_py(e.into())
 }

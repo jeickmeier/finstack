@@ -275,13 +275,15 @@ fn test_metric_parse_strict() {
         } => {
             assert_eq!(metric_id, "made_up_metric");
             assert!(
-                !available.is_empty(),
-                "Error should include list of available metrics"
+                !available.is_empty() && available.len() <= 5,
+                "Error should carry a short, ranked suggestion list, got {available:?}"
             );
-            assert!(
-                available.contains(&"ytm".to_string()),
-                "Available list should include 'ytm'"
-            );
+            for name in &available {
+                assert!(
+                    MetricId::parse_strict(name).is_ok(),
+                    "suggestion '{name}' must be a standard metric"
+                );
+            }
         }
         other => panic!("Expected UnknownMetric error, got: {:?}", other),
     }

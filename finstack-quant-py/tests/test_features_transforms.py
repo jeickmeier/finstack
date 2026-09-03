@@ -190,3 +190,68 @@ def test_transform_panel_json_entrypoint() -> None:
     assert result["columns"][0]["values"][1] == pytest.approx(0.2)
     assert result["columns"][1]["name"] == "rank"
     assert result["columns"][1]["values"][2] == 1.0
+
+
+def test_periods_count_finite_observations() -> None:
+    entity = ["A"] * 5
+    order = ["1", "2", "3", "4", "5"]
+    diff = transform_timeseries([10.0, 12.0, 13.0, None, 17.0], entity, order, "diff", {"periods": 2})
+    # The None row does not advance the lag: 17 is differenced against 12.
+    assert diff == [None, None, 3.0, None, 5.0]
+    lag = transform_timeseries([10.0, None, 13.0], entity[:3], order[:3], "lag")
+    assert lag == [None, None, 10.0]
+
+
+def test_unknown_params_and_ops_are_rejected_with_listings() -> None:
+    with pytest.raises(ValueError, match="unknown panel transform parameter 'windows'"):
+        transform_timeseries([1.0, 2.0], ["A", "A"], ["1", "2"], "rolling_mean", {"windows": 2})
+    with pytest.raises(ValueError, match="accepted ops: returns, log_returns"):
+        transform_timeseries([1.0], ["A"], ["1"], "not_an_op")
+    with pytest.raises(ValueError, match="accepted ops: zscore"):
+        transform_cross_sectional([1.0], ["d"], "nope")
+
+
+def test_op_enums_and_key_coercion() -> None:
+    import datetime
+
+    from finstack_quant.features import CrossSectionalOp, PairwiseOp, TimeSeriesOp
+
+    assert TimeSeriesOp("returns") == TimeSeriesOp["RETURNS"]
+    assert "RETURNS" in TimeSeriesOp.__members__
+    assert TimeSeriesOp.values()[0] == "returns"
+    assert CrossSectionalOp("winsorize").param_keys == ["lower", "upper"]
+    assert PairwiseOp.values() == ["rolling_cov", "rolling_corr", "rolling_beta"]
+    assert repr(TimeSeriesOp("ewma_vol")) == "TimeSeriesOp.EWMA_VOL"
+    with pytest.raises(ValueError, match="accepted ops"):
+        TimeSeriesOp("bogus")
+    out = transform_timeseries(
+        [100.0, 102.0],
+        [1, 1],
+        [datetime.date(2026, 1, 1), datetime.date(2026, 1, 2)],
+        TimeSeriesOp("returns"),
+    )
+    assert out[0] is None
+    assert out[1] == pytest.approx(0.02)
+
+
+def test_transform_panel_typed_twin() -> None:
+    import pickle
+
+    from finstack_quant.features import PanelTransformResult, PanelTransformSpec, transform_panel
+
+    spec = PanelTransformSpec(
+        [10.0, 12.0, 20.0, 21.0],
+        [{"name": "rank", "family": "cross_sectional", "op": "rank"}],
+        time_key=["1", "2", "1", "2"],
+    )
+    result = transform_panel(spec)
+    assert isinstance(result, PanelTransformResult)
+    assert result.columns == ["rank"]
+    assert result.get_column("rank") == [0.0, 0.0, 1.0, 1.0]
+    assert transform_panel(spec.to_json()).to_json() == result.to_json()
+    assert pickle.loads(pickle.dumps(result)).columns == ["rank"]  # noqa: S301 - trusted in-process round trip
+    with pytest.raises(KeyError):
+        result.get_column("missing")
+    pd = pytest.importorskip("pandas")
+    frame = result.to_dataframe(index=pd.Index([10, 11, 12, 13]))
+    assert list(frame.index) == [10, 11, 12, 13]

@@ -39,6 +39,7 @@ VARIANCE_COLUMNS = [
     "comparison",
     "abs_var",
     "pct_var",
+    "driver_contribution",
 ]
 
 
@@ -184,7 +185,7 @@ def test_sensitivity_result_to_dataframe_keeps_scenario_column_when_empty() -> N
     df = _sensitivity_result([]).to_dataframe()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 0
-    assert list(df.columns) == ["scenario"]
+    assert list(df.columns) == ["scenario", "node_id", "period", "value"]
 
 
 def test_sensitivity_result_to_dataframe_row_per_scenario() -> None:
@@ -203,7 +204,7 @@ def test_sensitivity_result_to_dataframe_row_per_scenario() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == len(result) == 2
-    assert list(df.columns) == ["scenario", "revenue@2025Q1"]
+    assert list(df.columns) == ["scenario", "revenue@2025Q1", "node_id", "period", "value"]
     # Sorting each column independently would destroy the property under test:
     # the reversed pairing {0: 110.0, 1: 90.0} sorts to the same two lists.
     assert df.set_index("scenario")["revenue@2025Q1"].to_dict() == {0: 90.0, 1: 110.0}
@@ -236,7 +237,7 @@ def test_scenario_result_set_to_dataframe_renders_the_comparison() -> None:
         "metric",
         "base",
         "downside",
-        "downside_vs_base_pct",
+        "downside_vs_base_frac",
     ]
     assert len(df) == 1
     row = df.iloc[0]
@@ -245,7 +246,7 @@ def test_scenario_result_set_to_dataframe_renders_the_comparison() -> None:
     assert row["base"] == pytest.approx(100.0)
     assert row["downside"] == pytest.approx(90.0)
     # (90 - 100) / 100, a decimal fraction rather than a percentage.
-    assert row["downside_vs_base_pct"] == pytest.approx(-0.1)
+    assert row["downside_vs_base_frac"] == pytest.approx(-0.1)
 
 
 def test_scenario_result_set_to_dataframe_matches_comparison_table() -> None:
@@ -457,6 +458,8 @@ def test_exposure_to_dataframe_is_one_row() -> None:
         "current_pd",
         "origination_pd",
         "dpd",
+        "current_rating",
+        "origination_rating",
     ]
     row = df.iloc[0]
     assert row["id"] == "loan-1"

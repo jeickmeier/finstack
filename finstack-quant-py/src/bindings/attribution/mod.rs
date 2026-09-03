@@ -4,7 +4,7 @@
 //! for interactive exploration from Python.
 
 mod entry;
-mod pnl_attribution;
+pub(crate) mod pnl_attribution;
 mod return_contribution;
 mod schema;
 
@@ -12,8 +12,8 @@ pub(crate) use pnl_attribution::PyPnlAttribution;
 pub(crate) use return_contribution::PyReturnContributionResult;
 
 use entry::{
-    attribute_pnl, attribute_pnl_envelope_json, attribute_return_contribution,
-    default_attribution_metrics, default_waterfall_order, validate_attribution_json,
+    attribute_pnl, attribute_pnl_envelope_json, attribute_pnl_many, attribute_return_contribution,
+    default_attribution_metrics, default_waterfall_order, pnl_bridge, validate_attribution_json,
     validate_return_contribution_json,
 };
 use pyo3::prelude::*;
@@ -27,6 +27,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyReturnContributionResult>()?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_pnl, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_pnl_envelope_json, &m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(attribute_pnl_many, &m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(pnl_bridge, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(attribute_return_contribution, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(validate_attribution_json, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(
@@ -44,9 +46,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "ReturnContributionResult",
             "attribute_pnl",
             "attribute_pnl_envelope_json",
+            "attribute_pnl_many",
             "attribute_return_contribution",
             "default_attribution_metrics",
             "default_waterfall_order",
+            "pnl_bridge",
             "schema",
             "validate_attribution_json",
             "validate_return_contribution_json",

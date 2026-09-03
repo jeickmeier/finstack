@@ -93,10 +93,26 @@ impl Performance {
     /// `1.0`. The result passes
     /// [`crate::correlation::validate_correlation_matrix`].
     pub fn correlation_matrix(&self) -> crate::Result<Vec<Vec<f64>>> {
+        self.correlation_matrix_with_repair_flag()
+            .map(|(matrix, _)| matrix)
+    }
+
+    /// Correlation matrix plus a flag saying whether Higham repair was applied.
+    ///
+    /// Same estimator and error behaviour as [`Self::correlation_matrix`];
+    /// the boolean is `true` when the raw pairwise matrix failed
+    /// [`crate::correlation::validate_correlation_matrix`] and was projected
+    /// to the nearest valid correlation matrix, so a reader can tell a
+    /// clean estimate from a repaired one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::correlation_matrix`].
+    pub fn correlation_matrix_with_repair_flag(&self) -> crate::Result<(Vec<Vec<f64>>, bool)> {
         let n = self.ticker_names().len();
         let mut matrix = vec![vec![0.0; n]; n];
         if n == 0 {
-            return Ok(matrix);
+            return Ok((matrix, false));
         }
 
         let common = self.common_active_span();
@@ -249,6 +265,7 @@ impl Performance {
         });
 
         LookbackReturns {
+            ticker_names: self.ticker_names().to_vec(),
             mtd: compute(lookback::mtd_select),
             qtd: compute(lookback::qtd_select),
             ytd: compute(lookback::ytd_select),
@@ -290,7 +307,7 @@ impl Performance {
     /// # Arguments
     ///
     /// * `frequency` - Calendar bucket size. Supported [`PeriodKind`] values are
-    ///   daily, weekly, monthly, quarterly, semiannual, and annual.
+    ///   daily, weekly, monthly, quarterly, semi_annual, and annual.
     ///
     /// # Returns
     ///
@@ -344,7 +361,7 @@ fn flatten_matrix(matrix: &[Vec<f64>]) -> Vec<f64> {
     matrix.iter().flatten().copied().collect()
 }
 
-fn finalize_correlation_matrix(matrix: Vec<Vec<f64>>) -> crate::Result<Vec<Vec<f64>>> {
+fn finalize_correlation_matrix(matrix: Vec<Vec<f64>>) -> crate::Result<(Vec<Vec<f64>>, bool)> {
     let n = matrix.len();
     for (i, row) in matrix.iter().enumerate() {
         for (j, &value) in row.iter().enumerate() {
@@ -360,7 +377,7 @@ fn finalize_correlation_matrix(matrix: Vec<Vec<f64>>) -> crate::Result<Vec<Vec<f
     }
     let flat = flatten_matrix(&matrix);
     if validate_correlation_matrix(&flat, n).is_ok() {
-        return Ok(matrix);
+        return Ok((matrix, false));
     }
     let repaired = nearest_correlation_matrix(&flat, n, NearestCorrelationOpts::default())
         .map_err(|err| crate::error::InputError::InvalidReturnSeries {
@@ -376,7 +393,7 @@ fn finalize_correlation_matrix(matrix: Vec<Vec<f64>>) -> crate::Result<Vec<Vec<f
         }
         .into());
     }
-    Ok(unflatten_square(&repaired, n))
+    Ok((unflatten_square(&repaired, n), true))
 }
 
 #[cfg(test)]
@@ -552,7 +569,9 @@ mod correlation_matrix_tests {
         ];
         let flat: Vec<f64> = indefinite.iter().flatten().copied().collect();
         assert!(validate_correlation_matrix(&flat, 3).is_err());
-        let repaired = finalize_correlation_matrix(indefinite).expect("Higham repair");
+        let (repaired, was_repaired) =
+            finalize_correlation_matrix(indefinite).expect("Higham repair");
+        assert!(was_repaired);
         let repaired_flat: Vec<f64> = repaired.iter().flatten().copied().collect();
         validate_correlation_matrix(&repaired_flat, 3).expect("repaired matrix is valid");
     }

@@ -14,7 +14,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use finstack_quant_attribution::{
     attribute_pnl, attribute_pnl_metrics_based, attribute_return_contribution,
     attribute_return_contribution_json, default_waterfall_order, pnl_attribution_long_rows,
-    simple_pnl_bridge, translate_to_target_currency, AttributionMethod, AttributionRequest,
+    pnl_bridge, translate_to_target_currency, AttributionMethod, AttributionRequest,
     ExecutionPolicy, MarketRestoreFlags, MarketSnapshot, TaylorAttributionConfig,
 };
 use finstack_quant_core::currency::Currency;
@@ -181,7 +181,7 @@ fn bench_hot_paths(c: &mut Criterion) {
 
     group.bench_function("simple_bridge_1_bond", |b| {
         b.iter(|| {
-            let pnl = simple_pnl_bridge(
+            let pnl = pnl_bridge(
                 &bond,
                 black_box(&lean.market_t0),
                 black_box(&lean.market_t1),

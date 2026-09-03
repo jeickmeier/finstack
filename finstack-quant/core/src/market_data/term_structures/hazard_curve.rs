@@ -270,6 +270,127 @@ impl HazardCurve {
         }
     }
 
+    /// Construct a flat (constant-intensity) hazard curve.
+    ///
+    /// The curve stores a single knot at `t = 1` carrying `hazard_rate`; with
+    /// flat-forward extrapolation this gives `S(t) = exp(-hazard_rate * t)`
+    /// for every non-negative maturity.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique curve identifier (for example `"ACME-HZD"`).
+    /// * `base_date` - Valuation date anchoring `t = 0`; the curve day count
+    ///   is `Act/365F`.
+    /// * `hazard_rate` - Constant annual default intensity as a decimal
+    ///   fraction (`0.02` is 2% per year); must be finite and non-negative.
+    /// * `recovery_rate` - Assumed recovery on default as a decimal fraction
+    ///   in `[0, 1]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if `hazard_rate` is non-finite, negative or
+    /// exceeds the default `max_hazard_rate` of `10.0`, or if `recovery_rate`
+    /// is outside `[0, 1]`.
+    pub fn flat(
+        id: impl Into<CurveId>,
+        base_date: Date,
+        hazard_rate: f64,
+        recovery_rate: f64,
+    ) -> crate::Result<Self> {
+        if !hazard_rate.is_finite() {
+            return Err(crate::Error::Validation(format!(
+                "HazardCurve::flat hazard_rate must be finite, got {hazard_rate}"
+            )));
+        }
+        Self::builder(id)
+            .base_date(base_date)
+            .knots([(1.0, hazard_rate)])
+            .recovery_rate(recovery_rate)
+            .build()
+    }
+
+    /// Construct a hazard curve from survival-probability pillars.
+    ///
+    /// Each pillar `(t, S(t))` is converted to the piecewise-constant hazard
+    /// rate of the segment ending at `t`:
+    /// `λᵢ = -ln(S(tᵢ) / S(tᵢ₋₁)) / (tᵢ - tᵢ₋₁)` with `S(0) = 1`. A pillar at
+    /// `t = 0` is accepted only when its survival probability is `1`.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique curve identifier.
+    /// * `base_date` - Valuation date anchoring `t = 0`; the curve day count
+    ///   is `Act/365F`.
+    /// * `points` - `(time_years, survival_probability)` pillars. Times must be
+    ///   finite and non-negative and may be supplied in any order; survival
+    ///   probabilities must lie in `(0, 1]` and be non-increasing in time.
+    /// * `recovery_rate` - Assumed recovery on default as a decimal fraction
+    ///   in `[0, 1]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if `points` is empty, a time is negative or
+    /// duplicated, a survival probability is outside `(0, 1]` or increases
+    /// with time, or `recovery_rate` is outside `[0, 1]`.
+    pub fn from_survival_probs(
+        id: impl Into<CurveId>,
+        base_date: Date,
+        points: &[(f64, f64)],
+        recovery_rate: f64,
+    ) -> crate::Result<Self> {
+        if points.is_empty() {
+            return Err(InputError::TooFewPoints.into());
+        }
+        let mut sorted = points.to_vec();
+        sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+
+        let mut knots = Vec::with_capacity(sorted.len());
+        let mut prev_t = 0.0_f64;
+        let mut prev_sp = 1.0_f64;
+        for &(t, sp) in &sorted {
+            if !t.is_finite() || t < 0.0 {
+                return Err(crate::Error::Validation(format!(
+                    "HazardCurve::from_survival_probs time must be finite and non-negative, got t={t}"
+                )));
+            }
+            if !sp.is_finite() || sp <= 0.0 || sp > 1.0 {
+                return Err(crate::Error::Validation(format!(
+                    "HazardCurve::from_survival_probs survival probability must be in (0, 1], got {sp} at t={t}"
+                )));
+            }
+            if t <= 1e-9 {
+                if (sp - 1.0).abs() > 1e-12 {
+                    return Err(crate::Error::Validation(format!(
+                        "HazardCurve::from_survival_probs survival probability at t=0 must be 1, got {sp}"
+                    )));
+                }
+                continue;
+            }
+            if t <= prev_t {
+                return Err(crate::Error::Validation(format!(
+                    "HazardCurve::from_survival_probs times must be strictly increasing, got duplicate t={t}"
+                )));
+            }
+            if sp > prev_sp {
+                return Err(crate::Error::Validation(format!(
+                    "HazardCurve::from_survival_probs survival probability must be non-increasing, got {sp} at t={t} after {prev_sp}"
+                )));
+            }
+            let lambda = -(sp / prev_sp).ln() / (t - prev_t);
+            knots.push((t, lambda));
+            prev_t = t;
+            prev_sp = sp;
+        }
+        if knots.is_empty() {
+            return Err(InputError::TooFewPoints.into());
+        }
+        Self::builder(id)
+            .base_date(base_date)
+            .knots(knots)
+            .recovery_rate(recovery_rate)
+            .build()
+    }
+
     /// Survival probability S(t) up to time `t` (in **years**).
     ///
     /// # Arguments
@@ -1120,13 +1241,17 @@ impl HazardCurveBuilder {
         // subsequent knots must increase strictly.
         for &(t, lambda) in &self.points {
             if !t.is_finite() || t < 0.0 {
-                return Err(InputError::Invalid.into());
+                return Err(crate::Error::Validation(format!(
+                    "HazardCurve knot time must be finite and non-negative, got t={t}"
+                )));
             }
             if lambda < 0.0 {
                 return Err(InputError::NegativeValue.into());
             }
             if !lambda.is_finite() {
-                return Err(InputError::Invalid.into());
+                return Err(crate::Error::Validation(format!(
+                    "HazardCurve hazard rate must be finite, got lambda={lambda} at t={t}"
+                )));
             }
             // Sanity check: λ exceeding max_hazard_rate is almost certainly a
             // data error (units confusion, etc.).  Default limit is 10.0 which

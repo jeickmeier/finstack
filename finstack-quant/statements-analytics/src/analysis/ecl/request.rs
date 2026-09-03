@@ -98,8 +98,8 @@ impl EclStageRequest {
             remaining_maturity_years: self.remaining_maturity_years,
             lgd: 0.0,
             days_past_due: self.resolved_days_past_due(),
-            current_rating: Some(CURRENT_RATING.to_string()),
-            origination_rating: Some(ORIGINATION_RATING.to_string()),
+            current_rating: None,
+            origination_rating: None,
             qualitative_flags: QualitativeFlags::default(),
             consecutive_performing_periods: 0,
             previous_stage: None,
@@ -107,13 +107,145 @@ impl EclStageRequest {
             undrawn: 0.0,
             ccf: 0.75,
         };
-        let pd_source = RequestPdSource {
-            current_pd: self.current_pd,
-            origination_pd: self.origination_pd,
-        };
-
-        classify_stage(&exposure, &pd_source, &config)
+        classify_exposure(&exposure, self.current_pd, self.origination_pd, &config)
     }
+}
+
+/// Classify a fully specified exposure from directly supplied lifetime PDs.
+///
+/// This is the staging entry point for hosts that hold a single current and
+/// origination lifetime PD per exposure instead of a rating-keyed PD term
+/// structure. Every field of `exposure` participates in the waterfall (days
+/// past due, qualitative flags, rating labels for the downgrade-notch test,
+/// previous stage and performing periods for curing), so the complete
+/// [`StagingConfig`] is reachable. When the exposure carries no rating labels
+/// the PD-delta test still runs against the two supplied PDs.
+///
+/// # Arguments
+///
+/// * `exposure` - Credit exposure whose DPD, qualitative flags, rating labels
+///   and cure state drive the staging waterfall. Its `ead`, `lgd` and `eir`
+///   are not read by staging.
+/// * `current_pd` - Current lifetime probability of default as a decimal in
+///   `[0, 1]`, compared against `origination_pd` for the SICR test.
+/// * `origination_pd` - Lifetime probability of default at initial recognition
+///   as a decimal in `[0, 1]`.
+/// * `config` - Staging policy thresholds, backstops and curing rules.
+///
+/// # Returns
+///
+/// The assigned IFRS 9 stage with its ordered trigger audit trail.
+///
+/// # Errors
+///
+/// Propagates [`classify_stage`] errors; the synthetic PD source built here
+/// resolves every rating label the exposure carries, so lookup failures only
+/// arise from the underlying staging invariants.
+pub fn classify_exposure(
+    exposure: &Exposure,
+    current_pd: f64,
+    origination_pd: f64,
+    config: &StagingConfig,
+) -> Result<StageResult> {
+    let mut staged = exposure.clone();
+    let current_label = staged
+        .current_rating
+        .clone()
+        .unwrap_or_else(|| CURRENT_RATING.to_string());
+    let origination_label = staged
+        .origination_rating
+        .clone()
+        .unwrap_or_else(|| ORIGINATION_RATING.to_string());
+    staged.current_rating = Some(current_label.clone());
+    staged.origination_rating = Some(origination_label.clone());
+    let pd_source = RequestPdSource {
+        current_label,
+        origination_label,
+        current_pd,
+        origination_pd,
+    };
+    classify_stage(&staged, &pd_source, config)
+}
+
+/// Compute probability-weighted ECL for an exposure from cumulative-PD schedules.
+///
+/// The exposure's own `ead`, `undrawn`, `ccf`, `lgd`, `eir`,
+/// `remaining_maturity_years` and `ead_schedule` drive the calculation, so the
+/// priced exposure at default is `ead + undrawn * ccf` exactly as in the full
+/// engine. Schedules are anchored at `(0, 0)` when that knot is absent and
+/// omitted policy values fall back to the canonical IFRS 9 defaults.
+///
+/// # Arguments
+///
+/// * `exposure` - Validated credit exposure supplying EAD (drawn plus
+///   `undrawn * ccf`), LGD, EIR, remaining maturity and any EAD schedule.
+/// * `stage` - Assigned IFRS 9 stage selecting the 12-month, lifetime or
+///   credit-impaired horizon.
+/// * `scenarios` - Probability-weighted `(weight, schedule)` pairs whose
+///   weights sum to `1.0`; each schedule holds `(time_years, cumulative_pd)`
+///   knots ascending in time and non-decreasing in PD.
+/// * `bucket_width_years` - Integration bucket width in years (`0.25` =
+///   quarterly); `None` uses the canonical policy default.
+/// * `stage3_time_to_recovery_years` - Stage 3 discounting horizon to expected
+///   recovery in years; `None` uses the canonical policy default.
+///
+/// # Returns
+///
+/// The probability-weighted ECL with its per-scenario bucket audit trail.
+///
+/// # Errors
+///
+/// Returns an error when `scenarios` is empty, the weights do not sum to
+/// `1.0`, a schedule violates the cumulative-PD invariants, or the exposure
+/// fails validation.
+pub fn compute_ecl_for_exposure(
+    exposure: &Exposure,
+    stage: Stage,
+    scenarios: &[(f64, Vec<(f64, f64)>)],
+    bucket_width_years: Option<f64>,
+    stage3_time_to_recovery_years: Option<f64>,
+) -> Result<WeightedEclResult> {
+    if scenarios.is_empty() {
+        return Err(Error::Validation(
+            "At least one scenario is required for weighted ECL".to_string(),
+        ));
+    }
+
+    let macro_scenarios = scenarios
+        .iter()
+        .enumerate()
+        .map(|(index, (weight, _))| MacroScenario {
+            id: format!("scenario_{index}"),
+            weight: *weight,
+            lgd_override: None,
+        })
+        .collect::<Vec<_>>();
+    let mut config = EclConfigBuilder::new().scenarios(macro_scenarios.clone());
+    if let Some(years) = bucket_width_years {
+        config = config.bucket_width(years);
+    }
+    if let Some(years) = stage3_time_to_recovery_years {
+        config = config.stage3_time_to_recovery(years);
+    }
+    let config = config.build()?;
+
+    let mut priced = exposure.clone();
+    priced.current_rating = Some(SCENARIO_RATING.to_string());
+    priced.origination_rating = Some(SCENARIO_RATING.to_string());
+
+    let curves = scenarios
+        .iter()
+        .map(|(_, schedule)| {
+            RawPdCurve::new(SCENARIO_RATING, RawPdCurve::anchor_knots(schedule.clone()))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let pd_sources = macro_scenarios
+        .iter()
+        .zip(curves.iter())
+        .map(|(scenario, curve)| (scenario, curve as &dyn PdTermStructure))
+        .collect::<Vec<_>>();
+
+    compute_ecl_weighted(&priced, stage, &pd_sources, &config)
 }
 
 /// Inputs for probability-weighted ECL from cumulative-PD schedules.
@@ -167,31 +299,6 @@ impl EclRequest {
     /// Returns an error when exposure inputs, configuration, scenario weights,
     /// or cumulative-PD schedules violate their canonical invariants.
     pub fn compute(&self) -> Result<WeightedEclResult> {
-        if self.scenarios.is_empty() {
-            return Err(Error::Validation(
-                "At least one scenario is required for weighted ECL".to_string(),
-            ));
-        }
-
-        let scenarios = self
-            .scenarios
-            .iter()
-            .enumerate()
-            .map(|(index, (weight, _))| MacroScenario {
-                id: format!("scenario_{index}"),
-                weight: *weight,
-                lgd_override: None,
-            })
-            .collect::<Vec<_>>();
-        let mut config = EclConfigBuilder::new().scenarios(scenarios.clone());
-        if let Some(years) = self.bucket_width_years {
-            config = config.bucket_width(years);
-        }
-        if let Some(years) = self.stage3_time_to_recovery_years {
-            config = config.stage3_time_to_recovery(years);
-        }
-        let config = config.build()?;
-
         let exposure = Exposure {
             id: self.exposure_id.clone(),
             segments: vec![],
@@ -200,8 +307,8 @@ impl EclRequest {
             remaining_maturity_years: self.remaining_maturity_years,
             lgd: self.lgd,
             days_past_due: 0,
-            current_rating: Some(SCENARIO_RATING.to_string()),
-            origination_rating: Some(SCENARIO_RATING.to_string()),
+            current_rating: None,
+            origination_rating: None,
             qualitative_flags: QualitativeFlags::default(),
             consecutive_performing_periods: 0,
             previous_stage: None,
@@ -209,36 +316,33 @@ impl EclRequest {
             undrawn: 0.0,
             ccf: 0.75,
         };
-        let curves = self
-            .scenarios
-            .iter()
-            .map(|(_, schedule)| {
-                RawPdCurve::new(SCENARIO_RATING, RawPdCurve::anchor_knots(schedule.clone()))
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let pd_sources = scenarios
-            .iter()
-            .zip(curves.iter())
-            .map(|(scenario, curve)| (scenario, curve as &dyn PdTermStructure))
-            .collect::<Vec<_>>();
-
-        compute_ecl_weighted(&exposure, self.stage, &pd_sources, &config)
+        compute_ecl_for_exposure(
+            &exposure,
+            self.stage,
+            &self.scenarios,
+            self.bucket_width_years,
+            self.stage3_time_to_recovery_years,
+        )
     }
 }
 
 struct RequestPdSource {
+    current_label: String,
+    origination_label: String,
     current_pd: f64,
     origination_pd: f64,
 }
 
 impl PdTermStructure for RequestPdSource {
     fn cumulative_pd(&self, rating: &str, _t: f64) -> Result<f64> {
-        match rating {
-            CURRENT_RATING => Ok(self.current_pd),
-            ORIGINATION_RATING => Ok(self.origination_pd),
-            other => Err(Error::Validation(format!(
-                "EclStageRequest: unknown synthetic rating '{other}'"
-            ))),
+        if rating == self.current_label {
+            Ok(self.current_pd)
+        } else if rating == self.origination_label {
+            Ok(self.origination_pd)
+        } else {
+            Err(Error::Validation(format!(
+                "classify_exposure: unknown rating label '{rating}'"
+            )))
         }
     }
 }
@@ -387,6 +491,89 @@ mod tests {
         assert!(missing_curve
             .to_string()
             .contains("At least two data points are required"));
+    }
+
+    #[test]
+    fn classify_exposure_reaches_qualitative_and_rating_triggers() {
+        let mut exposure = Exposure {
+            id: "loan".to_string(),
+            segments: vec![],
+            ead: 100.0,
+            eir: 0.05,
+            remaining_maturity_years: 5.0,
+            lgd: 0.4,
+            days_past_due: 0,
+            current_rating: Some("BB".to_string()),
+            origination_rating: Some("A".to_string()),
+            qualitative_flags: QualitativeFlags::default(),
+            consecutive_performing_periods: 0,
+            previous_stage: None,
+            ead_schedule: None,
+            undrawn: 0.0,
+            ccf: 0.75,
+        };
+        let config = StagingConfig {
+            rating_downgrade_notches: 2,
+            ..StagingConfig::default()
+        };
+        let result = classify_exposure(&exposure, 0.02, 0.02, &config).unwrap();
+        assert_eq!(result.stage, Stage::Stage2);
+        assert!(matches!(
+            result.triggers.first(),
+            Some(StagingTrigger::RatingDowngrade { .. })
+        ));
+
+        exposure.current_rating = None;
+        exposure.origination_rating = None;
+        exposure.qualitative_flags.watchlist = true;
+        let result = classify_exposure(&exposure, 0.02, 0.02, &StagingConfig::default()).unwrap();
+        assert_eq!(result.stage, Stage::Stage2);
+        assert!(result
+            .triggers
+            .iter()
+            .any(|t| matches!(t, StagingTrigger::Qualitative { .. })));
+
+        exposure.qualitative_flags.watchlist = false;
+        let result = classify_exposure(&exposure, 0.03, 0.015, &StagingConfig::default()).unwrap();
+        assert!(matches!(
+            result.triggers.first(),
+            Some(StagingTrigger::PdDeltaAbsolute { .. })
+        ));
+    }
+
+    #[test]
+    fn compute_ecl_for_exposure_prices_undrawn_commitment() {
+        let base = Exposure {
+            id: "revolver".to_string(),
+            segments: vec![],
+            ead: 100.0,
+            eir: 0.0,
+            remaining_maturity_years: 2.0,
+            lgd: 0.4,
+            days_past_due: 0,
+            current_rating: Some("BBB".to_string()),
+            origination_rating: Some("BBB".to_string()),
+            qualitative_flags: QualitativeFlags::default(),
+            consecutive_performing_periods: 0,
+            previous_stage: None,
+            ead_schedule: None,
+            undrawn: 0.0,
+            ccf: 0.75,
+        };
+        let scenarios = vec![(1.0, vec![(1.0, 0.1), (2.0, 0.2)])];
+        let drawn_only =
+            compute_ecl_for_exposure(&base, Stage::Stage2, &scenarios, None, None).unwrap();
+        assert!((drawn_only.ecl - ecl_request().compute().unwrap().ecl).abs() < 1e-12);
+
+        let revolver = Exposure {
+            undrawn: 100.0,
+            ccf: 0.5,
+            ..base
+        };
+        let priced =
+            compute_ecl_for_exposure(&revolver, Stage::Stage2, &scenarios, None, None).unwrap();
+        assert!((priced.ecl - 1.5 * drawn_only.ecl).abs() < 1e-9);
+        assert_eq!(priced.scenario_breakdown.len(), 1);
     }
 
     #[test]

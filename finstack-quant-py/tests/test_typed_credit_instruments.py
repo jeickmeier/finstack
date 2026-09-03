@@ -144,7 +144,7 @@ class TestCreditDefaultSwapTyped:
             CreditDefaultSwap.from_json(TermLoan.example().to_json())
 
     def test_builder_missing_required_field_raises(self) -> None:
-        with pytest.raises(ValueError, match="Invalid input data"):
+        with pytest.raises(ValueError, match="missing required field"):
             CreditDefaultSwap.builder().id("CDS-BAD").build()
 
     @pytest.mark.parametrize("value", ["pay", "receive"])
@@ -340,7 +340,7 @@ class TestCDSIndexTyped:
             .pricing(value)
         )
         if value == "constituents":
-            builder = builder.constituents_json(
+            builder = builder.constituents(
                 json.dumps([
                     {
                         "credit": {
@@ -370,7 +370,7 @@ class TestCDSIndexTyped:
             CDSIndex.from_json(TermLoan.example().to_json())
 
     def test_builder_missing_required_field_raises(self) -> None:
-        with pytest.raises(ValueError, match="Invalid input data"):
+        with pytest.raises(ValueError, match="missing required field"):
             CDSIndex.builder().id("CDX-BAD").build()
 
     def test_builder_setters_accept_keyword_value(self) -> None:

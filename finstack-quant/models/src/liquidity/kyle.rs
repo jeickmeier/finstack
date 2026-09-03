@@ -55,19 +55,22 @@ impl KyleLambdaModel {
     /// Returns `None` when the inputs are empty, mismatched in length, otherwise
     /// invalid, or when `reference_price` is non-positive/non-finite.
     ///
+    /// Argument order matches [`super::amihud_illiquidity`]: returns first,
+    /// then the aligned volumes.
+    ///
     /// # Arguments
     ///
+    /// * `returns` - Simple decimal returns aligned one-for-one with `volumes`.
     /// * `volumes` - Strictly positive volume observations in consistent share
     ///   or contract units.
-    /// * `returns` - Simple decimal returns aligned one-for-one with `volumes`.
     /// * `reference_price` - Positive price per share or contract used to
     ///   convert the return-space Amihud ratio into price-space lambda.
     pub fn lambda_from_series(
-        volumes: &[f64],
         returns: &[f64],
+        volumes: &[f64],
         reference_price: f64,
     ) -> Option<f64> {
-        if volumes.is_empty() || volumes.len() != returns.len() {
+        if returns.is_empty() || returns.len() != volumes.len() {
             return None;
         }
         let illiq = super::amihud_illiquidity(returns, volumes)?;
@@ -331,11 +334,11 @@ mod tests {
 
     #[test]
     fn lambda_from_series_calibrates_price_space_lambda() {
-        let lambda = KyleLambdaModel::lambda_from_series(&[100.0, 200.0], &[0.01, -0.02], 50.0)
+        let lambda = KyleLambdaModel::lambda_from_series(&[0.01, -0.02], &[100.0, 200.0], 50.0)
             .expect("valid price-space inputs");
         assert!((lambda - 0.005).abs() < 1e-15);
         assert_eq!(
-            KyleLambdaModel::lambda_from_series(&[100.0], &[0.01], 0.0),
+            KyleLambdaModel::lambda_from_series(&[0.01], &[100.0], 0.0),
             None
         );
     }

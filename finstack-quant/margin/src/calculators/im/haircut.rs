@@ -11,7 +11,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 
-/// Margin period of risk used for haircut-based repo IM.
+/// Margin period of risk in business days used for haircut-based repo IM.
 pub const HAIRCUT_MPOR_DAYS: u32 = 2;
 
 /// Haircut-based initial margin calculator.
@@ -120,6 +120,30 @@ impl HaircutImCalculator {
     pub fn with_default_asset_class(mut self, asset_class: CollateralAssetClass) -> Self {
         self.default_asset_class = asset_class;
         self
+    }
+
+    /// Eligible-collateral schedule the haircuts are read from.
+    #[must_use]
+    pub fn eligible_collateral(&self) -> &EligibleCollateralSchedule {
+        &self.eligible_collateral
+    }
+
+    /// Default collateral asset class assumed by trait-based calculations.
+    #[must_use]
+    pub fn default_asset_class(&self) -> &CollateralAssetClass {
+        &self.default_asset_class
+    }
+
+    /// Posted-collateral currency used to detect an FX mismatch, if declared.
+    #[must_use]
+    pub fn posted_collateral_currency(&self) -> Option<finstack_quant_core::currency::Currency> {
+        self.posted_collateral_currency
+    }
+
+    /// Margin period of risk stamped on every result ([`HAIRCUT_MPOR_DAYS`]).
+    #[must_use]
+    pub fn mpor_days(&self) -> u32 {
+        HAIRCUT_MPOR_DAYS
     }
 
     /// Calculate haircut IM for a given collateral value and asset class.

@@ -1,6 +1,15 @@
 """Instrument pricing, risk metrics, cashflow inspection, and composites.
 
-Market construction and quote ingestion live in :mod:`finstack_quant.calibration`.
+Where things live:
+
+- Market data (``DiscountCurve``, ``ForwardCurve``, ``HazardCurve``,
+  ``MarketContext``, ``FxMatrix``): :mod:`finstack_quant.core.market_data`;
+  curve bootstrapping and quote ingestion: :mod:`finstack_quant.calibration`.
+- Instruments, builders and :func:`~finstack_quant.valuations.instruments.price_instrument`:
+  :mod:`finstack_quant.valuations.instruments`.
+- Results: :class:`ValuationResult` (here) and :func:`instrument_cashflows`.
+- Composites, credit-derivative examples, listed-market catalog and JSON
+  schemas: ``.composite``, ``.credit_derivatives``, ``.market``, ``.schema``.
 
 Examples
 --------
@@ -19,6 +28,7 @@ import pandas as pd
 
 from finstack_quant.core.dates import StubKind
 from finstack_quant.core.market_data import MarketContext
+from finstack_quant.core.money import Money
 from finstack_quant.valuations import composite as composite
 from finstack_quant.valuations import credit_derivatives as credit_derivatives
 from finstack_quant.valuations import instruments as instruments
@@ -42,13 +52,21 @@ __all__ = [
 
 class ValuationResult:
     """
-    Valuation envelope: PV, currency, risk metrics, covenant flags, and JSON round-trip.
+    Valuation envelope: PV, currency, risk metrics, covenant reports, and JSON round-trip.
 
     Returned directly by the ``price_*`` helpers; :meth:`from_json` rebuilds one
     from a previously serialized payload.
 
+    Metric keys are fully qualified and literal (``pv01::USD-OIS``,
+    ``bucketed_dv01::USD-OIS::10y``); ``result["dv01"]`` / :meth:`get_metric`
+    read one measure, :attr:`metrics` is the whole dict, :meth:`metric_units`
+    labels every key (``ytm`` is a decimal, ``par_spread`` is basis points,
+    ``dv01`` is currency per bp). :meth:`to_dataframe` is one wide row;
+    :meth:`to_long_dataframe` is tidy ``metric / curve / bucket / value``.
+
     ``details`` is the optional tagged model-specific pricing payload; ``meta``
     is the Rust ``ResultsMeta`` policy stamp (numeric mode, rounding, FX, timing).
+    Two results compare equal when their JSON documents are identical.
 
     Examples
     --------
@@ -64,9 +82,13 @@ class ValuationResult:
     ...     "B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 15), StubKind.NONE, "USD-OIS"
     ... )
     >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
-    >>> result = price_instrument(bond, market, "2024-01-15")
+    >>> result = price_instrument(bond, market, "2024-01-15", metrics=["ytm", "dv01"])
     >>> (result.instrument_id, round(result.price, 2), result.currency)
     ('B', 1018.16, 'USD')
+    >>> sorted(result.metrics) == ["dv01", "ytm"] and "ytm" in result
+    True
+    >>> result.metric_units()["ytm"]
+    'decimal'
     >>> isinstance(result.meta, dict) and result.details is None
     True
 
@@ -199,6 +221,23 @@ class ValuationResult:
         """
         ...
 
+    @property
+    def value(self) -> Money:
+        """
+        Present value as a currency-tagged ``Money`` (exact Decimal amount).
+
+        Returns
+        -------
+        Money
+            The valuation amount with its currency; ``value.amount`` is the
+            ``float`` view, ``price_decimal()`` the exact string.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
     def price_decimal(self) -> str:
         """
         Return the exact Decimal price as a string, without a float round-trip.
@@ -234,6 +273,25 @@ class ValuationResult:
         """
         ...
 
+    @property
+    def metrics(self) -> dict[str, float]:
+        """
+        All computed measures as ``{metric_key: value}`` in computation order.
+
+        Keys are literal composite keys (``"bucketed_dv01::USD-OIS::10y"``).
+        The present value is not a measure; read :attr:`price` / :attr:`value`.
+
+        Returns
+        -------
+        dict[str, float]
+            Insertion-ordered measure map (a fresh dict on every access).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored values.
+        """
+        ...
+
     def get_metric(self, key: str) -> float | None:
         """
         Return a scalar risk measure by string key.
@@ -241,7 +299,9 @@ class ValuationResult:
         Parameters
         ----------
         key : str
-            Metric identifier (e.g. ``"ytm"``, ``"dv01"``).
+            Metric identifier (``"ytm"``, ``"dv01"``, ``"pv01::USD-OIS"``). A
+            legacy escaped composite key (``"pv01::USD_x2dOIS"``) resolves to
+            the same measure as its literal form.
 
         Returns
         -------
@@ -251,6 +311,68 @@ class ValuationResult:
         Notes
         -----
         This method does not raise; a missing result is ``None`` rather than an exception.
+        """
+        ...
+
+    def __getitem__(self, key: str) -> float:
+        """
+        ``result[key]``: scalar measure by key.
+
+        Parameters
+        ----------
+        key : str
+            Metric key in literal or legacy escaped form.
+
+        Returns
+        -------
+        float
+            Metric value.
+
+        Raises
+        ------
+        KeyError
+            If ``key`` is not a measure of this result; the message names the
+            five closest keys present.
+        """
+        ...
+
+    def __contains__(self, key: str) -> bool:
+        """
+        ``key in result``: whether a measure with this key is present.
+
+        Parameters
+        ----------
+        key : str
+            Metric key in literal or legacy escaped form.
+
+        Returns
+        -------
+        bool
+            ``True`` when the measure exists.
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Structural equality: ``True`` when both JSON documents are identical.
+
+        Parameters
+        ----------
+        other : object
+            Any object; non-``ValuationResult`` values compare unequal.
+
+        Returns
+        -------
+        bool
+            Whether the two results serialize identically (including ``meta``).
+
+        Notes
+        -----
+        This method does not raise. Results are unhashable.
         """
         ...
 
@@ -279,6 +401,70 @@ class ValuationResult:
         Notes
         -----
         This method does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    def metric_series_dataframe(self, base: str) -> pd.DataFrame:
+        """
+        Tidy ``DataFrame`` of one composite base metric.
+
+        Parameters
+        ----------
+        base : str
+            Unqualified base metric such as ``"bucketed_dv01"`` or ``"pv01"``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``metric`` (the base), ``curve`` (first component),
+            ``bucket`` (remaining components joined with ``::``, or ``None``)
+            and ``value``; the scalar aggregate stored under ``base`` is
+            excluded, matching :meth:`metric_series`.
+
+        Raises
+        ------
+        ValueError
+            If the rows cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_long_dataframe(self) -> pd.DataFrame:
+        """
+        Every measure as one tidy row.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``metric`` (base name), ``curve`` (first composite
+            component or ``None``), ``bucket`` (second and later components
+            joined with ``::``, or ``None``) and ``value``, in computation
+            order. Pivot with ``df.pivot(index="bucket", columns="curve")``.
+
+        Raises
+        ------
+        ValueError
+            If the rows cannot be serialized into a pandas object.
+        """
+        ...
+
+    def metric_units(self) -> dict[str, str]:
+        """
+        Unit family of every measure, keyed by metric key.
+
+        Returns
+        -------
+        dict[str, str]
+            One of ``"currency"`` (PV components and currency-per-bump
+            sensitivities such as ``dv01``, ``cs01``, ``vega``), ``"decimal"``
+            (``ytm``, ``z_spread``, ``par_rate``, probabilities),
+            ``"basis_points"`` (``par_spread``), ``"years"`` (durations, WAL),
+            ``"percent"``, ``"dimensionless"`` (ratios, counts, discount
+            factors) or ``"unknown"`` (custom metrics). Composite keys inherit
+            their base metric's unit.
+
+        Notes
+        -----
+        This method does not raise; it returns the derived mapping.
         """
         ...
 
@@ -339,6 +525,58 @@ class ValuationResult:
         Notes
         -----
         This method does not raise; it returns the stored or derived value.
+        """
+        ...
+
+    @property
+    def covenants(self) -> dict[str, dict[str, Any]] | None:
+        """
+        Per-covenant compliance reports keyed by covenant id, or ``None``.
+
+        Returns
+        -------
+        dict[str, dict[str, Any]] or None
+            Rust ``CovenantReport`` documents (``covenant_type``, ``passed``,
+            ``actual_value``, ``threshold``, ``headroom``, ``details``,
+            ``meta``); ``None`` for instruments without covenants.
+
+        Raises
+        ------
+        ValueError
+            If the reports cannot be serialized to a Python object.
+        """
+        ...
+
+    @property
+    def explanation(self) -> dict[str, Any] | None:
+        """
+        Computation explanation trace, or ``None`` when tracing was not enabled.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Decoded Rust ``ExplanationTrace`` document.
+
+        Raises
+        ------
+        ValueError
+            If the trace cannot be serialized to a Python object.
+        """
+        ...
+
+    def _repr_html_(self) -> str:
+        """
+        Jupyter rich display: the :meth:`to_dataframe` table as HTML.
+
+        Returns
+        -------
+        str
+            HTML table rendered by pandas.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
@@ -420,85 +658,86 @@ class ValuationResult:
         ...
 
 def instrument_cashflows(
-    instrument_json: str,
+    instrument: Any,
     market: MarketContext | str,
-    as_of: str,
+    as_of: datetime.date | datetime.datetime | pd.Timestamp | str,
     *,
     model: str,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     """
-        DataFrame-friendly wrapper around :func:`instrument_cashflows_json`.
+    DataFrame-friendly wrapper around :func:`instrument_cashflows_json`.
 
-        Parses the JSON envelope returned by the low-level binding and constructs
-        a per-flow ``pandas.DataFrame`` with ``date`` / ``reset_date`` parsed as
-        ``datetime64``. See :func:`instrument_cashflows_json` for argument and
-        error semantics.
+    Parses the JSON envelope returned by the low-level binding and constructs
+    a per-flow ``pandas.DataFrame`` with ``date`` / ``reset_date`` parsed as
+    ``datetime64``. See :func:`instrument_cashflows_json` for argument and
+    error semantics.
 
-        Parameters
-        ----------
-        instrument_json : str
-    Canonical ``finstack_quant.instrument/1`` envelopes accepted by the valuation bindings.
-        market : MarketContext or str
-            Market context object or canonical market JSON containing the curves,
-            fixings, and scalar data required by the requested pricing model.
-        as_of : str
-            ISO-8601 valuation date used to exclude settled flows and calculate
-            schedule-relative discount factors.
-        model : str
-            Must be ``"discounting"`` or ``"hazard_rate"``. ``"default"`` is
-            not accepted on cashflow export.
+    Parameters
+    ----------
+    instrument : Bond | TermLoan | InterestRateSwap | ... | str
+        Typed instrument instance or a canonical
+        ``finstack_quant.instrument/1`` JSON envelope.
+    market : MarketContext or str
+        Market context object or canonical market JSON containing the curves,
+        fixings, and scalar data required by the requested pricing model.
+    as_of : datetime.date | datetime.datetime | pd.Timestamp | str
+        Valuation date used to exclude settled flows and calculate
+        schedule-relative discount factors.
+    model : str
+        Must be ``"discounting"`` or ``"hazard_rate"``. ``"default"`` is
+        not accepted on cashflow export.
 
-        Returns
-        -------
-        tuple[dict[str, Any], pd.DataFrame]
-            ``(envelope, df)`` where ``envelope`` is the parsed dict and ``df``
-            carries one row per flow with columns ``date``, ``amount``,
-            ``currency``, ``kind``, ``accrual_factor``, ``year_fraction``,
-            ``rate``, ``reset_date``, ``discount_factor``, ``discount_curve_id``,
-            ``survival_probability``, ``conditional_default_prob``, ``inflation_index_ratio``,
-            ``prepayment_smm``, ``beginning_balance``, ``ending_balance``, and
-            ``pv``.
+    Returns
+    -------
+    tuple[dict[str, Any], pd.DataFrame]
+        ``(envelope, df)`` where ``envelope`` is the parsed dict and ``df``
+        carries one row per flow with columns ``date``, ``amount``,
+        ``currency``, ``kind``, ``accrual_factor``, ``year_fraction``,
+        ``rate``, ``reset_date``, ``discount_factor``, ``discount_curve_id``,
+        ``survival_probability``, ``conditional_default_prob``, ``inflation_index_ratio``,
+        ``prepayment_smm``, ``beginning_balance``, ``ending_balance``, and
+        ``pv``.
 
-        Raises
-        ------
-        TypeError
-            If ``instrument_json`` is neither a supported typed instrument nor
-            a JSON string, or ``market`` is neither a ``MarketContext`` nor a
-            JSON string.
-        ValueError
-            If instrument or market JSON is malformed, ``as_of`` or ``model``
-            is invalid, the instrument/model pair is unsupported, or the
-            generated cashflow schedule fails validation.
-        KeyError
-            If a curve, fixing, or other market datum required for cashflow
-            generation or pricing is missing.
-        RuntimeError
-            If native pricing reports an internal, calibration, or solver failure.
+    Raises
+    ------
+    TypeError
+        If ``instrument`` is neither a supported typed instrument nor
+        a JSON string, or ``market`` is neither a ``MarketContext`` nor a
+        JSON string.
+    ValueError
+        If instrument or market JSON is malformed, ``as_of`` or ``model``
+        is invalid, the instrument/model pair is unsupported, or the
+        generated cashflow schedule fails validation.
+    KeyError
+        If a curve, fixing, or other market datum required for cashflow
+        generation or pricing is missing.
+    RuntimeError
+        If native pricing reports an internal, calibration, or solver failure.
 
-        Examples
-        --------
-        >>> import datetime
-        >>> from finstack_quant.core.currency import Currency
-        >>> from finstack_quant.core.dates import StubKind
-        >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
-        >>> from finstack_quant.core.money import Money
-        >>> from finstack_quant.core.types import Rate
-        >>> from finstack_quant.valuations.instruments import Bond
-        >>> as_of = datetime.date(2024, 1, 1)
-        >>> bond = Bond.fixed(
-        ...     "B",
-        ...     Money(1000.0, Currency("USD")),
-        ...     Rate(0.05),
-        ...     as_of,
-        ...     datetime.date(2026, 1, 1),
-        ...     StubKind.NONE,
-        ...     "USD-OIS",
-        ... )
-        >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
-        >>> from finstack_quant.valuations import instrument_cashflows
-        >>> header, frame = instrument_cashflows(bond.to_json(), market, "2024-01-01", model="discounting")
-        >>> (header["instrument_id"], len(frame))
-        ('B', 6)
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import StubKind
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.core.types import Rate
+    >>> from finstack_quant.valuations.instruments import Bond
+    >>> as_of = datetime.date(2024, 1, 1)
+    >>> bond = Bond.fixed(
+    ...     "B",
+    ...     Money(1000.0, Currency("USD")),
+    ...     Rate(0.05),
+    ...     as_of,
+    ...     datetime.date(2026, 1, 1),
+    ...     StubKind.NONE,
+    ...     "USD-OIS",
+    ... )
+    >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
+    >>> from finstack_quant.valuations import instrument_cashflows
+    >>> header, frame = instrument_cashflows(bond, market, as_of, model="discounting")
+    >>> (header["instrument_id"], len(frame))
+    ('B', 6)
 
     """
     ...

@@ -29,8 +29,6 @@ __all__ = [
     "LsmcPricer",
     "MoneyEstimate",
     "PathDependentPricer",
-    "black_scholes_call",
-    "black_scholes_put",
     "finite_diff_delta",
     "finite_diff_delta_crn",
     "finite_diff_gamma",
@@ -788,7 +786,7 @@ def simulate_gbm_paths(
     div_yield : float
         Continuously compounded annual dividend or carry yield as a decimal.
     vol : float
-        Positive annualized GBM volatility as a decimal, such as ``0.20``.
+        Strictly positive annualized GBM volatility as a decimal, such as ``0.20``.
     expiry : float
         Positive time to maturity in years.
     num_steps : int
@@ -796,7 +794,8 @@ def simulate_gbm_paths(
     num_paths : int
         Number of independently simulated paths retained in the summary.
     seed : int or None, default None
-        Optional deterministic random seed; ``None`` uses the runtime generator.
+        Optional deterministic Philox seed; ``None`` uses the Rust
+        ``GbmPathConfig`` default (``42``), so unseeded calls are repeatable.
     antithetic : bool, default False
         Antithetic-path request. This compact path API rejects ``True``.
 
@@ -811,8 +810,8 @@ def simulate_gbm_paths(
     ------
     ValueError
         If ``spot`` is non-finite or not strictly positive; ``rate`` or
-        ``div_yield`` is non-finite; ``vol`` is negative or non-finite;
-        ``expiry`` is non-finite or not strictly positive; ``num_steps`` is
+        ``div_yield`` is non-finite; ``vol`` is not strictly positive or is
+        non-finite; ``expiry`` is non-finite or not strictly positive; ``num_steps`` is
         zero or cannot form a time grid; ``num_paths`` is zero or exceeds the
         ``100_000``-path capture limit; or ``antithetic`` is ``True``.
 
@@ -1103,6 +1102,9 @@ class PathDependentPricer:
         num_paths: int | None = None,
         seed: int | None = None,
         use_parallel: bool | None = None,
+        antithetic: bool | None = None,
+        use_sobol: bool | None = None,
+        use_brownian_bridge: bool | None = None,
     ) -> None:
         """
         Create a path-dependent pricer.
@@ -1115,17 +1117,33 @@ class PathDependentPricer:
             RNG seed. Defaults to the registry default.
         use_parallel : bool, optional
             Parallel accumulation flag. Defaults to the registry default.
+            Incompatible with ``use_sobol=True``.
+        antithetic : bool, optional
+            Pair each path with its sign-flipped counterpart. Defaults to the
+            registry default.
+        use_sobol : bool, optional
+            Drive paths from a Sobol quasi-random sequence. Enabling Sobol
+            also switches on the Brownian bridge unless
+            ``use_brownian_bridge`` is passed explicitly. Defaults to the
+            registry default.
+        use_brownian_bridge : bool, optional
+            Brownian-bridge path construction (Sobol only). Defaults to the
+            registry default.
 
         Raises
         ------
         ValueError
-            If the embedded Monte Carlo defaults registry cannot be loaded.
+            If the embedded Monte Carlo defaults registry cannot be loaded or
+            the configuration is inconsistent (``use_sobol`` with
+            ``use_parallel``).
 
         Examples
         --------
         >>> from finstack_quant.models.monte_carlo import PathDependentPricer
         >>> PathDependentPricer(100, 1, use_parallel=True).num_paths
         100
+        >>> PathDependentPricer(100, 1, use_parallel=False, use_sobol=True).use_brownian_bridge
+        True
         """
         ...
 
@@ -1288,6 +1306,54 @@ class PathDependentPricer:
         >>> from finstack_quant.models.monte_carlo import PathDependentPricer
         >>> PathDependentPricer(seed=44).seed
         44
+        """
+        ...
+
+    @property
+    def use_parallel(self) -> bool:
+        """
+        Whether path generation runs on the rayon pool.
+
+        Returns
+        -------
+        bool
+            Parallel flag. This accessor does not raise.
+        """
+        ...
+
+    @property
+    def antithetic(self) -> bool:
+        """
+        Whether each path is paired with its sign-flipped counterpart.
+
+        Returns
+        -------
+        bool
+            Antithetic flag. This accessor does not raise.
+        """
+        ...
+
+    @property
+    def use_sobol(self) -> bool:
+        """
+        Whether paths are driven by a Sobol quasi-random sequence.
+
+        Returns
+        -------
+        bool
+            Sobol flag. This accessor does not raise.
+        """
+        ...
+
+    @property
+    def use_brownian_bridge(self) -> bool:
+        """
+        Whether Brownian-bridge construction is enabled (Sobol only).
+
+        Returns
+        -------
+        bool
+            Brownian-bridge flag. This accessor does not raise.
         """
         ...
 
@@ -1461,6 +1527,9 @@ class LsmcPricer:
         vol: float,
         expiry: float,
         currency: str | None = None,
+        num_steps: int | None = None,
+        basis: str | None = None,
+        basis_degree: int | None = None,
     ) -> MoneyEstimate:
         """
         Price a Bermudan put via LSMC on the grid ``1..=num_steps``.
@@ -1485,6 +1554,15 @@ class LsmcPricer:
             Maturity in years.
         currency : str, optional
             ISO currency code. Defaults to USD.
+        num_steps : int, optional
+            Per-call override of the exercise grid; defaults to the instance
+            ``num_steps``.
+        basis : str, optional
+            Per-call override of the regression basis family; defaults to
+            the instance ``basis``.
+        basis_degree : int, optional
+            Per-call override of the basis degree; defaults to the instance
+            ``basis_degree``.
 
         Returns
         -------
@@ -1521,6 +1599,9 @@ class LsmcPricer:
         vol: float,
         expiry: float,
         currency: str | None = None,
+        num_steps: int | None = None,
+        basis: str | None = None,
+        basis_degree: int | None = None,
     ) -> MoneyEstimate:
         """
         Price a Bermudan call via LSMC on the grid ``1..=num_steps``.
@@ -1545,6 +1626,15 @@ class LsmcPricer:
             Maturity in years.
         currency : str, optional
             ISO currency code. Defaults to USD.
+        num_steps : int, optional
+            Per-call override of the exercise grid; defaults to the instance
+            ``num_steps``.
+        basis : str, optional
+            Per-call override of the regression basis family; defaults to
+            the instance ``basis``.
+        basis_degree : int, optional
+            Per-call override of the basis degree; defaults to the instance
+            ``basis_degree``.
 
         Returns
         -------
@@ -1582,6 +1672,9 @@ class LsmcPricer:
         expiry: float,
         pricing_seed: int,
         currency: str | None = None,
+        num_steps: int | None = None,
+        basis: str | None = None,
+        basis_degree: int | None = None,
     ) -> MoneyEstimate:
         """
         Two-pass unbiased American put price.
@@ -1610,6 +1703,15 @@ class LsmcPricer:
             is rejected).
         currency : str, optional
             ISO currency code. Defaults to USD.
+        num_steps : int, optional
+            Per-call override of the exercise grid; defaults to the instance
+            ``num_steps``.
+        basis : str, optional
+            Per-call override of the regression basis family; defaults to
+            the instance ``basis``.
+        basis_degree : int, optional
+            Per-call override of the basis degree; defaults to the instance
+            ``basis_degree``.
 
         Returns
         -------
@@ -1633,6 +1735,9 @@ class LsmcPricer:
         expiry: float,
         pricing_seed: int,
         currency: str | None = None,
+        num_steps: int | None = None,
+        basis: str | None = None,
+        basis_degree: int | None = None,
     ) -> MoneyEstimate:
         """
         Two-pass unbiased American call price.
@@ -1658,9 +1763,25 @@ class LsmcPricer:
             Seed for the pricing pass; must differ from the pricer's training
             seed.
         num_steps : int, optional
-            Exercise grid steps. Defaults to the registry default.
+            Per-call override of the exercise grid; defaults to the instance
+            ``num_steps``.
+        basis : str, optional
+            Per-call override of the regression basis family; defaults to
+            the instance ``basis``.
+        basis_degree : int, optional
+            Per-call override of the basis degree; defaults to the instance
+            ``basis_degree``.
         currency : str, optional
             ISO currency code. Defaults to USD.
+        num_steps : int, optional
+            Per-call override of the exercise grid; defaults to the instance
+            ``num_steps``.
+        basis : str, optional
+            Per-call override of the regression basis family; defaults to
+            the instance ``basis``.
+        basis_degree : int, optional
+            Per-call override of the basis degree; defaults to the instance
+            ``basis_degree``.
 
         Returns
         -------
@@ -1673,106 +1794,6 @@ class LsmcPricer:
             If ``pricing_seed`` equals the pricer's training seed.
         """
         ...
-
-def black_scholes_call(
-    spot: float,
-    strike: float,
-    rate: float,
-    div_yield: float,
-    vol: float,
-    expiry: float,
-) -> float:
-    """
-    Black–Scholes European call present value under GBM.
-
-    Uses continuously compounded ``rate`` and ``div_yield`` with volatility
-    quoted in decimal form. This is a closed-form option price, not a raw
-    terminal payoff.
-
-    Parameters
-    ----------
-    spot : float
-        Spot price.
-    strike : float
-        Strike price.
-    rate : float
-        Risk-free rate (continuously compounded decimal).
-    div_yield : float
-        Dividend yield (continuously compounded decimal).
-    vol : float
-        Volatility (decimal).
-    expiry : float
-        Time to maturity in years.
-
-    Returns
-    -------
-    float
-        Present value of the European call. Non-finite inputs return ``NaN``;
-        finite degenerate inputs return intrinsic value. This helper does not
-        raise.
-
-    Sources
-    -------
-    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
-    - Merton (1973): see docs/REFERENCES.md#merton-1973
-
-    Examples
-    --------
-    >>> from finstack_quant.models.monte_carlo import black_scholes_call
-    >>> black_scholes_call(100, 100, 0.05, 0.0, 0.2, 1.0) > 0
-    True
-    """
-    ...
-
-def black_scholes_put(
-    spot: float,
-    strike: float,
-    rate: float,
-    div_yield: float,
-    vol: float,
-    expiry: float,
-) -> float:
-    """
-    Black–Scholes European put present value under GBM.
-
-    Uses continuously compounded ``rate`` and ``div_yield`` with volatility
-    quoted in decimal form. This is a closed-form option price, not a raw
-    terminal payoff.
-
-    Parameters
-    ----------
-    spot : float
-        Spot price.
-    strike : float
-        Strike price.
-    rate : float
-        Risk-free rate (continuously compounded decimal).
-    div_yield : float
-        Dividend yield (continuously compounded decimal).
-    vol : float
-        Volatility (decimal).
-    expiry : float
-        Time to maturity in years.
-
-    Returns
-    -------
-    float
-        Present value of the European put. Non-finite inputs return ``NaN``;
-        finite degenerate inputs return intrinsic value. This helper does not
-        raise.
-
-    Sources
-    -------
-    - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
-    - Merton (1973): see docs/REFERENCES.md#merton-1973
-
-    Examples
-    --------
-    >>> from finstack_quant.models.monte_carlo import black_scholes_put
-    >>> black_scholes_put(100, 100, 0.05, 0.0, 0.2, 1.0) > 0
-    True
-    """
-    ...
 
 def price_heston_call(
     spot: float,
@@ -1940,13 +1961,13 @@ def finite_diff_delta(
     div_yield: float,
     vol: float,
     expiry: float,
-    option_type: str,
+    is_call: bool,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
     currency: str | None = None,
-) -> tuple[float, float]:
+) -> Estimate:
     """
     Finite-difference delta for a European option (independence-bound stderr).
 
@@ -1966,11 +1987,11 @@ def finite_diff_delta(
     div_yield : float
         Dividend yield (continuously compounded decimal).
     vol : float
-        Volatility (decimal).
+        Volatility (decimal); must be strictly positive.
     expiry : float
         Maturity in years.
-    option_type : str
-        ``"call"`` or ``"put"``. Required; there is no default option type.
+    is_call : bool
+        ``True`` for a call, ``False`` for a put.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -1987,21 +2008,22 @@ def finite_diff_delta(
 
     Returns
     -------
-    tuple[float, float]
-        ``(delta, stderr)``.
+    Estimate
+        ``mean`` is the delta, ``stderr`` its standard error, ``ci_lower`` /
+        ``ci_upper`` the symmetric 95% band.
 
     Raises
     ------
     ValueError
-        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
-        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
-        falls below ``1e-12``, or another pricing input is invalid.
+        If ``vol`` is not strictly positive, ``spot`` or ``bump_size`` is
+        non-finite or non-positive, the symmetric down-bump falls below
+        ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.models.monte_carlo import finite_diff_delta
-    >>> delta, stderr = finite_diff_delta(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
-    >>> 0 < delta < 1 and stderr >= 0
+    >>> est = finite_diff_delta(100, 100, 0.05, 0.0, 0.2, 1.0, True, num_paths=200, seed=7, num_steps=10)
+    >>> 0 < est.mean < 1 and est.stderr >= 0
     True
     """
     ...
@@ -2013,13 +2035,13 @@ def finite_diff_delta_crn(
     div_yield: float,
     vol: float,
     expiry: float,
-    option_type: str,
+    is_call: bool,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
     currency: str | None = None,
-) -> tuple[float, float]:
+) -> Estimate:
     """
     Finite-difference delta with paired common-random-number stderr.
 
@@ -2039,11 +2061,11 @@ def finite_diff_delta_crn(
     div_yield : float
         Dividend yield (continuously compounded decimal).
     vol : float
-        Volatility (decimal).
+        Volatility (decimal); must be strictly positive.
     expiry : float
         Maturity in years.
-    option_type : str
-        ``"call"`` or ``"put"``. Required; there is no default option type.
+    is_call : bool
+        ``True`` for a call, ``False`` for a put.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -2060,23 +2082,21 @@ def finite_diff_delta_crn(
 
     Returns
     -------
-    tuple[float, float]
-        ``(delta, paired_stderr)``.
+    Estimate
+        ``mean`` is the delta, ``stderr`` the paired CRN standard error.
 
     Raises
     ------
     ValueError
-        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
-        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
-        falls below ``1e-12``, or another pricing input is invalid.
+        If ``vol`` is not strictly positive, ``spot`` or ``bump_size`` is
+        non-finite or non-positive, the symmetric down-bump falls below
+        ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.models.monte_carlo import finite_diff_delta_crn
-    >>> delta, stderr = finite_diff_delta_crn(
-    ...     100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10
-    ... )
-    >>> 0 < delta < 1 and stderr >= 0
+    >>> est = finite_diff_delta_crn(100, 100, 0.05, 0.0, 0.2, 1.0, True, num_paths=200, seed=7, num_steps=10)
+    >>> 0 < est.mean < 1 and est.stderr >= 0
     True
     """
     ...
@@ -2088,13 +2108,13 @@ def finite_diff_gamma(
     div_yield: float,
     vol: float,
     expiry: float,
-    option_type: str,
+    is_call: bool,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
     currency: str | None = None,
-) -> tuple[float, float]:
+) -> Estimate:
     """
     Finite-difference gamma (independence-bound stderr).
 
@@ -2112,11 +2132,11 @@ def finite_diff_gamma(
     div_yield : float
         Dividend yield (continuously compounded decimal).
     vol : float
-        Volatility (decimal).
+        Volatility (decimal); must be strictly positive.
     expiry : float
         Maturity in years.
-    option_type : str
-        ``"call"`` or ``"put"``. Required; there is no default option type.
+    is_call : bool
+        ``True`` for a call, ``False`` for a put.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -2133,21 +2153,21 @@ def finite_diff_gamma(
 
     Returns
     -------
-    tuple[float, float]
-        ``(gamma, stderr)``.
+    Estimate
+        ``mean`` is the gamma, ``stderr`` its standard error.
 
     Raises
     ------
     ValueError
-        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
-        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
-        falls below ``1e-12``, or another pricing input is invalid.
+        If ``vol`` is not strictly positive, ``spot`` or ``bump_size`` is
+        non-finite or non-positive, the symmetric down-bump falls below
+        ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.models.monte_carlo import finite_diff_gamma
-    >>> gamma, stderr = finite_diff_gamma(100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10)
-    >>> gamma > 0 and stderr >= 0
+    >>> est = finite_diff_gamma(100, 100, 0.05, 0.0, 0.2, 1.0, True, num_paths=200, seed=7, num_steps=10)
+    >>> est.mean > 0 and est.stderr >= 0
     True
     """
     ...
@@ -2159,13 +2179,13 @@ def finite_diff_gamma_crn(
     div_yield: float,
     vol: float,
     expiry: float,
-    option_type: str,
+    is_call: bool,
     num_paths: int | None = None,
     seed: int | None = None,
     num_steps: int | None = None,
     bump_size: float | None = None,
     currency: str | None = None,
-) -> tuple[float, float]:
+) -> Estimate:
     """
     Finite-difference gamma with paired common-random-number stderr.
 
@@ -2185,11 +2205,11 @@ def finite_diff_gamma_crn(
     div_yield : float
         Dividend yield (continuously compounded decimal).
     vol : float
-        Volatility (decimal).
+        Volatility (decimal); must be strictly positive.
     expiry : float
         Maturity in years.
-    option_type : str
-        ``"call"`` or ``"put"``. Required; there is no default option type.
+    is_call : bool
+        ``True`` for a call, ``False`` for a put.
     num_paths : int, optional
         Paths per evaluation (default ``10_000``).
     seed : int, optional
@@ -2206,23 +2226,21 @@ def finite_diff_gamma_crn(
 
     Returns
     -------
-    tuple[float, float]
-        ``(gamma, paired_stderr)``.
+    Estimate
+        ``mean`` is the gamma, ``stderr`` the paired CRN standard error.
 
     Raises
     ------
     ValueError
-        If ``option_type`` is not ``"call"`` or ``"put"``, ``spot`` or
-        ``bump_size`` is non-finite or non-positive, the symmetric down-bump
-        falls below ``1e-12``, or another pricing input is invalid.
+        If ``vol`` is not strictly positive, ``spot`` or ``bump_size`` is
+        non-finite or non-positive, the symmetric down-bump falls below
+        ``1e-12``, or another pricing input is invalid.
 
     Examples
     --------
     >>> from finstack_quant.models.monte_carlo import finite_diff_gamma_crn
-    >>> gamma, stderr = finite_diff_gamma_crn(
-    ...     100, 100, 0.05, 0.0, 0.2, 1.0, "call", num_paths=200, seed=7, num_steps=10
-    ... )
-    >>> gamma > 0 and stderr >= 0
+    >>> est = finite_diff_gamma_crn(100, 100, 0.05, 0.0, 0.2, 1.0, True, num_paths=200, seed=7, num_steps=10)
+    >>> est.mean > 0 and est.stderr >= 0
     True
     """
     ...

@@ -270,7 +270,7 @@ pub struct ScheduleImCalculator {
     pub default_asset_class: ScheduleAssetClass,
     /// Default maturity in years
     pub default_maturity_years: f64,
-    /// Margin period of risk (days)
+    /// Margin period of risk in business days
     pub mpor_days: u32,
 }
 

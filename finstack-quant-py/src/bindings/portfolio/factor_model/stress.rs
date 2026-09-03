@@ -7,12 +7,13 @@ use finstack_quant_models::factor::risk::{
 use finstack_quant_portfolio::factor_model::{self as fm, StressResult};
 
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
-use crate::bindings::pandas_utils::dict_to_dataframe;
+use crate::bindings::pandas_utils::{dict_to_dataframe, serde_object_to_single_row_dataframe};
+use crate::bindings::repr_support::repr_from_serde;
 use crate::errors::{core_to_py, display_to_py, portfolio_to_py, value_error};
 
 use super::super::json_bridge::{deserialize_json, serialize_json};
-use super::super::matrix_input::extract_position_pnls;
 use super::contributions::PyRiskDecomposition;
+use super::functions::extract_pnl_input;
 
 /// Result of a factor-stress scenario.
 #[pyclass(
@@ -193,14 +194,17 @@ impl PyStressPositionEntry {
         self.inner.worst_scenario_pnl
     }
 
+    /// Export this entry as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``avg_tail_pnl``, ``pct_of_tail_loss``
+    /// (fraction, not percentage), ``worst_scenario_pnl``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
     fn __repr__(&self) -> String {
-        format!(
-            "StressPositionEntry(position_id={:?}, avg_tail_pnl={}, pct_of_tail_loss={}, worst_scenario_pnl={})",
-            self.inner.position_id.as_str(),
-            self.inner.avg_tail_pnl,
-            self.inner.pct_of_tail_loss,
-            self.inner.worst_scenario_pnl,
-        )
+        repr_from_serde("StressPositionEntry", &self.inner)
     }
 }
 
@@ -214,11 +218,24 @@ impl PyStressPositionEntry {
 #[derive(Clone)]
 pub(super) struct PyTailScenarioBreakdown {
     pub(crate) inner: TailScenarioBreakdown,
+    /// Position ordering inherited from the parent ``StressAttribution``;
+    /// ``None`` for a breakdown built from JSON on its own.
+    position_ids: Option<Vec<String>>,
 }
 
 impl PyTailScenarioBreakdown {
     fn from_inner(inner: TailScenarioBreakdown) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            position_ids: None,
+        }
+    }
+
+    fn with_position_ids(inner: TailScenarioBreakdown, position_ids: Vec<String>) -> Self {
+        Self {
+            inner,
+            position_ids: Some(position_ids),
+        }
     }
 }
 
@@ -268,31 +285,47 @@ impl PyTailScenarioBreakdown {
         self.inner.position_pnls.clone()
     }
 
+    /// Position identifiers inherited from the parent ``StressAttribution``,
+    /// or ``None`` for a breakdown reconstructed from JSON on its own.
+    #[getter]
+    fn position_ids(&self) -> Option<Vec<String>> {
+        self.position_ids.clone()
+    }
+
     /// Export this scenario's per-position P&L as a pandas ``DataFrame``.
-    ///
-    /// The breakdown carries no identifiers of its own — they live once on the
-    /// parent :attr:`StressAttribution.position_ids` — so they must be supplied
-    /// here, exactly as for :meth:`FactorPnlProfile.to_dataframe`.
     ///
     /// Columns: ``position_id``, ``pnl`` (portfolio-currency amount; a loss is
     /// negative).
     ///
     /// Parameters
     /// ----------
-    /// position_ids : list[str]
-    ///     Position identifiers, normally ``attribution.position_ids``. Must
-    ///     match the number of entries in :attr:`position_pnls`.
+    /// position_ids : list[str], optional
+    ///     Position identifiers aligned with :attr:`position_pnls`. Defaults
+    ///     to the ordering inherited from the parent
+    ///     :attr:`StressAttribution.position_ids` when this breakdown was read
+    ///     from ``tail_scenarios``; required for a breakdown built via
+    ///     :meth:`from_json`.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If ``len(position_ids)`` does not match ``len(position_pnls)``.
-    #[pyo3(text_signature = "(self, position_ids)")]
+    ///     If no identifiers are available or their count does not match
+    ///     ``len(position_pnls)``.
+    #[pyo3(signature = (position_ids = None), text_signature = "($self, position_ids=None)")]
     fn to_dataframe<'py>(
         &self,
         py: Python<'py>,
-        position_ids: Vec<String>,
+        position_ids: Option<Vec<String>>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let position_ids = match position_ids.or_else(|| self.position_ids.clone()) {
+            Some(ids) => ids,
+            None => {
+                return Err(value_error(
+                    "position_ids is required: this TailScenarioBreakdown carries no parent \
+                     StressAttribution ordering",
+                ))
+            }
+        };
         let expected = self.inner.position_pnls.len();
         if position_ids.len() != expected {
             return Err(value_error(format!(
@@ -402,14 +435,17 @@ impl PyStressAttribution {
             .collect()
     }
 
-    /// Per-scenario breakdowns for every tail event.
+    /// Per-scenario breakdowns for every tail event. Each breakdown carries
+    /// this attribution's ``position_ids`` so its ``to_dataframe()`` needs no
+    /// argument.
     #[getter]
     fn tail_scenarios(&self) -> Vec<PyTailScenarioBreakdown> {
+        let ids = self.position_ids();
         self.inner
             .tail_scenarios
             .iter()
             .cloned()
-            .map(PyTailScenarioBreakdown::from_inner)
+            .map(|scenario| PyTailScenarioBreakdown::with_position_ids(scenario, ids.clone()))
             .collect()
     }
 
@@ -551,19 +587,37 @@ pub(super) fn factor_stress(
 
 /// Build tail-scenario stress attribution from position x scenario P&Ls.
 ///
-/// Python input is one row per position, where every row contains that
-/// position's P&L across all scenarios. The binding transposes that ergonomic
-/// shape into Rust's row-major scenario x position buffer.
+/// Args:
+///     position_ids: Position identifiers; may be ``None`` when
+///         ``position_pnls`` is a ``pandas.DataFrame`` (column labels are
+///         used).
+///     position_pnls: P&L matrix. A ``pandas.DataFrame`` is read as rows =
+///         scenarios, columns = positions. A nested list or 2-D NumPy array is
+///         read as ``n_positions x n_scenarios`` (position-major); a
+///         ``n_scenarios x n_positions`` layout is accepted when the two
+///         dimensions differ. Losses are negative.
+///     confidence: Tail confidence as a decimal probability strictly inside
+///         ``(0.5, 1)``; scenarios at or below the VaR quantile are tail
+///         events.
+///
+/// Returns:
+///     ``StressAttribution`` with per-position tail-loss contributions and
+///     per-scenario breakdowns.
+///
+/// Raises:
+///     ValueError: If the matrix is empty, ragged, its orientation cannot be
+///         resolved against ``position_ids``, or ``confidence`` is outside
+///         ``(0.5, 1)``.
 #[pyfunction]
 #[pyo3(signature = (position_ids, position_pnls, confidence = 0.95))]
 pub(super) fn build_stress_attribution(
     py: Python<'_>,
-    position_ids: Vec<String>,
+    position_ids: Option<Vec<String>>,
     position_pnls: &Bound<'_, PyAny>,
     confidence: f64,
 ) -> PyResult<PyStressAttribution> {
+    let (position_ids, position_pnls) = extract_pnl_input(py, position_ids, position_pnls)?;
     let n_positions = position_ids.len();
-    let position_pnls = extract_position_pnls(py, position_pnls, n_positions)?;
     let n_scenarios = position_pnls.n_scenarios();
     let result = py
         .detach(move || {

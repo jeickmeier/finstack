@@ -1,4 +1,4 @@
-"""Monte Carlo convenience bindings: engine, pricers, analytical helpers.
+"""Monte Carlo convenience bindings: engine, pricers, Greek estimators.
 
 Bindings for the core convenience subset of the ``finstack-quant-models`` Rust
 crate, including selected non-GBM process wrappers such as Heston. Advanced
@@ -38,9 +38,6 @@ EuropeanPricer = _mc.EuropeanPricer
 PathDependentPricer = _mc.PathDependentPricer
 LsmcPricer = _mc.LsmcPricer
 
-black_scholes_call = _mc.black_scholes_call
-black_scholes_put = _mc.black_scholes_put
-
 price_heston_call = _mc.price_heston_call
 price_heston_put = _mc.price_heston_put
 
@@ -64,8 +61,6 @@ __all__: list[str] = [
     "LsmcPricer",
     "MoneyEstimate",
     "PathDependentPricer",
-    "black_scholes_call",
-    "black_scholes_put",
     "finite_diff_delta",
     "finite_diff_delta_crn",
     "finite_diff_gamma",

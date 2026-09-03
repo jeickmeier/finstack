@@ -131,3 +131,15 @@ pub(crate) fn extract_position_pnls(
         order: PositionPnlOrder::ScenarioMajor,
     })
 }
+
+impl PositionPnlMatrix {
+    /// Wrap a buffer that is already in the scenario-major engine layout
+    /// (`n_scenarios` rows of `n_positions` P&Ls, row-major).
+    pub(crate) fn from_scenario_major(data: Vec<f64>, n_scenarios: usize) -> Self {
+        Self {
+            data,
+            n_scenarios,
+            order: PositionPnlOrder::ScenarioMajor,
+        }
+    }
+}

@@ -146,7 +146,7 @@ fn very_large_notional() {
 
     let dv01 = res
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
+        .get("bucketed_dv01::USD-SOFR-3M")
         .copied()
         .expect("primary-forward bucketed DV01 must be present");
 

@@ -334,4 +334,30 @@ impl ApplicationEnvelope {
             time_roll: report.time_roll,
         })
     }
+
+    /// Split the envelope into its market JSON, optional model JSON, and the
+    /// [`ApplicationReport`] it was built from.
+    ///
+    /// This is the inverse of [`from_contexts`](Self::from_contexts) minus the
+    /// context deserialization, so hosts rebuilding a typed result from the
+    /// wire envelope do not hand-copy report fields.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        serde_json::Value,
+        Option<serde_json::Value>,
+        ApplicationReport,
+    ) {
+        let report = ApplicationReport {
+            operations_applied: self.operations_applied,
+            user_operations: self.user_operations,
+            expanded_operations: self.expanded_operations,
+            changes: self.changes,
+            warnings: self.warnings,
+            meta: self.meta,
+            time_roll: self.time_roll,
+        };
+        (self.market, self.model, report)
+    }
 }

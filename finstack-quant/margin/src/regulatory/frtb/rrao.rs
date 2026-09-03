@@ -39,5 +39,7 @@ pub fn rrao_charge(positions: &[RraoPosition]) -> f64 {
             };
             p.notional.abs() * weight
         })
-        .sum()
+        // `Iterator::sum` for f64 starts from -0.0; fold from +0.0 so an
+        // empty position list reports `0.0`, not `-0.0`.
+        .fold(0.0, |acc, charge| acc + charge)
 }

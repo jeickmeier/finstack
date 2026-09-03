@@ -11,17 +11,23 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional, TypedDict
 
+import pandas as pd
+
 from finstack_quant.core.market_data import FxDeltaVolSurface, VolCube, VolSurface
 
 __all__ = [
+    "ArbitrageReport",
     "SabrCalibrator",
     "SabrModel",
     "SabrParameters",
     "SabrSmile",
+    "SviParams",
+    "calibrate_svi",
     "check_butterfly_grid",
     "check_calendar_spread_grid",
     "check_local_vol_density_grid",
     "check_surface_grid",
+    "convert_atm_volatility",
     "delta_to_strike",
     "get_cube_normal_vol",
     "get_cube_normal_vol_clamped",
@@ -37,6 +43,7 @@ __all__ = [
     "materialize_cube_tenor_slice_normal",
     "materialize_fx_delta_surface",
     "strike_to_delta",
+    "surface_to_dataframe",
 ]
 
 # SABR volatility smile
@@ -75,7 +82,8 @@ class SabrParameters:
         Parameters
         ----------
         alpha : float
-            Positive SABR level parameter in the rate or price unit convention.
+            Positive initial volatility level as a decimal (Black vol for
+            ``beta > 0``, absolute normal vol in rate units for ``beta == 0``).
         beta : float
             CEV elasticity constrained to the closed interval ``[0, 1]``.
         nu : float
@@ -83,8 +91,9 @@ class SabrParameters:
         rho : float
             Instantaneous forward/volatility correlation in ``[-1, 1]``.
         shift : float or None, default None
-            Optional positive shifted-lognormal displacement for negative-rate
-            strikes and forwards; ``None`` uses the unshifted formula.
+            Optional positive shifted-lognormal displacement in the forward's
+            rate units (``0.03`` = 3% shift) for negative-rate strikes and
+            forwards; ``None`` uses the unshifted formula.
 
         Raises
         ------
@@ -464,6 +473,68 @@ class SabrSmile:
         """
         ...
 
+    def to_dataframe(self, strikes: list[float]) -> pd.DataFrame:
+        """
+        Tabulate the smile on a strike grid.
+
+        Parameters
+        ----------
+        strikes : list[float]
+            Strikes at which to evaluate the smile.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``strike``, ``vol`` (decimal Black vol, or absolute normal
+            vol when ``beta == 0``) and ``log_moneyness`` (``ln(K / F)``).
+
+        Raises
+        ------
+        ValueError
+            If any strike or the stored forward / expiry is outside the model
+            domain.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.volatility import SabrParameters, SabrSmile
+        >>> smile = SabrSmile(SabrParameters.equity_default(), 100.0, 1.0)
+        >>> list(smile.to_dataframe([90.0, 100.0, 110.0]).columns)
+        ['strike', 'vol', 'log_moneyness']
+        """
+        ...
+
+    @property
+    def forward(self) -> float:
+        """
+        Forward this smile is anchored on.
+
+        Returns
+        -------
+        float
+            Forward rate or price in the same units as the strikes passed to the smile; SABR vols are quoted relative to it.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def t(self) -> float:
+        """
+        Time to expiry in years this smile is anchored on.
+
+        Returns
+        -------
+        float
+            Year fraction from valuation to expiry (decimal years), used as the ``T`` in the SABR expansion.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
 class SabrCalibrator:
     """
     SABR calibrator (Levenberg-Marquardt with beta fixed).
@@ -535,6 +606,29 @@ class SabrCalibrator:
         -----
         This builder returns a copy with the field set and does not raise.
 
+        """
+        ...
+
+    def with_max_iterations(self, max_iterations: int) -> SabrCalibrator:
+        """
+        Return a copy with an overridden solver iteration cap.
+
+        Parameters
+        ----------
+        max_iterations : int
+            Positive cap on Levenberg-Marquardt iterations before the fit is
+            reported as non-converged.
+
+        Returns
+        -------
+        SabrCalibrator
+            New calibrator instance sharing other settings. Does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.volatility import SabrCalibrator
+        >>> "max_iterations=5000" in repr(SabrCalibrator().with_max_iterations(5000))
+        True
         """
         ...
 
@@ -736,6 +830,9 @@ def get_cube_vol_clamped(cube: VolCube, expiry: float, tenor: float, strike: flo
 
 def get_cube_normal_vol(cube: VolCube, expiry: float, tenor: float, strike: float) -> float:
     """Evaluate normal volatility from a stored SABR cube.
+    Returns an **absolute** normal (Bachelier) volatility in the cube's rate
+    units (e.g. ``0.0075`` for 75 bp on decimal rates), not a Black decimal vol.
+
 
     Parameters
     ----------
@@ -1112,15 +1209,191 @@ class _ArbitrageViolation(TypedDict):
     severity: Literal["negligible", "minor", "major", "critical"]
     magnitude: float
     description: str
-    suggested_adjustment: float | None
+    suggested_fix: float | None
 
-class _ArbitrageReport(TypedDict):
-    total_violations: int
-    passed: bool
-    by_severity: dict[Literal["negligible", "minor", "major", "critical"], int]
-    by_type: dict[_ArbitrageTypeName, int]
-    violations: list[_ArbitrageViolation]
-    elapsed_us: int
+class ArbitrageReport:
+    """
+    Aggregated model-free arbitrage report for a volatility grid.
+
+    Returned by :func:`check_surface_grid`. Picklable and JSON round-trippable;
+    ``to_dataframe()`` gives one row per violation.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.volatility import check_surface_grid
+    >>> strikes, expiries = [90.0, 100.0, 110.0], [1.0, 2.0]
+    >>> vols, forwards = [[0.2, 0.2, 0.2], [0.2, 0.2, 0.2]], [100.0, 100.0]
+    >>> report = check_surface_grid(strikes, expiries, vols, forwards)
+    >>> (report.passed, report.total_violations)
+    (True, 0)
+    """
+
+    @property
+    def vol_surface_id(self) -> str:
+        """
+        Identifier of the checked surface (``"grid"`` for array inputs).
+
+        Returns
+        -------
+        str
+            The surface identifier carried through from the input, or the literal ``"grid"`` when the check ran on raw arrays.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def passed(self) -> bool:
+        """
+        ``True`` when no violation above ``negligible`` severity was found.
+
+        Returns
+        -------
+        bool
+            ``True`` if every arbitrage check passed or produced only negligible-severity violations, ``False`` otherwise.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def total_violations(self) -> int:
+        """
+        Number of violations of any severity.
+
+        Returns
+        -------
+        int
+            Count of all violation rows, including negligible ones; equals ``len(violations)``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def elapsed_us(self) -> int:
+        """
+        Wall-clock microseconds spent on the check suite (non-deterministic).
+
+        Returns
+        -------
+        int
+            Elapsed run time in microseconds. Non-deterministic: it varies run to run and must not be used in golden comparisons.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def violations(self) -> list[_ArbitrageViolation]:
+        """
+        Violation rows as serde dicts, critical first.
+
+        Returns
+        -------
+        list[_ArbitrageViolation]
+            One dict per detected violation, ordered by descending severity; empty when the surface is arbitrage-free.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def by_severity(self) -> dict[Literal["negligible", "minor", "major", "critical"], int]:
+        """
+        Violation counts keyed by severity name, every severity present.
+
+        Returns
+        -------
+        dict[Literal["negligible", "minor", "major", "critical"], int]
+            Counts per severity label; all four keys are always present, with ``0`` where no violation of that severity occurred.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def by_type(self) -> dict[_ArbitrageTypeName, int]:
+        """
+        Violation counts keyed by check type, every ``ArbitrageType`` present.
+
+        Returns
+        -------
+        dict[_ArbitrageTypeName, int]
+            Counts per ``ArbitrageType`` name (butterfly, calendar, and so on); every check type is present, with ``0`` where clean.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        One row per violation.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``violation_type``, ``severity``, ``strike``, ``expiry``,
+            ``adjacent_expiry``, ``magnitude``, ``suggested_fix``,
+            ``description``; empty when the surface passed. Does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON (the Rust ``ArbitrageReport`` wire form).
+
+        Returns
+        -------
+        str
+            JSON document. Does not raise.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ArbitrageReport:
+        """
+        Deserialize from the JSON produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            Serialized report.
+
+        Returns
+        -------
+        ArbitrageReport
+            Reconstructed report.
+
+        Raises
+        ------
+        ValueError
+            On malformed JSON.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.volatility import ArbitrageReport, check_surface_grid
+        >>> r = check_surface_grid([90.0, 100.0, 110.0], [1.0, 2.0], [[0.2] * 3, [0.2] * 3], [100.0])
+        >>> ArbitrageReport.from_json(r.to_json()).passed
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]: ...
 
 def check_butterfly_grid(
     strikes: list[float],
@@ -1149,9 +1422,9 @@ def check_butterfly_grid(
     Returns
     -------
     list[_ArbitrageViolation]
-        One dict per violation with keys ``type``, ``severity``, ``strike``,
-        ``expiry``, ``adjacent_expiry``, ``magnitude``, ``value``, ``message``,
-        and ``description``.
+        One serde dict per violation with keys ``violation_type``,
+        ``location`` (``strike``, ``expiry``, ``adjacent_expiry``),
+        ``severity``, ``magnitude``, ``description``, ``suggested_fix``.
 
     Raises
     ------
@@ -1268,7 +1541,7 @@ def check_surface_grid(
     vols: list[list[float]],
     forward_prices: list[float],
     tolerance: float = 1e-6,
-) -> _ArbitrageReport:
+) -> ArbitrageReport:
     """
     Run butterfly, calendar-spread, and local-vol density checks together.
 
@@ -1287,9 +1560,9 @@ def check_surface_grid(
 
     Returns
     -------
-    _ArbitrageReport
-        Aggregate report with ``total_violations``, ``passed``,
-        ``by_severity``, ``by_type``, ``violations``, and ``elapsed_us``.
+    ArbitrageReport
+        Typed report with ``total_violations``, ``passed``, ``by_severity``,
+        ``by_type``, ``violations``, ``elapsed_us`` and ``to_dataframe()``.
 
     Raises
     ------
@@ -1301,8 +1574,379 @@ def check_surface_grid(
     >>> from finstack_quant.models.volatility import check_surface_grid
     >>> strikes, expiries = [90.0, 100.0, 110.0], [1.0, 2.0]
     >>> vols, forwards = [[0.2, 0.2, 0.2], [0.2, 0.2, 0.2]], [100.0, 100.0]
-    >>> check_surface_grid(strikes, expiries, vols, forwards)["passed"]
+    >>> check_surface_grid(strikes, expiries, vols, forwards).passed
     True
 
+    """
+    ...
+
+def surface_to_dataframe(surface: VolSurface) -> pd.DataFrame:
+    """
+    Tabulate a core ``VolSurface`` grid as a DataFrame.
+
+    Parameters
+    ----------
+    surface : VolSurface
+        Data-only surface, e.g. from :func:`materialize_cube_tenor_slice` or
+        :func:`materialize_fx_delta_surface`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Index ``expiry`` (years), one column per strike / secondary-axis
+        node, values in the surface's ``quote_type`` units (decimal Black vol
+        or absolute normal vol).
+
+    Raises
+    ------
+    ValueError
+        If the stored grid length does not match ``expiries x strikes``.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.market_data import FxDeltaVolSurface
+    >>> from finstack_quant.models.volatility import materialize_fx_delta_surface, surface_to_dataframe
+    >>> s = FxDeltaVolSurface("FX", [1.0], [0.12], [0.01], [0.002])
+    >>> surface_to_dataframe(materialize_fx_delta_surface(s, 1.1, 0.03, 0.02)).shape
+    (1, 3)
+    """
+    ...
+
+_VolatilityConvention = Literal["normal", "lognormal"] | dict[str, dict[str, float]]
+
+def convert_atm_volatility(
+    vol: float,
+    from_convention: _VolatilityConvention,
+    to_convention: _VolatilityConvention,
+    forward_rate: float,
+    time_to_expiry: float,
+) -> float:
+    """
+    Convert an ATM volatility quote between normal, lognormal and shifted-lognormal conventions.
+
+    Prices are equated at the money (strike = forward) and the target vol is
+    solved deterministically.
+
+    Parameters
+    ----------
+    vol : float
+        Input volatility in the source convention: decimal Black vol for
+        ``"lognormal"`` / shifted-lognormal, absolute vol in the forward's rate
+        units for ``"normal"`` (``0.0075`` = 75 bp on decimal rates). Positive.
+    from_convention : str or dict
+        Convention *vol* is quoted in: ``"normal"`` (absolute/Bachelier vol),
+        ``"lognormal"`` (decimal Black vol), or
+        ``{"shifted_lognormal": {"shift": s}}`` with ``shift`` in the
+        forward's rate units (for example ``0.03`` for a 3% shift on decimal
+        rates).
+    to_convention : str or dict
+        Convention the result is returned in; accepts the same three forms as
+        *from_convention*. Passing the same convention returns *vol*
+        unchanged up to solver tolerance.
+    forward_rate : float
+        ATM forward rate or price used as both forward and strike; must be
+        positive for lognormal conventions, ``forward + shift > 0`` for
+        shifted ones.
+    time_to_expiry : float
+        Time to expiry in years (non-negative); ``0`` returns ``vol`` unchanged.
+
+    Returns
+    -------
+    float
+        Volatility in the target convention.
+
+    Raises
+    ------
+    ValueError
+        If ``vol`` / ``time_to_expiry`` / a convention is invalid, or the
+        forward is outside the convention domain.
+    RuntimeError
+        If the price-matching solver fails to converge.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.volatility import convert_atm_volatility
+    >>> ln = convert_atm_volatility(0.01, "normal", "lognormal", 0.05, 1.0)
+    >>> round(convert_atm_volatility(ln, "lognormal", "normal", 0.05, 1.0), 10)
+    0.01
+    """
+    ...
+
+class SviParams:
+    """
+    Gatheral SVI total-variance smile parameters.
+
+    ``w(k) = a + b * (rho * (k - m) + sqrt((k - m)^2 + sigma^2))`` in
+    log-moneyness ``k = ln(K / F)``. Construction validates the
+    Gatheral-Jacquier necessary no-arbitrage conditions.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.volatility import SviParams
+    >>> p = SviParams(0.04, 0.1, -0.3, 0.0, 0.2)
+    >>> round(p.implied_vol(0.0, 1.0), 6)
+    0.244949
+
+    Sources
+    -------
+    - Gatheral (2004): see docs/REFERENCES.md#gatheral-2004-svi
+    - Gatheral-Jacquier (2014): see docs/REFERENCES.md#gatheral-jacquier-2014-svi
+    """
+
+    def __init__(self, a: float, b: float, rho: float, m: float, sigma: float) -> None:
+        """
+        Create validated SVI parameters.
+
+        Parameters
+        ----------
+        a : float
+            Overall total-variance level.
+        b : float
+            Wing slope (``>= 0``).
+        rho : float
+            Rotation / asymmetry in ``(-1, 1)``.
+        m : float
+            Log-moneyness translation of the minimum-variance point.
+        sigma : float
+            Vertex smoothing (``> 0``).
+
+        Raises
+        ------
+        ValueError
+            If a parameter is non-finite or violates the no-arbitrage
+            conditions (``b >= 0``, ``sigma > 0``, ``|rho| < 1``, non-negative
+            minimum variance, Roger Lee moment bound).
+
+        Examples
+        --------
+        >>> from finstack_quant.models.volatility import SviParams
+        >>> SviParams(0.04, 0.1, -0.3, 0.0, 0.2).b
+        0.1
+        """
+        ...
+
+    @property
+    def a(self) -> float:
+        """
+        Overall total-variance level.
+
+        Returns
+        -------
+        float
+            SVI ``a``: the vertical shift of the total-variance curve, in total-variance units (``vol^2 * T``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def b(self) -> float:
+        """
+        Wing slope of the SVI total-variance smile.
+
+        Returns
+        -------
+        float
+            SVI ``b`` (non-negative): controls the slope of both wings in total variance per unit log-moneyness.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def rho(self) -> float:
+        """
+        Rotation / asymmetry.
+
+        Returns
+        -------
+        float
+            SVI ``rho`` in ``(-1, 1)``: the skew parameter rotating the smile; negative values tilt variance toward low strikes.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def m(self) -> float:
+        """
+        Log-moneyness translation of the minimum-variance point.
+
+        Returns
+        -------
+        float
+            SVI ``m``: horizontal shift in log-moneyness ``k`` locating the smile minimum.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def sigma(self) -> float:
+        """
+        Vertex smoothing.
+
+        Returns
+        -------
+        float
+            SVI ``sigma`` (positive): curvature at the vertex in log-moneyness units; larger values flatten the smile's minimum.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def total_variance(self, k: float) -> float:
+        """
+        Total implied variance ``w(k) = vol^2 * T`` at log-moneyness ``k``.
+
+        Parameters
+        ----------
+        k : float
+            Log-moneyness ``ln(K / F)``.
+
+        Returns
+        -------
+        float
+            Dimensionless total variance. Does not raise.
+        """
+        ...
+
+    def implied_vol(self, k: float, t: float) -> float:
+        """
+        Black implied volatility ``sqrt(w(k) / t)`` at log-moneyness ``k``.
+
+        Parameters
+        ----------
+        k : float
+            Log-moneyness ``ln(K / F)``.
+        t : float
+            Time to expiry in years (``> 0``).
+
+        Returns
+        -------
+        float
+            Annualized Black volatility as a decimal.
+
+        Raises
+        ------
+        ValueError
+            If ``t <= 0`` or the total variance at ``k`` is negative.
+        """
+        ...
+
+    def durrleman_g(self, k: float) -> float:
+        """
+        Durrleman ``g(k)`` butterfly density function at log-moneyness ``k``.
+
+        Parameters
+        ----------
+        k : float
+            Log-moneyness ``ln(K / F)``.
+
+        Returns
+        -------
+        float
+            ``g(k)``; non-negative everywhere means butterfly-arbitrage-free.
+            Does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to compact JSON (``a, b, rho, m, sigma``).
+
+        Returns
+        -------
+        str
+            JSON object. Does not raise.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> SviParams:
+        """
+        Deserialize from JSON; validation runs on load.
+
+        Parameters
+        ----------
+        json : str
+            JSON object with ``a, b, rho, m, sigma``.
+
+        Returns
+        -------
+        SviParams
+            Validated parameters.
+
+        Raises
+        ------
+        ValueError
+            On malformed JSON or invalid parameters.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.volatility import SviParams
+        >>> SviParams.from_json(SviParams(0.04, 0.1, -0.3, 0.0, 0.2).to_json()).a
+        0.04
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]: ...
+
+def calibrate_svi(
+    strikes: list[float],
+    vols: list[float],
+    forward: float,
+    expiry: float,
+) -> SviParams:
+    """
+    Calibrate SVI parameters to a market smile (Gatheral 2004).
+
+    Parameters
+    ----------
+    strikes : list[float]
+        Positive strikes (at least five).
+    vols : list[float]
+        Black implied vols (decimal) aligned one-for-one with ``strikes``.
+    forward : float
+        Positive forward at ``expiry``.
+    expiry : float
+        Positive time to expiry in years.
+
+    Returns
+    -------
+    SviParams
+        Fitted, validated parameters.
+
+    Raises
+    ------
+    ValueError
+        If lengths differ, fewer than five quotes are supplied, an input is
+        outside its domain, or the fit violates the no-arbitrage conditions.
+    RuntimeError
+        If the optimizer fails to converge or the fit RMSE exceeds the
+        acceptance threshold.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.volatility import calibrate_svi
+    >>> strikes = [80.0, 90.0, 95.0, 100.0, 105.0, 110.0, 120.0]
+    >>> vols = [0.30, 0.25, 0.22, 0.20, 0.21, 0.23, 0.28]
+    >>> p = calibrate_svi(strikes, vols, 100.0, 1.0)
+    >>> abs(p.implied_vol(0.0, 1.0) - 0.20) < 0.02
+    True
+
+    Sources
+    -------
+    - Gatheral (2004): see docs/REFERENCES.md#gatheral-2004-svi
     """
     ...

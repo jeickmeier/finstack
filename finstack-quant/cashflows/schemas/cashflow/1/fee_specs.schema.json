@@ -159,7 +159,8 @@
             },
             "stub": {
               "$ref": "#/$defs/StubKind",
-              "description": "Stub-handling rule for irregular first or last fee periods."
+              "default": "short_front",
+              "description": "Stub-handling rule for irregular first or last fee periods\n(`ShortFront` when omitted from the wire form)."
             }
           },
           "required": [
@@ -168,8 +169,7 @@
             "frequency",
             "day_count",
             "business_day_convention",
-            "calendar_id",
-            "stub"
+            "calendar_id"
           ],
           "type": "object"
         }

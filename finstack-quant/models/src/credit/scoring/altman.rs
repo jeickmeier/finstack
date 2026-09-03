@@ -170,7 +170,7 @@ pub fn altman_z_score(input: &AltmanZScoreInput) -> Result<ScoringResult, Credit
         score: z,
         zone,
         implied_pd: None,
-        model: "Altman Z-Score (1968)",
+        model: "Altman Z-Score (1968)".to_string(),
     })
 }
 
@@ -239,7 +239,7 @@ pub fn altman_z_prime(input: &AltmanZPrimeInput) -> Result<ScoringResult, Credit
         score: z,
         zone,
         implied_pd: None,
-        model: "Altman Z'-Score (Private)",
+        model: "Altman Z'-Score (Private)".to_string(),
     })
 }
 
@@ -315,7 +315,7 @@ pub fn altman_z_double_prime(
         score: z,
         zone,
         implied_pd: None,
-        model: "Altman Z''-Score (Non-Manufacturer)",
+        model: "Altman Z''-Score (Non-Manufacturer)".to_string(),
     })
 }
 
@@ -403,7 +403,7 @@ pub fn altman_em_score(
         score: em,
         zone,
         implied_pd: None,
-        model: "Altman EM-Score (1995)",
+        model: "Altman EM-Score (1995)".to_string(),
     })
 }
 

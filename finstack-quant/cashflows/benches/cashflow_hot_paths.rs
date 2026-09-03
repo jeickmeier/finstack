@@ -203,7 +203,7 @@ fn bench_pv_by_period(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(label), label, |b, _| {
             b.iter(|| {
                 black_box(&schedule)
-                    .pv_by_period(
+                    .pv_by_period_with_discounting(
                         black_box(&periods),
                         finstack_quant_cashflows::builder::PvDiscountSource::Discount {
                             disc: black_box(disc.as_ref()),
@@ -248,7 +248,7 @@ fn bench_pv_by_period_credit(c: &mut Criterion) {
             b.iter(|| {
                 let ctx = DateContext::new(base, DayCount::Act365F, DayCountContext::default());
                 black_box(&schedule)
-                    .pv_by_period(
+                    .pv_by_period_with_discounting(
                         black_box(&periods),
                         finstack_quant_cashflows::builder::PvDiscountSource::Discount {
                             disc: black_box(disc.as_ref()),
@@ -268,7 +268,7 @@ fn bench_pv_by_period_credit(c: &mut Criterion) {
             b.iter(|| {
                 let ctx = DateContext::new(base, DayCount::Act365F, DayCountContext::default());
                 black_box(&schedule)
-                    .pv_by_period(
+                    .pv_by_period_with_discounting(
                         black_box(&periods),
                         finstack_quant_cashflows::builder::PvDiscountSource::Discount {
                             disc: black_box(disc.as_ref()),

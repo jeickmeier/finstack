@@ -27,12 +27,12 @@ use pyo3::prelude::*;
 ///     Option strike.
 /// rate : float
 ///     Continuously-compounded risk-free rate (annualized).
-/// dividend : float
-///     Continuous dividend yield (annualized).
+/// div_yield : float
+///     Continuous dividend yield (annualized, decimal).
 /// vol : float
-///     Annualized volatility (sigma).
-/// maturity : float
-///     Time to maturity in years.
+///     Annualized volatility (decimal); must be strictly positive.
+/// expiry : float
+///     Time to expiry in years.
 /// is_call : bool
 ///     ``True`` for a call, ``False`` for a put.
 /// n_terms : int, optional
@@ -43,21 +43,27 @@ use pyo3::prelude::*;
 /// float
 ///     Present-value option price in the underlying's currency units.
 ///
+/// Raises
+/// ------
+/// ValueError
+///     If ``vol`` is not strictly positive, the COS truncation range is
+///     degenerate, or the price is non-finite.
+///
 /// Sources
 /// -------
 /// - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
 /// - Black-Scholes (1973): see docs/REFERENCES.md#black-scholes-1973
 #[pyfunction]
-#[pyo3(signature = (spot, strike, rate, dividend, vol, maturity, is_call, n_terms=None))]
+#[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry, is_call, n_terms=None))]
 #[allow(clippy::too_many_arguments)]
 fn bs_cos_price(
     py: Python<'_>,
     spot: f64,
     strike: f64,
     rate: f64,
-    dividend: f64,
+    div_yield: f64,
     vol: f64,
-    maturity: f64,
+    expiry: f64,
     is_call: bool,
     n_terms: Option<usize>,
 ) -> PyResult<f64> {
@@ -66,9 +72,9 @@ fn bs_cos_price(
             spot,
             strike,
             rate,
-            dividend,
+            div_yield,
             vol,
-            maturity,
+            expiry,
             is_call,
             n_terms,
         })
@@ -86,16 +92,16 @@ fn bs_cos_price(
 ///     Option strike.
 /// rate : float
 ///     Continuously-compounded risk-free rate.
-/// dividend : float
-///     Continuous dividend yield.
+/// div_yield : float
+///     Continuous dividend yield (decimal).
 /// sigma : float
 ///     Volatility of the subordinated Brownian motion.
 /// theta : float
 ///     Drift of the subordinated Brownian motion (negative values skew left).
 /// nu : float
 ///     Variance rate of the Gamma subordinator (nu > 0).
-/// maturity : float
-///     Time to maturity in years.
+/// expiry : float
+///     Time to expiry in years.
 /// is_call : bool
 ///     ``True`` for a call, ``False`` for a put.
 /// n_terms : int, optional
@@ -111,18 +117,18 @@ fn bs_cos_price(
 /// - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
 /// - Madan-Carr-Chang (1998): see docs/REFERENCES.md#madan-carr-chang-1998
 #[pyfunction]
-#[pyo3(signature = (spot, strike, rate, dividend, sigma, theta, nu, maturity, is_call, n_terms=None))]
+#[pyo3(signature = (spot, strike, rate, div_yield, sigma, theta, nu, expiry, is_call, n_terms=None))]
 #[allow(clippy::too_many_arguments)]
 fn vg_cos_price(
     py: Python<'_>,
     spot: f64,
     strike: f64,
     rate: f64,
-    dividend: f64,
+    div_yield: f64,
     sigma: f64,
     theta: f64,
     nu: f64,
-    maturity: f64,
+    expiry: f64,
     is_call: bool,
     n_terms: Option<usize>,
 ) -> PyResult<f64> {
@@ -131,11 +137,11 @@ fn vg_cos_price(
             spot,
             strike,
             rate,
-            dividend,
+            div_yield,
             sigma,
             theta,
             nu,
-            maturity,
+            expiry,
             is_call,
             n_terms,
         })
@@ -153,8 +159,8 @@ fn vg_cos_price(
 ///     Option strike.
 /// rate : float
 ///     Continuously-compounded risk-free rate.
-/// dividend : float
-///     Continuous dividend yield.
+/// div_yield : float
+///     Continuous dividend yield (decimal).
 /// sigma : float
 ///     Diffusion volatility.
 /// mu_jump : float
@@ -164,8 +170,8 @@ fn vg_cos_price(
 /// lambda_ : float
 ///     Jump intensity (expected number of jumps per year). Named ``lambda_``
 ///     because ``lambda`` is a Python keyword.
-/// maturity : float
-///     Time to maturity in years.
+/// expiry : float
+///     Time to expiry in years.
 /// is_call : bool
 ///     ``True`` for a call, ``False`` for a put.
 /// n_terms : int, optional
@@ -181,19 +187,19 @@ fn vg_cos_price(
 /// - Fang-Oosterlee (2008): see docs/REFERENCES.md#fang-oosterlee-2008
 /// - Merton jump-diffusion (1976): see docs/REFERENCES.md#merton-1976-jump
 #[pyfunction]
-#[pyo3(signature = (spot, strike, rate, dividend, sigma, mu_jump, sigma_jump, lambda_, maturity, is_call, n_terms=None))]
+#[pyo3(signature = (spot, strike, rate, div_yield, sigma, mu_jump, sigma_jump, lambda_, expiry, is_call, n_terms=None))]
 #[allow(clippy::too_many_arguments)]
 fn merton_jump_cos_price(
     py: Python<'_>,
     spot: f64,
     strike: f64,
     rate: f64,
-    dividend: f64,
+    div_yield: f64,
     sigma: f64,
     mu_jump: f64,
     sigma_jump: f64,
     lambda_: f64,
-    maturity: f64,
+    expiry: f64,
     is_call: bool,
     n_terms: Option<usize>,
 ) -> PyResult<f64> {
@@ -202,12 +208,12 @@ fn merton_jump_cos_price(
             spot,
             strike,
             rate,
-            dividend,
+            div_yield,
             sigma,
             mu_jump,
             sigma_jump,
             lambda: lambda_,
-            maturity,
+            expiry,
             is_call,
             n_terms,
         })

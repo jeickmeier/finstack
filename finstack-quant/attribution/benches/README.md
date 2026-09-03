@@ -54,7 +54,7 @@ compare) plus the `attribution_hot_paths` group:
 | `return_contribution` | `gross/{100,1000,10000}`, `brinson/{100,1000,10000}` | Weight × return and Brinson-Fachler roll-up |
 | `snapshot_extract_restore` | `rates/{1,10,50}` | Extract + restore vs curve count |
 
-`simple_pnl_bridge` is the intended baseline: two reprices, no factor loop.
+`pnl_bridge` is the intended baseline: two reprices, no factor loop.
 `metrics_based` still includes two `price_with_metrics` calls inside the
 timer; `metrics_based_precomputed` isolates the linear decomposition.
 

@@ -599,8 +599,8 @@ impl PathDependentPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -616,22 +616,14 @@ impl PathDependentPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
     ) -> Result<MoneyEstimate> {
         self.price_gbm_asian(
-            true,
-            spot,
-            strike,
-            rate,
-            dividend_yield,
-            volatility,
-            expiry,
-            num_steps,
-            currency,
+            true, spot, strike, rate, div_yield, vol, expiry, num_steps, currency,
         )
     }
 
@@ -644,8 +636,8 @@ impl PathDependentPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -659,22 +651,14 @@ impl PathDependentPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
     ) -> Result<MoneyEstimate> {
         self.price_gbm_asian(
-            false,
-            spot,
-            strike,
-            rate,
-            dividend_yield,
-            volatility,
-            expiry,
-            num_steps,
-            currency,
+            false, spot, strike, rate, div_yield, vol, expiry, num_steps, currency,
         )
     }
 
@@ -685,13 +669,14 @@ impl PathDependentPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
     ) -> Result<MoneyEstimate> {
-        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        crate::monte_carlo::require_positive_vol(vol)?;
+        let process = GbmProcess::with_params(rate, div_yield, vol)?;
         let discount_factor = flat_discount_factor(rate, expiry)?;
         let fixing_steps = default_fixing_steps(num_steps);
         if is_call {
@@ -906,8 +891,8 @@ impl PathDependentPricer {
     /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     /// * `discount_factor` - Callable mapping payment time to a discount factor for cashflows
     /// * `rate` - Rate applied by the operation; representation and compounding follow the receiving type convention.
-    /// * `dividend_yield` - Continuously compounded annual dividend yield in decimal units.
-    /// * `volatility` - Annualized volatility in decimal units.
+    /// * `div_yield` - Continuously compounded annual dividend yield in decimal units.
+    /// * `vol` - Annualized volatility in decimal units.
     #[allow(clippy::too_many_arguments)]
     pub fn price_with_lrm_greeks<P>(
         &self,
@@ -919,8 +904,8 @@ impl PathDependentPricer {
         currency: Currency,
         discount_factor: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
     ) -> Result<(MoneyEstimate, Option<(f64, f64)>)>
     where
         P: Payoff,
@@ -975,11 +960,7 @@ impl PathDependentPricer {
             None => return Ok((estimate, None)),
         };
 
-        if paths.is_empty()
-            || discount_factor <= 0.0
-            || time_to_maturity <= 0.0
-            || volatility <= 0.0
-        {
+        if paths.is_empty() || discount_factor <= 0.0 || time_to_maturity <= 0.0 || vol <= 0.0 {
             return Ok((estimate, None));
         }
 
@@ -988,7 +969,7 @@ impl PathDependentPricer {
         // captured spots (exact under the ExactGbm step used above).
         let dt = time_to_maturity / num_steps as f64;
         let sqrt_dt = dt.sqrt();
-        let mu_dt = (rate - dividend_yield - 0.5 * volatility * volatility) * dt;
+        let mu_dt = (rate - div_yield - 0.5 * vol * vol) * dt;
 
         let mut payoffs: Vec<f64> = Vec::with_capacity(paths.len());
         let mut first_shocks: Vec<f64> = Vec::with_capacity(paths.len());
@@ -1008,11 +989,11 @@ impl PathDependentPricer {
             let mut first_shock = 0.0;
             let mut score_sum = 0.0;
             for (k, w) in spots.windows(2).enumerate() {
-                let z = ((w[1] / w[0]).ln() - mu_dt) / (volatility * sqrt_dt);
+                let z = ((w[1] / w[0]).ln() - mu_dt) / (vol * sqrt_dt);
                 if k == 0 {
                     first_shock = z;
                 }
-                score_sum += (z * z - 1.0) / volatility - sqrt_dt * z;
+                score_sum += (z * z - 1.0) / vol - sqrt_dt * z;
             }
 
             // Final discounted payoff value is stored; un-discount it.
@@ -1032,7 +1013,7 @@ impl PathDependentPricer {
             &payoffs,
             &first_shocks,
             initial_spot,
-            volatility,
+            vol,
             dt,
             discount_factor,
         );

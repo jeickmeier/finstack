@@ -494,8 +494,10 @@ fn test_price_with_metrics_fails_when_as_of_before_discount_curve_base() {
 
     // Assert
     assert!(result.is_err());
+    // The date-alignment failure is a validation error and must keep that
+    // kind through the pricer boundary (host bindings map it to `ValueError`).
     let err_msg = format!("{:?}", result.unwrap_err());
-    assert!(err_msg.contains("Validation"));
+    assert!(err_msg.contains("InvalidInput"), "got: {err_msg}");
 }
 
 #[test]

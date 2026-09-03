@@ -41,3 +41,9 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyStructuredCreditBuilder>()?;
     Ok(())
 }
+
+/// Names this module contributes to `finstack_quant.valuations.instruments.__all__`.
+///
+/// Extend this list (sorted) when adding a class or function here; `mod.rs`
+/// merges every submodule list so registration stays in one place per file.
+pub(crate) const EXPORTS: &[&str] = &[];

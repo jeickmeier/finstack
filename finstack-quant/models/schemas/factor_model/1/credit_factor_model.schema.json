@@ -2387,7 +2387,7 @@
     {
       "anchor_state": {
         "by_level": [],
-        "pc": 102.0
+        "pc": 102.00000000000001
       },
       "as_of": "2024-06-01",
       "bucket_weighting": "dts",

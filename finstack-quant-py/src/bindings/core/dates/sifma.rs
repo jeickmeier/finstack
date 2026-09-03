@@ -18,6 +18,17 @@ pub const EXPORTS: &[&str] = &[
     "next_sifma_settlement",
 ];
 
+/// SIFMA good-delivery settlement class for agency MBS TBA trades.
+///
+/// SIFMA publishes one settlement date per month for each class; the class
+/// is determined by the agency program and original term. Immutable,
+/// hashable enum-style type.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.core.dates import SifmaSettlementClass
+/// >>> SifmaSettlementClass.from_agency_term("FNMA", 30) == SifmaSettlementClass.A
+/// True
 #[pyclass(
     name = "SifmaSettlementClass",
     module = "finstack_quant.core.dates",
@@ -33,23 +44,42 @@ pub struct PySifmaSettlementClass {
 
 #[pymethods]
 impl PySifmaSettlementClass {
+    /// Class A: 30-year conventional (FNMA/FHLMC) and UMBS pools.
     #[classattr]
     const A: Self = Self {
         inner: SifmaSettlementClass::A,
     };
+    /// Class B: 15-year conventional pools.
     #[classattr]
     const B: Self = Self {
         inner: SifmaSettlementClass::B,
     };
+    /// Class C: 30-year GNMA pools.
     #[classattr]
     const C: Self = Self {
         inner: SifmaSettlementClass::C,
     };
+    /// Class D: balloon, ARM and other non-standard programs.
     #[classattr]
     const D: Self = Self {
         inner: SifmaSettlementClass::D,
     };
 
+    /// Infer the settlement class from an agency label and original term in years.
+    ///
+    /// Parameters
+    /// ----------
+    /// agency : str
+    ///     Agency or program label such as ``"FNMA"``, ``"FHLMC"``, ``"UMBS"``
+    ///     or ``"GNMA"`` (case-insensitive).
+    /// term_years : int
+    ///     Original mortgage term in whole years, normally ``15`` or ``30``.
+    ///
+    /// Returns
+    /// -------
+    /// SifmaSettlementClass
+    ///     Class used to select the monthly SIFMA delivery date; unknown
+    ///     combinations fall into class ``D``. This method does not raise.
     #[classmethod]
     #[pyo3(text_signature = "(cls, agency, term_years)")]
     fn from_agency_term(
@@ -91,15 +121,12 @@ impl PySifmaSettlementClass {
 #[pyo3(text_signature = "(month, year)")]
 fn py_sifma_settlement_date<'py>(
     py: Python<'py>,
-    month_number: u8,
+    month: u8,
     year: i32,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
-    sifma_settlement_date(
-        crate::bindings::date_utils::month_from_u8(month_number)?,
-        year,
-    )
-    .map(|date| date_to_py(py, date))
-    .transpose()
+    sifma_settlement_date(crate::bindings::date_utils::month_from_u8(month)?, year)
+        .map(|date| date_to_py(py, date))
+        .transpose()
 }
 
 /// Published SIFMA settlement date for one settlement class.
@@ -128,12 +155,12 @@ fn py_sifma_settlement_date<'py>(
 #[pyo3(text_signature = "(month, year, settlement_class)")]
 fn py_sifma_settlement_date_for_class<'py>(
     py: Python<'py>,
-    month_number: u8,
+    month: u8,
     year: i32,
     settlement_class: PyRef<'_, PySifmaSettlementClass>,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     sifma_settlement_date_for_class(
-        crate::bindings::date_utils::month_from_u8(month_number)?,
+        crate::bindings::date_utils::month_from_u8(month)?,
         year,
         settlement_class.inner,
     )
@@ -169,14 +196,14 @@ fn py_sifma_settlement_date_for_class<'py>(
 #[pyo3(text_signature = "(month, year, settlement_class)")]
 fn py_estimated_sifma_settlement_date_for_class<'py>(
     py: Python<'py>,
-    month_number: u8,
+    month: u8,
     year: i32,
     settlement_class: PyRef<'_, PySifmaSettlementClass>,
 ) -> PyResult<Bound<'py, PyAny>> {
     date_to_py(
         py,
         estimated_sifma_settlement_date_for_class(
-            crate::bindings::date_utils::month_from_u8(month_number)?,
+            crate::bindings::date_utils::month_from_u8(month)?,
             year,
             settlement_class.inner,
         ),

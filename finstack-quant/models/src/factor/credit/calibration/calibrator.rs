@@ -42,6 +42,12 @@ impl CreditCalibrator {
         Self { config }
     }
 
+    /// The configuration this calibrator runs under.
+    #[must_use]
+    pub fn config(&self) -> &CreditCalibrationConfig {
+        &self.config
+    }
+
     /// Run the full calibration pipeline.
     ///
     /// # Errors

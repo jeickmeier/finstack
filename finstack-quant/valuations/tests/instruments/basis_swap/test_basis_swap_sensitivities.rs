@@ -104,17 +104,17 @@ fn dv01_per_curve_breakdown() {
 
     let dv01_discount = res
         .measures
-        .get("bucketed_dv01::USD_x2dOIS")
+        .get("bucketed_dv01::USD-OIS")
         .copied()
         .expect("discount-curve bucketed DV01 must be present");
     let dv01_primary_fwd = res
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
+        .get("bucketed_dv01::USD-SOFR-3M")
         .copied()
         .expect("primary-forward bucketed DV01 must be present");
     let dv01_reference_fwd = res
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d1M")
+        .get("bucketed_dv01::USD-SOFR-1M")
         .copied()
         .expect("reference-forward bucketed DV01 must be present");
 
@@ -158,7 +158,7 @@ fn dv01_scales_with_notional() {
 
         let dv01 = res
             .measures
-            .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
+            .get("bucketed_dv01::USD-SOFR-3M")
             .copied()
             .expect("primary-forward bucketed DV01 must be present");
         dv01s.push(dv01);
@@ -203,7 +203,7 @@ fn dv01_vs_numerical_bump() {
         .unwrap();
     let dv01_metric = res_base
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
+        .get("bucketed_dv01::USD-SOFR-3M")
         .copied()
         .expect("primary-forward bucketed DV01 must be present");
 
@@ -304,12 +304,12 @@ fn dv01_leg_components_reasonable() {
 
     let dv01_primary = res
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
+        .get("bucketed_dv01::USD-SOFR-3M")
         .copied()
         .expect("primary-forward bucketed DV01 must be present");
     let dv01_reference = res
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d1M")
+        .get("bucketed_dv01::USD-SOFR-1M")
         .copied()
         .expect("reference-forward bucketed DV01 must be present");
 

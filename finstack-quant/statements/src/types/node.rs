@@ -397,7 +397,7 @@ impl ForecastSpec {
     /// # References
     ///
     /// - Monte Carlo simulation practice: `docs/REFERENCES.md#glasserman-2004-monte-carlo`
-    pub fn lognormal(mean: f64, std_dev: f64, seed: u64) -> Self {
+    pub fn log_normal(mean: f64, std_dev: f64, seed: u64) -> Self {
         let mut params = IndexMap::new();
         params.insert("mean".into(), serde_json::json!(mean));
         params.insert("std_dev".into(), serde_json::json!(std_dev));
@@ -406,6 +406,89 @@ impl ForecastSpec {
             method: ForecastMethod::LogNormal,
             params,
         }
+    }
+
+    /// Create an explicit per-period override forecast.
+    ///
+    /// Forecast periods listed in `overrides` take the supplied value; any
+    /// forecast period without an entry inherits the most recent value
+    /// (forward fill), so a sparse map is enough to pin a few anchor periods.
+    ///
+    /// # Arguments
+    /// * `overrides` - Period-keyed values in the node's own units (a
+    ///   currency amount for monetary nodes, a decimal ratio for scalar
+    ///   nodes); periods must belong to the model timeline
+    pub fn overrides(overrides: IndexMap<PeriodId, f64>) -> Self {
+        let mut params = IndexMap::new();
+        let map: serde_json::Map<String, serde_json::Value> = overrides
+            .into_iter()
+            .map(|(period, value)| (period.to_string(), serde_json::json!(value)))
+            .collect();
+        params.insert("overrides".into(), serde_json::Value::Object(map));
+        Self {
+            method: ForecastMethod::Override,
+            params,
+        }
+    }
+
+    /// Create a seasonal-decomposition forecast.
+    ///
+    /// The history is decomposed into trend and a repeating seasonal pattern of
+    /// `season_length` periods, then projected forward. At least two full
+    /// seasons of history are required when the forecast runs.
+    ///
+    /// # Arguments
+    /// * `historical` - Historical values in the node's own units, oldest
+    ///   first; must cover at least `2 * season_length` periods
+    /// * `season_length` - Length of one seasonal cycle counted in model
+    ///   periods (4 for quarterly, 12 for monthly data); must be positive
+    /// * `mode` - Additive (constant seasonal swings) or multiplicative
+    ///   (swings scale with the level) decomposition
+    pub fn seasonal(historical: Vec<f64>, season_length: usize, mode: SeasonalMode) -> Self {
+        let mut params = IndexMap::new();
+        params.insert("historical".into(), serde_json::json!(historical));
+        params.insert("season_length".into(), serde_json::json!(season_length));
+        params.insert("mode".into(), serde_json::json!(mode));
+        Self {
+            method: ForecastMethod::Seasonal,
+            params,
+        }
+    }
+
+    /// Create a trend-detection time-series forecast over an external history.
+    ///
+    /// Uses the default linear trend method; set `method` (`"linear"`,
+    /// `"exponential"`, `"moving_average"`) and its tuning parameters
+    /// (`alpha`, `beta`, `phi`, `window`) through raw params for other shapes.
+    ///
+    /// # Arguments
+    /// * `historical` - At least 2 historical values in the node's own units,
+    ///   oldest first, from which the trend is estimated
+    pub fn time_series(historical: Vec<f64>) -> Self {
+        let mut params = IndexMap::new();
+        params.insert("historical".into(), serde_json::json!(historical));
+        Self {
+            method: ForecastMethod::TimeSeries,
+            params,
+        }
+    }
+
+    /// Validate the parameter map against the method's accepted keys and
+    /// value types without running the forecast.
+    ///
+    /// Rejects parameter names the method does not understand and values of
+    /// the wrong JSON type (for example a string where a number is required),
+    /// so a typo fails at construction time rather than at evaluation. Value
+    /// ranges (positive `season_length`, non-negative `std_dev`, enough
+    /// history) are still enforced when the forecast runs.
+    ///
+    /// # Errors
+    ///
+    /// Returns a forecast error naming the offending key and the accepted
+    /// keys or expected type.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        crate::forecast::validate_params(self.method, &self.params)?;
+        crate::forecast::validate_param_types(&self.params)
     }
 
     /// Create a linear fade-to-target forecast.

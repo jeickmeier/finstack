@@ -5,10 +5,23 @@ use std::fmt::Write as _;
 impl MetricId {
     /// Build a flattened composite metric key from a base ID and components.
     ///
-    /// The wire format is `base::component[::component...]`. Component bytes
-    /// outside ASCII alphanumerics are escaped as `_xHH`; the empty component
-    /// is encoded as `_empty`. This is the canonical codec used by structured
-    /// metric producers and preserves the existing serialized key format.
+    /// The wire format is `base::component[::component...]` and is also the
+    /// human-facing form: ordinary identifiers such as `USD-OIS`, `usd_ois`
+    /// or `10y` are written literally, so a key reads exactly as documented
+    /// (`bucketed_dv01::USD-OIS::10y`, `pv01::USD-OIS`). Only what would
+    /// break the framing is escaped as `_xHH`: the `:` delimiter byte, an
+    /// underscore immediately followed by `x` (so a literal `_x` can never be
+    /// mistaken for an escape marker), and the reserved `_empty` spelling. The
+    /// empty component is encoded as `_empty`. [`Self::decode_components`] is
+    /// the exact inverse and additionally accepts the legacy fully-escaped
+    /// form (`USD_x2dOIS`) that earlier releases persisted.
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - Base metric the components qualify (for example
+    ///   `MetricId::BucketedDv01` or `MetricId::Pv01`).
+    /// * `components` - Ordered coordinate labels (curve ids, bucket labels,
+    ///   row/column labels) appended after the base, in order.
     pub fn composite(base: &MetricId, components: &[&str]) -> Self {
         let mut key = String::with_capacity(base.as_str().len() + components.len() * 8);
         key.push_str(base.as_str());
@@ -19,11 +32,18 @@ impl MetricId {
                 key.push_str("_empty");
                 continue;
             }
-            for byte in component.as_bytes() {
-                if byte.is_ascii_alphanumeric() {
-                    key.push(char::from(*byte));
+            if *component == "_empty" {
+                key.push_str("_x5fempty");
+                continue;
+            }
+            for (index, ch) in component.char_indices() {
+                let escape =
+                    ch == ':' || (ch == '_' && component[index + ch.len_utf8()..].starts_with('x'));
+                if escape {
+                    // Both `:` and `_` are single-byte ASCII.
+                    let _ = write!(&mut key, "_x{:02x}", ch as u32);
                 } else {
-                    let _ = write!(&mut key, "_x{byte:02x}");
+                    key.push(ch);
                 }
             }
         }
@@ -45,7 +65,9 @@ impl MetricId {
     ///
     /// # Arguments
     ///
-    /// * `base` - Base date or base currency anchoring relative quotes and curves
+    /// * `base` - Base metric whose composite keys are being decoded (for
+    ///   example `MetricId::BucketedDv01`); the key must start with
+    ///   `"{base}::"` or `None` is returned.
     pub fn decode_components(&self, base: &MetricId) -> Option<Vec<String>> {
         let suffix = self
             .as_str()

@@ -569,6 +569,56 @@ impl ValuationResult {
             .collect()
     }
 
+    /// Look up a measure by string key, tolerating the legacy escaped wire form.
+    ///
+    /// Tries an exact match first (`metric_str`). On a miss the composite
+    /// keys with the same base are compared on their decoded components, so a
+    /// caller holding a key persisted by an earlier release
+    /// (`pv01::USD_x2dOIS`) still resolves the literal key written today
+    /// (`pv01::USD-OIS`), and vice versa. Scalar keys never match anything
+    /// but themselves.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Metric key in either the literal (`pv01::USD-OIS`) or legacy
+    ///   escaped (`pv01::USD_x2dOIS`) composite form, or a scalar metric name.
+    pub fn metric_str_decoded(&self, id: &str) -> Option<f64> {
+        if let Some(value) = self.metric_str(id) {
+            return Some(value);
+        }
+        let requested = MetricId::custom(id);
+        let base = requested.base();
+        let wanted = requested.decode_components(&base)?;
+        self.measures.iter().find_map(|(key, value)| {
+            (key.decode_components(&base).as_ref() == Some(&wanted)).then_some(*value)
+        })
+    }
+
+    /// Measure keys ranked by case-folded similarity to `id`, best first.
+    ///
+    /// Used to build actionable "did you mean" diagnostics when a lookup
+    /// misses; the ranking is the same one unknown-metric errors use.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The key the caller asked for (any case, literal or legacy form).
+    /// * `limit` - Maximum number of keys returned.
+    pub fn closest_metric_keys(&self, id: &str, limit: usize) -> Vec<String> {
+        crate::metrics::closest_metric_names(id, self.measures.keys().map(MetricId::as_str), limit)
+    }
+
+    /// Unit family of every measure, keyed by wire metric key.
+    ///
+    /// Composite keys inherit their base metric's unit; custom metrics report
+    /// [`MetricUnit::Unknown`](crate::metrics::MetricUnit::Unknown). Order
+    /// follows `measures` insertion order.
+    pub fn metric_units(&self) -> IndexMap<String, crate::metrics::MetricUnit> {
+        self.measures
+            .keys()
+            .map(|key| (key.to_string(), key.unit()))
+            .collect()
+    }
+
     /// Attach multiple covenant reports to the result.
     ///
     /// Replaces any existing covenant reports with the provided map.
@@ -794,6 +844,32 @@ mod tests {
     use finstack_quant_core::money::Money;
     use indexmap::IndexMap;
     use time::macros::date;
+
+    #[test]
+    fn metric_str_decoded_matches_literal_and_legacy_escaped_keys() {
+        let mut measures = IndexMap::new();
+        measures.insert(MetricId::Dv01, 1.0);
+        measures.insert(MetricId::composite(&MetricId::Pv01, &["USD-OIS"]), 2.0);
+        measures.insert(MetricId::custom("pv01::EUR_x2dOIS"), 3.0);
+        let result =
+            ValuationResult::stamped("K", date!(2025 - 01 - 15), Money::new(0.0, Currency::USD))
+                .with_measures(measures);
+
+        assert_eq!(result.metric_str_decoded("dv01"), Some(1.0));
+        assert_eq!(result.metric_str_decoded("pv01::USD-OIS"), Some(2.0));
+        assert_eq!(result.metric_str_decoded("pv01::USD_x2dOIS"), Some(2.0));
+        assert_eq!(result.metric_str_decoded("pv01::EUR-OIS"), Some(3.0));
+        assert_eq!(result.metric_str_decoded("pv01::GBP-OIS"), None);
+        assert_eq!(result.metric_str_decoded("dv02"), None);
+        assert_eq!(
+            result.closest_metric_keys("DV01", 1),
+            vec!["dv01".to_string()]
+        );
+
+        let units = result.metric_units();
+        assert_eq!(units["dv01"], crate::metrics::MetricUnit::Currency);
+        assert_eq!(units["pv01::USD-OIS"], crate::metrics::MetricUnit::Currency);
+    }
 
     #[test]
     fn metric_str_is_exact_and_accessors_return_option_or_result() {

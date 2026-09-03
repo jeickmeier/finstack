@@ -122,7 +122,7 @@ fn evaluate_monte_carlo_correlated_normals_constant_spread() {
 
 #[test]
 fn evaluate_monte_carlo_correlated_lognormals_preserve_ratio() {
-    let mut fp_b = ForecastSpec::lognormal(4.0, 0.2, 42);
+    let mut fp_b = ForecastSpec::log_normal(4.0, 0.2, 42);
     fp_b.params
         .insert("correlation_with".into(), serde_json::json!("a"));
     fp_b.params
@@ -142,7 +142,7 @@ fn evaluate_monte_carlo_correlated_lognormals_preserve_ratio() {
                 AmountOrScalar::scalar(110_000.0),
             ),
         ])
-        .forecast(ForecastSpec::lognormal(3.0, 0.2, 42))
+        .forecast(ForecastSpec::log_normal(3.0, 0.2, 42))
         .build()
         .expect("valid mixed node")
         .mixed("b")

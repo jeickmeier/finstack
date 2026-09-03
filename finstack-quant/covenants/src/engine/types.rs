@@ -316,7 +316,11 @@ impl CovenantType {
     }
 
     /// Returns the scalar threshold (if any) associated with the covenant type.
-    pub(crate) fn threshold_value(&self) -> Option<f64> {
+    ///
+    /// Ratio covenants return the ratio in turns, `Custom` returns the bound
+    /// value of its test, `Basket` returns its limit, and the non-numeric
+    /// `Negative` / `Affirmative` covenants return `None`.
+    pub fn threshold_value(&self) -> Option<f64> {
         match self {
             CovenantType::MaxDebtToEbitda { threshold }
             | CovenantType::MinInterestCoverage { threshold }
@@ -451,7 +455,7 @@ pub struct CovenantWaiver {
 }
 
 /// Covenant evaluation specification.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CovenantSpec {
     /// The covenant to evaluate
@@ -487,7 +491,7 @@ impl CovenantSpec {
 }
 
 /// Covenant window for scheduled testing.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CovenantWindow {
     /// Start date of the window

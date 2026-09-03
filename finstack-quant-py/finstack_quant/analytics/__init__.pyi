@@ -10,7 +10,9 @@ scalars, drawdown statistics, rolling windows, periodic returns
 method on the resulting instance.
 
 The remaining classes are value-object outputs returned by `Performance`
-methods (`LookbackReturns`, `PeriodStats`, etc.).
+methods (`LookbackReturns`, `PeriodStats`, etc.). Four scalar free functions
+(:func:`sharpe`, :func:`sortino`, :func:`volatility`, :func:`max_drawdown`)
+cover a single return series without a panel.
 
 Examples
 --------
@@ -33,16 +35,20 @@ from finstack_quant.core.dates import DayCount
 
 __all__ = [
     "AnalyticsError",
-    "Performance",
-    "LookbackReturns",
-    "PeriodStats",
     "BetaResult",
-    "GreeksResult",
-    "RollingGreeks",
-    "MultiFactorResult",
-    "DrawdownEpisode",
     "DatedSeries",
+    "DrawdownEpisode",
+    "GreeksResult",
+    "LookbackReturns",
+    "MultiFactorResult",
+    "Performance",
+    "PeriodStats",
+    "RollingGreeks",
     "constrained_least_squares",
+    "max_drawdown",
+    "sharpe",
+    "sortino",
+    "volatility",
 ]
 
 # Errors
@@ -306,7 +312,60 @@ class PeriodStats:
         This accessor does not raise; it returns the stored value.
         """
 
+    def to_series(self) -> pd.Series:
+        """
+        The twelve statistics as a ``pandas.Series`` named ``period_stats``.
+
+        Returns
+        -------
+        pd.Series
+            Indexed by statistic name (``best``, ``worst``,
+            ``consecutive_wins``, ``consecutive_losses``, ``win_rate``,
+            ``avg_return``, ``avg_win``, ``avg_loss``, ``payoff_ratio``,
+            ``profit_factor``, ``cpc_ratio``, ``kelly_criterion``); streak
+            counts are cast to ``float``.
+
+        Raises
+        ------
+        ValueError
+            If the values cannot be wrapped as a labelled pandas object.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        The twelve statistics as a single-row ``pandas.DataFrame``.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row, columns in :meth:`to_series` order; stack tickers with
+            ``pd.concat``. Non-finite ratios (``inf`` on a loss-free sample)
+            arrive as ``None`` and make that column ``object`` dtype.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
     def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
+        """
+        ...
 
 class BetaResult:
     """
@@ -474,6 +533,21 @@ class BetaResult:
         ...
 
     def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
+        """
+        ...
 
 class GreeksResult:
     """
@@ -637,6 +711,21 @@ class GreeksResult:
         ...
 
     def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
+        """
+        ...
 
 class RollingGreeks:
     """
@@ -762,7 +851,8 @@ class RollingGreeks:
 
     def to_dataframe(self) -> pd.DataFrame:
         """
-        Convert to a pandas DataFrame with date index and alpha/beta columns.
+        Convert to a pandas DataFrame with a ``DatetimeIndex`` and ``alpha`` /
+        ``beta`` columns.
 
         Returns
         -------
@@ -777,6 +867,21 @@ class RollingGreeks:
         ...
 
     def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
+        """
+        ...
 
 class MultiFactorResult:
     """
@@ -1130,7 +1235,42 @@ class DrawdownEpisode:
         This accessor does not raise; it returns the stored value.
         """
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a single-row ``pandas.DataFrame``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``start``, ``valley``, ``end`` (``datetime64``; ``NaT``
+            while still in drawdown), ``duration_days``, ``max_drawdown``,
+            ``near_recovery_threshold``, ``truncated_at_start``. Stack
+            episodes with ``pd.concat`` or use
+            :meth:`Performance.to_drawdown_details_dataframe`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
     def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
+        """
+        ...
 
 class LookbackReturns:
     """
@@ -1255,16 +1395,28 @@ class LookbackReturns:
         This accessor does not raise; it returns the stored value.
         """
 
-    def to_dataframe(self, ticker_names: list[str]) -> pd.DataFrame:
+    @property
+    def ticker_names(self) -> list[str]:
         """
-        Convert to a pandas DataFrame with ticker names as index.
+        Ticker names aligned with the ``mtd`` / ``qtd`` / ``ytd`` / ``fytd``
+        vectors.
+
+        Returns
+        -------
+        list[str]
+            One label per ticker, in panel column order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Convert to a pandas DataFrame indexed by :attr:`ticker_names`.
 
         Columns: ``mtd``, ``qtd``, ``ytd``, and ``fytd``.
-
-        Parameters
-        ----------
-        ticker_names : list[str]
-            Ticker labels to use as the DataFrame index.
 
         Returns
         -------
@@ -1275,12 +1427,26 @@ class LookbackReturns:
         Raises
         ------
         ValueError
-            If ``ticker_names`` does not contain one label for each ticker in
-            the lookback vectors.
+            If the result cannot be serialized into a pandas object.
         """
         ...
 
     def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
+        """
+        ...
 
 class DatedSeries:
     """
@@ -1399,7 +1565,7 @@ class DatedSeries:
 
     def to_dataframe(self) -> pd.DataFrame:
         """
-        Convert to a pandas DataFrame with date index and a value column.
+        Convert to a pandas DataFrame with a ``DatetimeIndex`` and a value column.
 
         The column is named after :attr:`value_column` (e.g. ``sharpe``,
         ``sortino``, ``volatility``, or ``return``).
@@ -1418,6 +1584,21 @@ class DatedSeries:
         ...
 
     def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, rendered from :meth:`to_dataframe`.
+
+        Returns
+        -------
+        str or None
+            pandas HTML markup, or ``None`` when the frame cannot be built
+            (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise; failures degrade to ``None``.
+        """
+        ...
 
 # Performance engine
 
@@ -1464,7 +1645,9 @@ class Performance:
             Benchmark column name. Defaults to the first column when ``None``.
         frequency : str, optional
             Return aggregation frequency. One of ``"daily"``, ``"weekly"``,
-            ``"monthly"``, ``"quarterly"``, ``"semiannual"``, or ``"annual"``.
+            ``"monthly"``, ``"quarterly"``, ``"semi_annual"``, or ``"annual"``,
+            or a pandas offset alias (``D``/``B``, ``W``, ``M``, ``Q``,
+            ``A``/``Y``). Sets the annualization factor (252, 52, 12, 4, 2, 1).
             Default ``"daily"``.
 
         Raises
@@ -1474,7 +1657,8 @@ class Performance:
             empty.
         TypeError
             If ``prices`` is not a pandas ``DataFrame`` (use
-            :meth:`from_arrays` for raw lists).
+            :meth:`from_arrays` for raw lists), or its column labels are not
+            all ``str`` (rename with ``df.columns = df.columns.astype(str)``).
 
         """
 
@@ -1503,7 +1687,8 @@ class Performance:
             Benchmark ticker name. Defaults to the first column when ``None``.
         frequency : str, optional
             One of ``"daily"``, ``"weekly"``, ``"monthly"``, ``"quarterly"``,
-            ``"semiannual"``, or ``"annual"``. Default ``"daily"``.
+            ``"semi_annual"``, or ``"annual"``, or a pandas offset alias
+            (``D``/``B``, ``W``, ``M``, ``Q``, ``A``/``Y``). Default ``"daily"``.
 
         Returns
         -------
@@ -1531,30 +1716,33 @@ class Performance:
 
     @staticmethod
     def from_returns(
-        returns: pd.DataFrame,
+        returns: pd.DataFrame | pd.Series,
         benchmark_ticker: str | None = None,
         frequency: str = "daily",
     ) -> Performance:
         """
-        Build from a pandas DataFrame of simple returns.
+        Build from a pandas DataFrame (or Series) of simple returns.
 
         Parameters
         ----------
-        returns : pandas.DataFrame
+        returns : pandas.DataFrame or pandas.Series
             Simple-return panel aligned with a date-like index and one column per
-            ticker (decimal returns, e.g. ``0.01`` for +1%).
+            ticker (decimal returns, e.g. ``0.01`` for +1%). A ``Series`` is a
+            single-asset panel whose ticker is the series ``name`` (``"asset"``
+            when unnamed).
         benchmark_ticker : str, optional
             Benchmark column name. Defaults to the first column when ``None``.
         frequency : str, optional
             One of ``"daily"``, ``"weekly"``, ``"monthly"``, ``"quarterly"``,
-            ``"semiannual"``, or ``"annual"``. Default ``"daily"``.
+            ``"semi_annual"``, or ``"annual"``, or a pandas offset alias
+            (``D``/``B``, ``W``, ``M``, ``Q``, ``A``/``Y``). Default ``"daily"``.
 
         Raises
         ------
         AnalyticsError
             If ``returns`` is invalid or empty.
         TypeError
-            If ``returns`` is not a pandas ``DataFrame`` (use
+            If ``returns`` is not a pandas ``DataFrame`` or ``Series`` (use
             :meth:`from_returns_arrays` for raw lists).
 
         Returns
@@ -1598,7 +1786,8 @@ class Performance:
             Benchmark ticker name.
         frequency : str, optional
             One of ``"daily"``, ``"weekly"``, ``"monthly"``, ``"quarterly"``,
-            ``"semiannual"``, or ``"annual"``. Default ``"daily"``.
+            ``"semi_annual"``, or ``"annual"``, or a pandas offset alias
+            (``D``/``B``, ``W``, ``M``, ``Q``, ``A``/``Y``). Default ``"daily"``.
 
         Returns
         -------
@@ -1621,26 +1810,23 @@ class Performance:
 
     # -- Mutators --
 
-    def reset_date_range(self, start: object, end: object) -> None:
+    def reset_date_range(self, start: datetime.date | str, end: datetime.date | str) -> None:
         """
         Restrict analytics to ``[start, end]``.
 
         Parameters
         ----------
-        start : object
-            Start date as an object exposing integer ``year``, ``month``, and
-            ``day`` attributes, such as ``datetime.date`` or ``pd.Timestamp``.
-        end : object
-            End date as an object exposing integer ``year``, ``month``, and
-            ``day`` attributes, such as ``datetime.date`` or ``pd.Timestamp``.
+        start : datetime.date | datetime.datetime | pandas.Timestamp | str
+            Inclusive start date; strings are ISO 8601 (``YYYY-MM-DD``).
+        end : datetime.date | datetime.datetime | pandas.Timestamp | str
+            Inclusive end date, in the same forms as ``start``.
 
         Raises
         ------
         TypeError
-            If ``start`` or ``end`` is not a date-like object exposing integer
-            ``year``, ``month``, and ``day`` attributes.
+            If ``start`` or ``end`` is not a date-like object or string.
         ValueError
-            If either object's components do not form a valid calendar date.
+            If a string is not a valid ISO calendar date.
         """
 
     def reset_bench_ticker(self, ticker: str) -> None:
@@ -1733,14 +1919,15 @@ class Performance:
         This accessor does not raise; it returns the stored or derived value.
         """
 
-    def active_dates_for_ticker(self, ticker_idx: int) -> list[datetime.date]:
+    def active_dates_for_ticker(self, ticker_idx: int | str) -> list[datetime.date]:
         """
         Observation dates for one ticker's active return series.
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
 
         Returns
         -------
@@ -1750,7 +1937,9 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
     # -- Scalar-per-ticker methods --
@@ -1840,7 +2029,9 @@ class Performance:
         Parameters
         ----------
         risk_free_rate : float, default 0.0
-            Annualized risk-free rate as a decimal.
+            Annualized risk-free rate as a decimal (``0.02`` for 2%),
+            geometrically decompounded to the panel frequency before it is
+            subtracted from the per-period mean.
 
         Returns
         -------
@@ -1873,7 +2064,8 @@ class Performance:
         Parameters
         ----------
         mar : float, default 0.0
-            Minimum acceptable return per period (not annualized).
+            Minimum acceptable return **per period** as a decimal (not
+            annualized; e.g. ``0.0002`` for ~5% p.a. on daily data).
 
         Returns
         -------
@@ -1951,17 +2143,18 @@ class Performance:
         Parameters
         ----------
         confidence : float, default 0.95
-            Confidence level (e.g. ``0.95`` for 95% VaR).
+            Confidence level in the open interval ``(0, 1)`` (``0.95`` for
+            95% VaR).
 
         Returns
         -------
         pd.Series
-            Historical VaR (negative), indexed by ticker name.
+            Historical VaR (negative decimal), indexed by ticker name.
 
         Raises
         ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
+        AnalyticsError
+            If ``confidence`` is not strictly inside ``(0, 1)``.
 
         Sources
         -------
@@ -1975,17 +2168,17 @@ class Performance:
         Parameters
         ----------
         confidence : float, default 0.95
-            Confidence level.
+            Confidence level in the open interval ``(0, 1)``.
 
         Returns
         -------
         pd.Series
-            Expected shortfall (negative), indexed by ticker name.
+            Expected shortfall (negative decimal), indexed by ticker name.
 
         Raises
         ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
+        AnalyticsError
+            If ``confidence`` is not strictly inside ``(0, 1)``.
 
         Sources
         -------
@@ -2324,7 +2517,7 @@ class Performance:
         Parameters
         ----------
         confidence : float, default 0.95
-            Confidence level for the tail quantile.
+            Confidence level for the tail quantile, in ``(0, 1)``.
 
         Returns
         -------
@@ -2333,8 +2526,8 @@ class Performance:
 
         Raises
         ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
+        AnalyticsError
+            If ``confidence`` is not strictly inside ``(0, 1)``.
 
         Notes
         -----
@@ -2387,19 +2580,19 @@ class Performance:
         Parameters
         ----------
         confidence : float, default 0.95
-            Tail confidence as a decimal probability.
+            Tail confidence as a decimal probability in ``(0, 1)``.
         horizon_periods : float, optional
             Horizon in observation periods. ``None`` is one period.
 
         Returns
         -------
         pd.Series
-            Parametric VaR (negative), indexed by ticker name.
+            Parametric VaR (negative decimal), indexed by ticker name.
 
         Raises
         ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
+        AnalyticsError
+            If ``confidence`` is not strictly inside ``(0, 1)``.
         """
 
     def cornish_fisher_var(
@@ -2417,19 +2610,19 @@ class Performance:
         Parameters
         ----------
         confidence : float, default 0.95
-            Tail confidence as a decimal probability.
+            Tail confidence as a decimal probability in ``(0, 1)``.
         horizon_periods : float, optional
             Horizon in observation periods. ``None`` is one period.
 
         Returns
         -------
         pd.Series
-            Cornish-Fisher modified VaR (negative), indexed by ticker name.
+            Cornish-Fisher modified VaR (negative decimal), indexed by ticker name.
 
         Raises
         ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
+        AnalyticsError
+            If ``confidence`` is not strictly inside ``(0, 1)``.
 
         Sources
         -------
@@ -2443,17 +2636,17 @@ class Performance:
         Parameters
         ----------
         confidence : float, default 0.95
-            Confidence level.
+            Confidence level in the open interval ``(0, 1)``.
 
         Returns
         -------
         pd.Series
-            Conditional drawdown-at-risk (negative), indexed by ticker name.
+            Conditional drawdown-at-risk (negative decimal), indexed by ticker name.
 
         Raises
         ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
+        AnalyticsError
+            If ``confidence`` is not strictly inside ``(0, 1)``.
 
         Sources
         -------
@@ -2504,7 +2697,7 @@ class Performance:
             Annualized risk-free rate as a decimal, decompounded to the panel
             frequency before constructing annualized excess return.
         confidence : float, default 0.95
-            Confidence level for annual-horizon Cornish-Fisher VaR.
+            Confidence level in ``(0, 1)`` for annual-horizon Cornish-Fisher VaR.
 
         Returns
         -------
@@ -2513,8 +2706,8 @@ class Performance:
 
         Raises
         ------
-        ValueError
-            If the computed values cannot be wrapped as a labelled pandas object.
+        AnalyticsError
+            If ``confidence`` is not strictly inside ``(0, 1)``.
 
         Sources
         -------
@@ -2595,14 +2788,15 @@ class Performance:
         This method does not raise; it returns the stored or derived value.
         """
 
-    def returns_for_ticker(self, ticker_idx: int) -> list[float]:
+    def returns_for_ticker(self, ticker_idx: int | str) -> list[float]:
         """
         Per-period simple returns for a single ticker.
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
 
         Returns
         -------
@@ -2613,7 +2807,9 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
     def cumulative_returns(self) -> list[list[float]]:
@@ -2662,6 +2858,35 @@ class Performance:
         AnalyticsError
             If a pair is degenerate (zero variance or non-finite) or Higham
             repair fails.
+        """
+
+    def correlation_matrix_repaired(self) -> bool:
+        """
+        Whether :meth:`correlation_matrix` had to be Higham-repaired.
+
+        Returns
+        -------
+        bool
+            ``True`` when the raw pairwise estimate failed positive
+            semi-definiteness and was projected to the nearest correlation
+            matrix; ``False`` for a clean estimate.
+
+        Raises
+        ------
+        AnalyticsError
+            If a pair is degenerate or Higham repair fails.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.analytics import Performance
+        >>> perf = Performance.from_returns_arrays(
+        ...     [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)],
+        ...     [[0.01, 0.02, -0.01], [0.02, -0.01, 0.01]],
+        ...     ["A", "B"],
+        ... )
+        >>> perf.correlation_matrix_repaired()
+        False
         """
 
     def cumulative_returns_outperformance(self) -> list[list[float]]:
@@ -2760,7 +2985,7 @@ class Performance:
 
     def rolling_greeks(
         self,
-        ticker_idx: int,
+        ticker_idx: int | str,
         window: int = 63,
         risk_free_rate: float = 0.0,
     ) -> RollingGreeks:
@@ -2769,10 +2994,12 @@ class Performance:
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         window : int, default 63
-            Rolling window size in observations.
+            Rolling window size in observations (must be ``>= 1``; longer
+            than the active series yields an empty result).
         risk_free_rate : float, default 0.0
             Annualized risk-free rate as a decimal.
 
@@ -2784,19 +3011,23 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
-    def rolling_volatility(self, ticker_idx: int, window: int = 63) -> DatedSeries:
+    def rolling_volatility(self, ticker_idx: int | str, window: int = 63) -> DatedSeries:
         """
         Rolling volatility for a specific ticker (column name ``volatility``).
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         window : int, default 63
-            Rolling window size in observations.
+            Rolling window size in observations (must be ``>= 1``; longer
+            than the active series yields an empty result).
 
         Returns
         -------
@@ -2806,19 +3037,23 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
-    def rolling_sortino(self, ticker_idx: int, window: int = 63, mar: float = 0.0) -> DatedSeries:
+    def rolling_sortino(self, ticker_idx: int | str, window: int = 63, mar: float = 0.0) -> DatedSeries:
         """
         Rolling Sortino for a specific ticker (column name ``sortino``).
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         window : int, default 63
-            Rolling window size in observations.
+            Rolling window size in observations (must be ``>= 1``; longer
+            than the active series yields an empty result).
         mar : float, default 0.0
             Minimum acceptable return per period.
 
@@ -2830,12 +3065,14 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
     def rolling_sharpe(
         self,
-        ticker_idx: int,
+        ticker_idx: int | str,
         window: int = 63,
         risk_free_rate: float = 0.0,
     ) -> DatedSeries:
@@ -2844,10 +3081,12 @@ class Performance:
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         window : int, default 63
-            Rolling window size in observations.
+            Rolling window size in observations (must be ``>= 1``; longer
+            than the active series yields an empty result).
         risk_free_rate : float, default 0.0
             Annualized risk-free rate as a decimal.
 
@@ -2859,19 +3098,23 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
-    def rolling_returns(self, ticker_idx: int, window: int) -> DatedSeries:
+    def rolling_returns(self, ticker_idx: int | str, window: int) -> DatedSeries:
         """
         Rolling N-period compounded total return (column name ``return``).
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         window : int
-            Rolling window size in observations.
+            Rolling window size in observations (must be ``>= 1``; longer
+            than the active series yields an empty result).
 
         Returns
         -------
@@ -2881,17 +3124,20 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
-    def drawdown_details(self, ticker_idx: int, n: int = 5) -> list[DrawdownEpisode]:
+    def drawdown_details(self, ticker_idx: int | str, n: int = 5) -> list[DrawdownEpisode]:
         """
         Top-N drawdown episodes for a specific ticker.
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         n : int, default 5
             Number of largest drawdown episodes to return.
 
@@ -2903,12 +3149,14 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
 
     def multi_factor_greeks(
         self,
-        ticker_idx: int,
+        ticker_idx: int | str,
         factor_returns: list[list[float]],
         return_kind: str = "excess",
         risk_free_rate: float = 0.0,
@@ -2923,8 +3171,9 @@ class Performance:
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         factor_returns : list[list[float]]
             Already-excess factor return matrix; ``factor_returns[i]`` is the
             return series for factor ``i``.
@@ -2988,7 +3237,7 @@ class Performance:
 
     def period_stats(
         self,
-        ticker_idx: int,
+        ticker_idx: int | str,
         aggregation_frequency: str = "monthly",
         fiscal_year_start_month: int | None = None,
         fiscal_year_start_day: int | None = None,
@@ -2998,11 +3247,13 @@ class Performance:
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         aggregation_frequency : str, default "monthly"
             Aggregation frequency (``"daily"``, ``"weekly"``, ``"monthly"``,
-            ``"quarterly"``, ``"annual"``).
+            ``"quarterly"``, ``"semi_annual"``, ``"annual"`` or a pandas
+            offset alias).
         fiscal_year_start_month : int, optional
             Fiscal year start month in ``1..=12``.
         fiscal_year_start_day : int, optional
@@ -3031,8 +3282,9 @@ class Performance:
         ----------
         frequency : str, default "monthly"
             Calendar-bucketing frequency: one of ``"daily"``, ``"weekly"``,
-            ``"monthly"``, ``"quarterly"``, ``"semiannual"``, or
-            ``"annual"``.
+            ``"monthly"``, ``"quarterly"``, ``"semi_annual"``, or
+            ``"annual"`` (pandas offset aliases ``D``/``B``, ``W``, ``M``,
+            ``Q``, ``A``/``Y`` are accepted too).
 
         Returns
         -------
@@ -3100,20 +3352,31 @@ class Performance:
         Parameters
         ----------
         risk_free_rate : float, default 0.0
-            Annualized risk-free rate as a decimal.
+            Annualized risk-free rate as a decimal (``0.02`` for 2%), used
+            only by the ``sharpe`` column.
         confidence : float, default 0.95
-            Confidence level for VaR, ES, and tail ratio.
+            Confidence level in ``(0, 1)`` for VaR, ES, and tail ratio.
 
         Returns
         -------
         pd.DataFrame
-            Summary statistics indexed by ticker name.
+            Summary statistics indexed by ticker name. Units: ``cagr``,
+            ``mean_return``, ``volatility``, ``geometric_mean``,
+            ``downside_deviation`` are annualized decimals (``mean_return``
+            and ``volatility`` annualized; ``geometric_mean`` per period);
+            ``max_drawdown``, ``value_at_risk``, ``expected_shortfall``,
+            ``pain_index``, ``ulcer_index`` are non-positive/positive decimal
+            fractions of wealth; ``sharpe``, ``sortino``, ``calmar``,
+            ``information_ratio``, ``omega_ratio``, ``gain_to_pain``,
+            ``recovery_factor``, ``tail_ratio`` are dimensionless ratios;
+            ``skewness``, ``kurtosis`` (excess), ``r_squared`` are
+            dimensionless.
 
         Raises
         ------
         AnalyticsError
-            If a ticker's active range has no positive holding period and
-            therefore cannot be annualized.
+            If ``confidence`` is outside ``(0, 1)`` or a ticker's active range
+            has no positive holding period and therefore cannot be annualized.
         """
         ...
 
@@ -3160,7 +3423,9 @@ class Performance:
         ----------
         frequency : str, default "monthly"
             Bucketing frequency: one of ``"daily"``, ``"weekly"``,
-            ``"monthly"``, ``"quarterly"``, ``"semiannual"``, ``"annual"``.
+            ``"monthly"``, ``"quarterly"``, ``"semi_annual"``, ``"annual"``
+            or a pandas offset alias (``D``/``B``, ``W``, ``M``, ``Q``,
+            ``A``/``Y``).
 
         Returns
         -------
@@ -3199,7 +3464,9 @@ class Performance:
         Returns
         -------
         pd.DataFrame
-            Symmetric correlation matrix with ticker names on both axes.
+            Symmetric correlation matrix with ticker names on both axes;
+            ``df.attrs["repaired"]`` is ``True`` when the estimate was
+            Higham-repaired (see :meth:`correlation_matrix_repaired`).
 
         Raises
         ------
@@ -3210,19 +3477,21 @@ class Performance:
 
     def to_drawdown_details_dataframe(
         self,
-        ticker_idx: int,
+        ticker_idx: int | str,
         n: int = 5,
     ) -> pd.DataFrame:
         """
         Top-N drawdown episodes for a ticker as a pandas DataFrame.
 
-        Columns: ``start``, ``valley``, ``end``, ``duration_days``,
-        ``max_drawdown``, ``near_recovery_threshold``, ``truncated_at_start``.
+        Columns: ``start``, ``valley``, ``end`` (``datetime64``; ``NaT``
+        while still in drawdown), ``duration_days``, ``max_drawdown``,
+        ``near_recovery_threshold``, ``truncated_at_start``.
 
         Parameters
         ----------
-        ticker_idx : int
-            Zero-based ticker column index.
+        ticker_idx : int or str
+            Zero-based ticker column index, or a ticker name resolved through
+            Rust ``Performance::ticker_index``.
         n : int, default 5
             Number of largest drawdown episodes to return.
 
@@ -3234,7 +3503,9 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If ``ticker_idx`` is outside the loaded ticker columns.
+            If an integer ``ticker_idx`` is outside the loaded ticker columns.
+        KeyError
+            If a string ``ticker_idx`` is not a loaded ticker name.
         """
         ...
 
@@ -3272,6 +3543,284 @@ class Performance:
             *fiscal_year_start_day* is not in ``1..=31``.
         """
         ...
+
+    def to_beta_dataframe(self) -> pd.DataFrame:
+        """
+        Beta regression statistics for every ticker vs the benchmark.
+
+        Returns
+        -------
+        pd.DataFrame
+            Indexed by ticker with columns ``beta``, ``std_err``,
+            ``ci_lower``, ``ci_upper`` (95% bounds). Non-finite estimates from
+            a degenerate regression arrive as ``None``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.analytics import Performance
+        >>> perf = Performance.from_returns_arrays(
+        ...     [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)],
+        ...     [[0.01, 0.02, -0.01, 0.005], [0.02, -0.01, 0.01, 0.0]],
+        ...     ["FUND", "BENCH"],
+        ...     benchmark_ticker="BENCH",
+        ... )
+        >>> list(perf.to_beta_dataframe().columns)
+        ['beta', 'std_err', 'ci_lower', 'ci_upper']
+        """
+        ...
+
+    def to_greeks_dataframe(self, risk_free_rate: float = 0.0) -> pd.DataFrame:
+        """
+        Single-index greeks for every ticker vs the benchmark.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annualized decimal risk-free rate used for Jensen alpha.
+
+        Returns
+        -------
+        pd.DataFrame
+            Indexed by ticker with columns ``alpha`` (annualized Jensen
+            alpha), ``beta``, ``r_squared``, ``adjusted_r_squared``.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+        """
+        ...
+
+    def to_excess_returns_dataframe(
+        self,
+        rf: float | pd.Series | Sequence[float],
+        nperiods: float | None = None,
+    ) -> pd.DataFrame:
+        """
+        Excess returns over a risk-free rate, one column per ticker.
+
+        Parameters
+        ----------
+        rf : float or pandas.Series or sequence of float
+            Annualized decimal risk-free rate. A scalar is broadcast to every
+            active panel date; a Series/sequence must already be aligned to
+            :meth:`active_dates` (one value per date).
+        nperiods : float, optional
+            ``None`` geometrically decompounds the annual rate using the panel
+            frequency; pass ``1.0`` when ``rf`` is already per-period.
+
+        Returns
+        -------
+        pd.DataFrame
+            Excess simple returns with a ``DatetimeIndex`` and one column per
+            ticker; ragged series are padded with ``NaN``.
+
+        Raises
+        ------
+        AnalyticsError
+            If ``rf`` does not have one value per active date.
+        TypeError
+            If ``rf`` is neither a number nor a float sequence / Series.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize the full engine state to compact JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON (dates, returns, spans, ticker names, benchmark,
+            frequency, active window) accepted by :meth:`from_json`; also the
+            pickle payload.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> Performance:
+        """
+        Rebuild an engine from :meth:`to_json` output.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        Performance
+            Engine with identical state, including the active date window.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` does not match the engine schema.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> from finstack_quant.analytics import Performance
+        >>> perf = Performance.from_returns_arrays([date(2024, 1, 1), date(2024, 1, 2)], [[0.01, 0.02]], ["FUND"])
+        >>> Performance.from_json(perf.to_json()).ticker_names
+        ['FUND']
+        """
+        ...
+
+def sharpe(
+    returns: Sequence[float] | npt.NDArray[np.float64] | pd.Series,
+    rf: float = 0.0,
+    periods_per_year: float = 252,
+) -> float:
+    """
+    Sharpe ratio of one return series.
+
+    Annualized excess arithmetic mean over annualized sample volatility — the
+    same kernel as :meth:`Performance.sharpe`, without building a panel.
+
+    Parameters
+    ----------
+    returns : sequence of float, numpy.ndarray, or pandas.Series
+        Per-period simple decimal returns (``0.01`` is +1%) in date order.
+    rf : float, default 0.0
+        Annualized risk-free rate as a decimal (``0.02`` for 2%),
+        geometrically decompounded to the observation frequency.
+    periods_per_year : float, default 252
+        Observations per year used to annualize (252 daily, 52 weekly,
+        12 monthly).
+
+    Returns
+    -------
+    float
+        Sharpe ratio; ``inf`` / ``-inf`` when volatility is zero with a
+        non-zero excess return, ``nan`` when ``periods_per_year`` is not
+        positive.
+
+    Raises
+    ------
+    TypeError
+        If ``returns`` is not a float sequence, NumPy array, or Series.
+
+    Examples
+    --------
+    >>> from finstack_quant.analytics import sharpe
+    >>> round(sharpe([0.01, -0.02, 0.015, 0.003], 0.0, 252), 4)
+    2.0522
+    """
+    ...
+
+def sortino(
+    returns: Sequence[float] | npt.NDArray[np.float64] | pd.Series,
+    mar: float = 0.0,
+    periods_per_year: float = 252,
+) -> float:
+    """
+    Annualized Sortino ratio of one return series.
+
+    Parameters
+    ----------
+    returns : sequence of float, numpy.ndarray, or pandas.Series
+        Per-period simple decimal returns in date order.
+    mar : float, default 0.0
+        Minimum acceptable return **per period** as a decimal (not
+        annualized), matching :meth:`Performance.sortino`.
+    periods_per_year : float, default 252
+        Observations per year used to annualize.
+
+    Returns
+    -------
+    float
+        Sortino ratio; ``±inf`` when there is no downside deviation but a
+        non-zero excess mean, ``nan`` for an invalid ``periods_per_year``.
+
+    Raises
+    ------
+    TypeError
+        If ``returns`` is not a float sequence, NumPy array, or Series.
+
+    Examples
+    --------
+    >>> from finstack_quant.analytics import sortino
+    >>> sortino([0.01, -0.02, 0.015, 0.003]) > 0
+    True
+    """
+    ...
+
+def volatility(
+    returns: Sequence[float] | npt.NDArray[np.float64] | pd.Series,
+    periods_per_year: float = 252,
+) -> float:
+    """
+    Annualized sample volatility (n−1 denominator) of one return series.
+
+    Parameters
+    ----------
+    returns : sequence of float, numpy.ndarray, or pandas.Series
+        Per-period simple decimal returns in date order.
+    periods_per_year : float, default 252
+        Observations per year; the per-period standard deviation is scaled
+        by its square root.
+
+    Returns
+    -------
+    float
+        Annualized volatility as a decimal (``0.15`` is 15%); ``0.0`` for an
+        empty input, ``nan`` for an invalid ``periods_per_year``.
+
+    Raises
+    ------
+    TypeError
+        If ``returns`` is not a float sequence, NumPy array, or Series.
+
+    Examples
+    --------
+    >>> from finstack_quant.analytics import volatility
+    >>> round(volatility([0.01, -0.01, 0.01, -0.01], 252), 4)
+    0.1833
+    """
+    ...
+
+def max_drawdown(
+    returns: Sequence[float] | npt.NDArray[np.float64] | pd.Series,
+) -> float:
+    """
+    Maximum peak-to-trough drawdown of one return series.
+
+    Parameters
+    ----------
+    returns : sequence of float, numpy.ndarray, or pandas.Series
+        Per-period simple decimal returns in date order; they are compounded
+        into a wealth path before the running-peak decline is measured.
+
+    Returns
+    -------
+    float
+        Non-positive fraction (``-0.25`` is a 25% loss); ``0.0`` when the
+        series never falls below its running peak or is empty.
+
+    Raises
+    ------
+    TypeError
+        If ``returns`` is not a float sequence, NumPy array, or Series.
+
+    Examples
+    --------
+    >>> from finstack_quant.analytics import max_drawdown
+    >>> round(max_drawdown([0.10, -0.20, 0.05]), 4)
+    -0.2
+    """
+    ...
 
 def constrained_least_squares(
     exposures: list[float],

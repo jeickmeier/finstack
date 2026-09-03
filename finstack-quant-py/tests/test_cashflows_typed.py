@@ -844,13 +844,16 @@ class TestCashFlowSchedule:
         )
         # Zero rate: PV == nominal sum per period. 2025Q2 holds the 90-day coupon.
         assert pv["2025Q2"]["USD"].amount == pytest.approx(12_500.0, abs=1e-6)
+        assert list(pv.to_dataframe().columns) == ["period", "currency", "amount"]
 
     def test_to_dataframe(self) -> None:
         pd = pytest.importorskip("pandas")
 
         schedule = self._bond()
         df = schedule.to_dataframe()
-        assert list(df.columns) == ["date", "kind", "amount", "currency"]
+        assert list(df.columns) == ["date", "reset_date", "kind", "amount", "currency", "accrual_factor", "rate"]
+        assert str(df["date"].dtype).startswith("datetime64")
+        assert "outstanding" in schedule.to_dataframe(outstanding=True).columns
         assert len(df) == 6
         assert set(df["kind"]) == {"fixed", "notional"}
         assert set(df["currency"]) == {"USD"}
@@ -906,13 +909,14 @@ class TestAccrual:
         # Hand-computed: coupon 25,000 per period; 30/360 elapsed 90/360 = 0.25 of a
         # 0.5-year period -> 25,000 * 0.5 = 12,500.00 exactly (see plan Task 5).
         accrued = accrued_interest_amount(schedule, dt.date(2025, 4, 15))
-        assert accrued == pytest.approx(12_500.0, abs=1e-6)
+        assert accrued.currency.code == "USD"
+        assert accrued.amount == pytest.approx(12_500.0, abs=1e-6)
 
     def test_accrued_zero_outside_periods(self) -> None:
         from finstack_quant.cashflows.accrual import accrued_interest_amount
 
         schedule = self._semiannual_bond()
-        assert accrued_interest_amount(schedule, dt.date(2024, 12, 31)) == pytest.approx(0.0)
+        assert accrued_interest_amount(schedule, dt.date(2024, 12, 31)).amount == pytest.approx(0.0)
 
     def test_accrual_method_is_hashable(self) -> None:
         from finstack_quant.cashflows.accrual import AccrualMethod
@@ -933,7 +937,9 @@ class TestAccrual:
         cfg = AccrualConfig(method=AccrualMethod.LINEAR)
         index = AccrualIndex.build(schedule, cfg)
         for as_of in (dt.date(2025, 2, 1), dt.date(2025, 4, 15), dt.date(2025, 9, 1)):
-            assert index.accrued_at(as_of) == pytest.approx(accrued_interest_amount(schedule, as_of, cfg), abs=1e-12)
+            assert index.accrued_at(as_of).amount == pytest.approx(
+                accrued_interest_amount(schedule, as_of, cfg).amount, abs=1e-12
+            )
 
     def test_accrual_index_build_keyword_args(self) -> None:
         """Regression test: AccrualIndex.build accepts 'schedule=' keyword argument.
@@ -953,7 +959,7 @@ class TestAccrual:
 
         # Both forms produce equivalent results
         as_of = dt.date(2025, 4, 15)
-        assert index_kw.accrued_at(as_of) == pytest.approx(index_pos.accrued_at(as_of))
+        assert index_kw.accrued_at(as_of).amount == pytest.approx(index_pos.accrued_at(as_of).amount)
 
     def test_ex_coupon_rule(self) -> None:
         from finstack_quant.cashflows.accrual import ExCouponRule
@@ -1003,6 +1009,10 @@ class TestAggregation:
         assert out["2025Q3"]["EUR"].amount == pytest.approx(25.0)
         # Periods with no flows are omitted.
         assert "2025Q2" not in out
+        assert out.periods == ["2025Q1", "2025Q3"]
+        frame = out.to_dataframe()
+        assert list(frame.columns) == ["period", "currency", "amount"]
+        assert len(frame) == 3
 
     def test_calendar_year_ladder(self) -> None:
         from finstack_quant.cashflows.aggregation import calendar_year_ladder
@@ -1076,8 +1086,9 @@ class TestTypedJsonEquivalence:
         schedule = TestAccrual._semiannual_bond()
         typed = accrued_interest_amount(schedule, dt.date(2025, 4, 15))
         via_json = accrued_interest(schedule.to_json(), "2025-04-15")
-        assert typed == pytest.approx(via_json, abs=1e-9)
-        assert typed == pytest.approx(12_500.0, abs=1e-6)
+        assert typed.amount == pytest.approx(via_json, abs=1e-9)
+        assert typed.currency.code == "USD"
+        assert typed.amount == pytest.approx(12_500.0, abs=1e-6)
 
     def test_typed_flows_match_dated_flows_json(self) -> None:
         import json
@@ -1089,3 +1100,201 @@ class TestTypedJsonEquivalence:
         bridge_rows = json.loads(dated_flows_json(schedule.to_json()))
         typed_cash = [f for f in schedule.get_flows() if is_cash_settlement_kind(f.kind)]
         assert len(bridge_rows) == len(typed_cash)
+
+
+class TestTypedTwinsAndWire:
+    """Typed twins, spec wire round-trips, presets and DataFrame exits added by the parity remediation."""
+
+    def _schedule(self) -> object:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+
+        return (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
+            .build(None)
+        )
+
+    def test_build_cashflow_schedule_typed_matches_json(self) -> None:
+        import json
+
+        from finstack_quant.cashflows import build_cashflow_schedule, build_cashflow_schedule_json, dated_flows
+
+        spec = {
+            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "none"},
+            "issue": "2025-01-15",
+            "maturity": "2026-01-15",
+            "coupon_program": [
+                {
+                    "kind": "fixed",
+                    "spec": {
+                        "rate": "0.05",
+                        "frequency": {"count": 6, "unit": "months"},
+                        "day_count": "30_360",
+                        "calendar_id": "weekends_only",
+                    },
+                }
+            ],
+        }
+        typed = build_cashflow_schedule(spec)
+        via_json = json.loads(build_cashflow_schedule_json(json.dumps(spec)))
+        assert len(typed.get_flows()) == len(via_json["flows"])
+        flows = dated_flows(typed)
+        assert flows
+        assert isinstance(flows[0][1], Money)
+        assert dated_flows(typed.to_json()) == flows
+
+    def test_schedule_from_flows_and_meta(self) -> None:
+        import pickle
+
+        from finstack_quant.cashflows import (
+            ScheduleBuildOpts,
+            schedule_from_classified_flows,
+            schedule_from_dated_flows,
+        )
+        from finstack_quant.cashflows.builder import CashFlowMeta, CashFlowSchedule, Notional
+        from finstack_quant.cashflows.primitives import CashFlow, CFKind
+        from finstack_quant.core.dates import DayCount
+
+        dated = [(dt.date(2025, 6, 15), Money(100.0, "USD"))]
+        s1 = schedule_from_dated_flows(dated, "fixed", DayCount.ACT_360)
+        assert s1.get_flows()[0].kind == CFKind.FIXED
+        flow = CashFlow(dt.date(2025, 6, 15), Money(100.0, "USD"), CFKind.PIK)
+        opts = ScheduleBuildOpts(notional_hint=Money(500.0, "USD"), meta=CashFlowMeta("projected"))
+        s2 = schedule_from_classified_flows([flow], DayCount.ACT_360, opts)
+        assert s2.get_notional().initial.amount == pytest.approx(500.0)
+        assert s2.get_meta().representation == "projected"
+        assert s2.with_representation("placeholder").get_meta().representation == "placeholder"
+        s3 = CashFlowSchedule.from_flows([flow], Notional.par(1.0, "USD"), DayCount.ACT_360)
+        assert pickle.loads(pickle.dumps(s3.get_meta())).representation == "contractual"  # noqa: S301 - trusted in-process round trip
+        s4 = CashFlowSchedule.from_parts([flow], Notional.par(1.0, "USD"), DayCount.ACT_360, CashFlowMeta())
+        assert s4.get_flows()[0].amount.amount == 100.0
+
+    def test_from_flows_accepts_dataframe(self) -> None:
+        pd = pytest.importorskip("pandas")
+        from finstack_quant.cashflows.builder import CashFlowSchedule, Notional
+        from finstack_quant.core.dates import DayCount
+
+        original = self._schedule()
+        frame = original.to_dataframe()
+        rebuilt = CashFlowSchedule.from_flows(frame, original.get_notional(), original.get_day_count())
+        assert [f.amount.amount for f in rebuilt.get_flows()] == pytest.approx([
+            f.amount.amount for f in original.get_flows()
+        ])
+        assert isinstance(frame, pd.DataFrame)
+        with pytest.raises(ValueError, match="missing required column"):
+            CashFlowSchedule.from_flows(frame.drop(columns=["kind"]), Notional.par(1.0, "USD"), DayCount.ACT_360)
+
+    def test_calendar_year_ladder_dataframe(self) -> None:
+        pytest.importorskip("pandas")
+        schedule = self._schedule()
+        pvs = [f.amount.amount for f in schedule.get_flows()]
+        ladder = schedule.calendar_year_ladder(pvs)
+        assert list(ladder.columns) == ["year", "non_principal", "principal", "pv"]
+        assert ladder["pv"].sum() == pytest.approx(sum(pvs))
+        with pytest.raises(ValueError, match="equal lengths"):
+            schedule.calendar_year_ladder(pvs[:-1])
+
+    def test_spec_wire_round_trips_and_pickle(self) -> None:
+        from decimal import Decimal
+        import pickle
+
+        from finstack_quant.cashflows.builder import (
+            AmortizationSpec,
+            FeeBase,
+            FeeSpec,
+            FixedCouponSpec,
+            FloatingCouponSpec,
+            FloatingRateSpec,
+            Notional,
+            PrepaymentModelSpec,
+            RecoveryModelSpec,
+            ScheduleParams,
+            StepUpCouponSpec,
+        )
+        from finstack_quant.core.dates import DayCount
+
+        params = ScheduleParams("3M", DayCount.ACT_360, "weekends_only")
+        assert params.business_day_convention is not None
+        assert params.stub is not None
+        assert params.roll_rule is not None
+        specs = [
+            params,
+            FixedCouponSpec(Decimal("0.05"), params),
+            FloatingRateSpec.sofr(50),
+            FloatingCouponSpec(FloatingRateSpec.euribor_3m("100"), params),
+            StepUpCouponSpec(0.05, [(dt.date(2026, 1, 15), 0.06)], params),
+            AmortizationSpec.linear_to(Money(0.0, "USD")),
+            Notional.par(1.0, "USD"),
+            FeeBase.undrawn(Money(10.0, "USD")),
+            FeeSpec.periodic_bp(FeeBase.DRAWN, 25, "3M", DayCount.ACT_360, "weekends_only"),
+            PrepaymentModelSpec.psa_100(),
+            RecoveryModelSpec(0.4, 12),
+        ]
+        for spec in specs:
+            restored = type(spec).from_json(spec.to_json())
+            assert restored.to_json() == spec.to_json()
+            assert pickle.loads(pickle.dumps(spec)).to_json() == spec.to_json()  # noqa: S301 - trusted in-process round trip
+            assert "Debug" not in repr(spec)
+
+    def test_presets_and_getters(self) -> None:
+        from finstack_quant.cashflows.builder import (
+            FeeBase,
+            FeeSpec,
+            FloatingRateSpec,
+            Notional,
+            OvernightCompoundingMethod,
+        )
+        from finstack_quant.core.dates import DayCount
+
+        sofr = FloatingRateSpec.sofr(50)
+        assert sofr.index_id == "USD-SOFR"
+        assert sofr.overnight_compounding == OvernightCompoundingMethod.COMPOUNDED_IN_ARREARS
+        assert sofr.overnight_basis == DayCount.ACT_360
+        assert sofr.reset_lag_days == 0
+        assert FloatingRateSpec.sonia(10).index_id == "GBP-SONIA"
+        assert FloatingRateSpec.euribor_3m(10).index_tenor is not None
+        assert sofr.fallback is not None
+        assert sofr.gearing_includes_spread is True
+        assert Notional.par(5.0, "USD").amort.kind == "none"
+        fee = FeeSpec.periodic_bp(FeeBase.DRAWN, 25, "3M", DayCount.ACT_360, "weekends_only")
+        assert fee.kind == "periodic_bp"
+        assert fee.business_day_convention is not None
+        assert fee.stub is not None
+        assert fee.date is None
+        assert FeeBase.DRAWN.kind == "drawn"
+
+    def test_schedule_params_validation_and_str_decimals(self) -> None:
+        from finstack_quant.cashflows.builder import FixedCouponSpec, ScheduleParams
+        from finstack_quant.core.dates import DayCount
+
+        with pytest.raises(ValueError, match="unknown calendar_id"):
+            ScheduleParams("3M", DayCount.ACT_360, "not-a-calendar")
+        with pytest.raises(ValueError, match="payment_lag_days"):
+            ScheduleParams("3M", DayCount.ACT_360, "weekends_only", payment_lag_days=-1)
+        params = ScheduleParams("3M", DayCount.ACT_360, "weekends_only")
+        assert str(FixedCouponSpec("0.05", params).rate) == "0.05"
+
+    def test_credit_rate_error_text(self) -> None:
+        from finstack_quant.cashflows import cpr_to_smm
+
+        with pytest.raises(ValueError, match=r"must be a decimal in \[0,1\]"):
+            cpr_to_smm(-0.05)
+
+    def test_period_aggregation_wire(self) -> None:
+        import pickle
+
+        from finstack_quant.cashflows.aggregation import PeriodAggregation, aggregate_by_period
+        from finstack_quant.core.dates import build_periods
+
+        agg = aggregate_by_period([(dt.date(2025, 3, 15), Money(100.0, "USD"))], build_periods("2025Q1..Q4").periods)
+        assert isinstance(agg, PeriodAggregation)
+        assert agg.get("2025Q1", "USD").amount == pytest.approx(100.0)
+        assert agg.get("2025Q1", "EUR") is None
+        assert len(agg) == 1
+        restored = pickle.loads(pickle.dumps(agg))  # noqa: S301 - trusted in-process round trip
+        assert restored.to_json() == agg.to_json()
+        assert agg.to_dict()["2025Q1"]["USD"].amount == pytest.approx(100.0)

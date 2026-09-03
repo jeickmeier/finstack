@@ -675,6 +675,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn builder_names_missing_required_field_and_builder() {
+        // Failure mode: a bare "Invalid input data" told the caller neither
+        // which builder nor which field was missing.
+        let example = InterestRateSwap::example_standard().expect("example swap");
+        let err = InterestRateSwap::builder()
+            .id(InstrumentId::new("IRS-MISSING-FLOAT"))
+            .notional(example.notional)
+            .side(PayReceive::Pay)
+            .fixed(example.fixed.clone())
+            .build()
+            .expect_err("missing float leg must fail");
+        let message = err.to_string();
+        assert!(
+            message.contains("InterestRateSwapBuilder") && message.contains("'float'"),
+            "error must name builder and field: {message}"
+        );
+
+        let err = InterestRateSwap::builder()
+            .notional(example.notional)
+            .build()
+            .expect_err("missing id must fail");
+        assert!(
+            err.to_string().contains("'id'"),
+            "first missing field is named: {err}"
+        );
+    }
+
+    #[test]
     fn validate_accepts_extreme_but_valid_rate() {
         // Decimal doesn't have NaN/Infinity, so we just test that validation works
         // for extreme but valid values

@@ -123,7 +123,8 @@ fn test_credit_index_recovery_rate_above_one_fails() {
         .build()
         .expect_err("recovery rate > 1.0 should fail");
 
-    assert!(matches!(err, finstack_quant_core::Error::Input(_)));
+    assert!(matches!(err, finstack_quant_core::Error::Validation(_)));
+    assert!(err.to_string().contains("recovery_rate"), "{err}");
 }
 
 #[test]

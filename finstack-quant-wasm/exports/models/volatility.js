@@ -5,6 +5,8 @@ export const volatility = {
   SabrModel: wasm.SabrModel,
   SabrParameters: wasm.SabrParameters,
   SabrSmile: wasm.SabrSmile,
+  calibrateSvi: wasm.calibrateSvi,
+  convertAtmVolatility: wasm.convertAtmVolatility,
   deltaToStrike: wasm.deltaToStrike,
   getCubeNormalVol: wasm.getCubeNormalVol,
   getCubeNormalVolClamped: wasm.getCubeNormalVolClamped,
@@ -13,4 +15,5 @@ export const volatility = {
   getFxDeltaPillarVols: wasm.getFxDeltaPillarVols,
   getFxDeltaVol: wasm.getFxDeltaVol,
   strikeToDelta: wasm.strikeToDelta,
+  sviImpliedVol: wasm.sviImpliedVol,
 };

@@ -45,6 +45,17 @@ pub(crate) enum CalibrationQuote {
 }
 
 impl CalibrationQuote {
+    /// Identifier of the underlying market quote as supplied in the envelope.
+    pub(crate) fn quote_id(&self) -> &str {
+        match self {
+            CalibrationQuote::Rates(q) => q.quote.id().as_str(),
+            CalibrationQuote::Cds(q) => q.quote.id().as_str(),
+            CalibrationQuote::CDSTranche(q) => q.prepared.quote.id.as_str(),
+            CalibrationQuote::Inflation(q) => q.quote.id().as_str(),
+            CalibrationQuote::XccyBasis(q) => q.quote.id().as_str(),
+        }
+    }
+
     /// Get reference to the underlying instrument.
     pub(crate) fn get_instrument(&self) -> &dyn Instrument {
         match self {

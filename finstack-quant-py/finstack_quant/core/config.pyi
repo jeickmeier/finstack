@@ -15,7 +15,9 @@ True
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
+
+from finstack_quant.core.currency import Currency
 
 __all__ = [
     "RoundingMode",
@@ -51,23 +53,24 @@ class RoundingMode:
     @classmethod
     def from_name(cls, name: str) -> RoundingMode:
         """
-        Parse a rounding mode from its exact canonical lowercase label.
+        Parse a rounding mode from its exact lowercase label (case-sensitive).
 
         Parameters
         ----------
         name : str
-            Label such as ``"bankers"``, ``"away_from_zero"``, ``"floor"``.
+            One of ``"bankers"``, ``"away_from_zero"``, ``"toward_zero"``,
+            ``"floor"``, ``"ceil"``. ``"BANKERS"`` is rejected.
 
         Returns
         -------
         RoundingMode
-
             Rounding policy matching the exact canonical lowercase name,
             including its documented tie-breaking convention.
+
         Raises
         ------
         ValueError
-            If *name* is not recognised.
+            If *name* is not one of the exact lowercase labels.
 
         Examples
         --------
@@ -77,6 +80,67 @@ class RoundingMode:
         """
         ...
 
+    @classmethod
+    def from_json(cls, json: str) -> RoundingMode:
+        """
+        Deserialize from JSON (a quoted lowercase name such as ``"floor"``).
+
+        Parameters
+        ----------
+        json : str
+            JSON string literal.
+
+        Returns
+        -------
+        RoundingMode
+            Parsed mode.
+
+        Raises
+        ------
+        ValueError
+            If *json* is not a recognised mode name.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.config import RoundingMode
+        >>> RoundingMode.from_json('"floor"') == RoundingMode.FLOOR
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON (the quoted lowercase name).
+
+        Returns
+        -------
+        str
+            JSON string literal such as ``'"bankers"'``.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails (cannot happen for a valid mode).
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Canonical lowercase name, e.g. ``"bankers"``.
+
+        Returns
+        -------
+        str
+            The serde label.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def __reduce__(self) -> tuple[object, tuple[str]]: ...
     def __repr__(self) -> str:
         """Return a debug representation of this rounding mode.
 
@@ -197,18 +261,81 @@ class ToleranceConfig:
         str
         """
         ...
+    def __eq__(self, other: object) -> bool:
+        """Return whether both epsilons are equal.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON ``{"rate_epsilon": ..., "generic_epsilon": ...}``.
+
+        Returns
+        -------
+        str
+            JSON object text.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails (cannot happen for a valid config).
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> ToleranceConfig:
+        """
+        Deserialize from JSON; the epsilons are re-validated.
+
+        Parameters
+        ----------
+        json : str
+            JSON object text.
+
+        Returns
+        -------
+        ToleranceConfig
+            Parsed tolerances.
+
+        Raises
+        ------
+        ValueError
+            If *json* is malformed or an epsilon is non-finite or not
+            strictly positive.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.config import ToleranceConfig
+        >>> t = ToleranceConfig(rate_epsilon=1e-9)
+        >>> ToleranceConfig.from_json(t.to_json()) == t
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[object, tuple[str]]: ...
 
 class FinstackConfig:
     """
-    Top-level library configuration combining rounding and tolerances.
+    Top-level library configuration: rounding policy, per-currency scale
+    overrides, comparison tolerances and versioned extensions.
 
     Parameters
     ----------
-    rounding_mode : RoundingMode | None
-        Rounding mode override. If ``None``, the library default is used.
+    rounding_mode : RoundingMode | str | None
+        Rounding mode override (object or exact lowercase name). If ``None``,
+        the library default (bankers) is used.
     tolerances : ToleranceConfig | None
         Tolerance configuration override. If ``None``, the library default
         is used.
+
+    Raises
+    ------
+    ValueError
+        If *rounding_mode* is a string that is not a recognised mode name.
 
     Examples
     --------
@@ -223,12 +350,16 @@ class FinstackConfig:
     (True, None)
     >>> FinstackConfig.from_json(config.to_json()).output_scale("USD")
     2
+    >>> cfg = FinstackConfig(rounding_mode="floor")
+    >>> cfg.set_output_scale("JPY", 2)
+    >>> (cfg.rounding_mode.name, cfg.output_scale("JPY"), cfg.output_scale_overrides())
+    ('floor', 2, {'JPY': 2})
 
     """
 
     def __init__(
         self,
-        rounding_mode: Optional[RoundingMode] = None,
+        rounding_mode: Union[RoundingMode, str, None] = None,
         tolerances: Optional[ToleranceConfig] = None,
     ) -> None:
         """
@@ -236,30 +367,66 @@ class FinstackConfig:
 
         Parameters
         ----------
-        rounding_mode : RoundingMode | None
-            Rounding mode.
+        rounding_mode : RoundingMode | str | None
+            Rounding mode object or its exact lowercase name.
         tolerances : ToleranceConfig | None
             Tolerance configuration.
 
-        Notes
-        -----
-        Construction does not raise; arguments are stored as supplied.
+        Raises
+        ------
+        ValueError
+            If *rounding_mode* is an unrecognised name.
+        TypeError
+            If *rounding_mode* is neither a ``RoundingMode`` nor a ``str``.
         """
         ...
 
-    def output_scale(self, currency: str) -> int:
+    @property
+    def rounding_mode(self) -> RoundingMode:
+        """
+        Active rounding mode.
+
+        Returns
+        -------
+        RoundingMode
+            The configured mode (bankers by default).
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def tolerances(self) -> ToleranceConfig:
+        """
+        Comparison tolerances.
+
+        Returns
+        -------
+        ToleranceConfig
+            The configured tolerances.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def output_scale(self, currency: Union[Currency, str]) -> int:
         """
         Effective output decimal scale for a currency.
 
         Parameters
         ----------
-        currency : str
-            ISO-4217 alphabetic currency code.
+        currency : Currency | str
+            Currency object or ISO-4217 alphabetic code.
 
         Returns
         -------
         int
-            Number of decimal places for output formatting.
+            Number of decimal places for output formatting; the currency's
+            ISO minor units unless overridden.
 
         Raises
         ------
@@ -269,25 +436,92 @@ class FinstackConfig:
         """
         ...
 
-    def ingest_scale(self, currency: str) -> int:
+    def ingest_scale(self, currency: Union[Currency, str]) -> int:
         """
         Effective ingest decimal scale for a currency.
 
         Parameters
         ----------
-        currency : str
-            ISO-4217 alphabetic currency code.
+        currency : Currency | str
+            Currency object or ISO-4217 alphabetic code.
 
         Returns
         -------
         int
-            Number of decimal places for input parsing.
+            Number of decimal places for input parsing; ``max(6, minor
+            units)`` unless overridden.
 
         Raises
         ------
         ValueError
             If *currency* is not recognised.
 
+        """
+        ...
+
+    def set_output_scale(self, currency: Union[Currency, str], scale: int) -> None:
+        """
+        Override the output decimal scale for a currency.
+
+        Parameters
+        ----------
+        currency : Currency | str
+            Currency object or ISO-4217 alphabetic code.
+        scale : int
+            Number of decimal places (non-negative).
+
+        Raises
+        ------
+        ValueError
+            If *currency* is not recognised.
+        """
+        ...
+
+    def set_ingest_scale(self, currency: Union[Currency, str], scale: int) -> None:
+        """
+        Override the ingest decimal scale for a currency.
+
+        Parameters
+        ----------
+        currency : Currency | str
+            Currency object or ISO-4217 alphabetic code.
+        scale : int
+            Number of decimal places (non-negative).
+
+        Raises
+        ------
+        ValueError
+            If *currency* is not recognised.
+        """
+        ...
+
+    def output_scale_overrides(self) -> dict[str, int]:
+        """
+        Explicit output-scale overrides.
+
+        Returns
+        -------
+        dict[str, int]
+            ``{iso_code: scale}`` for every overridden currency (sorted keys).
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def ingest_scale_overrides(self) -> dict[str, int]:
+        """
+        Explicit ingest-scale overrides.
+
+        Returns
+        -------
+        dict[str, int]
+            ``{iso_code: scale}`` for every overridden currency (sorted keys).
+
+        Notes
+        -----
+        This method does not raise.
         """
         ...
 
@@ -438,10 +672,19 @@ class FinstackConfig:
         ...
 
     def __repr__(self) -> str:
-        """Return a debug representation of this config.
+        """Return a debug representation showing the rounding mode and override counts.
 
         Returns
         -------
         str
         """
         ...
+    def __eq__(self, other: object) -> bool:
+        """Return whether two configs are structurally equal (JSON wire form).
+
+        Returns
+        -------
+        bool
+        """
+        ...
+    def __reduce__(self) -> tuple[object, tuple[str]]: ...

@@ -46,6 +46,29 @@ pub struct ScorecardScale {
 }
 
 impl RatingLevel {
+    /// Build and validate one scorecard rating level.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Rating label such as `AAA` or `Aaa`; must not be blank
+    /// * `score` - Representative score on the inclusive 0–100 scorecard scale
+    /// * `min_score` - Minimum score threshold on the inclusive 0–100 scale that
+    ///   qualifies for this rating
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] if the name is blank or either score is
+    /// non-finite or outside the inclusive 0–100 range.
+    pub fn try_new(name: impl Into<String>, score: f64, min_score: f64) -> Result<Self> {
+        let level = Self {
+            name: name.into(),
+            score,
+            min_score,
+        };
+        validate_rating_level(&level)?;
+        Ok(level)
+    }
+
     /// Deserialize and validate one scorecard rating level from JSON.
     ///
     /// `score` and `min_score` are both normalized scores on the inclusive
@@ -67,6 +90,35 @@ impl RatingLevel {
 }
 
 impl ScorecardScale {
+    /// Build and validate one best-to-worst scorecard scale.
+    ///
+    /// # Arguments
+    ///
+    /// * `scale_name` - Scale identifier such as `S&P` or `Moody's`; also used
+    ///   as the label in validation messages
+    /// * `description` - Optional human-readable description
+    /// * `ratings` - Rating levels ordered best-to-worst; both `score` and
+    ///   `min_score` must strictly descend and names must be unique
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] if the rating list is empty, a level is
+    /// invalid or duplicated, or the score/minimum-score order is not
+    /// strictly best-to-worst.
+    pub fn try_new(
+        scale_name: impl Into<String>,
+        description: Option<String>,
+        ratings: Vec<RatingLevel>,
+    ) -> Result<Self> {
+        let scale = Self {
+            scale_name: scale_name.into(),
+            description,
+            ratings,
+        };
+        validate_scorecard_scale(&scale, &scale.scale_name)?;
+        Ok(scale)
+    }
+
     /// Deserialize and validate one best-to-worst scorecard scale from JSON.
     ///
     /// The first rating is the strongest grade. Both `score` and `min_score`
@@ -161,6 +213,18 @@ impl RatingScaleRegistry {
     /// Returns the configured unknown-scale policy.
     pub fn unknown_scale_policy(&self) -> UnknownScalePolicy {
         self.scorecard_policy.unknown_scale_policy
+    }
+
+    /// Primary (first) id of every registered scale, in registry order.
+    ///
+    /// Aliases are not included; resolve them through
+    /// [`rating_scale`](Self::rating_scale) or
+    /// [`is_known_rating_scale`](Self::is_known_rating_scale).
+    pub fn scale_ids(&self) -> Vec<&str> {
+        self.rating_scales
+            .iter()
+            .map(|entry| first_id(&entry.ids))
+            .collect()
     }
 
     /// Returns true when the provided name is a known scale id or alias.
@@ -432,6 +496,58 @@ mod tests {
             registry.unknown_scale_policy(),
             UnknownScalePolicy::FallbackToDefault
         );
+    }
+
+    #[test]
+    fn scale_ids_lists_primary_ids_in_registry_order() {
+        let registry = embedded_registry().expect("registry should load");
+        let ids = registry.scale_ids();
+        assert!(ids.contains(&"sp"), "ids: {ids:?}");
+        assert!(ids.iter().all(|id| registry.is_known_rating_scale(id)));
+        assert_eq!(ids.len(), registry.rating_scales.len());
+    }
+
+    #[test]
+    fn rating_level_try_new_validates() {
+        let level = RatingLevel::try_new("BBB", 70.0, 65.0).expect("valid level");
+        assert_eq!(level.name, "BBB");
+        assert!(RatingLevel::try_new("  ", 70.0, 65.0).is_err());
+        assert!(RatingLevel::try_new("BBB", 170.0, 65.0).is_err());
+        assert!(RatingLevel::try_new("BBB", 70.0, f64::NAN).is_err());
+        assert!(RatingLevel::try_new("BBB", 70.0, -1.0).is_err());
+    }
+
+    #[test]
+    fn scorecard_scale_try_new_validates_ordering() {
+        let good = ScorecardScale::try_new(
+            "custom",
+            Some("Example".to_string()),
+            vec![
+                RatingLevel::try_new("A", 90.0, 85.0).expect("valid"),
+                RatingLevel::try_new("B", 70.0, 65.0).expect("valid"),
+            ],
+        )
+        .expect("ordered scale");
+        assert_eq!(good.ratings.len(), 2);
+        assert!(ScorecardScale::try_new("empty", None, Vec::new()).is_err());
+        let shuffled = ScorecardScale::try_new(
+            "shuffled",
+            None,
+            vec![
+                RatingLevel::try_new("B", 70.0, 65.0).expect("valid"),
+                RatingLevel::try_new("A", 90.0, 85.0).expect("valid"),
+            ],
+        );
+        assert!(shuffled.is_err());
+        let duplicate = ScorecardScale::try_new(
+            "dup",
+            None,
+            vec![
+                RatingLevel::try_new("A", 90.0, 85.0).expect("valid"),
+                RatingLevel::try_new("A", 70.0, 65.0).expect("valid"),
+            ],
+        );
+        assert!(duplicate.is_err());
     }
 
     #[test]

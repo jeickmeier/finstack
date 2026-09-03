@@ -304,10 +304,11 @@ impl MetricRegistry {
                 if metric_ids.contains(&metric_id) {
                     return Err(finstack_quant_core::Error::unknown_metric(
                         metric_id.as_str(),
-                        self.available_metrics()
-                            .iter()
-                            .map(|m| m.as_str().to_string())
-                            .collect(),
+                        super::ids::closest_metric_names(
+                            metric_id.as_str(),
+                            self.available_metrics().iter().map(MetricId::as_str),
+                            super::ids::MAX_METRIC_SUGGESTIONS,
+                        ),
                     ));
                 }
                 continue;

@@ -19,7 +19,7 @@
 // one shot. Boxing the error would harm ergonomics on a cold error path.
 #![allow(clippy::result_large_err)]
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::api::errors::EnvelopeError;
@@ -35,7 +35,7 @@ use finstack_quant_core::contract::{
 
 /// Result of [`validate`]. Always contains the dependency graph; `errors` is
 /// empty when the envelope is structurally valid.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalibrationValidationReport {
     /// All errors found in a single pass; empty if the envelope is valid.
     pub errors: Vec<EnvelopeError>,
@@ -44,7 +44,7 @@ pub struct CalibrationValidationReport {
 }
 
 /// Static dependency graph derived from a [`CalibrationEnvelope`].
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DependencyGraph {
     /// Curve / surface IDs available at the start of execution, contributed
     /// by `market_data` and `prior_market`.
@@ -54,7 +54,7 @@ pub struct DependencyGraph {
 }
 
 /// A single step's view of the dependency graph.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DependencyNode {
     /// Zero-based index in `plan.steps`.
     pub step_index: usize,
@@ -185,7 +185,21 @@ pub fn validate_calibration_json(envelope_json: &str) -> Result<String, Envelope
     serialize_pretty_json(&envelope, "CalibrationEnvelope")
 }
 
-fn serialize_pretty_json<T: Serialize>(value: &T, target: &str) -> Result<String, EnvelopeError> {
+impl CalibrationValidationReport {
+    /// Serialize this report as pretty-printed JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EnvelopeError::JsonSerialize`] if serialization fails.
+    pub fn to_json_pretty(&self) -> Result<String, EnvelopeError> {
+        serialize_pretty_json(self, "CalibrationValidationReport")
+    }
+}
+
+pub(crate) fn serialize_pretty_json<T: Serialize>(
+    value: &T,
+    target: &str,
+) -> Result<String, EnvelopeError> {
     serde_json::to_string_pretty(value).map_err(|err| EnvelopeError::JsonSerialize {
         target: target.to_string(),
         message: err.to_string(),
@@ -217,11 +231,8 @@ pub(crate) fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, Envelope
 pub(crate) fn parse_envelope_with_report(
     json: &str,
 ) -> Result<(CalibrationEnvelope, ContractValidationReport), EnvelopeError> {
-    CalibrationEnvelope::from_slice_strict(json.as_bytes(), &LoadLimits::default()).map_err(
-        |error| EnvelopeError::StrictLoad {
-            message: error.to_string(),
-        },
-    )
+    CalibrationEnvelope::from_slice_strict(json.as_bytes(), &LoadLimits::default())
+        .map_err(|error| EnvelopeError::strict_load(&error))
 }
 
 fn collect_initial_ids(envelope: &CalibrationEnvelope) -> HashSet<String> {
@@ -748,7 +759,7 @@ mod tests {
     #[test]
     fn json_parse_error_surfaces_as_strict_load_diagnostic() {
         let error = dry_run("not json").expect_err("malformed JSON");
-        let EnvelopeError::StrictLoad { message } = error else {
+        let EnvelopeError::StrictLoad { message, .. } = error else {
             unreachable!("malformed JSON should produce a strict load error");
         };
         assert!(!message.is_empty());

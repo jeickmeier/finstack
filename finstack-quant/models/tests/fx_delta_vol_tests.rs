@@ -74,14 +74,13 @@ fn built_surface_5pt() -> finstack_quant_core::market_data::surfaces::VolSurface
 }
 
 fn delta_surface_5pt() -> FxDeltaVolSurface {
-    FxDeltaVolSurface::with_10d(
+    FxDeltaVolSurface::new(
         "EURUSD-DELTA-VOL",
         vec![T_SHORT, T_LONG],
         ATM.to_vec(),
         RR25.to_vec(),
         BF25.to_vec(),
-        RR10.to_vec(),
-        BF10.to_vec(),
+        Some((RR10.to_vec(), BF10.to_vec())),
     )
     .expect("5-point delta surface should build")
 }

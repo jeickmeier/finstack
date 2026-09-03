@@ -4,7 +4,7 @@
 //! error from `category` / `stage` / diagnostics pieces.
 
 use super::engine::{ExecuteError, ExecutionStage};
-use super::errors::EnvelopeError;
+use super::errors::{EnvelopeError, StrictLoadDiagnostic};
 
 /// Stable Py/WASM exception attributes for a calibration execution failure.
 ///
@@ -24,6 +24,9 @@ pub struct HostExecuteError {
     pub solver_diagnostics: Option<String>,
     /// Pretty-printed [`super::engine::ExecutionErrorDetails`] JSON.
     pub details: String,
+    /// Structured strict-load diagnostics (pointer, message, expected
+    /// version, ...); empty unless ingestion rejected the document.
+    pub diagnostics: Vec<StrictLoadDiagnostic>,
 }
 
 impl ExecuteError {
@@ -58,6 +61,7 @@ impl ExecuteError {
             step_id: details.step_id,
             solver_diagnostics,
             details: self.to_json(),
+            diagnostics: details.diagnostics,
         }
     }
 }

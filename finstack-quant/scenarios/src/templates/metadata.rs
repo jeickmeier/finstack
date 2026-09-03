@@ -48,7 +48,7 @@ pub enum AssetClass {
 /// fields are intentionally discovery-oriented: they identify the historical
 /// event, the affected asset classes, and any component templates that can be
 /// built separately from the composite scenario.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TemplateMetadata {

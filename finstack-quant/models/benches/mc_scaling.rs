@@ -44,7 +44,10 @@ fn scaling_european_paths(c: &mut Criterion) {
     for &n in &[2_500_usize, 10_000, 40_000] {
         group.throughput(Throughput::Elements(n as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
-            let pricer = EuropeanPricer::new(n).with_seed(SEED).with_parallel(false);
+            let pricer = EuropeanPricer::new(n)
+                .expect("positive path count")
+                .with_seed(SEED)
+                .with_parallel(false);
             b.iter(|| {
                 pricer
                     .price(&process, SPOT, 1.0, 52, &payoff, Currency::USD, df)
@@ -60,6 +63,7 @@ fn scaling_european_steps(c: &mut Criterion) {
     let process = gbm();
     let df = discount();
     let pricer = EuropeanPricer::new(2_000)
+        .expect("positive path count")
         .with_seed(SEED)
         .with_parallel(false);
 

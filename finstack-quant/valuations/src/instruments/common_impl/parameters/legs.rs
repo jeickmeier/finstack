@@ -218,12 +218,19 @@ pub struct FloatLegSpec {
     /// Stub period handling rule
     #[serde(default = "crate::serde_defaults::stub_short_front")]
     pub stub: StubKind,
-    /// Reset lag in business days for floating rate fixing.
+    /// Reset lag in business days for floating rate fixing (default: 0).
     ///
-    /// - **0**: Spot reset (fixing on accrual start date).
-    /// - **Positive** (e.g., 2): T-2 fixing (2 business days before accrual start).
-    /// - **Negative** (e.g., -1): Sentinel meaning "use convention default from
-    ///   `ConventionRegistry`".
+    /// - **0** (default): fixing on the accrual start date. A swap whose first
+    ///   accrual period starts on or after the valuation date then prices off
+    ///   the forward curve without historical fixings.
+    /// - **Positive** (e.g., 2): T-2 fixing (2 business days before accrual
+    ///   start). Use `RateIndexConventions::default_reset_lag_days` (or
+    ///   `InterestRateSwap::from_conventions`) for the market default of a
+    ///   given index.
+    /// - **Negative** (e.g., -1): resolved at pricing time to the registered
+    ///   index convention default; rejected when the forward curve id is not a
+    ///   registered rate index.
+    #[serde(default)]
     pub reset_lag_days: i32,
     /// Optional calendar for rate fixing (reset lag)
     #[serde(default)]
@@ -725,6 +732,26 @@ mod tests {
 
         assert!(float_leg(end, start).validate().is_err());
         assert!(float_leg(start, end).validate().is_ok());
+    }
+
+    #[test]
+    fn float_leg_reset_lag_days_defaults_to_zero_on_the_wire() {
+        // Failure mode: a leg written without `reset_lag_days` must fix on the
+        // accrual start (0), never on a negative registry sentinel.
+        let json = r#"{
+            "discount_curve_id": "USD-OIS",
+            "forward_curve_id": "USD-SOFR-3M",
+            "spread_bp": "0",
+            "frequency": {"count": 3, "unit": "months"},
+            "day_count": "act_360",
+            "calendar_id": null,
+            "start": "2025-01-15",
+            "end": "2030-01-15"
+        }"#;
+        let leg: FloatLegSpec = serde_json::from_str(json).expect("float leg without reset lag");
+        assert_eq!(leg.reset_lag_days, 0);
+        assert_eq!(leg.payment_lag_days, 0);
+        assert!(!leg.end_of_month);
     }
 
     #[test]

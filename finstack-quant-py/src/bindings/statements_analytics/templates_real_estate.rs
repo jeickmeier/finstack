@@ -292,7 +292,8 @@ impl PyRenewalSpec {
     frozen,
     from_py_object
 )]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PyLeaseGrowthConvention {
     PerPeriod,
     AnnualEscalator,
@@ -301,49 +302,36 @@ pub enum PyLeaseGrowthConvention {
 #[pymethods]
 impl PyLeaseGrowthConvention {
     /// Parse from a string identifier (``"per_period"`` or ``"annual_escalator"``).
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not one of the serde names.
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
-        match value {
-            "per_period" => Ok(PyLeaseGrowthConvention::PerPeriod),
-            "annual_escalator" => Ok(PyLeaseGrowthConvention::AnnualEscalator),
-            _ => Err(crate::errors::value_error(format!(
-                "unknown lease growth convention '{}' (expected per_period / annual_escalator)",
-                value
-            ))),
-        }
+        finstack_quant_core::wire::serde_parse::<Self>(value).map_err(crate::errors::core_to_py)
     }
 
-    /// String identifier used in JSON (``"per_period"`` or
-    /// ``"annual_escalator"``).
-    fn value(&self) -> &'static str {
-        match self {
-            PyLeaseGrowthConvention::PerPeriod => "per_period",
-            PyLeaseGrowthConvention::AnnualEscalator => "annual_escalator",
-        }
+    /// String identifier used in JSON (``"per_period"`` or ``"annual_escalator"``).
+    fn value(&self) -> PyResult<String> {
+        finstack_quant_core::wire::serde_label(self).map_err(crate::errors::core_to_py)
     }
 
     fn __repr__(&self) -> String {
-        format!("LeaseGrowthConvention.{}", self.value())
+        format!(
+            "LeaseGrowthConvention.{}",
+            self.value().unwrap_or_else(|_| "?".to_string())
+        )
     }
 }
 
 impl PyLeaseGrowthConvention {
-    fn to_rust(self) -> rust_re::LeaseGrowthConvention {
-        match self {
-            PyLeaseGrowthConvention::PerPeriod => rust_re::LeaseGrowthConvention::PerPeriod,
-            PyLeaseGrowthConvention::AnnualEscalator => {
-                rust_re::LeaseGrowthConvention::AnnualEscalator
-            }
-        }
+    fn to_rust(self) -> PyResult<rust_re::LeaseGrowthConvention> {
+        crate::bindings::statements_analytics::enum_convert(&self)
     }
 
-    fn from_rust(value: rust_re::LeaseGrowthConvention) -> Self {
-        match value {
-            rust_re::LeaseGrowthConvention::PerPeriod => PyLeaseGrowthConvention::PerPeriod,
-            rust_re::LeaseGrowthConvention::AnnualEscalator => {
-                PyLeaseGrowthConvention::AnnualEscalator
-            }
-        }
+    fn from_rust(value: rust_re::LeaseGrowthConvention) -> PyResult<Self> {
+        crate::bindings::statements_analytics::enum_convert(&value)
     }
 }
 
@@ -394,7 +382,7 @@ impl PyLeaseSpec {
             end: end.map(parse_period).transpose()?,
             base_rent,
             growth_rate,
-            growth_convention: growth_convention.to_rust(),
+            growth_convention: growth_convention.to_rust()?,
             rent_steps: rent_steps.into_iter().map(|s| s.inner).collect(),
             free_rent_periods,
             free_rent_windows: free_rent_windows.into_iter().map(|w| w.inner).collect(),
@@ -445,7 +433,7 @@ impl PyLeaseSpec {
     /// (``per_period``) or once per lease-start anniversary
     /// (``annual_escalator``, the default Argus/NCREIF annual bump).
     #[getter]
-    fn growth_convention(&self) -> PyLeaseGrowthConvention {
+    fn growth_convention(&self) -> PyResult<PyLeaseGrowthConvention> {
         PyLeaseGrowthConvention::from_rust(self.inner.growth_convention)
     }
 
@@ -495,7 +483,7 @@ impl PyLeaseSpec {
             "end": self.inner.end.map(|p| p.to_string()),
             "base_rent": self.inner.base_rent,
             "growth_rate": self.inner.growth_rate,
-            "growth_convention": self.growth_convention().value(),
+            "growth_convention": crate::bindings::statements_analytics::serde_variant_str(&self.inner.growth_convention),
             "free_rent_periods": self.inner.free_rent_periods,
             "occupancy": self.inner.occupancy,
             "rent_step_count": self.inner.rent_steps.len(),
@@ -685,7 +673,8 @@ impl PyRentRollOutputNodes {
     frozen,
     from_py_object
 )]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PyManagementFeeBase {
     Egi,
     EffectiveRent,
@@ -693,46 +682,37 @@ pub enum PyManagementFeeBase {
 
 #[pymethods]
 impl PyManagementFeeBase {
-    /// Parse an exact snake_case identifier (``"egi"`` or
-    /// ``"effective_rent"``).
+    /// Parse an exact snake_case identifier (``"egi"`` or ``"effective_rent"``).
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not one of the serde names.
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
-        match value {
-            "egi" => Ok(PyManagementFeeBase::Egi),
-            "effective_rent" => Ok(PyManagementFeeBase::EffectiveRent),
-            _ => Err(crate::errors::value_error(format!(
-                "unknown management fee base '{}' (expected egi / effective_rent)",
-                value
-            ))),
-        }
+        finstack_quant_core::wire::serde_parse::<Self>(value).map_err(crate::errors::core_to_py)
     }
 
     /// String identifier used in JSON (``"egi"`` or ``"effective_rent"``).
-    fn value(&self) -> &'static str {
-        match self {
-            PyManagementFeeBase::Egi => "egi",
-            PyManagementFeeBase::EffectiveRent => "effective_rent",
-        }
+    fn value(&self) -> PyResult<String> {
+        finstack_quant_core::wire::serde_label(self).map_err(crate::errors::core_to_py)
     }
 
     fn __repr__(&self) -> String {
-        format!("ManagementFeeBase.{}", self.value())
+        format!(
+            "ManagementFeeBase.{}",
+            self.value().unwrap_or_else(|_| "?".to_string())
+        )
     }
 }
 
 impl PyManagementFeeBase {
-    fn to_rust(self) -> rust_re::ManagementFeeBase {
-        match self {
-            PyManagementFeeBase::Egi => rust_re::ManagementFeeBase::Egi,
-            PyManagementFeeBase::EffectiveRent => rust_re::ManagementFeeBase::EffectiveRent,
-        }
+    fn to_rust(self) -> PyResult<rust_re::ManagementFeeBase> {
+        crate::bindings::statements_analytics::enum_convert(&self)
     }
 
-    fn from_rust(value: rust_re::ManagementFeeBase) -> Self {
-        match value {
-            rust_re::ManagementFeeBase::Egi => PyManagementFeeBase::Egi,
-            rust_re::ManagementFeeBase::EffectiveRent => PyManagementFeeBase::EffectiveRent,
-        }
+    fn from_rust(value: rust_re::ManagementFeeBase) -> PyResult<Self> {
+        crate::bindings::statements_analytics::enum_convert(&value)
     }
 }
 
@@ -751,13 +731,13 @@ pub struct PyManagementFeeSpec {
 impl PyManagementFeeSpec {
     #[new]
     #[pyo3(signature = (rate, base=PyManagementFeeBase::Egi))]
-    fn new(rate: f64, base: PyManagementFeeBase) -> Self {
-        Self {
+    fn new(rate: f64, base: PyManagementFeeBase) -> PyResult<Self> {
+        Ok(Self {
             inner: rust_re::ManagementFeeSpec {
                 rate,
-                base: base.to_rust(),
+                base: base.to_rust()?,
             },
-        }
+        })
     }
 
     /// Management fee rate as a decimal fraction (``0.03`` = 3%).
@@ -769,7 +749,7 @@ impl PyManagementFeeSpec {
     /// Basis the fee applies to: ``egi`` (effective gross income) or
     /// ``effective_rent`` (rent only, excluding other income).
     #[getter]
-    fn base(&self) -> PyManagementFeeBase {
+    fn base(&self) -> PyResult<PyManagementFeeBase> {
         PyManagementFeeBase::from_rust(self.inner.base)
     }
 

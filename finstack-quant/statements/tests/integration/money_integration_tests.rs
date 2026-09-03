@@ -267,7 +267,7 @@ fn test_forecast_different_seeds_produce_different_results() {
 
 #[test]
 fn test_lognormal_forecast_determinism() {
-    let forecast_spec = ForecastSpec::lognormal(11.5, 0.15, 42);
+    let forecast_spec = ForecastSpec::log_normal(11.5, 0.15, 42);
 
     let model = ModelBuilder::new("test")
         .periods("2025Q1..Q3", Some("2025Q1"))

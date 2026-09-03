@@ -4,19 +4,11 @@
 //! and built-in template access via structured JavaScript values.
 
 use crate::utils::{parse_iso_date, to_js_err};
-use std::sync::OnceLock;
 use wasm_bindgen::prelude::*;
 
-/// Lazily-initialised builtin template registry.  Constructed once on first
-/// access, then reused for the lifetime of the WASM module.
+/// Process-wide builtin template registry, parsed once by the scenarios crate.
 fn builtin_registry() -> Result<&'static finstack_quant_scenarios::TemplateRegistry, JsValue> {
-    static REGISTRY: OnceLock<Result<finstack_quant_scenarios::TemplateRegistry, String>> =
-        OnceLock::new();
-    let stored = REGISTRY.get_or_init(|| {
-        finstack_quant_scenarios::TemplateRegistry::with_embedded_builtins()
-            .map_err(|e| e.to_string())
-    });
-    stored.as_ref().map_err(to_js_err)
+    finstack_quant_scenarios::TemplateRegistry::embedded_builtins().map_err(to_js_err)
 }
 
 fn apply_with_context(
@@ -396,7 +388,10 @@ pub fn compute_horizon_return(
     let mut analyzer = finstack_quant_scenarios::horizon::HorizonAnalysis::new(
         attribution_method,
         finstack_config,
-    );
+    )
+    .with_recalibration_provider(Arc::new(
+        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+    ));
     if let Some(id) = calendar_id.as_deref() {
         analyzer = analyzer.with_calendar_id(id);
     }

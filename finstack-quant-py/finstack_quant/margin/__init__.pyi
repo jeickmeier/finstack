@@ -14,6 +14,7 @@ Examples
 
 from __future__ import annotations
 
+import datetime
 from typing import Any, Final
 
 import pandas as pd
@@ -64,7 +65,14 @@ __all__ = [
     "schema",
 ]
 
-CONSTANTS: Final[dict[str, str]] = ...
+# Rust ``finstack_quant_margin::constants`` plus the registry/calculator
+# constants needed to interpret results. Keys: ``CALENDAR_DAYS_PER_YEAR``,
+# ``DURATION_APPROXIMATION_FACTOR``, ``ONE_BP``, ``STANDARD_CDS_MATURITY_YEARS``,
+# ``DEFAULT_BOND_INDEX_DURATION`` (floats), ``tenor_buckets`` (dict of
+# ``BUCKET_3M`` .. ``BUCKET_20Y`` -> years), ``BCBS_IOSCO_SCHEDULE_ID`` (str),
+# ``HAIRCUT_MPOR_DAYS`` (business days), ``SIMM_TENORS`` (the valid SIMM tenor
+# labels, ``"2W"`` .. ``"30Y"``) and ``SIMM_COMMODITY_BUCKET_COUNT`` (17).
+CONSTANTS: Final[dict[str, Any]] = ...
 
 class ImMethodology:
     """
@@ -187,12 +195,14 @@ class ImMethodology:
     @staticmethod
     def from_str(s: str) -> ImMethodology:
         """
-        Parse from a string (e.g. ``"simm"``, ``"schedule"``).
+        Parse the lower-case wire label (e.g. ``"simm"``, ``"schedule"``).
 
         Parameters
         ----------
         s : str
-            Methodology name.
+            Lower-case wire label: ``"simm"``, ``"schedule"``, ``"haircut"``,
+            ``"internal_model"`` or ``"clearing_house"``. Other spellings
+            such as ``"SIMM"`` are rejected.
 
         Returns
         -------
@@ -326,8 +336,8 @@ class MarginTenor:
         Parameters
         ----------
         s : str
-            Case-insensitive margin-frequency label such as ``"daily"``,
-            ``"weekly"``, or ``"on_demand"``.
+            Lower-case wire label: ``"daily"``, ``"weekly"``, ``"monthly"``
+            or ``"on_demand"``. Other spellings are rejected.
 
         Returns
         -------
@@ -352,7 +362,10 @@ class MarginTenor:
 
 class MarginCallType:
     """
-    Kind of margin call (top-up, return, or on-demand).
+    Kind of margin call (initial margin, VM delivery/return, top-up, substitution).
+
+    This is the ``call_type`` column of ``VmCalculator.generate_margin_calls``.
+    ``from_str`` parses the lower-case wire label and ``str()`` renders it.
 
     Parameters
     ----------
@@ -366,7 +379,7 @@ class MarginCallType:
     Examples
     --------
     >>> MarginCallType.initial_margin()
-    MarginCallType(InitialMargin)
+    MarginCallType(initial_margin)
     """
 
     @staticmethod
@@ -386,7 +399,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.initial_margin()
-        MarginCallType(InitialMargin)
+        MarginCallType(initial_margin)
         """
         ...
 
@@ -407,7 +420,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.variation_margin_delivery()
-        MarginCallType(VariationMarginDelivery)
+        MarginCallType(variation_margin_delivery)
         """
         ...
 
@@ -428,7 +441,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.variation_margin_return()
-        MarginCallType(VariationMarginReturn)
+        MarginCallType(variation_margin_return)
         """
         ...
 
@@ -449,7 +462,7 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.top_up()
-        MarginCallType(TopUp)
+        MarginCallType(top_up)
         """
         ...
 
@@ -470,12 +483,43 @@ class MarginCallType:
         Examples
         --------
         >>> MarginCallType.substitution()
-        MarginCallType(Substitution)
+        MarginCallType(substitution)
+        """
+        ...
+
+    @staticmethod
+    def from_str(s: str) -> MarginCallType:
+        """
+        Parse the lower-case wire label.
+
+        Parameters
+        ----------
+        s : str
+            ``"initial_margin"``, ``"variation_margin_delivery"``,
+            ``"variation_margin_return"``, ``"top_up"`` or
+            ``"substitution"``. Other spellings are rejected.
+
+        Returns
+        -------
+        MarginCallType
+            Parsed call type.
+
+        Raises
+        ------
+        ValueError
+            If the string is not one of the wire labels.
+
+        Examples
+        --------
+        >>> MarginCallType.from_str("top_up")
+        MarginCallType(top_up)
         """
         ...
 
     def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
+    def __str__(self) -> str: ...
 
 class ClearingStatus:
     """
@@ -784,7 +828,9 @@ class CollateralAssetClass:
         Parameters
         ----------
         s : str
-            Asset class name.
+            Lower-case wire label: ``"cash"``, ``"government_bonds"``,
+            ``"agency_bonds"``, ``"covered_bonds"``, ``"corporate_bonds"``,
+            ``"equity"``, ``"gold"`` or ``"mutual_funds"``.
 
         Returns
         -------
@@ -814,8 +860,8 @@ class CollateralAssetClass:
 
         Raises
         ------
-        Exception
-            If the core library returns an error.
+        ValueError
+            If the embedded registry has no entry for this asset class.
 
         Examples
         --------
@@ -835,8 +881,8 @@ class CollateralAssetClass:
 
         Raises
         ------
-        Exception
-            If the core library returns an error.
+        ValueError
+            If the embedded registry has no entry for this asset class.
 
         Examples
         --------
@@ -852,6 +898,9 @@ class CollateralAssetClass:
 class NettingSetId:
     """
     Identifies a margin netting set.
+
+    Immutable, hashable and comparable, so an id can key a dict or group a
+    DataFrame; ``to_json`` / ``from_json`` and pickle round-trip the wire form.
 
     Parameters
     ----------
@@ -1013,6 +1062,61 @@ class NettingSetId:
         """
         ...
 
+    @staticmethod
+    def from_json(json: str) -> NettingSetId:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical netting-set-id JSON.
+
+        Returns
+        -------
+        NettingSetId
+            Parsed id.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> lch = NettingSetId.cleared("LCH")
+        >>> NettingSetId.from_json(lch.to_json()) == lch
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            JSON string accepted by ``from_json``.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(NettingSetId.cleared("LCH").to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
 
@@ -1020,9 +1124,15 @@ class CsaSpec:
     """
     Credit Support Annex specification (ISDA standard).
 
+    Build from a registry preset (``usd_regulatory``, ``eur_regulatory``,
+    ``regulatory(currency, id, collateral_curve)``) then adjust legacy
+    bilateral terms with ``with_vm_threshold`` / ``with_im``. Every commercial
+    term is readable through typed getters; amounts are floats in
+    ``base_currency``.
+
     Parameters
     ----------
-    (Use regulatory factories or ``from_json``.)
+    (Use regulatory factories, the ``with_*`` builders, or ``from_json``.)
 
     Returns
     -------
@@ -1047,8 +1157,8 @@ class CsaSpec:
 
         Raises
         ------
-        Exception
-            If construction fails in the core library.
+        ValueError
+            If the embedded margin registry cannot be loaded.
 
         Examples
         --------
@@ -1070,13 +1180,136 @@ class CsaSpec:
 
         Raises
         ------
-        Exception
-            If construction fails in the core library.
+        ValueError
+            If the embedded margin registry cannot be loaded.
 
         Examples
         --------
         >>> CsaSpec.eur_regulatory().base_currency
         'EUR'
+        """
+        ...
+
+    @staticmethod
+    def regulatory(currency: str, id: str, collateral_curve: str) -> CsaSpec:
+        """
+        Standard regulatory CSA for any currency (zero VM threshold, daily
+        exchange, SIMM IM, BCBS-IOSCO collateral, the currency's default
+        margin calendar).
+
+        Parameters
+        ----------
+        currency : str
+            ISO-4217 base currency for thresholds, MTA and collateral values.
+        id : str
+            CSA identifier used in margin lookups; must be non-empty.
+        collateral_curve : str
+            Discount-curve id for collateral valuation, typically the
+            currency's OIS/RFR curve (e.g. ``"GBP-SONIA"``).
+
+        Returns
+        -------
+        CsaSpec
+            Regulatory CSA in ``currency``.
+
+        Raises
+        ------
+        ValueError
+            If ``currency`` is unknown or the embedded registry cannot be
+            loaded.
+
+        Examples
+        --------
+        >>> csa = CsaSpec.regulatory("GBP", "GBP-CSA", "GBP-SONIA")
+        >>> (csa.base_currency, csa.vm_threshold, csa.collateral_curve_id)
+        ('GBP', 0.0, 'GBP-SONIA')
+        """
+        ...
+
+    def with_vm_threshold(
+        self,
+        threshold: float,
+        mta: float,
+        rounding: float | None = None,
+        independent_amount: float | None = None,
+    ) -> CsaSpec:
+        """
+        Return a copy with bilateral (legacy, non-zero) VM threshold terms.
+
+        Parameters
+        ----------
+        threshold : float
+            VM threshold in ``base_currency`` below which no margin is
+            exchanged.
+        mta : float
+            Minimum transfer amount in ``base_currency``.
+        rounding : float | None, optional
+            Transfer rounding increment in ``base_currency``; ``None`` keeps
+            the Rust default of 10,000.
+        independent_amount : float | None, optional
+            Independent amount in ``base_currency``; ``None`` keeps zero.
+
+        Returns
+        -------
+        CsaSpec
+            Copy with the VM terms replaced; frequency and settlement lag are
+            unchanged.
+
+        Raises
+        ------
+        ValueError
+            If an amount is non-finite or outside the representable range.
+
+        Examples
+        --------
+        >>> csa = CsaSpec.usd_regulatory().with_vm_threshold(300_000.0, 50_000.0)
+        >>> (csa.vm_threshold, csa.vm_mta, csa.vm_rounding)
+        (300000.0, 50000.0, 10000.0)
+        """
+        ...
+
+    def with_im(
+        self,
+        methodology: ImMethodology | str,
+        mpor_days: int,
+        threshold: float,
+        mta: float,
+        segregated: bool = True,
+    ) -> CsaSpec:
+        """
+        Return a copy with explicit initial-margin terms.
+
+        Parameters
+        ----------
+        methodology : ImMethodology | str
+            IM regime, as an ``ImMethodology`` or its lower-case wire label
+            (``"simm"``, ``"schedule"``, ``"haircut"``, ``"internal_model"``,
+            ``"clearing_house"``).
+        mpor_days : int
+            Margin period of risk in business days; must be positive.
+        threshold : float
+            IM threshold in ``base_currency``.
+        mta : float
+            IM minimum transfer amount in ``base_currency``.
+        segregated : bool, default True
+            Whether IM must be held with a third-party custodian.
+
+        Returns
+        -------
+        CsaSpec
+            Copy with ``requires_im`` true and the IM terms replaced.
+
+        Raises
+        ------
+        ValueError
+            If ``mpor_days`` is zero, an amount is non-finite, or the
+            methodology label is unknown.
+
+        Examples
+        --------
+        >>> csa = CsaSpec.usd_regulatory().with_im("schedule", 5, 1_000_000.0, 0.0)
+        >>> (str(csa.im_methodology), csa.im_mpor_days, csa.im_threshold)
+        ('schedule', 5, 1000000.0)
         """
         ...
 
@@ -1106,6 +1339,10 @@ class CsaSpec:
         >>> csa.base_currency
         'USD'
         """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
         ...
 
     def to_json(self) -> str:
@@ -1188,6 +1425,300 @@ class CsaSpec:
         ...
 
     @property
+    def collateral_curve_id(self) -> str:
+        """
+        Discount-curve id used to value collateral.
+
+        Returns
+        -------
+        str
+            Curve identifier (e.g. ``'USD-OIS'``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().collateral_curve_id
+        'USD-OIS'
+        """
+        ...
+
+    @property
+    def vm_threshold(self) -> float:
+        """
+        VM threshold in ``base_currency`` below which no margin is exchanged.
+
+        Returns
+        -------
+        float
+            Threshold amount (zero for regulatory CSAs).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().vm_threshold
+        0.0
+        """
+        ...
+
+    @property
+    def vm_mta(self) -> float:
+        """
+        VM minimum transfer amount in ``base_currency``.
+
+        Returns
+        -------
+        float
+            MTA amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().vm_mta >= 0.0
+        True
+        """
+        ...
+
+    @property
+    def vm_rounding(self) -> float:
+        """
+        VM transfer rounding increment in ``base_currency``.
+
+        Returns
+        -------
+        float
+            Rounding increment.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().vm_rounding > 0.0
+        True
+        """
+        ...
+
+    @property
+    def vm_independent_amount(self) -> float:
+        """
+        VM independent amount in ``base_currency``.
+
+        Returns
+        -------
+        float
+            Independent amount (zero for regulatory CSAs).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().vm_independent_amount
+        0.0
+        """
+        ...
+
+    @property
+    def vm_frequency(self) -> MarginTenor:
+        """
+        VM call frequency.
+
+        Returns
+        -------
+        MarginTenor
+            Call frequency (daily for regulatory CSAs).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().vm_frequency
+        MarginTenor(daily)
+        """
+        ...
+
+    @property
+    def vm_settlement_lag(self) -> int:
+        """
+        VM settlement lag in business days (T+n).
+
+        Returns
+        -------
+        int
+            Settlement lag in business days.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().vm_settlement_lag
+        1
+        """
+        ...
+
+    @property
+    def im_methodology(self) -> ImMethodology | None:
+        """
+        IM methodology, or ``None`` when no IM is exchanged.
+
+        Returns
+        -------
+        ImMethodology | None
+            Methodology, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().im_methodology
+        ImMethodology(simm)
+        """
+        ...
+
+    @property
+    def im_mpor_days(self) -> int | None:
+        """
+        IM margin period of risk in business days, or ``None`` without IM.
+
+        Returns
+        -------
+        int | None
+            MPOR in business days, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().im_mpor_days
+        10
+        """
+        ...
+
+    @property
+    def im_threshold(self) -> float | None:
+        """
+        IM threshold in ``base_currency``, or ``None`` without IM.
+
+        Returns
+        -------
+        float | None
+            IM threshold, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().im_threshold is not None
+        True
+        """
+        ...
+
+    @property
+    def im_mta(self) -> float | None:
+        """
+        IM minimum transfer amount in ``base_currency``, or ``None`` without IM.
+
+        Returns
+        -------
+        float | None
+            IM MTA, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().im_mta is not None
+        True
+        """
+        ...
+
+    @property
+    def im_segregated(self) -> bool | None:
+        """
+        Whether IM must be segregated, or ``None`` without IM.
+
+        Returns
+        -------
+        bool | None
+            Segregation flag, or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().im_segregated
+        True
+        """
+        ...
+
+    @property
+    def eligible_collateral(self) -> EligibleCollateralSchedule:
+        """
+        Eligible-collateral schedule governing what can be posted.
+
+        Returns
+        -------
+        EligibleCollateralSchedule
+            Schedule with haircuts.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> CsaSpec.usd_regulatory().eligible_collateral.eligible_count > 0
+        True
+        """
+        ...
+
+    @property
+    def call_timing(self) -> dict[str, int]:
+        """
+        Margin-call timing terms.
+
+        Returns
+        -------
+        dict[str, int]
+            Keys ``notification_deadline_hours``, ``response_deadline_hours``, ``dispute_resolution_days``, ``delivery_grace_days``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> sorted(CsaSpec.usd_regulatory().call_timing)[:2]
+        ['delivery_grace_days', 'dispute_resolution_days']
+        """
+        ...
+
+    @property
     def requires_im(self) -> bool:
         """
         Whether this CSA requires initial margin.
@@ -1233,11 +1764,46 @@ class CsaSpec:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the commercial terms as a single-row pandas ``DataFrame``.
+
+        Columns: ``id``, ``base_currency``, ``calendar_id``,
+        ``collateral_curve_id``, ``vm_threshold``, ``vm_mta``, ``vm_rounding``,
+        ``vm_independent_amount``, ``vm_frequency``, ``vm_settlement_lag``,
+        ``requires_im``, ``im_methodology``, ``im_mpor_days``, ``im_threshold``,
+        ``im_mta``, ``im_segregated``. Amount columns are floats in
+        ``base_currency``; the ``im_*`` columns are null when no IM applies.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the CSA.
+
+        Raises
+        ------
+        ValueError
+            If the spec cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> float(CsaSpec.usd_regulatory().to_dataframe().iloc[0]["vm_threshold"])
+        0.0
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class EligibleCollateralSchedule:
     """
     Eligible collateral schedule with haircuts.
+
+    Answers "what can I post and at what haircut": ``to_dataframe`` lists
+    every eligible asset class with its haircut and constraints,
+    ``haircut_for_maturity`` resolves the maturity-bucketed haircut for a
+    bond, and ``check_concentration_limits`` flags a proposed collateral mix
+    that breaches a concentration limit. Haircuts are decimal fractions
+    (``0.02`` = 2%).
 
     Parameters
     ----------
@@ -1266,8 +1832,8 @@ class EligibleCollateralSchedule:
 
         Raises
         ------
-        Exception
-            If construction fails.
+        ValueError
+            If the embedded margin registry cannot be loaded.
 
         Examples
         --------
@@ -1289,8 +1855,8 @@ class EligibleCollateralSchedule:
 
         Raises
         ------
-        Exception
-            If construction fails.
+        ValueError
+            If the embedded margin registry cannot be loaded.
 
         Examples
         --------
@@ -1311,8 +1877,8 @@ class EligibleCollateralSchedule:
 
         Raises
         ------
-        Exception
-            If construction fails.
+        ValueError
+            If the embedded margin registry cannot be loaded.
 
         Examples
         --------
@@ -1348,6 +1914,10 @@ class EligibleCollateralSchedule:
         >>> restored.eligible_count
         1
         """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
         ...
 
     def to_json(self) -> str:
@@ -1413,23 +1983,45 @@ class EligibleCollateralSchedule:
         """
         ...
 
-    def is_eligible(self, asset_class: CollateralAssetClass) -> bool:
+    @property
+    def default_haircut(self) -> float | None:
+        """
+        Haircut (decimal) for collateral types not listed explicitly.
+
+        Returns
+        -------
+        float | None
+            Default haircut, or ``None`` when only listed types are accepted.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> EligibleCollateralSchedule.cash_only().default_haircut is None
+        True
+        """
+        ...
+
+    def is_eligible(self, asset_class: CollateralAssetClass | str) -> bool:
         """
         Check if an asset class is eligible.
 
         Parameters
         ----------
-        asset_class : CollateralAssetClass
-            Asset class to test.
+        asset_class : CollateralAssetClass | str
+            Asset class to test, or its lower-case wire label.
 
         Returns
         -------
         bool
             True if eligible under this schedule.
 
-        Notes
-        -----
-        This method does not raise; it returns ``True`` or ``False``.
+        Raises
+        ------
+        ValueError
+            If a string label is not a collateral asset class.
 
         Examples
         --------
@@ -1439,23 +2031,26 @@ class EligibleCollateralSchedule:
         """
         ...
 
-    def haircut_for(self, asset_class: CollateralAssetClass) -> float | None:
+    def haircut_for(self, asset_class: CollateralAssetClass | str) -> float | None:
         """
-        Get the haircut for an asset class.
+        Get the haircut (decimal) for an asset class, ignoring maturity
+        constraints.
 
         Parameters
         ----------
-        asset_class : CollateralAssetClass
-            Asset class.
+        asset_class : CollateralAssetClass | str
+            Asset class or its lower-case wire label.
 
         Returns
         -------
         float or None
-            Haircut if defined, else None.
+            First matching entry's haircut, else ``default_haircut``, else
+            ``None``.
 
-        Notes
-        -----
-        This method does not raise; a missing result is ``None`` rather than an exception.
+        Raises
+        ------
+        ValueError
+            If a string label is not a collateral asset class.
 
         Examples
         --------
@@ -1465,15 +2060,108 @@ class EligibleCollateralSchedule:
         """
         ...
 
+    def haircut_for_maturity(self, asset_class: CollateralAssetClass | str, remaining_years: float) -> float | None:
+        """
+        Get the haircut (decimal) for an asset class at a remaining maturity.
+
+        Parameters
+        ----------
+        asset_class : CollateralAssetClass | str
+            Asset class or its lower-case wire label.
+        remaining_years : float
+            Remaining maturity in years, matched against each entry's
+            maturity constraints.
+
+        Returns
+        -------
+        float or None
+            Haircut of the first entry whose constraints admit
+            ``remaining_years``, else ``default_haircut``, else ``None``.
+
+        Raises
+        ------
+        ValueError
+            If a string label is not a collateral asset class.
+
+        Examples
+        --------
+        >>> s = EligibleCollateralSchedule.bcbs_standard()
+        >>> s.haircut_for_maturity("government_bonds", 0.5)
+        0.005
+        """
+        ...
+
+    def check_concentration_limits(self, allocations: list[tuple[CollateralAssetClass | str, float]]) -> pd.DataFrame:
+        """
+        Check a proposed collateral mix against the concentration limits.
+
+        Parameters
+        ----------
+        allocations : list[tuple[CollateralAssetClass | str, float]]
+            ``(asset_class, amount)`` pairs in one currency; amounts are
+            converted to fractions of their total.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``asset_class``, ``fraction``, ``limit``, ``excess`` (all
+            decimal fractions), one row per breached limit; an empty frame
+            means the mix is within limits.
+
+        Raises
+        ------
+        ValueError
+            If a string label is not a collateral asset class.
+
+        Examples
+        --------
+        >>> s = EligibleCollateralSchedule.bcbs_standard()
+        >>> s.check_concentration_limits([("cash", 100.0)]).empty
+        True
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the eligibility rows as a pandas ``DataFrame``.
+
+        Columns: ``asset_class``, ``min_rating``, ``min_remaining_years``,
+        ``max_remaining_years``, ``haircut``, ``fx_haircut_addon``,
+        ``concentration_limit``. Haircuts and limits are decimal fractions;
+        optional constraints are null when absent. One row per eligible
+        entry, in schedule order (the order ``haircut_for`` searches).
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per eligible collateral entry.
+
+        Raises
+        ------
+        ValueError
+            If the schedule cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> EligibleCollateralSchedule.cash_only().to_dataframe()["asset_class"].tolist()
+        ['cash']
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class VmResult:
     """
     Variation margin calculation result.
 
+    Sign convention: ``gross_exposure`` is the signed mark-to-market from our
+    side (positive = the counterparty owes us). ``delivery_amount`` is what we
+    post and ``return_amount`` what we receive back; at most one is non-zero.
+    Amounts are floats in the CSA base currency (``currency``).
+
     Parameters
     ----------
-    (Returned by ``VmCalculator.calculate``.)
+    (Returned by ``VmCalculator.calculate``; also loadable via ``from_json``.)
 
     Returns
     -------
@@ -1482,15 +2170,134 @@ class VmResult:
 
     Examples
     --------
-    >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
+    >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
     >>> isinstance(r.net_margin, float)
     True
     """
 
+    @staticmethod
+    def from_json(json: str) -> VmResult:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``VmResult``.
+
+        Returns
+        -------
+        VmResult
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
+        >>> VmResult.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15").to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
+    @property
+    def date(self) -> datetime.date:
+        """
+        Calculation date.
+
+        Returns
+        -------
+        datetime.date
+            The ``as_of`` passed to ``VmCalculator.calculate``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-17")
+        >>> r.date
+        datetime.date(2024, 6, 17)
+        """
+        ...
+
+    @property
+    def settlement_date(self) -> datetime.date:
+        """
+        Settlement date of the margin transfer: the calculation date plus the
+        CSA settlement lag, adjusted on the CSA calendar.
+
+        Returns
+        -------
+        datetime.date
+            Settlement date, strictly after ``date`` for a T+1 CSA.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-17")
+        >>> r.settlement_date
+        datetime.date(2024, 6, 18)
+        """
+        ...
+
+    @property
+    def currency(self) -> str:
+        """
+        CSA base currency of every amount.
+
+        Returns
+        -------
+        str
+            ISO-4217 code.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15").currency
+        'USD'
+        """
+        ...
+
     @property
     def gross_exposure(self) -> float:
         """
-        Gross mark-to-market exposure amount.
+        Gross mark-to-market exposure (positive = counterparty owes us).
 
         Returns
         -------
@@ -1503,7 +2310,7 @@ class VmResult:
 
         Examples
         --------
-        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
         >>> r.gross_exposure >= 0
         True
         """
@@ -1525,7 +2332,7 @@ class VmResult:
 
         Examples
         --------
-        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
         >>> isinstance(r.net_exposure, float)
         True
         """
@@ -1547,7 +2354,7 @@ class VmResult:
 
         Examples
         --------
-        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
         >>> r.delivery_amount >= 0
         True
         """
@@ -1569,7 +2376,7 @@ class VmResult:
 
         Examples
         --------
-        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
         >>> r.return_amount >= 0
         True
         """
@@ -1591,7 +2398,7 @@ class VmResult:
 
         Examples
         --------
-        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
         >>> isinstance(r.net_margin, float)
         True
         """
@@ -1613,7 +2420,7 @@ class VmResult:
 
         Examples
         --------
-        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
+        >>> r = VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-15")
         >>> isinstance(r.requires_call, bool)
         True
         """
@@ -1624,7 +2431,8 @@ class VmResult:
         """
         Export the result as a single-row pandas ``DataFrame``.
 
-        Columns: ``gross_exposure``, ``net_exposure``, ``delivery_amount``,
+        Columns: ``date``, ``settlement_date`` (ISO 8601 strings),
+        ``gross_exposure``, ``net_exposure``, ``delivery_amount``,
         ``return_amount``, ``net_margin``, ``requires_call``, ``currency``.
 
         All amount columns are floats in the single CSA currency reported by
@@ -1660,7 +2468,7 @@ class VmCalculator:
     Examples
     --------
     >>> calc = VmCalculator(CsaSpec.usd_regulatory())
-    >>> out = calc.calculate(1e6, 0.0, "USD", 2024, 6, 15)
+    >>> out = calc.calculate(1e6, 0.0, "USD", "2024-06-15")
     >>> isinstance(out, VmResult)
     True
     """
@@ -1681,14 +2489,33 @@ class VmCalculator:
         """
         ...
 
+    @property
+    def csa(self) -> CsaSpec:
+        """
+        CSA specification this calculator applies.
+
+        Returns
+        -------
+        CsaSpec
+            The spec passed to the constructor.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> VmCalculator(CsaSpec.usd_regulatory()).csa.base_currency
+        'USD'
+        """
+        ...
+
     def calculate(
         self,
         exposure: float,
         posted_collateral: float,
         currency: str,
-        year: int,
-        month: int,
-        day: int,
+        as_of: datetime.date | str,
     ) -> VmResult:
         """
         Calculate variation margin.
@@ -1696,46 +2523,131 @@ class VmCalculator:
         Parameters
         ----------
         exposure : float
-            Mark-to-market exposure.
+            Signed mark-to-market in ``currency``: positive means the
+            counterparty owes us, negative means we owe them.
         posted_collateral : float
-            Posted collateral amount.
+            Collateral currently posted to us, in ``currency``.
         currency : str
-            ISO currency code.
-        year : int
-            Four-digit valuation year used with ``month`` and ``day`` to apply
-            the CSA calendar and collateral terms.
-        month : int
-            As-of month (1–12).
-        day : int
-            Calendar day of month used with ``year`` and ``month`` for the
-            variation-margin calculation date.
+            ISO currency code; must equal the CSA base currency.
+        as_of : datetime.date | str
+            Calculation date as ``datetime.date``, ``datetime.datetime``,
+            ``pandas.Timestamp`` or ISO ``YYYY-MM-DD`` string; the
+            settlement date is derived from it on the CSA calendar.
 
         Returns
         -------
         VmResult
-            VM breakdown.
+            VM breakdown with delivery/return amounts and settlement date.
 
         Raises
         ------
         ValueError
-            Invalid currency, month, or calendar date.
-        Exception
-            Core calculation error.
+            If the currency is unknown or differs from the CSA base
+            currency, an amount is non-finite, or a date string is not ISO
+            8601.
+        TypeError
+            If ``as_of`` is neither a string nor date-like.
 
         Examples
         --------
-        >>> VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", 2024, 6, 15)
-        VmResult(...)
+        >>> VmCalculator(CsaSpec.usd_regulatory()).calculate(1e6, 0.0, "USD", "2024-06-17")
+        VmResult(date=2024-06-17, delivery=1000000.00, return=0.00, requires_call=True, settlement_date=2024-06-18)
         """
         ...
+
+    def generate_margin_calls(
+        self,
+        exposures: list[tuple[datetime.date | str, float]] | pd.Series,
+        initial_collateral: float,
+    ) -> pd.DataFrame:
+        """
+        Run an exposure time series into a margin-call schedule.
+
+        Parameters
+        ----------
+        exposures : list[tuple[datetime.date | str, float]] | pd.Series
+            Dated signed exposures in the CSA base currency (positive = the
+            counterparty owes us), processed in the order given. A ``Series``
+            contributes its index as the dates.
+        initial_collateral : float
+            Collateral posted before the first date, in the CSA base currency.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per call: ``call_date``, ``settlement_date`` (ISO 8601
+            strings), ``call_type`` (``"variation_margin_delivery"`` or
+            ``"variation_margin_return"``), ``amount``, ``mtm_trigger``,
+            ``threshold``, ``mta_applied`` (floats in ``currency``) and
+            ``currency``. Dates without a call produce no row.
+
+        Raises
+        ------
+        ValueError
+            If an amount is non-finite or a date string is not ISO 8601.
+
+        Examples
+        --------
+        >>> calc = VmCalculator(CsaSpec.usd_regulatory())
+        >>> calls = calc.generate_margin_calls([("2024-06-17", 1e6), ("2024-06-18", 4e5)], 0.0)
+        >>> calls["call_type"].tolist()
+        ['variation_margin_delivery', 'variation_margin_return']
+        """
+        ...
+
+    def margin_call_dates(self, start: datetime.date | str, end: datetime.date | str) -> list[datetime.date]:
+        """
+        Contractual margin-call dates between ``start`` and ``end``.
+
+        Follows the CSA VM frequency on the CSA calendar: daily lists every
+        business day, weekly/monthly roll from ``start`` with each date
+        adjusted forward, on-demand returns just the adjusted endpoints.
+
+        Parameters
+        ----------
+        start : datetime.date | str
+            First date of the window (inclusive).
+        end : datetime.date | str
+            Last date of the window (inclusive).
+
+        Returns
+        -------
+        list[datetime.date]
+            Call dates in ascending order.
+
+        Raises
+        ------
+        ValueError
+            If a date string is not ISO 8601 or the CSA calendar is not
+            registered.
+
+        Examples
+        --------
+        >>> calc = VmCalculator(CsaSpec.usd_regulatory())
+        >>> calc.margin_call_dates("2024-06-14", "2024-06-17")
+        [datetime.date(2024, 6, 14), datetime.date(2024, 6, 17)]
+        """
+        ...
+
+    def __repr__(self) -> str: ...
 
 class ImResult:
     """
     Initial margin calculation result.
 
+    ``amount`` is a float in ``currency``. ``breakdown_keys`` are
+    methodology-specific component labels: SIMM publishes ``IR_Delta``,
+    ``IR_Vega``, ``Credit_Qualifying_Delta``, ``Credit_Qualifying_Vega``,
+    ``Credit_NonQualifying_Delta``, ``Credit_NonQualifying_Vega``,
+    ``Equity_Delta``, ``Equity_Vega``, ``FX_Delta``, ``FX_Vega``,
+    ``Commodity_Delta``, ``Commodity_Vega`` and ``Curvature``; the schedule
+    calculator publishes the normalised asset class (e.g. ``interest_rate``,
+    or ``interest_rate_ngr`` for the NGR path); the haircut calculator the
+    collateral asset class.
+
     Parameters
     ----------
-    (Produced by IM workflows in the margin crate; exposed for typing.)
+    (Produced by the IM calculators; also loadable via ``from_json``.)
 
     Returns
     -------
@@ -1745,10 +2657,71 @@ class ImResult:
     Examples
     --------
     >>> calc = ScheduleImCalculator.bcbs_standard()
-    >>> result = calc.calculate_for_notional(1_000_000, "USD", "interest_rate", 5.0, 2025, 1, 15)
+    >>> result = calc.calculate_for_notional(1_000_000, "USD", "interest_rate", 5.0, "2025-01-15")
     >>> (result.amount, result.breakdown_keys())
     (40000.0, ['interest_rate'])
     """
+
+    @staticmethod
+    def from_json(json: str) -> ImResult:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``ImResult``.
+
+        Returns
+        -------
+        ImResult
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = ScheduleImCalculator.bcbs_standard().calculate_for_notional(
+        ...     1_000_000, "USD", "interest_rate", 5.0, "2025-01-15"
+        ... )
+        >>> ImResult.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(
+        ...     ScheduleImCalculator
+        ...     .bcbs_standard()
+        ...     .calculate_for_notional(1_000_000, "USD", "interest_rate", 5.0, "2025-01-15")
+        ...     .to_json(),
+        ...     str,
+        ... )
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
 
     @property
     def amount(self) -> float:
@@ -1801,12 +2774,12 @@ class ImResult:
     @property
     def mpor_days(self) -> int:
         """
-        Margin Period of Risk (days).
+        Margin period of risk in business days.
 
         Returns
         -------
         int
-            MPOR in days.
+            MPOR in business days (10 for SIMM/schedule, 2 for haircut IM).
 
         Notes
         -----
@@ -1832,24 +2805,31 @@ class ImResult:
         ...
 
     @property
-    def as_of(self) -> str:
+    def as_of(self) -> datetime.date:
         """
-        Calculation date as an ISO 8601 string.
+        Calculation date.
 
         Returns
         -------
-        str
-            ISO 8601 date string.
+        datetime.date
+            The ``as_of`` passed to the calculator.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> calc = ScheduleImCalculator.bcbs_standard()
+        >>> calc.calculate_for_notional(1_000_000, "USD", "interest_rate", 5.0, "2025-01-15").as_of
+        datetime.date(2025, 1, 15)
         """
         ...
 
     def breakdown_keys(self) -> list[str]:
         """
-        Risk-class breakdown keys (if available).
+        Breakdown component labels present, in canonical sorted order (see
+        the class docstring for the SIMM and schedule label sets).
 
         Returns
         -------
@@ -1869,12 +2849,13 @@ class ImResult:
         Parameters
         ----------
         key : str
-            Risk class key.
+            Component label such as ``"IR_Delta"`` (SIMM) or
+            ``"interest_rate"`` (schedule).
 
         Returns
         -------
         float or None
-            Amount if present.
+            Amount in ``currency`` if present.
 
         Notes
         -----
@@ -1891,7 +2872,7 @@ class ImResult:
         ``as_of``, ``approximation``.
 
         ``amount`` is a float in ``currency``; ``mpor_days`` is the margin
-        period of risk in calendar days; ``as_of`` is an ISO 8601 date string.
+        period of risk in business days; ``as_of`` is an ISO 8601 date string.
         ``approximation`` is ``True`` when the amount is a conservative proxy
         rather than an exact computation under the named methodology - do not
         reconcile an approximated figure against an actual margin call.
@@ -1911,12 +2892,13 @@ class ImResult:
 
     def to_breakdown_dataframe(self) -> pd.DataFrame:
         """
-        Export the per-risk-class breakdown as a pandas ``DataFrame``.
+        Export the per-component breakdown as a pandas ``DataFrame``.
 
-        Columns: ``risk_class``, ``amount``, ``currency``. One row per risk
-        class (e.g. ``"interest_rate"``, ``"credit"``, ``"equity"``), sorted
-        by ``risk_class`` so repeated runs are byte-identical; the underlying
-        map is unordered. Methodologies that publish no breakdown yield a
+        Columns: ``risk_class``, ``amount``, ``currency``. One row per
+        component label (SIMM: ``IR_Delta``, ``IR_Vega``, ``FX_Delta``,
+        ``Curvature``, ...; schedule: the asset class such as
+        ``interest_rate``), sorted by ``risk_class`` so repeated runs are
+        byte-identical. Methodologies that publish no breakdown yield a
         zero-row frame that still carries all three columns.
 
         Breakdown components do not generally sum to ``amount``: SIMM and
@@ -1938,13 +2920,21 @@ class SimmSensitivities:
     ISDA SIMM sensitivity portfolio.
 
     Stores signed sensitivity amounts by SIMM risk class and bucket. Amounts
-    are currency amounts, not percentages or spot levels. Rate and credit
-    delta inputs are DV01/CS01-style amounts per 1bp move, and the
-    ``base_currency`` records the currency context in which those amounts were
-    produced.
+    are currency amounts in ``base_currency``, not percentages or spot
+    levels: rate and credit deltas are DV01/CS01-style amounts per 1bp move,
+    vegas are currency vega amounts compatible with the SIMM vega weights,
+    and curvature is one signed contribution per risk class.
+
+    Tenor labels must be SIMM buckets (``CONSTANTS["SIMM_TENORS"]``:
+    ``"2W"``, ``"1M"``, ``"3M"``, ``"6M"``, ``"1Y"``, ``"2Y"``, ``"3Y"``,
+    ``"5Y"``, ``"10Y"``, ``"15Y"``, ``"20Y"``, ``"30Y"``) and commodity
+    buckets one of the 17 ISDA buckets; ``validate()`` — run automatically by
+    ``SimmCalculator.calculate_from_sensitivities`` — rejects anything else so
+    a typo cannot price to zero margin.
 
     Use ``from_json``/``to_json`` for full-fidelity interop with the canonical
-    Rust JSON shape, or the ``add_*`` helpers for notebook-style construction.
+    Rust JSON shape, ``from_dataframe``/``to_dataframe`` for CRIF-style bulk
+    loading, or the ``add_*`` helpers for notebook-style construction.
 
     Examples
     --------
@@ -2021,6 +3011,52 @@ class SimmSensitivities:
         """
         ...
 
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
+    @staticmethod
+    def from_dataframe(frame: pd.DataFrame, base_currency: str = "USD") -> SimmSensitivities:
+        """
+        Bulk-load sensitivities from the long-format frame ``to_dataframe``
+        emits (CRIF-style).
+
+        Parameters
+        ----------
+        frame : pd.DataFrame
+            Columns ``risk_class``, ``kind``, ``issuer``, ``bucket``,
+            ``tenor``, ``amount`` with the ``to_dataframe`` encoding:
+            ``issuer`` is the currency for ``interest_rate``/``fx`` delta,
+            the ``"CCY1/CCY2"`` pair for FX vega, the issuer for credit and
+            the underlier for equity; ``bucket`` is the credit sector or the
+            commodity bucket; ``tenor`` is the SIMM tenor where the risk
+            class has one; ``kind`` is ``delta``, ``vega`` or ``curvature``.
+        base_currency : str, default "USD"
+            Currency in which every ``amount`` is expressed.
+
+        Returns
+        -------
+        SimmSensitivities
+            Container with rows of the same key accumulated.
+
+        Raises
+        ------
+        ValueError
+            If a risk class, kind, sector or currency is unknown or a
+            required column is missing.
+        TypeError
+            If ``frame`` is not a pandas ``DataFrame``.
+
+        Examples
+        --------
+        >>> original = SimmSensitivities("USD")
+        >>> original.add_ir_delta("USD", "5Y", 1_000.0)
+        >>> restored = SimmSensitivities.from_dataframe(original.to_dataframe(), "USD")
+        >>> restored.total_ir_delta()
+        1000.0
+        """
+        ...
+
     def add_ir_delta(self, currency: str, tenor: str, amount: float) -> None:
         """
         Add an interest-rate delta bucket.
@@ -2031,14 +3067,22 @@ class SimmSensitivities:
             Currency risk factor, such as ``"USD"``.
         tenor : str
             SIMM tenor bucket, such as ``"2W"``, ``"1Y"``, ``"5Y"``, or
-            ``"30Y"``.
+            ``"30Y"`` (see ``CONSTANTS["SIMM_TENORS"]``).
         amount : float
-            Signed DV01-style currency amount per 1bp move.
+            Signed DV01-style currency amount per 1bp move, in
+            ``base_currency``.
 
         Raises
         ------
         ValueError
             If ``currency`` is not a known currency code.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_ir_delta("USD", "5Y", 25_000.0)
+        >>> sens.total_ir_delta()
+        25000.0
         """
         ...
 
@@ -2051,9 +3095,10 @@ class SimmSensitivities:
         currency : str
             Currency risk factor, such as ``"USD"``.
         tenor : str
-            SIMM tenor bucket.
+            SIMM tenor bucket (see ``CONSTANTS["SIMM_TENORS"]``).
         amount : float
-            Signed currency vega amount compatible with SIMM vega weights.
+            Signed currency vega amount in ``base_currency``, compatible with
+            the SIMM IR vega weights.
 
         Raises
         ------
@@ -2075,14 +3120,46 @@ class SimmSensitivities:
         name : str
             Issuer, index, or reference-entity identifier.
         tenor : str
-            Credit tenor bucket, such as ``"5Y"``.
+            SIMM credit tenor bucket, such as ``"5Y"``.
         amount : float
-            Signed CS01-style currency amount per 1bp move.
+            Signed CS01-style currency amount per 1bp move, in
+            ``base_currency``.
 
         Raises
         ------
         ValueError
             If ``sector`` is not a canonical SIMM credit sector.
+        """
+        ...
+
+    def add_credit_qualifying_vega(self, sector: str, name: str, tenor: str, amount: float) -> None:
+        """
+        Add a sector-bucketed credit-qualifying vega sensitivity.
+
+        Parameters
+        ----------
+        sector : str
+            Canonical ISDA SIMM sector label (see
+            ``add_credit_qualifying_delta``).
+        name : str
+            Issuer, index, or reference-entity identifier.
+        tenor : str
+            SIMM credit tenor bucket, such as ``"5Y"``.
+        amount : float
+            Signed currency vega amount in ``base_currency``, compatible with
+            the SIMM credit-qualifying vega risk weight.
+
+        Raises
+        ------
+        ValueError
+            If ``sector`` is not a canonical SIMM credit sector.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_credit_qualifying_vega("financial", "BANK_A", "5Y", 1_000.0)
+        >>> sens.is_empty()
+        False
         """
         ...
 
@@ -2095,13 +3172,41 @@ class SimmSensitivities:
         name : str
             Securitization or other explicitly non-qualifying exposure identifier.
         tenor : str
-            Credit tenor bucket, such as ``"5Y"``.
+            SIMM credit tenor bucket, such as ``"5Y"``.
         amount : float
-            Signed CS01-style currency amount per 1bp move.
+            Signed CS01-style currency amount per 1bp move, in
+            ``base_currency``.
 
         Notes
         -----
         This method does not raise; it updates stored state in place.
+        """
+        ...
+
+    def add_credit_non_qualifying_vega(self, name: str, tenor: str, amount: float) -> None:
+        """
+        Add a credit non-qualifying vega sensitivity.
+
+        Parameters
+        ----------
+        name : str
+            Securitization or other explicitly non-qualifying exposure identifier.
+        tenor : str
+            SIMM credit tenor bucket, such as ``"5Y"``.
+        amount : float
+            Signed currency vega amount in ``base_currency``, compatible with
+            the SIMM credit-non-qualifying vega risk weight.
+
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_credit_non_qualifying_vega("RMBS-1", "5Y", 300.0)
+        >>> sens.is_empty()
+        False
         """
         ...
 
@@ -2114,7 +3219,8 @@ class SimmSensitivities:
         underlier : str
             Equity underlier or index identifier.
         amount : float
-            Signed currency sensitivity amount.
+            Signed currency sensitivity in ``base_currency`` (not a
+            percentage delta).
 
         Notes
         -----
@@ -2131,7 +3237,7 @@ class SimmSensitivities:
         underlier : str
             Equity underlier or index identifier.
         amount : float
-            Signed currency vega amount.
+            Signed currency vega amount in ``base_currency``.
 
         Notes
         -----
@@ -2148,7 +3254,8 @@ class SimmSensitivities:
         currency : str
             FX risk-factor currency.
         amount : float
-            Signed currency sensitivity amount.
+            Signed currency sensitivity in ``base_currency`` to the FX risk
+            factor (not a spot level or percentage move).
 
         Raises
         ------
@@ -2168,7 +3275,7 @@ class SimmSensitivities:
         ccy2 : str
             Second currency in the FX pair.
         amount : float
-            Signed currency vega amount.
+            Signed currency vega amount in ``base_currency``.
 
         Raises
         ------
@@ -2184,14 +3291,40 @@ class SimmSensitivities:
         Parameters
         ----------
         bucket : str
-            Commodity bucket label expected by the configured SIMM registry,
-            such as ``"energy"``.
+            SIMM commodity bucket id (``"1"`` .. ``"17"``) or ISDA bucket
+            name in any casing (``"Crude"``, ``"light_ends"``,
+            ``"Precious Metals"``, ...). Unknown labels are rejected by
+            ``validate()``.
         amount : float
-            Signed currency sensitivity amount.
+            Signed currency sensitivity in ``base_currency``.
 
         Notes
         -----
         This method does not raise; it updates stored state in place.
+        """
+        ...
+
+    def add_commodity_vega(self, bucket: str, amount: float) -> None:
+        """
+        Add a commodity vega bucket.
+
+        Parameters
+        ----------
+        bucket : str
+            SIMM commodity bucket id or name (see ``add_commodity_delta``).
+        amount : float
+            Signed currency vega amount in ``base_currency``.
+
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_commodity_vega("Crude", 750.0)
+        >>> sens.is_empty()
+        False
         """
         ...
 
@@ -2202,18 +3335,183 @@ class SimmSensitivities:
         Parameters
         ----------
         risk_class : str
-            SIMM risk class alias. Supported aliases include
-            ``"interest_rate"``, ``"rates"``, ``"credit_qualifying"``,
-            ``"credit_non_qualifying"``, ``"equity"``, ``"commodity"``,
-            and ``"fx"``.
+            Lower-case SIMM risk class label: ``"interest_rate"``,
+            ``"credit_qualifying"``, ``"credit_non_qualifying"``,
+            ``"equity"``, ``"commodity"`` or ``"fx"``.
         amount : float
-            Signed curvature contribution in currency units before the SIMM
-            curvature scale factor is applied.
+            Signed curvature contribution in ``base_currency`` before the
+            SIMM curvature scale factor is applied.
 
         Raises
         ------
         ValueError
-            If ``risk_class`` is not recognized.
+            If ``risk_class`` is not one of the labels above.
+        """
+        ...
+
+    def merge(self, other: SimmSensitivities) -> None:
+        """
+        Add every bucket of ``other`` into this container (amounts sum), so
+        offsetting risk nets within a netting set.
+
+        Parameters
+        ----------
+        other : SimmSensitivities
+            Container in the same ``base_currency``; convert with
+            ``scaled_to_currency`` first otherwise.
+
+        Raises
+        ------
+        ValueError
+            If the base currencies differ.
+
+        Examples
+        --------
+        >>> a = SimmSensitivities("USD")
+        >>> a.add_ir_delta("USD", "5Y", 1_000.0)
+        >>> b = SimmSensitivities("USD")
+        >>> b.add_ir_delta("USD", "5Y", -400.0)
+        >>> a.merge(b)
+        >>> a.total_ir_delta()
+        600.0
+        """
+        ...
+
+    def scaled(self, factor: float) -> SimmSensitivities:
+        """
+        Return a copy with every amount multiplied by a signed scalar.
+
+        Parameters
+        ----------
+        factor : float
+            Signed multiplier (e.g. position quantity for unit-notional trade
+            sensitivities); a negative factor flips every bucket.
+
+        Returns
+        -------
+        SimmSensitivities
+            Scaled copy in the same ``base_currency``.
+
+        Notes
+        -----
+        This method does not raise; it returns a scaled copy.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_ir_delta("USD", "5Y", 1_000.0)
+        >>> sens.scaled(-2.0).total_ir_delta()
+        -2000.0
+        """
+        ...
+
+    def scaled_to_currency(self, target_currency: str, fx_rate: float) -> SimmSensitivities:
+        """
+        Return a copy re-expressed in another currency.
+
+        Parameters
+        ----------
+        target_currency : str
+            ISO-4217 code the amounts should be expressed in.
+        fx_rate : float
+            Value of one unit of the current ``base_currency`` in
+            ``target_currency``; every amount is multiplied by it while the
+            risk-factor keys are unchanged.
+
+        Returns
+        -------
+        SimmSensitivities
+            Copy with ``base_currency == target_currency``.
+
+        Raises
+        ------
+        ValueError
+            If ``target_currency`` is not a known currency code.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_ir_delta("USD", "5Y", 1_000.0)
+        >>> eur = sens.scaled_to_currency("EUR", 0.9)
+        >>> (eur.base_currency, eur.total_ir_delta())
+        ('EUR', 900.0)
+        """
+        ...
+
+    def total_ir_delta(self) -> float:
+        """
+        Net IR delta summed across all currencies and tenors.
+
+        Returns
+        -------
+        float
+            Signed sum in ``base_currency``.
+
+        Notes
+        -----
+        This method does not raise; it returns the derived value.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_ir_delta("USD", "5Y", 1_000.0)
+        >>> sens.add_ir_delta("EUR", "2Y", 500.0)
+        >>> sens.total_ir_delta()
+        1500.0
+        """
+        ...
+
+    def total_equity_delta(self) -> float:
+        """
+        Net equity delta summed across all underliers.
+
+        Returns
+        -------
+        float
+            Signed sum in ``base_currency``.
+
+        Notes
+        -----
+        This method does not raise; it returns the derived value.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_equity_delta("SPX", 4_000.0)
+        >>> sens.total_equity_delta()
+        4000.0
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate tenor labels, commodity buckets, identifiers and amounts.
+
+        ``SimmCalculator.calculate_from_sensitivities`` runs this
+        automatically; call it directly to check a container built from
+        external data.
+
+        Returns
+        -------
+        None
+            Returns ``None`` when every bucket is valid.
+
+        Raises
+        ------
+        ValueError
+            Naming the offending map when a tenor is not a SIMM bucket, a
+            commodity bucket is unknown, an identifier is empty or an amount
+            is non-finite.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_ir_delta("USD", "7Y", 1_000.0)
+        >>> try:
+        ...     sens.validate()
+        ... except ValueError as exc:
+        ...     print("7Y" in str(exc))
+        True
         """
         ...
 
@@ -2276,7 +3574,7 @@ class SimmSensitivities:
 
         ``amount`` is a signed currency sensitivity in the container's base
         currency, in whatever convention the caller supplied - SIMM does not
-        re-scale these on ingest.
+        re-scale these on ingest. ``from_dataframe`` accepts this frame back.
 
         Rows are sorted by ``(risk_class, kind, issuer, bucket, tenor)`` so
         repeated exports of the same portfolio are identical.
@@ -2320,8 +3618,9 @@ class SimmCalculator:
             ``"SIMM 2.6"``. When omitted, the Rust ``SimmVersion::default()``
             (currently ``"v2_6"``) is used.
         mpor_days : int | None, optional
-            Optional margin period of risk override in calendar days. When
-            omitted, the registry default for the SIMM version is used.
+            Optional margin period of risk override in business days
+            (stamped on results; ISDA SIMM standard is 10). When omitted,
+            the registry default for the SIMM version is used.
 
         Raises
         ------
@@ -2349,12 +3648,12 @@ class SimmCalculator:
     @property
     def mpor_days(self) -> int:
         """
-        Margin period of risk in calendar days.
+        Margin period of risk in business days.
 
         Returns
         -------
         int
-            MPOR in calendar days.
+            MPOR in business days.
 
         Notes
         -----
@@ -2366,38 +3665,50 @@ class SimmCalculator:
         self,
         sensitivities: SimmSensitivities,
         currency: str,
-        year: int,
-        month: int,
-        day: int,
+        as_of: datetime.date | str,
     ) -> ImResult:
         """
-        Calculate SIMM from explicit sensitivities.
+        Calculate SIMM initial margin from explicit sensitivities.
 
         Parameters
         ----------
         sensitivities : SimmSensitivities
-            Sensitivity set to aggregate.
+            Sensitivity set to aggregate; validated first, so an unknown
+            tenor or commodity bucket raises instead of pricing to zero.
         currency : str
-            Reporting currency for the resulting margin amount.
-        year : int
-            Calculation year.
-        month : int
-            Calculation month, from 1 to 12.
-        day : int
-            Calculation day of month.
+            Label for the reported amounts. **No FX conversion is applied**:
+            the amounts are the raw SIMM aggregates of the sensitivities as
+            supplied, so pass ``sensitivities.base_currency`` (or convert
+            with ``SimmSensitivities.scaled_to_currency`` first).
+        as_of : datetime.date | str
+            Calculation date stamped on the result (``datetime.date``,
+            ``pandas.Timestamp`` or ISO ``YYYY-MM-DD``).
 
         Returns
         -------
         ImResult
             Initial-margin amount, methodology, MPOR, calculation date, and
-            risk-class breakdown.
+            the SIMM component breakdown (``IR_Delta``, ``FX_Delta``, ...).
 
         Raises
         ------
         ValueError
-            If the reporting currency or date is invalid.
+            If the sensitivities fail validation, the currency is unknown, or
+            a date string is not ISO 8601.
+        TypeError
+            If ``as_of`` is neither a string nor date-like.
+
+        Examples
+        --------
+        >>> sens = SimmSensitivities("USD")
+        >>> sens.add_ir_delta("USD", "5Y", 50_000.0)
+        >>> result = SimmCalculator("v2_6").calculate_from_sensitivities(sens, "USD", "2025-01-15")
+        >>> (result.amount > 0.0, result.breakdown_keys())
+        (True, ['IR_Delta'])
         """
         ...
+
+    def __repr__(self) -> str: ...
 
 class ScheduleImCalculator:
     """
@@ -2472,9 +3783,9 @@ class ScheduleImCalculator:
         Parameters
         ----------
         asset_class : str
-            Schedule asset class alias such as ``"interest_rate"``,
-            ``"credit"``, ``"equity"``, ``"commodity"``, ``"fx"``, or
-            ``"other"``.
+            Lower-case schedule asset class label: ``"interest_rate"``,
+            ``"credit"``, ``"equity"``, ``"commodity"``, ``"fx"``,
+            ``"other"``, or ``"custom_<name>"`` for a registry-defined class.
 
         Returns
         -------
@@ -2509,6 +3820,69 @@ class ScheduleImCalculator:
         """
         ...
 
+    @property
+    def default_asset_class(self) -> str:
+        """
+        Default asset class label used by trait-based calculations.
+
+        Returns
+        -------
+        str
+            Lower-case label such as ``'interest_rate'`` (``'custom_<name>'`` for registry-defined classes).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> ScheduleImCalculator.bcbs_standard().with_asset_class("credit").default_asset_class
+        'credit'
+        """
+        ...
+
+    @property
+    def default_maturity_years(self) -> float:
+        """
+        Default remaining maturity in years used by trait-based calculations.
+
+        Returns
+        -------
+        float
+            Maturity in years.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> ScheduleImCalculator.bcbs_standard().with_maturity(7.0).default_maturity_years
+        7.0
+        """
+        ...
+
+    @property
+    def mpor_days(self) -> int:
+        """
+        Margin period of risk in business days stamped on results.
+
+        Returns
+        -------
+        int
+            MPOR in business days.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> ScheduleImCalculator.bcbs_standard().mpor_days
+        10
+        """
+        ...
+
     def rate(self, asset_class: str, maturity_years: float) -> float:
         """
         Look up a decimal schedule rate.
@@ -2538,9 +3912,7 @@ class ScheduleImCalculator:
         currency: str,
         asset_class: str,
         maturity_years: float,
-        year: int,
-        month: int,
-        day: int,
+        as_of: datetime.date | str,
     ) -> ImResult:
         """
         Calculate gross schedule IM from an explicit notional.
@@ -2556,12 +3928,9 @@ class ScheduleImCalculator:
             Schedule asset class alias.
         maturity_years : float
             Remaining maturity used for the schedule-rate lookup.
-        year : int
-            Calculation year.
-        month : int
-            Calculation month, from 1 to 12.
-        day : int
-            Calculation day of month.
+        as_of : datetime.date | str
+            Calculation date stamped on the result (``datetime.date``,
+            ``pandas.Timestamp`` or ISO ``YYYY-MM-DD``).
 
         Returns
         -------
@@ -2573,6 +3942,14 @@ class ScheduleImCalculator:
         ------
         ValueError
             If the currency, asset class, amount, or date is invalid.
+        TypeError
+            If ``as_of`` is neither a string nor date-like.
+
+        Examples
+        --------
+        >>> calc = ScheduleImCalculator.bcbs_standard()
+        >>> calc.calculate_for_notional(1_000_000, "USD", "interest_rate", 5.0, "2025-01-15").amount
+        40000.0
         """
         ...
 
@@ -2582,9 +3959,7 @@ class ScheduleImCalculator:
         currency: str,
         asset_class: str,
         maturity_years: float,
-        year: int,
-        month: int,
-        day: int,
+        as_of: datetime.date | str,
     ) -> ImResult | None:
         """
         Calculate schedule IM for a netting set using NGR.
@@ -2605,26 +3980,35 @@ class ScheduleImCalculator:
             Schedule asset class applied uniformly to all positions.
         maturity_years : float
             Representative remaining maturity used for the rate lookup.
-        year : int
-            Calculation year.
-        month : int
-            Calculation month, from 1 to 12.
-        day : int
-            Calculation day of month.
+        as_of : datetime.date | str
+            Calculation date stamped on the result.
 
         Returns
         -------
         ImResult | None
-            NGR-adjusted schedule IM. Returns ``None`` for an empty position
-            list, zero gross notionals, or inconsistent currencies after
-            conversion to Rust money values.
+            NGR-adjusted schedule IM (breakdown key ``"<asset_class>_ngr"``).
+            Returns ``None`` for an empty position list or zero gross
+            notional.
 
         Raises
         ------
         ValueError
             If the currency, asset class, amount, or date is invalid.
+        TypeError
+            If ``as_of`` is neither a string nor date-like.
+
+        Examples
+        --------
+        >>> calc = ScheduleImCalculator.bcbs_standard()
+        >>> netted = calc.calculate_netting_set_with_ngr(
+        ...     [(2e6, 1e8), (-1.5e6, 8e7)], "USD", "interest_rate", 5.0, "2025-01-15"
+        ... )
+        >>> netted.breakdown_keys()
+        ['interest_rate_ngr']
         """
         ...
+
+    def __repr__(self) -> str: ...
 
 class HaircutImCalculator:
     """
@@ -2715,24 +4099,31 @@ class HaircutImCalculator:
         """
         ...
 
-    def with_default_asset_class(self, asset_class: CollateralAssetClass) -> HaircutImCalculator:
+    def with_default_asset_class(self, asset_class: CollateralAssetClass | str) -> HaircutImCalculator:
         """
         Return a copy configured with a default collateral asset class.
 
         Parameters
         ----------
-        asset_class : CollateralAssetClass
-            Asset class used by trait-based calculations.
+        asset_class : CollateralAssetClass | str
+            Asset class (or its lower-case wire label) used by trait-based
+            calculations.
 
         Returns
         -------
         HaircutImCalculator
             Copy of this calculator with the default asset class changed.
 
-        Notes
-        -----
-        This builder returns a copy with the field set and does not raise.
+        Raises
+        ------
+        ValueError
+            If a string label is not a collateral asset class.
 
+        Examples
+        --------
+        >>> calc = HaircutImCalculator.bcbs_standard().with_default_asset_class("government_bonds")
+        >>> calc.default_asset_class
+        CollateralAssetClass(government_bonds)
         """
         ...
 
@@ -2758,14 +4149,98 @@ class HaircutImCalculator:
         """
         ...
 
-    def haircut_for(self, asset_class: CollateralAssetClass) -> float:
+    @property
+    def eligible_collateral(self) -> EligibleCollateralSchedule:
+        """
+        Eligible-collateral schedule the haircuts are read from.
+
+        Returns
+        -------
+        EligibleCollateralSchedule
+            The schedule.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> HaircutImCalculator.bcbs_standard().eligible_collateral.eligible_count > 0
+        True
+        """
+        ...
+
+    @property
+    def default_asset_class(self) -> CollateralAssetClass:
+        """
+        Default collateral asset class assumed by trait-based calculations.
+
+        Returns
+        -------
+        CollateralAssetClass
+            Asset class (cash unless overridden).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> HaircutImCalculator.bcbs_standard().default_asset_class
+        CollateralAssetClass(government_bonds)
+        """
+        ...
+
+    @property
+    def posted_collateral_currency(self) -> str | None:
+        """
+        Declared posted-collateral currency code, or ``None``.
+
+        Returns
+        -------
+        str | None
+            ISO-4217 code, or ``None`` when not declared.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> HaircutImCalculator.bcbs_standard().with_posted_collateral_currency("EUR").posted_collateral_currency
+        'EUR'
+        """
+        ...
+
+    @property
+    def mpor_days(self) -> int:
+        """
+        Margin period of risk in business days stamped on every result (CONSTANTS HAIRCUT_MPOR_DAYS).
+
+        Returns
+        -------
+        int
+            MPOR in business days.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> HaircutImCalculator.bcbs_standard().mpor_days
+        2
+        """
+        ...
+
+    def haircut_for(self, asset_class: CollateralAssetClass | str) -> float:
         """
         Look up the decimal haircut for a collateral asset class.
 
         Parameters
         ----------
-        asset_class : CollateralAssetClass
-            Collateral asset class.
+        asset_class : CollateralAssetClass | str
+            Collateral asset class or its lower-case wire label.
 
         Returns
         -------
@@ -2784,11 +4259,9 @@ class HaircutImCalculator:
         self,
         collateral_value: float,
         currency: str,
-        asset_class: CollateralAssetClass,
+        asset_class: CollateralAssetClass | str,
         currency_mismatch: bool,
-        year: int,
-        month: int,
-        day: int,
+        as_of: datetime.date | str,
     ) -> ImResult:
         """
         Calculate haircut IM from explicit collateral value and asset class.
@@ -2799,30 +4272,37 @@ class HaircutImCalculator:
             Collateral market value in ``currency``.
         currency : str
             Currency code for the collateral value and result.
-        asset_class : CollateralAssetClass
-            Collateral asset class used for the haircut lookup.
+        asset_class : CollateralAssetClass | str
+            Collateral asset class (or its wire label) used for the haircut
+            lookup and the breakdown key.
         currency_mismatch : bool
             Whether to add the asset-class FX mismatch add-on.
-        year : int
-            Calculation year.
-        month : int
-            Calculation month, from 1 to 12.
-        day : int
-            Calculation day of month.
+        as_of : datetime.date | str
+            Calculation date stamped on the result.
 
         Returns
         -------
         ImResult
             Haircut IM result. The MPOR is the Rust canonical repo haircut
-            horizon, currently 2 calendar days.
+            horizon, ``CONSTANTS["HAIRCUT_MPOR_DAYS"]`` (2 business days).
 
         Raises
         ------
         ValueError
             If the currency, amount, date, haircut, or FX add-on cannot be
             resolved.
+        TypeError
+            If ``as_of`` is neither a string nor date-like.
+
+        Examples
+        --------
+        >>> calc = HaircutImCalculator.bcbs_standard()
+        >>> calc.calculate_for_collateral(1e7, "USD", "cash", True, "2025-01-15").amount
+        800000.0
         """
         ...
+
+    def __repr__(self) -> str: ...
 
 class FundingConfig:
     """
@@ -2891,6 +4371,59 @@ class FundingConfig:
             If a spread is negative or non-finite, the benefit exceeds the
             funding cost, or ``im_profile`` is invalid.
         """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FundingConfig:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``FundingConfig``.
+
+        Returns
+        -------
+        FundingConfig
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = FundingConfig(50.0, 30.0)
+        >>> FundingConfig.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(FundingConfig(50.0, 30.0).to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
         ...
 
     @property
@@ -3026,9 +4559,18 @@ class ExposureDiagnostics:
     """
     Diagnostics from exposure simulation.
 
+    Counters an exposure engine attaches to an ``ExposureProfile`` (via its
+    ``diagnostics`` argument): how many market-roll and valuation failures
+    occurred over how many time points.
+
     Parameters
     ----------
-    (Embedded in exposure results when provided by the engine.)
+    market_roll_failures : int, default 0
+        Number of market-roll failures.
+    valuation_failures : int, default 0
+        Total instrument valuation failures.
+    total_time_points : int, default 0
+        Total time grid points evaluated.
 
     Returns
     -------
@@ -3037,12 +4579,86 @@ class ExposureDiagnostics:
 
     Examples
     --------
-    >>> try:
-    ...     ExposureDiagnostics()
-    ... except TypeError as exc:
-    ...     print(exc)
-    cannot create 'finstack_quant.margin.ExposureDiagnostics' instances
+    >>> ExposureDiagnostics(valuation_failures=2, total_time_points=40).valuation_failures
+    2
     """
+
+    def __init__(
+        self,
+        market_roll_failures: int = 0,
+        valuation_failures: int = 0,
+        total_time_points: int = 0,
+    ) -> None:
+        """
+        Create a diagnostics record from its three counters.
+
+        Parameters
+        ----------
+        market_roll_failures : int, default 0
+            Number of market-roll failures.
+        valuation_failures : int, default 0
+            Total instrument valuation failures.
+        total_time_points : int, default 0
+            Total time grid points evaluated.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ExposureDiagnostics:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``ExposureDiagnostics``.
+
+        Returns
+        -------
+        ExposureDiagnostics
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = ExposureDiagnostics(1, 2, 3)
+        >>> ExposureDiagnostics.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(ExposureDiagnostics(1, 2, 3).to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
 
     @property
     def market_roll_failures(self) -> int:
@@ -3108,6 +4724,8 @@ class ExposureProfile:
         Expected positive exposure series.
     ene : list[float]
         Expected negative exposure series.
+    diagnostics : ExposureDiagnostics | None, optional
+        Engine failure counters to attach; ``None`` when built by hand.
 
     Returns
     -------
@@ -3127,6 +4745,7 @@ class ExposureProfile:
         mtm_values: list[float],
         epe: list[float],
         ene: list[float],
+        diagnostics: ExposureDiagnostics | None = None,
     ) -> None:
         """
         Create aligned MtM, EPE, and ENE vectors on an exposure time grid.
@@ -3134,17 +4753,75 @@ class ExposureProfile:
         Parameters
         ----------
         times : list[float]
-            Exposure times in years from the valuation date.
+            Exposure times in years from the valuation date (strictly
+            positive).
         mtm_values : list[float]
             Portfolio mark-to-market amounts at the corresponding times.
         epe : list[float]
             Expected positive exposure amounts at the corresponding times.
         ene : list[float]
             Expected negative exposure amounts at the corresponding times.
+        diagnostics : ExposureDiagnostics | None, optional
+            Engine failure counters to attach.
 
         Notes
         -----
-        Construction does not raise; arguments are stored as supplied.
+        Construction does not raise; arguments are stored as supplied and
+        checked by ``validate()`` or the XVA entry points.
+        """
+        ...
+
+    @staticmethod
+    def from_dataframe(frame: pd.DataFrame) -> ExposureProfile:
+        """
+        Build a profile from the frame ``to_dataframe`` emits.
+
+        Parameters
+        ----------
+        frame : pd.DataFrame
+            Columns ``mtm_values``, ``epe``, ``ene`` indexed by time in
+            years.
+
+        Returns
+        -------
+        ExposureProfile
+            Profile with the index as ``times`` and no diagnostics.
+
+        Raises
+        ------
+        ValueError
+            If a column is missing or non-numeric.
+        TypeError
+            If ``frame`` is not a pandas ``DataFrame``.
+
+        Examples
+        --------
+        >>> original = ExposureProfile([0.5, 1.0], [1.0, 2.0], [1.0, 2.0], [0.0, 0.0])
+        >>> ExposureProfile.from_dataframe(original.to_dataframe()).epe
+        [1.0, 2.0]
+        """
+        ...
+
+    @property
+    def diagnostics(self) -> ExposureDiagnostics | None:
+        """
+        Engine diagnostics attached to the profile.
+
+        Returns
+        -------
+        ExposureDiagnostics or None
+            Counters supplied at construction (or carried through
+            ``from_json``), else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> p = ExposureProfile([1.0], [0.0], [0.0], [0.0], ExposureDiagnostics(0, 1, 1))
+        >>> p.diagnostics.valuation_failures
+        1
         """
         ...
 
@@ -3205,11 +4882,13 @@ class ExposureProfile:
         Returns
         -------
         None
+            Returns ``None`` when the vectors are consistent.
 
         Raises
         ------
-        Exception
-            If vectors are inconsistent.
+        ValueError
+            If the profile is empty, lengths differ, times are not strictly
+            increasing and positive, or an amount is non-finite.
 
         Examples
         --------
@@ -3320,7 +4999,8 @@ class ExposureProfile:
         """
         Export as a pandas DataFrame with time (years) as index.
 
-        Columns: ``mtm_values``, ``epe``, ``ene``.
+        Columns: ``mtm_values``, ``epe``, ``ene``; ``from_dataframe`` accepts
+        this frame back.
 
         Returns
         -------
@@ -3595,6 +5275,34 @@ class XvaResult:
         """
         ...
 
+    @property
+    def meta(self) -> dict[str, Any]:
+        """
+        Policy metadata stamped by the computing layer.
+
+        Returns
+        -------
+        dict[str, Any]
+            ``numeric_mode``, ``rounding`` (the active rounding context),
+            ``fx_policy_applied`` (or ``None``), ``parallel`` and
+            ``timestamp``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> doc = (
+        ...     '{"cva":1.0,"total_xva":1.0,"epe_profile":[[0.0,2.0]],'
+        ...     '"ene_profile":[[0.0,0.0]],"pfe_profile":[[0.0,2.0]],"max_pfe":2.0,'
+        ...     '"effective_epe_profile":[[0.0,2.0]],"effective_epe":2.0}'
+        ... )
+        >>> "numeric_mode" in XvaResult.from_json(doc).meta
+        True
+        """
+        ...
+
     def to_dataframe(self) -> pd.DataFrame:
         """
         Export the XVA components as a single-row pandas DataFrame.
@@ -3788,7 +5496,7 @@ class ImDecayProfile:
         Examples
         --------
         >>> ImDecayProfile.from_json(ImDecayProfile.constant().to_json())
-        ImDecayProfile(Constant)
+        ImDecayProfile(constant)
         """
         ...
 
@@ -4209,6 +5917,59 @@ class MarginUtilization:
         """
         ...
 
+    @staticmethod
+    def from_json(json: str) -> MarginUtilization:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``MarginUtilization``.
+
+        Returns
+        -------
+        MarginUtilization
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = MarginUtilization(100.0, 80.0, "USD")
+        >>> MarginUtilization.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(MarginUtilization(100.0, 80.0, "USD").to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
     @property
     def posted(self) -> float:
         """
@@ -4392,6 +6153,59 @@ class ExcessCollateral:
             If ``currency`` is unrecognized, or either amount is non-finite or
             outside the representable monetary range.
         """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ExcessCollateral:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``ExcessCollateral``.
+
+        Returns
+        -------
+        ExcessCollateral
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = ExcessCollateral(120.0, 100.0, "USD")
+        >>> ExcessCollateral.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(ExcessCollateral(120.0, 100.0, "USD").to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
         ...
 
     @property
@@ -4604,6 +6418,59 @@ class MarginFundingCost:
         """
         ...
 
+    @staticmethod
+    def from_json(json: str) -> MarginFundingCost:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``MarginFundingCost``.
+
+        Returns
+        -------
+        MarginFundingCost
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = MarginFundingCost(1e6, 0.05, 0.02, "USD")
+        >>> MarginFundingCost.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(MarginFundingCost(1e6, 0.05, 0.02, "USD").to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
     @property
     def margin_posted(self) -> float:
         """
@@ -4814,6 +6681,59 @@ class Haircut01:
         """
         ...
 
+    @staticmethod
+    def from_json(json: str) -> Haircut01:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            Canonical JSON for a ``Haircut01``.
+
+        Returns
+        -------
+        Haircut01
+            Parsed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> original = Haircut01(1e6, 0.05, "USD")
+        >>> Haircut01.from_json(original.to_json()).to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON accepted by ``from_json``.
+
+        Returns
+        -------
+        str
+            JSON string.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+
+        Examples
+        --------
+        >>> isinstance(Haircut01(1e6, 0.05, "USD").to_json(), str)
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
     @property
     def collateral_value(self) -> float:
         """
@@ -4899,15 +6819,50 @@ class Haircut01:
         """
         ...
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the result as a single-row pandas ``DataFrame``.
+
+        Columns: ``collateral_value``, ``current_haircut``, ``haircut_bp``,
+        ``pv_change``, ``currency``. ``collateral_value`` and ``pv_change``
+        are floats in ``currency``; ``current_haircut`` is a decimal fraction
+        and ``haircut_bp`` the same haircut in basis points.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the haircut sensitivity.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> float(Haircut01(1.0, 0.01, "USD").to_dataframe()["haircut_bp"].iloc[0])
+        100.0
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class FrtbSensitivities:
     """
     FRTB sensitivity portfolio for the Sensitivity-Based Approach.
 
-    Build up delta / vega / curvature inputs with the ``add_*`` methods, then
-    pass to :func:`frtb_sba_charge` to compute the capital charge under one or
+    Build up delta / vega / curvature / DRC / RRAO inputs with the ``add_*``
+    methods (or ``from_dataframe``), then pass to :func:`frtb_sba_charge` or
+    ``FrtbSbaEngine.calculate`` to compute the capital charge under one or
     more correlation scenarios per BCBS d457.
+
+    Units: GIRR deltas are base-currency P&L per **1 percentage point** of
+    curve shift (``100 x DV01``); CSR deltas are base-currency P&L per 1 basis
+    point of spread; equity, commodity and FX deltas are base-currency P&L per
+    1 percentage point of the underlying; vegas are base-currency P&L per unit
+    implied-volatility move; curvature pairs are the up/down shocked P&L
+    positions; DRC amounts are signed JTD notionals before LGD; RRAO amounts
+    are gross notionals. Bucket numbers are 1-based FRTB buckets.
 
     Parameters
     ----------
@@ -4985,6 +6940,77 @@ class FrtbSensitivities:
         """
         ...
 
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
+    @staticmethod
+    def from_dataframe(frame: pd.DataFrame, base_currency: str = "USD") -> FrtbSensitivities:
+        """
+        Bulk-load sensitivities from the long-format frame ``to_dataframe``
+        emits.
+
+        Parameters
+        ----------
+        frame : pd.DataFrame
+            Columns ``risk_class``, ``kind``, ``issuer``, ``bucket``,
+            ``tenor``, ``amount`` encoded as ``to_dataframe`` documents.
+            ``curvature_up`` / ``curvature_down`` rows are recombined into
+            pairs; ``rrao`` rows carry ``exotic_notional`` /
+            ``other_notional``.
+        base_currency : str, default "USD"
+            Reporting currency of every ``amount``.
+
+        Returns
+        -------
+        FrtbSensitivities
+            Container with rows of the same key accumulated.
+
+        Raises
+        ------
+        ValueError
+            If a risk class or kind is unknown, a required column is missing,
+            a currency is unknown, or the frame contains ``drc`` rows (they
+            carry no sector/seniority/asset type — use ``add_drc_position``).
+        TypeError
+            If ``frame`` is not a pandas ``DataFrame``.
+
+        Examples
+        --------
+        >>> original = FrtbSensitivities("USD")
+        >>> original.add_girr_delta("5Y", 100_000.0)
+        >>> restored = FrtbSensitivities.from_dataframe(original.to_dataframe())
+        >>> restored.to_json() == original.to_json()
+        True
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate labels, buckets, identifiers and amounts without pricing.
+
+        The engines run this automatically; call it directly to check a
+        container built from external data.
+
+        Returns
+        -------
+        None
+            Returns ``None`` when every input is valid.
+
+        Raises
+        ------
+        ValueError
+            Naming the first invalid field when a tenor or bucket is
+            unsupported, an identifier is empty, or a value is non-finite.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_girr_delta("5Y", 100_000.0)
+        >>> sens.validate()
+        """
+        ...
+
     def add_girr_delta(self, tenor: str, amount: float, currency: str | None = None) -> None:
         """
         Add a GIRR delta sensitivity (currency P&L per 1 percentage-point move).
@@ -5005,24 +7031,285 @@ class FrtbSensitivities:
         """
         ...
 
-    def add_csr_delta(self, issuer: str, bucket: int, tenor: str, amount: float) -> None:
+    def add_girr_inflation_delta(self, amount: float, currency: str | None = None) -> None:
         """
-        Add a CSR (non-securitization) delta sensitivity.
+        Add a GIRR inflation delta sensitivity.
+
+        Parameters
+        ----------
+        amount : float
+            Base-currency P&L per 1 percentage point of inflation shift.
+        currency : str, optional
+            Currency of the inflation curve; defaults to the base currency.
+        Raises
+        ------
+        ValueError
+            If a supplied ``currency`` is not a recognized ISO currency code.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_girr_inflation_delta(1_000.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_girr_xccy_basis_delta(self, amount: float, currency: str | None = None) -> None:
+        """
+        Add a GIRR cross-currency basis delta sensitivity.
+
+        Parameters
+        ----------
+        amount : float
+            Base-currency P&L per 1 percentage point of basis shift.
+        currency : str, optional
+            Currency whose basis moves; defaults to the base currency.
+        Raises
+        ------
+        ValueError
+            If a supplied ``currency`` is not a recognized ISO currency code.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_girr_xccy_basis_delta(500.0, "EUR")
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_nonsec_delta(self, issuer: str, bucket: int, tenor: str, amount: float) -> None:
+        """
+        Add a CSR non-securitisation delta sensitivity.
 
         Parameters
         ----------
         issuer : str
             Issuer or reference-entity identifier.
         bucket : int
-            CSR bucket number.
+            1-based CSR non-sec bucket (MAR21.51).
         tenor : str
-            Credit tenor bucket.
+            Credit-spread tenor label such as ``"5Y"``.
         amount : float
-            Signed sensitivity amount per 1bp move.
-
+            Base-currency P&L per 1 basis point of spread move.
         Notes
         -----
         This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_nonsec_delta("ACME", 3, "5Y", 4_000.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_nonsec_vega(self, issuer: str, bucket: int, maturity: str, amount: float) -> None:
+        """
+        Add a CSR non-securitisation vega sensitivity.
+
+        Parameters
+        ----------
+        issuer : str
+            Issuer or reference-entity identifier.
+        bucket : int
+            1-based CSR non-sec bucket (MAR21.51).
+        maturity : str
+            Option maturity label such as ``"1Y"``.
+        amount : float
+            Base-currency P&L per unit implied-volatility move.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_nonsec_vega("ACME", 3, "1Y", 400.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_nonsec_curvature(self, issuer: str, bucket: int, cvr_up: float, cvr_down: float) -> None:
+        """
+        Add a CSR non-securitisation curvature pair.
+
+        Parameters
+        ----------
+        issuer : str
+            Issuer or reference-entity identifier.
+        bucket : int
+            1-based CSR non-sec bucket (MAR21.51).
+        cvr_up : float
+            Curvature risk position under the upward spread shock, in base
+            currency.
+        cvr_down : float
+            Curvature risk position under the downward spread shock, in base
+            currency.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_nonsec_curvature("ACME", 3, 50.0, -40.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_sec_ctp_delta(self, tranche: str, bucket: int, tenor: str, amount: float) -> None:
+        """
+        Add a CSR securitisation (correlation trading portfolio) delta sensitivity.
+
+        Parameters
+        ----------
+        tranche : str
+            Tranche or index identifier.
+        bucket : int
+            1-based CSR sec-CTP bucket (MAR21.59).
+        tenor : str
+            Credit-spread tenor label such as ``"5Y"``.
+        amount : float
+            Base-currency P&L per 1 basis point of spread move.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_sec_ctp_delta("CDX-T", 1, "5Y", 1_000.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_sec_ctp_vega(self, tranche: str, bucket: int, maturity: str, amount: float) -> None:
+        """
+        Add a CSR securitisation (CTP) vega sensitivity.
+
+        Parameters
+        ----------
+        tranche : str
+            Tranche or index identifier.
+        bucket : int
+            1-based CSR sec-CTP bucket (MAR21.59).
+        maturity : str
+            Option maturity label such as ``"1Y"``.
+        amount : float
+            Base-currency P&L per unit implied-volatility move.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_sec_ctp_vega("CDX-T", 1, "1Y", 100.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_sec_ctp_curvature(self, tranche: str, bucket: int, cvr_up: float, cvr_down: float) -> None:
+        """
+        Add a CSR securitisation (CTP) curvature pair.
+
+        Parameters
+        ----------
+        tranche : str
+            Tranche or index identifier.
+        bucket : int
+            1-based CSR sec-CTP bucket (MAR21.59).
+        cvr_up : float
+            Curvature risk position under the upward spread shock.
+        cvr_down : float
+            Curvature risk position under the downward spread shock.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_sec_ctp_curvature("CDX-T", 1, 10.0, -8.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_sec_nonctp_delta(self, tranche: str, bucket: int, tenor: str, amount: float) -> None:
+        """
+        Add a CSR securitisation (non-CTP) delta sensitivity.
+
+        Parameters
+        ----------
+        tranche : str
+            Tranche identifier.
+        bucket : int
+            1-based CSR sec non-CTP bucket (MAR21.64).
+        tenor : str
+            Credit-spread tenor label such as ``"5Y"``.
+        amount : float
+            Base-currency P&L per 1 basis point of spread move.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_sec_nonctp_delta("ABS-1", 1, "5Y", 1_000.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_sec_nonctp_vega(self, tranche: str, bucket: int, maturity: str, amount: float) -> None:
+        """
+        Add a CSR securitisation (non-CTP) vega sensitivity.
+
+        Parameters
+        ----------
+        tranche : str
+            Tranche identifier.
+        bucket : int
+            1-based CSR sec non-CTP bucket (MAR21.64).
+        maturity : str
+            Option maturity label such as ``"1Y"``.
+        amount : float
+            Base-currency P&L per unit implied-volatility move.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_sec_nonctp_vega("ABS-1", 1, "1Y", 100.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_csr_sec_nonctp_curvature(self, tranche: str, bucket: int, cvr_up: float, cvr_down: float) -> None:
+        """
+        Add a CSR securitisation (non-CTP) curvature pair.
+
+        Parameters
+        ----------
+        tranche : str
+            Tranche identifier.
+        bucket : int
+            1-based CSR sec non-CTP bucket (MAR21.64).
+        cvr_up : float
+            Curvature risk position under the upward spread shock.
+        cvr_down : float
+            Curvature risk position under the downward spread shock.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_csr_sec_nonctp_curvature("ABS-1", 1, 10.0, -8.0)
+        >>> sens.validate()
         """
         ...
 
@@ -5035,13 +7322,18 @@ class FrtbSensitivities:
         underlier : str
             Equity underlier or index identifier.
         bucket : int
-            Equity bucket number.
+            1-based equity bucket (MAR21.72).
         amount : float
-            Signed sensitivity amount per 1bp move.
-
+            Base-currency P&L per 1 percentage point move in the underlier.
         Notes
         -----
         This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_equity_delta("ACME", 1, 12_000.0)
+        >>> sens.validate()
         """
         ...
 
@@ -5056,12 +7348,18 @@ class FrtbSensitivities:
         ccy2 : str
             Second currency in the FX pair.
         amount : float
-            Signed sensitivity amount per 1bp move.
-
+            Base-currency P&L per 1 percentage point move in the exchange
+            rate.
         Raises
         ------
         ValueError
             If ``ccy1`` or ``ccy2`` is not a recognized ISO currency code.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_fx_delta("EUR", "USD", 9_000.0)
+        >>> sens.validate()
         """
         ...
 
@@ -5074,15 +7372,73 @@ class FrtbSensitivities:
         name : str
             Commodity identifier.
         bucket : int
-            Commodity bucket number.
+            1-based commodity bucket (MAR21.82).
         tenor : str
-            Commodity tenor bucket.
+            Commodity tenor label such as ``"1Y"``.
         amount : float
-            Signed sensitivity amount per 1bp move.
-
+            Base-currency P&L per 1 percentage point move in the commodity
+            price.
         Notes
         -----
         This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_commodity_delta("WTI", 2, "1Y", 3_000.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_commodity_vega(self, name: str, bucket: int, maturity: str, amount: float) -> None:
+        """
+        Add a commodity vega sensitivity.
+
+        Parameters
+        ----------
+        name : str
+            Commodity identifier.
+        bucket : int
+            1-based commodity bucket (MAR21.82).
+        maturity : str
+            Option maturity label such as ``"1Y"``.
+        amount : float
+            Base-currency P&L per unit implied-volatility move.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_commodity_vega("WTI", 2, "1Y", 300.0)
+        >>> sens.validate()
+        """
+        ...
+
+    def add_commodity_curvature(self, name: str, bucket: int, cvr_up: float, cvr_down: float) -> None:
+        """
+        Add a commodity curvature pair.
+
+        Parameters
+        ----------
+        name : str
+            Commodity identifier.
+        bucket : int
+            1-based commodity bucket (MAR21.82).
+        cvr_up : float
+            Curvature risk position under the upward price shock.
+        cvr_down : float
+            Curvature risk position under the downward price shock.
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_commodity_curvature("WTI", 2, 30.0, -20.0)
+        >>> sens.validate()
         """
         ...
 
@@ -5099,11 +7455,11 @@ class FrtbSensitivities:
         Parameters
         ----------
         option_maturity : str
-            Option maturity bucket.
+            Option maturity label such as ``"1Y"``.
         underlying_tenor : str
-            Underlying tenor bucket.
+            Underlying swap tenor label such as ``"5Y"``.
         amount : float
-            Signed vega amount.
+            Base-currency P&L per unit implied-volatility move.
         currency : str, optional
             Currency code; defaults to the base currency.
 
@@ -5123,11 +7479,11 @@ class FrtbSensitivities:
         underlier : str
             Equity underlier or index identifier.
         bucket : int
-            Equity bucket number.
+            1-based equity bucket (MAR21.72).
         maturity : str
-            Option maturity bucket.
+            Option maturity label such as ``"1Y"``.
         amount : float
-            Signed vega amount.
+            Base-currency P&L per unit implied-volatility move.
 
         Notes
         -----
@@ -5146,9 +7502,9 @@ class FrtbSensitivities:
         ccy2 : str
             Second currency in the FX pair.
         maturity : str
-            Option maturity bucket.
+            Option maturity label such as ``"1Y"``.
         amount : float
-            Signed vega amount.
+            Base-currency P&L per unit implied-volatility move.
 
         Raises
         ------
@@ -5164,9 +7520,11 @@ class FrtbSensitivities:
         Parameters
         ----------
         cvr_up : float
-            Curvature sensitivity for upward shock.
+            Curvature risk position under the upward rate shock, in base
+            currency.
         cvr_down : float
-            Curvature sensitivity for downward shock.
+            Curvature risk position under the downward rate shock, in base
+            currency.
         currency : str, optional
             Currency code; defaults to the base currency.
 
@@ -5186,11 +7544,11 @@ class FrtbSensitivities:
         underlier : str
             Equity underlier or index identifier.
         bucket : int
-            Equity bucket number.
+            1-based equity bucket (MAR21.72).
         cvr_up : float
-            Curvature sensitivity for upward shock.
+            Curvature risk position under the upward price shock.
         cvr_down : float
-            Curvature sensitivity for downward shock.
+            Curvature risk position under the downward price shock.
 
         Notes
         -----
@@ -5209,14 +7567,66 @@ class FrtbSensitivities:
         ccy2 : str
             Second currency in the FX pair.
         cvr_up : float
-            Curvature sensitivity for upward shock.
+            Curvature risk position under the upward FX shock.
         cvr_down : float
-            Curvature sensitivity for downward shock.
+            Curvature risk position under the downward FX shock.
 
         Raises
         ------
         ValueError
             If ``ccy1`` or ``ccy2`` is not a recognized ISO currency code.
+        """
+        ...
+
+    def add_drc_position(
+        self,
+        issuer: str,
+        jtd_amount: float,
+        rating_bucket: int,
+        sector: str,
+        seniority: str,
+        asset_type: str,
+        pnl_adjustment: float = 0.0,
+    ) -> None:
+        """
+        Add a Default Risk Charge position.
+
+        Parameters
+        ----------
+        issuer : str
+            Issuer identifier; long and short JTD net per issuer at charge
+            time.
+        jtd_amount : float
+            Signed jump-to-default **notional** in base currency (positive =
+            long, negative = short), before the seniority LGD.
+        rating_bucket : int
+            Credit-rating bucket, 1 (AAA) to 9 (defaulted) per MAR22.24.
+        sector : str
+            ``"sovereign"``, ``"financials_corporate"``,
+            ``"materials_energy"``, ``"consumer_goods"``,
+            ``"technology_media"`` or ``"health_care_utilities"``.
+        seniority : str
+            ``"senior_unsecured"``, ``"subordinated"``, ``"equity"`` or
+            ``"securitization"`` (selects the LGD).
+        asset_type : str
+            ``"corporate"``, ``"sovereign"``, ``"securitization"`` or
+            ``"equity"``.
+        pnl_adjustment : float, default 0.0
+            Mark-to-market adjustment per MAR22.9 (negative for a long
+            position carrying an unrealised loss).
+
+        Raises
+        ------
+        ValueError
+            If ``sector``, ``seniority`` or ``asset_type`` is not one of the
+            labels above.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_drc_position("ACME", 1e6, 3, "financials_corporate", "senior_unsecured", "corporate")
+        >>> frtb_sba_charge(sens).drc > 0.0
+        True
         """
         ...
 
@@ -5229,13 +7639,22 @@ class FrtbSensitivities:
         instrument_id : str
             Instrument identifier.
         notional : float
-            Notional amount for the RRAO position.
+            Gross notional in base currency.
         is_exotic : bool, default False
-            Whether the instrument is exotic (higher RRAO weight).
+            ``True`` for an exotic underlying (1.0% weight); ``False`` for
+            other residual risk such as gap, correlation or behavioural risk
+            (0.1% weight).
 
         Notes
         -----
         This method does not raise; it updates stored state in place.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_rrao_position("EXOTIC-1", 5_000_000.0, True)
+        >>> frtb_sba_charge(sens).rrao
+        50000.0
         """
         ...
 
@@ -5287,7 +7706,8 @@ class FrtbSensitivities:
         ``amount`` keeps each bucket's own convention: GIRR deltas are
         base-currency P&L per **1 percentage point** of curve shift (that is,
         ``100 x DV01``), DRC rows are signed JTD notionals before LGD, and
-        RRAO rows are gross notionals.
+        RRAO rows are gross notionals. ``from_dataframe`` accepts this frame
+        back (except ``drc`` rows).
 
         Rows are sorted by ``(risk_class, kind, issuer, bucket, tenor)`` so
         repeated exports of the same portfolio are identical.
@@ -5308,39 +7728,92 @@ class FrtbSbaEngine:
     """
     FRTB SBA engine matching the canonical Rust API.
 
-    Calculates the Sensitivity-Based Approach capital charge under one or more
-    correlation scenarios per BCBS d457.
+    Evaluates delta, vega and curvature under each configured correlation
+    scenario, takes the maximum, then adds DRC and RRAO (BCBS d457).
 
     Parameters
     ----------
-    correlation_scenario : str or None, optional
-        If provided (``"low"``, ``"medium"``, or ``"high"``), only that
-        scenario is evaluated. Otherwise all three are run.
+    scenarios : list[str] or None, optional
+        Correlation scenarios to evaluate (``"low"``, ``"medium"``,
+        ``"high"``); ``None`` evaluates all three (the regulatory default).
+    risk_classes : list[str] or None, optional
+        Risk classes whose delta/vega/curvature are included (``"girr"``,
+        ``"csr_non_sec"``, ``"csr_sec_ctp"``, ``"csr_sec_non_ctp"``,
+        ``"equity"``, ``"commodity"``, ``"fx"``); ``None`` includes all.
 
     Examples
     --------
     >>> from finstack_quant.margin import FrtbSbaEngine, FrtbSensitivities
     >>> sensitivities = FrtbSensitivities("USD")
     >>> sensitivities.add_girr_delta("5Y", 100_000.0)
-    >>> round(FrtbSbaEngine("medium").calculate(sensitivities).total, 2)
+    >>> round(FrtbSbaEngine(scenarios=["medium"]).calculate(sensitivities).total, 2)
     110000.0
     """
 
-    def __init__(self, correlation_scenario: str | None = None) -> None:
+    def __init__(
+        self,
+        scenarios: list[str] | None = None,
+        risk_classes: list[str] | None = None,
+    ) -> None:
         """
-        Select the correlation scenarios evaluated by the FRTB SBA engine.
+        Select the correlation scenarios and risk classes the engine evaluates.
 
         Parameters
         ----------
-        correlation_scenario : str or None, default None
-            ``"low"``, ``"medium"``, or ``"high"`` to evaluate one BCBS
-            correlation scenario; ``None`` evaluates all three.
+        scenarios : list[str] or None, default None
+            Lower-case scenario labels (``"low"``, ``"medium"``, ``"high"``);
+            the charge is the maximum across them. ``None`` evaluates all
+            three.
+        risk_classes : list[str] or None, default None
+            Lower-case risk-class labels to include; ``None`` includes all
+            seven.
 
         Raises
         ------
         ValueError
-            If ``correlation_scenario`` is not ``"low"``, ``"medium"``, or
-            ``"high"``.
+            If a label is unknown or either list is empty.
+        """
+        ...
+
+    @property
+    def scenarios(self) -> list[str]:
+        """
+        Correlation scenario labels evaluated, in configured order.
+
+        Returns
+        -------
+        list[str]
+            Lower-case labels.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> FrtbSbaEngine().scenarios
+        ['low', 'medium', 'high']
+        """
+        ...
+
+    @property
+    def risk_classes(self) -> list[str]:
+        """
+        Risk-class labels included, in configured order.
+
+        Returns
+        -------
+        list[str]
+            Lower-case labels.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> FrtbSbaEngine(risk_classes=["girr", "fx"]).risk_classes
+        ['girr', 'fx']
         """
         ...
 
@@ -5364,8 +7837,17 @@ class FrtbSbaEngine:
         ValueError
             If a sensitivity has an unsupported tenor or bucket, an empty
             required identifier, or a non-finite numeric value.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_girr_delta("5Y", 100_000.0)
+        >>> FrtbSbaEngine().calculate(sens).binding_scenario
+        'low'
         """
         ...
+
+    def __repr__(self) -> str: ...
 
 class FrtbSbaResult:
     """
@@ -5562,6 +8044,32 @@ class FrtbSbaResult:
         """
         ...
 
+    @property
+    def meta(self) -> dict[str, Any]:
+        """
+        Policy metadata stamped by the computing layer.
+
+        Returns
+        -------
+        dict[str, Any]
+            ``numeric_mode``, ``rounding`` (the active rounding context),
+            ``fx_policy_applied`` (or ``None``), ``parallel`` and
+            ``timestamp``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_girr_delta("5Y", 1.0)
+        >>> result = frtb_sba_charge(sens)
+        >>> "numeric_mode" in result.meta
+        True
+        """
+        ...
+
     def to_dataframe(self) -> Any:
         """
         Export the headline charge as a single-row pandas ``DataFrame``.
@@ -5596,6 +8104,32 @@ class FrtbSbaResult:
         """
         ...
 
+    def to_scenario_dataframe(self) -> pd.DataFrame:
+        """
+        Export the per-scenario SBA charges as a pandas ``DataFrame``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``scenario`` (``"low"``, ``"medium"``, ``"high"``),
+            ``charge`` (delta+vega+curvature under that scenario, float in
+            the portfolio's base currency) and ``binding`` (``True`` on the
+            scenario that produced ``total``). One row per evaluated scenario
+            in low/medium/high order.
+
+        Notes
+        -----
+        This method does not raise; it derives the value from stored state.
+
+        Examples
+        --------
+        >>> sens = FrtbSensitivities("USD")
+        >>> sens.add_girr_delta("5Y", 100_000.0)
+        >>> frtb_sba_charge(sens).to_scenario_dataframe()["scenario"].tolist()
+        ['low', 'medium', 'high']
+        """
+        ...
+
     def __repr__(self) -> str:
         """
         Return ``repr(self)``.
@@ -5621,8 +8155,8 @@ class EadResult:
 
     Examples
     --------
-    >>> from finstack_quant.margin import SaCcrEngine, SaCcrNettingSetConfig
-    >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+    >>> from finstack_quant.margin import NettingSetId, SaCcrEngine, SaCcrNettingSetConfig
+    >>> config = SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, "2025-01-15")
     >>> SaCcrEngine().calculate_ead(config, []).ead
     0.0
     """
@@ -5803,6 +8337,31 @@ class EadResult:
         """
         ...
 
+    @property
+    def meta(self) -> dict[str, Any]:
+        """
+        Policy metadata stamped by the computing layer.
+
+        Returns
+        -------
+        dict[str, Any]
+            ``numeric_mode``, ``rounding`` (the active rounding context),
+            ``fx_policy_applied`` (or ``None``), ``parallel`` and
+            ``timestamp``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, "2025-01-15")
+        >>> result = SaCcrEngine().calculate_ead(config, [])
+        >>> "numeric_mode" in result.meta
+        True
+        """
+        ...
+
     def to_dataframe(self) -> Any:
         """
         Export the headline exposure as a single-row pandas ``DataFrame``.
@@ -5855,32 +8414,175 @@ class SaCcrTrade:
     """
     A derivative trade for SA-CCR EAD computation per BCBS 279.
 
-    Positional construction is intentionally unavailable. Use ``from_json``
-    with every canonical trade field so supervisory delta, direction, and
-    option classification remain explicit and are validated together.
+    Build with keyword arguments, ``from_json`` or ``from_dataframe``; all
+    three validate the direction / supervisory-delta / option-type coherence
+    up front. ``notional`` and ``mtm`` are in the netting set's reporting
+    currency; ``direction`` is ``+1.0`` (long) or ``-1.0`` (short);
+    ``supervisory_delta`` is in ``[-1, 1]`` (exactly ``±1`` for linear
+    trades, the signed option delta otherwise).
+
+    Parameters
+    ----------
+    trade_id : str
+        Unique trade identifier.
+    asset_class : str
+        ``"interest_rate"``, ``"foreign_exchange"``, ``"credit"``,
+        ``"equity"`` or ``"commodity"``.
+    notional : float
+        Adjusted notional in the reporting currency.
+    start_date : datetime.date | str
+        Trade start date (forward-start trades start after the valuation
+        date).
+    end_date : datetime.date | str
+        Trade end date / maturity.
+    underlier : str
+        Underlier reference (currency pair, issuer, equity, commodity).
+    hedging_set : str
+        Hedging-set identifier within the asset class.
+    direction : float
+        ``+1.0`` long or ``-1.0`` short.
+    supervisory_delta : float
+        ``±1`` for linear trades; the signed option delta otherwise,
+        sign-consistent with ``option_type`` (BCBS 279 ¶112).
+    mtm : float
+        Current mark-to-market in the reporting currency.
+    is_option : bool, default False
+        Whether the trade is an option.
+    option_type : str | None, optional
+        ``"call_long"``, ``"call_short"``, ``"put_long"`` or
+        ``"put_short"``; required when ``is_option`` is ``True``.
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.margin import SaCcrTrade
-    >>> payload = {
-    ...     "trade_id": "t1",
-    ...     "asset_class": "interest_rate",
-    ...     "notional": 1_000_000,
-    ...     "start_date": "2025-01-01",
-    ...     "end_date": "2030-01-01",
-    ...     "underlier": "USD-SOFR",
-    ...     "hedging_set": "rates",
-    ...     "direction": 1.0,
-    ...     "supervisory_delta": 1.0,
-    ...     "mtm": 0.0,
-    ...     "is_option": False,
-    ...     "option_type": None,
-    ... }
-    >>> trade = SaCcrTrade.from_json(json.dumps(payload))
-    >>> (trade.trade_id, trade.asset_class)
-    ('t1', 'interest_rate')
+    >>> trade = SaCcrTrade(
+    ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+    ... )
+    >>> (trade.trade_id, trade.asset_class, trade.is_option)
+    ('t1', 'interest_rate', False)
     """
+
+    def __init__(
+        self,
+        trade_id: str,
+        asset_class: str,
+        notional: float,
+        start_date: datetime.date | str,
+        end_date: datetime.date | str,
+        underlier: str,
+        hedging_set: str,
+        direction: float,
+        supervisory_delta: float,
+        mtm: float,
+        is_option: bool = False,
+        option_type: str | None = None,
+    ) -> None:
+        """
+        Create and validate a trade (see the class docstring for each field).
+
+        Parameters
+        ----------
+        trade_id : str
+            Unique trade identifier.
+        asset_class : str
+            Lower-case SA-CCR asset class label.
+        notional : float
+            Adjusted notional in the reporting currency.
+        start_date : datetime.date | str
+            Trade start date (date-like or ISO ``YYYY-MM-DD``).
+        end_date : datetime.date | str
+            Trade end date / maturity (date-like or ISO ``YYYY-MM-DD``).
+        underlier : str
+            Underlier reference.
+        hedging_set : str
+            Hedging-set identifier within the asset class.
+        direction : float
+            ``+1.0`` long or ``-1.0`` short.
+        supervisory_delta : float
+            Supervisory delta in ``[-1, 1]``.
+        mtm : float
+            Current mark-to-market in the reporting currency.
+        is_option : bool, default False
+            Whether the trade is an option.
+        option_type : str | None, optional
+            Option type label, required when ``is_option`` is ``True``.
+
+        Raises
+        ------
+        ValueError
+            If a label is unknown, a date string is not ISO 8601, or the
+            trade fails the BCBS 279 coherence checks (zero direction, delta
+            outside ``[-1, 1]``, linear delta not ``±1`` or disagreeing with
+            direction, option delta sign inconsistent with ``option_type``).
+        TypeError
+            If a date is neither a string nor date-like.
+        """
+        ...
+
+    @staticmethod
+    def from_dataframe(frame: pd.DataFrame) -> list[SaCcrTrade]:
+        """
+        Build one validated trade per row of a trade tape.
+
+        Parameters
+        ----------
+        frame : pd.DataFrame
+            Columns ``trade_id``, ``asset_class``, ``notional``,
+            ``start_date``, ``end_date``, ``underlier``, ``hedging_set``,
+            ``direction``, ``supervisory_delta``, ``mtm``; ``is_option`` and
+            ``option_type`` are optional and default to a linear trade.
+            Dates may be ISO strings or date-like values.
+
+        Returns
+        -------
+        list[SaCcrTrade]
+            One trade per row, in row order.
+
+        Raises
+        ------
+        ValueError
+            Naming the first row that is missing a column, has an unknown
+            label, or fails the BCBS 279 coherence checks.
+        TypeError
+            If ``frame`` is not a pandas ``DataFrame``.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> [t.trade_id for t in SaCcrTrade.from_dataframe(trade.to_dataframe())]
+        ['t1']
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the trade as a single-row pandas ``DataFrame``.
+
+        Columns are the constructor fields in order (``trade_id`` ..
+        ``option_type``); dates are ISO 8601 strings and ``option_type`` is
+        null for linear trades. ``from_dataframe`` accepts this frame back.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row describing the trade.
+
+        Raises
+        ------
+        ValueError
+            If the trade cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.to_dataframe().iloc[0]["end_date"]
+        '2030-01-01'
+        """
+        ...
 
     @staticmethod
     def from_json(json: str) -> SaCcrTrade:
@@ -5966,7 +8668,8 @@ class SaCcrTrade:
         Returns
         -------
         str
-            One of ``"ir"``, ``"fx"``, ``"credit"``, ``"equity"``, ``"commodity"``.
+            One of ``"interest_rate"``, ``"foreign_exchange"``,
+            ``"credit"``, ``"equity"``, ``"commodity"``.
 
         Notes
         -----
@@ -5998,57 +8701,252 @@ class SaCcrTrade:
         Returns
         -------
         float
-            MtM value.
+            MtM value in the reporting currency.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
         """
         ...
+
+    @property
+    def start_date(self) -> datetime.date:
+        """
+        Trade start date.
+
+        Returns
+        -------
+        datetime.date
+            Start date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.start_date
+        datetime.date(2025, 1, 1)
+        """
+        ...
+
+    @property
+    def end_date(self) -> datetime.date:
+        """
+        Trade end date / maturity.
+
+        Returns
+        -------
+        datetime.date
+            End date.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.end_date
+        datetime.date(2030, 1, 1)
+        """
+        ...
+
+    @property
+    def underlier(self) -> str:
+        """
+        Underlier reference (currency pair, issuer, equity, commodity).
+
+        Returns
+        -------
+        str
+            Underlier identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.underlier
+        'USD-SOFR'
+        """
+        ...
+
+    @property
+    def hedging_set(self) -> str:
+        """
+        Hedging-set identifier within the asset class.
+
+        Returns
+        -------
+        str
+            Hedging-set identifier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.hedging_set
+        'rates'
+        """
+        ...
+
+    @property
+    def direction(self) -> float:
+        """
+        ``+1.0`` for long, ``-1.0`` for short.
+
+        Returns
+        -------
+        float
+            Signed direction.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.direction
+        1.0
+        """
+        ...
+
+    @property
+    def supervisory_delta(self) -> float:
+        """
+        Supervisory delta in ``[-1, 1]``.
+
+        Returns
+        -------
+        float
+            Signed supervisory delta.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.supervisory_delta
+        1.0
+        """
+        ...
+
+    @property
+    def is_option(self) -> bool:
+        """
+        Whether the trade is an option.
+
+        Returns
+        -------
+        bool
+            ``True`` for options.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.is_option
+        False
+        """
+        ...
+
+    @property
+    def option_type(self) -> str | None:
+        """
+        Option type label, or ``None`` for a linear trade.
+
+        Returns
+        -------
+        str | None
+            ``"call_long"``, ``"call_short"``, ``"put_long"``, ``"put_short"`` or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> trade.option_type is None
+        True
+        """
+        ...
+
     def __repr__(self) -> str: ...
 
 class SaCcrNettingSetConfig:
     """
     SA-CCR netting-set configuration with explicit valuation date.
 
+    Collateral terms that select the margined or unmargined RC/PFE formulas.
+    All amounts are in the netting set's reporting currency; ``mpor_days`` is
+    the margin period of risk in business days. Keyed by a ``NettingSetId``
+    (bilateral or cleared).
+
     Parameters
     ----------
-    (Use ``un margined`` or ``margined`` factories.)
+    (Use the ``unmargined`` or ``margined`` factories.)
 
     Examples
     --------
-    >>> from finstack_quant.margin import SaCcrNettingSetConfig
-    >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+    >>> from finstack_quant.margin import NettingSetId, SaCcrNettingSetConfig
+    >>> config = SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, "2025-01-15")
     >>> config.is_margined
     False
     """
 
     @staticmethod
     def unmargined(
-        counterparty_id: str,
-        csa_id: str,
+        netting_set_id: NettingSetId,
         collateral: float,
-        as_of_year: int,
-        as_of_month: int,
-        as_of_day: int,
+        as_of: datetime.date | str,
     ) -> SaCcrNettingSetConfig:
         """
         Create an unmargined netting-set configuration.
 
+        Threshold, MTA and NICA are zero and ``mpor_days`` is the
+        10-business-day bilateral default (only used for the reporting
+        maturity factor).
+
         Parameters
         ----------
-        counterparty_id : str
-            Counterparty identifier.
-        csa_id : str
-            CSA agreement identifier.
+        netting_set_id : NettingSetId
+            Bilateral (``NettingSetId.bilateral``) or cleared
+            (``NettingSetId.cleared``) netting-set key.
         collateral : float
-            Net collateral currently held.
-        as_of_year : int
-            Valuation year.
-        as_of_month : int
-            Valuation month (1–12).
-        as_of_day : int
-            Valuation day.
+            Net collateral held (positive = bank holds collateral).
+        as_of : datetime.date | str
+            Valuation date for forward-start and remaining-maturity
+            calculations (date-like or ISO ``YYYY-MM-DD``).
 
         Returns
         -------
@@ -6058,55 +8956,51 @@ class SaCcrNettingSetConfig:
         Raises
         ------
         ValueError
-            If the supplied valuation date is not a valid calendar date.
+            If ``collateral`` is non-finite or a date string is not ISO 8601.
+        TypeError
+            If ``netting_set_id`` is not a ``NettingSetId`` or ``as_of`` is
+            neither a string nor date-like.
 
         Examples
         --------
-        >>> from finstack_quant.margin import SaCcrNettingSetConfig
-        >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
-        >>> config.is_margined
-        False
+        >>> from finstack_quant.margin import NettingSetId, SaCcrNettingSetConfig
+        >>> config = SaCcrNettingSetConfig.unmargined(NettingSetId.cleared("LCH"), 0.0, "2025-01-15")
+        >>> (config.is_margined, config.netting_set_id.is_cleared)
+        (False, True)
         """
         ...
 
     @staticmethod
     def margined(
-        counterparty_id: str,
-        csa_id: str,
+        netting_set_id: NettingSetId,
         collateral: float,
         threshold: float,
         mta: float,
         nica: float,
         mpor_days: int,
-        as_of_year: int,
-        as_of_month: int,
-        as_of_day: int,
+        as_of: datetime.date | str,
     ) -> SaCcrNettingSetConfig:
         """
         Create a margined netting-set configuration.
 
         Parameters
         ----------
-        counterparty_id : str
-            Counterparty identifier.
-        csa_id : str
-            CSA agreement identifier.
+        netting_set_id : NettingSetId
+            Bilateral or cleared netting-set key.
         collateral : float
-            Net collateral currently held.
+            Net collateral held (positive = bank holds collateral).
         threshold : float
-            Threshold below which no collateral is required.
+            CSA threshold (TH), non-negative.
         mta : float
-            Minimum transfer amount.
+            Minimum transfer amount, non-negative.
         nica : float
-            Net independent collateral amount.
+            Net independent collateral amount, signed.
         mpor_days : int
-            Margin period of risk in calendar days.
-        as_of_year : int
-            Valuation year.
-        as_of_month : int
-            Valuation month (1–12).
-        as_of_day : int
-            Valuation day.
+            Margin period of risk in business days; must be positive
+            (10 bilateral, 5 cleared under BCBS 279).
+        as_of : datetime.date | str
+            Valuation date for forward-start and remaining-maturity
+            calculations.
 
         Returns
         -------
@@ -6116,14 +9010,26 @@ class SaCcrNettingSetConfig:
         Raises
         ------
         ValueError
-            If the supplied valuation date is not a valid calendar date.
+            If an amount is non-finite, threshold or MTA is negative,
+            ``mpor_days`` is zero, or a date string is not ISO 8601.
+        TypeError
+            If ``netting_set_id`` is not a ``NettingSetId`` or ``as_of`` is
+            neither a string nor date-like.
 
         Examples
         --------
-        >>> from finstack_quant.margin import SaCcrNettingSetConfig
-        >>> config = SaCcrNettingSetConfig.margined("CPTY", "CSA", 0.0, 0.0, 0.0, 0.0, 10, 2025, 1, 15)
-        >>> config.is_margined
-        True
+        >>> from finstack_quant.margin import NettingSetId, SaCcrNettingSetConfig
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.bilateral("CPTY", "CSA"),
+        ...     collateral=0.0,
+        ...     threshold=0.0,
+        ...     mta=0.0,
+        ...     nica=0.0,
+        ...     mpor_days=10,
+        ...     as_of="2025-01-15",
+        ... )
+        >>> (config.is_margined, config.mpor_days)
+        (True, 10)
         """
         ...
 
@@ -6150,8 +9056,8 @@ class SaCcrNettingSetConfig:
 
         Examples
         --------
-        >>> from finstack_quant.margin import SaCcrNettingSetConfig
-        >>> original = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+        >>> from finstack_quant.margin import NettingSetId, SaCcrNettingSetConfig
+        >>> original = SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, "2025-01-15")
         >>> SaCcrNettingSetConfig.from_json(original.to_json()).is_margined
         False
         """
@@ -6197,13 +9103,183 @@ class SaCcrNettingSetConfig:
         Returns
         -------
         float
-            Collateral amount.
+            Collateral amount in the reporting currency.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
         """
         ...
+
+    @property
+    def as_of(self) -> datetime.date:
+        """
+        Valuation date used for forward-start and remaining-maturity calculations.
+
+        Returns
+        -------
+        datetime.date
+            Valuation date the netting set is priced at.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.cleared("LCH"), 250_000.0, 100_000.0, 50_000.0, 0.0, 5, "2025-01-15"
+        ... )
+        >>> config.as_of
+        datetime.date(2025, 1, 15)
+        """
+        ...
+
+    @property
+    def netting_set_id(self) -> NettingSetId:
+        """
+        Netting-set key.
+
+        Returns
+        -------
+        NettingSetId
+            Bilateral or cleared id.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.cleared("LCH"), 250_000.0, 100_000.0, 50_000.0, 0.0, 5, "2025-01-15"
+        ... )
+        >>> config.netting_set_id.ccp_id
+        'LCH'
+        """
+        ...
+
+    @property
+    def threshold(self) -> float:
+        """
+        CSA threshold (TH) in the reporting currency.
+
+        Returns
+        -------
+        float
+            Threshold amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.cleared("LCH"), 250_000.0, 100_000.0, 50_000.0, 0.0, 5, "2025-01-15"
+        ... )
+        >>> config.threshold
+        100000.0
+        """
+        ...
+
+    @property
+    def mta(self) -> float:
+        """
+        Minimum transfer amount in the reporting currency.
+
+        Returns
+        -------
+        float
+            MTA amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.cleared("LCH"), 250_000.0, 100_000.0, 50_000.0, 0.0, 5, "2025-01-15"
+        ... )
+        >>> config.mta
+        50000.0
+        """
+        ...
+
+    @property
+    def nica(self) -> float:
+        """
+        Net independent collateral amount in the reporting currency.
+
+        Returns
+        -------
+        float
+            NICA amount.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.cleared("LCH"), 250_000.0, 100_000.0, 50_000.0, 0.0, 5, "2025-01-15"
+        ... )
+        >>> config.nica
+        0.0
+        """
+        ...
+
+    @property
+    def mpor_days(self) -> int:
+        """
+        Margin period of risk in business days.
+
+        Returns
+        -------
+        int
+            MPOR in business days.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.cleared("LCH"), 250_000.0, 100_000.0, 50_000.0, 0.0, 5, "2025-01-15"
+        ... )
+        >>> config.mpor_days
+        5
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate the collateral and margin-agreement terms.
+
+        Returns
+        -------
+        None
+            Returns ``None`` when the terms are valid.
+
+        Raises
+        ------
+        ValueError
+            If an amount is non-finite, threshold or MTA is negative, or a
+            margined set has zero MPOR.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.margined(
+        ...     NettingSetId.cleared("LCH"), 250_000.0, 100_000.0, 50_000.0, 0.0, 5, "2025-01-15"
+        ... )
+        >>> config.validate()
+        """
+        ...
+
+    def __repr__(self) -> str: ...
 
 class SaCcrEngine:
     """
@@ -6219,8 +9295,8 @@ class SaCcrEngine:
 
     Examples
     --------
-    >>> from finstack_quant.margin import SaCcrEngine, SaCcrNettingSetConfig
-    >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+    >>> from finstack_quant.margin import NettingSetId, SaCcrEngine, SaCcrNettingSetConfig
+    >>> config = SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, "2025-01-15")
     >>> SaCcrEngine().calculate_ead(config, []).ead
     0.0
     """
@@ -6239,6 +9315,27 @@ class SaCcrEngine:
         ------
         ValueError
             If a supplied ``alpha`` is non-finite or less than ``1.0``.
+        """
+        ...
+
+    @property
+    def alpha(self) -> float:
+        """
+        Alpha multiplier applied to ``RC + PFE``.
+
+        Returns
+        -------
+        float
+            1.4 unless overridden at construction.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+
+        Examples
+        --------
+        >>> SaCcrEngine(alpha=1.5).alpha
+        1.5
         """
         ...
 
@@ -6266,8 +9363,19 @@ class SaCcrEngine:
             If netting-set amounts or trade numeric fields are non-finite, a
             threshold or MTA is negative, a margined MPOR is zero, or a trade's
             direction and supervisory-delta fields are inconsistent.
+
+        Examples
+        --------
+        >>> config = SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, "2025-01-01")
+        >>> trade = SaCcrTrade(
+        ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+        ... )
+        >>> round(SaCcrEngine().calculate_ead(config, [trade]).ead, 2)
+        30982.83
         """
         ...
+
+    def __repr__(self) -> str: ...
 
 def im_profile_from_simm(
     calculator: SimmCalculator,
@@ -6280,8 +9388,8 @@ def im_profile_from_simm(
     Build a deterministic IM profile from current SIMM sensitivities.
 
     Computes ``IM(t) = SIMM(sensitivities) * decay(t)`` on ``time_grid``,
-    where the base IM is the full cross-risk-class ISDA SIMM aggregate from
-    ``calculator.calculate_from_sensitivities(sensitivities, currency)``.
+    where the base IM is the full cross-risk-class ISDA SIMM aggregate of
+    ``sensitivities`` (validated first, so an unknown tenor raises).
 
     Parameters
     ----------
@@ -6304,8 +9412,8 @@ def im_profile_from_simm(
     Raises
     ------
     ValueError
-        If ``currency`` is not a known currency code, or ``decay`` or
-        ``time_grid`` fails validation.
+        If ``currency`` is not a known currency code, or ``sensitivities``,
+        ``decay`` or ``time_grid`` fails validation.
 
     Examples
     --------
@@ -6321,7 +9429,7 @@ def im_profile_from_simm(
 
 def compute_mva(
     im_profile: ImProfile,
-    funding_spread_curve: list[tuple[float, float]],
+    funding_spread_curve: list[tuple[float, float]] | pd.Series,
     discount_curve: DiscountCurve,
     survival_curve: HazardCurve | None = None,
 ) -> MvaResult:
@@ -6338,10 +9446,10 @@ def compute_mva(
     im_profile : ImProfile
         Expected IM profile ``E[IM(t)]`` (from ``im_profile_from_simm`` or
         the stochastic engine's mean per-path IM).
-    funding_spread_curve : list[tuple[float, float]]
-        ``(time_years, spread_bp)`` pairs in basis points, linearly
-        interpolated with flat extrapolation; a single pair means a flat
-        spread.
+    funding_spread_curve : list[tuple[float, float]] | pd.Series
+        ``(time_years, spread_bp)`` pairs in basis points, or a ``Series`` of
+        spreads in bp indexed by time in years; linearly interpolated with
+        flat extrapolation, and a single point means a flat spread.
     discount_curve : DiscountCurve
         Risk-free discount curve.
     survival_curve : HazardCurve or None, optional
@@ -6412,83 +9520,48 @@ def frtb_sba_charge(sensitivities: FrtbSensitivities, correlation_scenario: str 
 
 def saccr_ead(
     trades: list[SaCcrTrade],
-    as_of_year: int,
-    as_of_month: int,
-    as_of_day: int,
-    margined: bool = False,
-    collateral: float = 0.0,
-    threshold: float | None = None,
-    mta: float | None = None,
-    nica: float | None = None,
-    mpor_days: int | None = None,
-    counterparty_id: str = "CPTY",
-    csa_id: str = "CSA",
+    config: SaCcrNettingSetConfig,
+    alpha: float | None = None,
 ) -> EadResult:
     """
     Compute SA-CCR Exposure at Default per BCBS 279.
 
+    Thin wrapper over ``SaCcrEngine.calculate_ead``: builds the engine with
+    the regulatory alpha of 1.4 (or ``alpha``) and prices ``trades`` under
+    ``config``.
+
     Parameters
     ----------
     trades : list[SaCcrTrade]
-        Derivative trades making up the netting set.
-    as_of_year : int
-        Valuation-date calendar year used for remaining maturity.
-    as_of_month : int
-        Valuation-date month in ``1..12``.
-    as_of_day : int
-        Valuation-date day of month.
-    margined : bool, default False
-        Whether the netting set is subject to a daily margin agreement.
-    collateral : float, default 0.0
-        Net collateral currently held (positive = bank holds collateral).
-    threshold : float or None
-        CSA threshold; only consumed when ``margined`` is ``True``.
-    mta : float or None
-        Minimum transfer amount; only consumed when ``margined`` is ``True``.
-    nica : float or None
-        Net independent collateral amount; only consumed when ``margined`` is ``True``.
-    mpor_days : int or None
-        Margin period of risk in business days; only consumed when ``margined`` is ``True``.
-    counterparty_id : str, default ``CPTY``
-        Counterparty identifier used to build the bilateral netting-set id.
-    csa_id : str, default ``CSA``
-        CSA identifier used to build the bilateral netting-set id.
+        Derivative trades making up the netting set (an empty list gives
+        zero EAD).
+    config : SaCcrNettingSetConfig
+        Netting-set collateral, threshold, MTA, NICA, MPoR and valuation date
+        from ``SaCcrNettingSetConfig.unmargined`` / ``margined``.
+    alpha : float or None, optional
+        Supervisory alpha override; must be finite and at least 1.0.
 
     Returns
     -------
     EadResult
-        ``ead = alpha * (rc + pfe)`` with alpha = 1.4, together with the
-        multiplier, the aggregate and per-asset-class add-ons, and the
-        maturity factor.
+        ``ead = alpha * (rc + pfe)`` together with the multiplier, the
+        aggregate and per-asset-class add-ons, and the maturity factor.
 
     Raises
     ------
     ValueError
-        If ``trades`` is empty, ``collateral`` or a trade numeric field is
-        non-finite, a trade's direction and supervisory-delta fields are
-        inconsistent, the as-of date is invalid, or margined-only CSA terms
-        are supplied when ``margined`` is ``False``.
+        If ``alpha`` is invalid, ``config`` fails validation, or a trade's
+        numeric fields are non-finite or its direction, supervisory delta and
+        option type are inconsistent.
 
     Examples
     --------
-    >>> import json
-    >>> from finstack_quant.margin import SaCcrTrade, saccr_ead
-    >>> payload = {
-    ...     "trade_id": "t1",
-    ...     "asset_class": "interest_rate",
-    ...     "notional": 1_000_000,
-    ...     "start_date": "2025-01-01",
-    ...     "end_date": "2030-01-01",
-    ...     "underlier": "USD-SOFR",
-    ...     "hedging_set": "rates",
-    ...     "direction": 1.0,
-    ...     "supervisory_delta": 1.0,
-    ...     "mtm": 0.0,
-    ...     "is_option": False,
-    ...     "option_type": None,
-    ... }
-    >>> trade = SaCcrTrade.from_json(json.dumps(payload))
-    >>> result = saccr_ead([trade], 2025, 1, 1)
+    >>> from finstack_quant.margin import NettingSetId, SaCcrNettingSetConfig, SaCcrTrade, saccr_ead
+    >>> trade = SaCcrTrade(
+    ...     "t1", "interest_rate", 1_000_000, "2025-01-01", "2030-01-01", "USD-SOFR", "rates", 1.0, 1.0, 0.0
+    ... )
+    >>> config = SaCcrNettingSetConfig.unmargined(NettingSetId.bilateral("CPTY", "CSA"), 0.0, "2025-01-01")
+    >>> result = saccr_ead([trade], config)
     >>> (round(result.rc, 2), round(result.pfe, 2), round(result.ead, 2))
     (0.0, 22130.59, 30982.83)
     """
@@ -6556,7 +9629,7 @@ def compute_bilateral_xva(
     ...     [(0.5 * i, 1.0) for i in range(9)],
     ...     interp="log_linear",
     ... )
-    >>> hz = HazardCurve("CPTY", dt.date(2025, 1, 1), [(0.0, 0.02), (30.0, 0.02)], 0.40)
+    >>> hz = HazardCurve("CPTY", dt.date(2025, 1, 1), [(0.0, 0.02), (30.0, 0.02)], recovery_rate=0.40)
     >>> result = compute_bilateral_xva(profile, hz, hz, df, 0.40, 0.40)
     >>> result.total_xva == result.cva - result.dva
     True

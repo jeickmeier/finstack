@@ -14,10 +14,12 @@ use finstack_quant_models::factor::{
 use finstack_quant_valuations::instruments::Instrument;
 
 /// P&L profile for one factor across a scenario grid.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FactorPnlProfile {
     /// Identifier of the shocked factor.
     pub factor_id: FactorId,
+    /// Ordered position identifiers indexing the inner `position_pnls` axis.
+    pub position_ids: Vec<String>,
     /// Scenario shift coordinates in bump-size units.
     pub shifts: Vec<f64>,
     /// Per-shift P&L vectors indexed as `[shift_idx][position_idx]`.
@@ -220,6 +222,7 @@ impl FullRepricingEngine {
 
             Ok(FactorPnlProfile {
                 factor_id: factor.id.clone(),
+                position_ids: positions.iter().map(|(id, _, _)| id.clone()).collect(),
                 shifts: self.scenario_grid.shifts().to_vec(),
                 position_pnls,
             })

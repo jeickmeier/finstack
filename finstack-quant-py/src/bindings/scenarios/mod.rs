@@ -2,136 +2,31 @@
 //!
 //! Scenarios are spec-based (serde), so this module exposes typed specification
 //! construction, validation, template registry discovery, and scenario engine
-//! application with explicit JSON round-trips on wrapper methods.
+//! application. Every entry point accepts the typed wrapper or its canonical
+//! JSON string; errors map through `crate::errors::scenarios_to_py`.
 
 pub(crate) mod engine;
+mod extract;
 mod horizon;
 mod operation_spec;
 mod schema;
-mod spec;
+pub(crate) mod spec;
 
-use operation_spec::PyOperationSpec;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use spec::{PyScenarioSpec, PyTemplateMetadata};
 
-fn validate_spec(spec: &finstack_quant_scenarios::ScenarioSpec) -> PyResult<()> {
-    spec.validate()
-        .map_err(|e| crate::errors::value_error(format!("ScenarioSpec validation failed: {e}")))
-}
+use crate::errors::scenarios_to_py;
 
-fn parse_spec(json_str: &str) -> PyResult<finstack_quant_scenarios::ScenarioSpec> {
-    serde_json::from_str(json_str).map_err(|error| {
-        crate::errors::value_error(format!("Failed to parse ScenarioSpec JSON: {error}"))
-    })
-}
-
-fn builtin_registry() -> PyResult<finstack_quant_scenarios::TemplateRegistry> {
-    finstack_quant_scenarios::TemplateRegistry::with_embedded_builtins()
-        .map_err(|e| crate::errors::value_error(format!("Failed to load embedded templates: {e}")))
-}
-
-/// Parse a scenario specification and re-emit it in canonical form.
-///
-/// Round-tripping through the Rust type normalizes field order and fills
-/// defaults, so the output is the exact spec the engine will execute. Use it to
-/// diff a hand-written spec against what actually runs.
-///
-/// Parameters
-/// ----------
-/// json_str : str
-///     JSON-serialized ``ScenarioSpec``.
-///
-/// Returns
-/// -------
-/// ScenarioSpec
-///     Validated typed scenario specification.
-///
-/// Raises
-/// ------
-/// ValueError
-///     If the JSON is malformed or does not match the ``ScenarioSpec`` schema.
-///     Unknown fields are rejected rather than ignored.
-#[pyfunction]
-fn parse_scenario_spec(json_str: &str) -> PyResult<PyScenarioSpec> {
-    let spec = parse_spec(json_str)?;
-    validate_spec(&spec)?;
-    Ok(PyScenarioSpec::from_inner(spec))
-}
-
-/// Build and validate a typed scenario specification.
-///
-/// Parameters
-/// ----------
-/// id : str
-///     Stable scenario identifier written to the returned specification.
-/// operations : list[OperationSpec]
-///     Typed scenario operations in execution order.
-/// name : str, optional
-///     Optional human-readable scenario name.
-/// description : str, optional
-///     Optional human-readable explanation of the scenario.
-/// priority : int, default 0
-///     Composition priority; lower values execute first.
-/// resolution_mode : str, default "most_specific_wins"
-///     Hierarchy conflict policy. Accepted values are
-///     ``"most_specific_wins"`` and ``"cumulative"``.
-/// hazard_bump_mode : str, default "solve_to_par"
-///     ParCDS delivery: ``"solve_to_par"`` re-bootstraps hazard from shocked
-///     par spreads; ``"first_order_shift"`` shifts hazard knots in place.
-///
-/// Returns
-/// -------
-/// ScenarioSpec
-///     Validated typed scenario specification.
-///
-/// Raises
-/// ------
-/// ValueError
-///     If ``resolution_mode`` or ``hazard_bump_mode`` is not accepted, or the
-///     resulting scenario fails validation.
-///
-/// Examples
-/// --------
-/// >>> from finstack_quant.scenarios import build_scenario_spec
-/// >>> spec = build_scenario_spec("stress", [], resolution_mode="cumulative")
-/// >>> spec.resolution_mode
-/// 'cumulative'
-#[pyfunction]
-#[pyo3(signature = (
-    id,
-    operations,
-    name=None,
-    description=None,
-    priority=0,
-    resolution_mode="most_specific_wins",
-    hazard_bump_mode="solve_to_par"
-))]
-fn build_scenario_spec(
-    id: &str,
-    operations: Vec<PyOperationSpec>,
-    name: Option<&str>,
-    description: Option<&str>,
-    priority: i32,
-    resolution_mode: &str,
-    hazard_bump_mode: &str,
-) -> PyResult<PyScenarioSpec> {
-    PyScenarioSpec::build(
-        id,
-        operations,
-        name,
-        description,
-        priority,
-        resolution_mode,
-        hazard_bump_mode,
-    )
+fn builtin_registry() -> PyResult<&'static finstack_quant_scenarios::TemplateRegistry> {
+    finstack_quant_scenarios::TemplateRegistry::embedded_builtins().map_err(scenarios_to_py)
 }
 
 /// Compose several scenario specifications into one.
 ///
 /// Later specs layer on top of earlier ones. Where two specs touch the same
 /// target, the composed spec resolves the conflict using each operation's
-/// ``resolution_mode`` (see :func:`build_scenario_spec`). Every input must use
+/// ``resolution_mode`` (see ``ScenarioSpec``). Every input must use
 /// the same ``hazard_bump_mode``; mixed hazard delivery conventions are
 /// rejected rather than silently selecting one.
 ///
@@ -153,9 +48,9 @@ fn build_scenario_spec(
 ///
 /// Examples
 /// --------
-/// >>> from finstack_quant.scenarios import build_scenario_spec, compose_scenarios
-/// >>> rates = build_scenario_spec("rates", [])
-/// >>> credit = build_scenario_spec("credit", [])
+/// >>> from finstack_quant.scenarios import ScenarioSpec, compose_scenarios
+/// >>> rates = ScenarioSpec("rates", [])
+/// >>> credit = ScenarioSpec("credit", [])
 /// >>> compose_scenarios([rates, credit]).operations
 /// []
 #[pyfunction]
@@ -171,8 +66,8 @@ fn compose_scenarios(specs: Vec<PyScenarioSpec>) -> PyResult<PyScenarioSpec> {
 ///
 /// Parameters
 /// ----------
-/// json_str : str
-///     JSON-serialized ``ScenarioSpec``.
+/// scenario : ScenarioSpec | str
+///     Typed scenario or JSON-serialized ``ScenarioSpec``.
 ///
 /// Returns
 /// -------
@@ -184,12 +79,17 @@ fn compose_scenarios(specs: Vec<PyScenarioSpec>) -> PyResult<PyScenarioSpec> {
 /// Raises
 /// ------
 /// ValueError
-///     If the JSON is malformed or the spec fails validation.
+///     If the JSON is malformed or the spec fails validation. The message is
+///     the same one ``ScenarioSpec.validate()`` raises.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.scenarios import ScenarioSpec, validate_scenario_spec
+/// >>> validate_scenario_spec(ScenarioSpec("ok", []).to_json()) is None
+/// True
 #[pyfunction]
-fn validate_scenario_spec(json_str: &str) -> PyResult<()> {
-    let spec = parse_spec(json_str)?;
-    validate_spec(&spec)?;
-    Ok(())
+fn validate_scenario_spec(scenario: &Bound<'_, PyAny>) -> PyResult<()> {
+    extract::extract_scenario_spec(scenario).map(|_| ())
 }
 
 /// List the identifiers of every built-in scenario template.
@@ -252,8 +152,8 @@ fn list_builtin_template_metadata() -> PyResult<Vec<PyTemplateMetadata>> {
 /// Returns
 /// -------
 /// ScenarioSpec
-///     Typed scenario specification. Call :meth:`ScenarioSpec.to_json` when
-///     passing it to an explicitly JSON-input API.
+///     Typed scenario specification, accepted directly by
+///     :func:`apply_scenario_to_market` and :func:`compute_horizon_return`.
 ///
 /// Raises
 /// ------
@@ -334,8 +234,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<PyScenarioSpec>()?;
     m.add_class::<PyTemplateMetadata>()?;
-    m.add_function(wrap_pyfunction!(parse_scenario_spec, &m)?)?;
-    m.add_function(wrap_pyfunction!(build_scenario_spec, &m)?)?;
     m.add_function(wrap_pyfunction!(compose_scenarios, &m)?)?;
     m.add_function(wrap_pyfunction!(validate_scenario_spec, &m)?)?;
     m.add_function(wrap_pyfunction!(list_builtin_templates, &m)?)?;
@@ -356,6 +254,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "ApplicationResult",
             "Compounding",
             "CurveKind",
+            "HierarchyTarget",
             "HorizonResult",
             "OperationSpec",
             "RateBindingSpec",
@@ -366,14 +265,12 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "apply_scenario",
             "apply_scenario_to_market",
             "build_from_template",
-            "build_scenario_spec",
             "build_template_component",
             "compose_scenarios",
             "compute_horizon_return",
             "list_builtin_template_metadata",
             "list_builtin_templates",
             "list_template_components",
-            "parse_scenario_spec",
             "schema",
             "validate_scenario_spec",
         ],

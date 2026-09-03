@@ -1,10 +1,12 @@
-//! Python wrappers for statement-model Monte Carlo evaluation.
+//! Python wrappers for statement-model Monte Carlo configuration and results.
+//!
+//! The simulation itself is started from ``Evaluator.evaluate_monte_carlo``
+//! (see `evaluator.rs`), mirroring Rust's `Evaluator::evaluate_monte_carlo`.
 
-use crate::bindings::extract::extract_model_ref;
 use crate::bindings::pandas_utils::{dict_to_dataframe, table_to_dataframe};
-use crate::errors::display_to_py;
+use crate::errors::serde_json_to_py;
 use finstack_quant_statements::evaluator::{
-    Evaluator, MonteCarloConfig as RustMonteCarloConfig, MonteCarloResults as RustMonteCarloResults,
+    MonteCarloConfig as RustMonteCarloConfig, MonteCarloResults as RustMonteCarloResults,
 };
 use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
@@ -17,8 +19,8 @@ use pyo3::types::{PyDict, PyList};
     from_py_object
 )]
 #[derive(Clone)]
-struct PyMonteCarloConfig {
-    inner: RustMonteCarloConfig,
+pub(crate) struct PyMonteCarloConfig {
+    pub(crate) inner: RustMonteCarloConfig,
 }
 
 #[pymethods]
@@ -76,13 +78,15 @@ impl PyMonteCarloConfig {
     /// silently falling back to a default.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid MonteCarloConfig JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize this configuration to canonical JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize MonteCarloConfig"))
     }
 
     /// Number of paths the simulation will draw.
@@ -128,6 +132,18 @@ impl PyMonteCarloConfig {
     }
 }
 
+/// Column label for one percentile level: ``0.05`` → ``p5``, ``0.5`` →
+/// ``p50``, ``0.975`` → ``p97.5``.
+fn percentile_column(quantile: f64) -> String {
+    let pct = quantile * 100.0;
+    let rounded = pct.round();
+    if (pct - rounded).abs() < 1e-9 {
+        format!("p{}", rounded as i64)
+    } else {
+        format!("p{pct}")
+    }
+}
+
 /// Typed results for statement-model Monte Carlo evaluation.
 #[pyclass(
     name = "MonteCarloResults",
@@ -135,8 +151,8 @@ impl PyMonteCarloConfig {
     from_py_object
 )]
 #[derive(Clone)]
-struct PyMonteCarloResults {
-    inner: RustMonteCarloResults,
+pub(crate) struct PyMonteCarloResults {
+    pub(crate) inner: RustMonteCarloResults,
 }
 
 #[pymethods]
@@ -159,13 +175,15 @@ impl PyMonteCarloResults {
     /// carries percentiles (and the optional path table) but not that buffer.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid MonteCarloResults JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize these results to canonical JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize MonteCarloResults"))
     }
 
     /// Number of paths actually simulated.
@@ -207,6 +225,25 @@ impl PyMonteCarloResults {
             .collect()
     }
 
+    /// Metric (node) identifiers that were simulated, in model order.
+    #[getter]
+    fn metrics(&self) -> Vec<String> {
+        self.inner.percentile_results.keys().cloned().collect()
+    }
+
+    /// Warnings raised while evaluating paths, as human-readable strings.
+    ///
+    /// Each entry is the debug form of an ``EvalWarning`` (division by zero,
+    /// non-finite value, ...). Empty when every path evaluated cleanly.
+    #[getter]
+    fn warnings(&self) -> Vec<String> {
+        self.inner
+            .warnings
+            .iter()
+            .map(|w| format!("{w:?}"))
+            .collect()
+    }
+
     /// Look up one percentile of one metric as a period-keyed dict.
     ///
     /// Parameters
@@ -240,6 +277,32 @@ impl PyMonteCarloResults {
         Ok(Some(series))
     }
 
+    /// Probability that a metric exceeds ``threshold`` in **any** forecast
+    /// period, estimated across paths.
+    ///
+    /// Counts upside breaches only (``value > threshold``); for a downside
+    /// test (DSCR below a floor) simulate a negated metric or a derived node
+    /// that flips the sign.
+    ///
+    /// Parameters
+    /// ----------
+    /// metric : str
+    ///     Simulated node identifier.
+    /// threshold : float
+    ///     Breach level in the metric's own units.
+    ///
+    /// Returns
+    /// -------
+    /// float | None
+    ///     Fraction of paths in [0, 1] with at least one breach, or ``None``
+    ///     when the metric was not simulated, there are no forecast periods,
+    ///     the path buffer is incomplete, or the result was reconstructed
+    ///     from JSON / pickle (the per-path buffer is not serialized).
+    #[pyo3(text_signature = "($self, metric, threshold)")]
+    fn breach_probability(&self, metric: &str, threshold: f64) -> Option<f64> {
+        self.inner.breach_probability(metric, threshold)
+    }
+
     /// Export one metric's percentile fan as a pandas ``DataFrame``.
     ///
     /// Rows are the metric's forecast periods (index name ``period``, in
@@ -247,9 +310,9 @@ impl PyMonteCarloResults {
     /// simulated distribution, in the metric's own units (currency amounts
     /// for monetary nodes, unitless otherwise).
     ///
-    /// Columns: one per configured percentile, named ``p<q>`` where ``q`` is
-    /// the quantile as a decimal fraction — ``p0.05``, ``p0.5``, ``p0.95`` for
-    /// the default levels. A cell is ``NaN`` when a period is missing that
+    /// Columns: one per configured percentile, named ``p<percent>`` —
+    /// ``p5``, ``p50``, ``p95`` for the default levels (``p97.5`` for
+    /// ``0.975``). A cell is ``NaN`` when a period is missing that
     /// percentile.
     ///
     /// Parameters
@@ -282,7 +345,7 @@ impl PyMonteCarloResults {
                         .unwrap_or(f64::NAN)
                 })
                 .collect();
-            columns.set_item(format!("p{quantile}"), column)?;
+            columns.set_item(percentile_column(quantile), column)?;
         }
 
         let index = PyList::new(py, &periods)?;
@@ -327,47 +390,31 @@ impl PyMonteCarloResults {
     }
 }
 
-fn extract_config(value: &Bound<'_, PyAny>) -> PyResult<RustMonteCarloConfig> {
+/// Accept a typed ``MonteCarloConfig`` or its JSON serialization.
+pub(crate) fn extract_config(value: &Bound<'_, PyAny>) -> PyResult<RustMonteCarloConfig> {
     if let Ok(config) = value.extract::<PyRef<'_, PyMonteCarloConfig>>() {
         return Ok(config.inner.clone());
     }
-    serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
-}
-
-/// Run Monte Carlo simulation on a financial model.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A typed model or its JSON serialization.
-/// config : MonteCarloConfig | str
-///     Typed configuration or JSON with ``n_paths``, ``seed``, optional
-///     ``percentiles``, and optional ``include_path_data``.
-///
-/// Returns
-/// -------
-/// MonteCarloResults
-///     Typed Monte Carlo results with JSON serialization support.
-#[pyfunction]
-fn run_monte_carlo(
-    py: Python<'_>,
-    model: &Bound<'_, PyAny>,
-    config: &Bound<'_, PyAny>,
-) -> PyResult<PyMonteCarloResults> {
-    let model = extract_model_ref(model)?.into_owned();
-    let config = extract_config(config)?;
-    py.detach(move || {
-        let mut evaluator = Evaluator::new();
-        let inner = evaluator
-            .evaluate_monte_carlo(&model, &config)
-            .map_err(display_to_py)?;
-        Ok(PyMonteCarloResults { inner })
-    })
+    serde_json::from_str(value.extract::<&str>()?)
+        .map_err(|e| serde_json_to_py(e, "invalid MonteCarloConfig JSON"))
 }
 
 pub fn register(_py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMonteCarloConfig>()?;
     module.add_class::<PyMonteCarloResults>()?;
-    module.add_function(pyo3::wrap_pyfunction!(run_monte_carlo, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percentile_column;
+
+    #[test]
+    fn percentile_columns_are_percent_labels() {
+        assert_eq!(percentile_column(0.05), "p5");
+        assert_eq!(percentile_column(0.5), "p50");
+        assert_eq!(percentile_column(0.95), "p95");
+        assert_eq!(percentile_column(0.975), "p97.5");
+        assert_eq!(percentile_column(0.01), "p1");
+    }
 }

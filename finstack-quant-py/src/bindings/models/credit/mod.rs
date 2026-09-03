@@ -11,41 +11,169 @@ use std::sync::Arc;
 
 use crate::bindings::core::market_data::curves::helpers::parse_day_count;
 use crate::bindings::core::market_data::curves::PyHazardCurve;
-use crate::bindings::core::types::PyCreditRating;
 use crate::bindings::date_utils::py_to_date;
-use crate::bindings::pandas_utils::{serde_object_to_single_row_dataframe, serde_to_py};
-use crate::errors::display_to_py;
+use crate::bindings::extract::extract_credit_rating;
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_object_to_single_row_dataframe, serde_to_py, values_to_series,
+};
+use crate::errors::{core_to_py, serde_json_to_py, value_error};
 use finstack_quant_core::math::random::Pcg64Rng;
 use finstack_quant_models::credit::{
     moodys_warf_factor as rust_moodys_warf_factor, AssetDynamics, BarrierType, CreditState,
     CreditStateVariable, DynamicRecoverySpec, EndogenousHazardSpec, MertonModel, OptimalToggle,
-    SimulatedPaths, ThresholdDirection, ToggleExerciseModel,
+    RatingFactorTable, SimulatedPaths, ThresholdDirection, ToggleExerciseModel,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule};
+use pyo3::types::{PyDict, PyList, PyModule};
 
 /// Return the Moody's WARF factor for a canonical credit rating.
 ///
-/// # Arguments
+/// Parameters
+/// ----------
+/// rating : str | CreditRating
+///     Exact-notch rating, either a ``core.types.CreditRating`` or a rating
+///     string in S&P/Fitch (``"BBB-"``) or Moody's (``"Baa3"``) notation.
 ///
-/// * `rating` - Canonical `core.types.CreditRating` whose exact-notch Moody's
-///   rating factor is required.
+/// Returns
+/// -------
+/// float
+///     Moody's ordinal weighted-average rating factor (``B`` -> ``2720.0``).
 ///
-/// # Errors
-///
-/// Raises `ValueError` if the embedded credit-assumptions registry is invalid
-/// or the rating has no factor in the configured Moody's table.
+/// Raises
+/// ------
+/// ValueError
+///     If the string is not a recognised rating, the embedded
+///     credit-assumptions registry is invalid, or the rating has no factor in
+///     the configured Moody's table.
+/// TypeError
+///     If ``rating`` is neither a string nor a ``CreditRating``.
 #[pyfunction]
-fn moodys_warf_factor(rating: &PyCreditRating) -> PyResult<f64> {
-    rust_moodys_warf_factor(rating.inner).map_err(display_to_py)
+#[pyo3(text_signature = "(rating)")]
+fn moodys_warf_factor(rating: &Bound<'_, PyAny>) -> PyResult<f64> {
+    let rating = extract_credit_rating(rating)?;
+    rust_moodys_warf_factor(rating).map_err(core_to_py)
 }
 
+/// Rating-factor table (Moody's WARF methodology) loaded from the embedded
+/// credit-assumptions registry.
+///
+/// Use ``RatingFactorTable.moodys_standard()`` for the default table or
+/// ``RatingFactorTable.from_registry_id(id)`` for a named methodology. Exact
+/// rating notches map to factors via ``get_factor``; unrated or defaulted
+/// names take ``default_factor``.
+#[pyclass(
+    name = "RatingFactorTable",
+    module = "finstack_quant.models.credit",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(crate) struct PyRatingFactorTable {
+    pub(crate) inner: RatingFactorTable,
+}
+
+#[pymethods]
+impl PyRatingFactorTable {
+    /// Load the embedded Moody's standard WARF table.
+    ///
+    /// Raises ``ValueError`` if the embedded registry is invalid or its
+    /// configured default rating-factor table is missing.
+    #[staticmethod]
+    #[pyo3(text_signature = "()")]
+    fn moodys_standard() -> PyResult<Self> {
+        RatingFactorTable::moodys_standard()
+            .map(|inner| Self { inner })
+            .map_err(core_to_py)
+    }
+
+    /// Load a named rating-factor table from the embedded registry.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Exact registry identifier of the methodology. An unknown id raises
+    ///     ``KeyError`` and never falls back to the default table.
+    #[staticmethod]
+    #[pyo3(text_signature = "(id)")]
+    fn from_registry_id(id: &str) -> PyResult<Self> {
+        RatingFactorTable::from_registry_id(id)
+            .map(|inner| Self { inner })
+            .map_err(core_to_py)
+    }
+
+    /// Rating factor for an exact rating notch.
+    ///
+    /// Parameters
+    /// ----------
+    /// rating : str | CreditRating
+    ///     Rating notch as a ``core.types.CreditRating`` or a rating string.
+    ///
+    /// Raises ``ValueError`` when the notch has no factor in this table or
+    /// the string is not a recognised rating.
+    #[pyo3(text_signature = "($self, rating)")]
+    fn get_factor(&self, rating: &Bound<'_, PyAny>) -> PyResult<f64> {
+        let rating = extract_credit_rating(rating)?;
+        self.inner.get_factor(rating).map_err(core_to_py)
+    }
+
+    /// Agency the table is sourced from (e.g. ``"moodys"``).
+    #[getter]
+    fn agency(&self) -> String {
+        self.inner.agency().to_string()
+    }
+
+    /// Methodology label recorded in the registry for this table.
+    #[getter]
+    fn methodology(&self) -> String {
+        self.inner.methodology().to_string()
+    }
+
+    /// Factor assigned to unrated or defaulted names.
+    #[getter]
+    fn default_factor(&self) -> f64 {
+        self.inner.default_factor()
+    }
+
+    /// Deserialize a rating-factor table from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid RatingFactorTable JSON"))?,
+        })
+    }
+
+    /// Serialize this table to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "RatingFactorTable serialization failed"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Identify this value in notebooks and logs.
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("RatingFactorTable", &self.inner)
+    }
+}
+
+/// Default-barrier monitoring convention for structural credit models.
+///
+/// ``BarrierType.terminal()`` tests default only at maturity (Merton 1974);
+/// ``BarrierType.first_passage(growth)`` tests continuously against a barrier
+/// growing at ``growth`` per year (Black-Cox 1976).
 #[pyclass(
     name = "BarrierType",
     module = "finstack_quant.models.credit",
+    frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub(crate) struct PyBarrierType {
     pub(crate) inner: BarrierType,
 }
@@ -85,14 +213,16 @@ impl PyBarrierType {
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid BarrierType JSON"))?,
         })
     }
 
     /// Serialize this barrier type to compact JSON.
     #[allow(clippy::wrong_self_convention)]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "BarrierType serialization failed"))
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -100,14 +230,26 @@ impl PyBarrierType {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
+
+    /// Identify this value in notebooks and logs (``BarrierType.terminal()``,
+    /// ``BarrierType.first_passage(barrier_growth_rate=0.02)``).
+    fn __repr__(&self) -> String {
+        variant_repr("BarrierType", &self.inner)
+    }
 }
 
+/// Asset-return dynamics for structural credit models.
+///
+/// ``geometric_brownian()`` (lognormal diffusion), ``jump_diffusion(...)``
+/// (Merton 1976 jumps) or ``credit_grades(...)`` (stochastic barrier).
 #[pyclass(
     name = "AssetDynamics",
     module = "finstack_quant.models.credit",
+    frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub(crate) struct PyAssetDynamics {
     pub(crate) inner: AssetDynamics,
 }
@@ -168,14 +310,16 @@ impl PyAssetDynamics {
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid AssetDynamics JSON"))?,
         })
     }
 
     /// Serialize these asset dynamics to compact JSON.
     #[allow(clippy::wrong_self_convention)]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "AssetDynamics serialization failed"))
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -183,14 +327,34 @@ impl PyAssetDynamics {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
+
+    /// Identify this value in notebooks and logs
+    /// (``AssetDynamics.geometric_brownian()``,
+    /// ``AssetDynamics.jump_diffusion(jump_intensity=..., ...)``).
+    fn __repr__(&self) -> String {
+        variant_repr("AssetDynamics", &self.inner)
+    }
 }
 
+/// Merton-family structural credit model (Merton 1974, Black-Cox 1976,
+/// CreditGrades) over firm asset value, volatility, and a debt barrier.
+///
+/// Construct directly from asset inputs, or calibrate with ``from_equity``
+/// (KMV), ``from_cds_spread``, ``from_target_pd`` or ``credit_grades``.
+/// Rates and volatilities are decimals (``0.05`` is 5%); spreads returned by
+/// ``implied_spread`` / ``debt_spread`` / ``cds_par_spread`` are decimals,
+/// not basis points.
+///
+/// Raises ``ValueError`` on invalid inputs and ``RuntimeError`` when a
+/// calibration root-finder fails to converge.
 #[pyclass(
     name = "MertonModel",
     module = "finstack_quant.models.credit",
+    frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct PyMertonModel {
     pub(crate) inner: MertonModel,
 }
@@ -199,17 +363,31 @@ pub(crate) struct PyMertonModel {
 impl PyMertonModel {
     /// Construct a Merton structural credit model from firm asset inputs.
     ///
-    /// # Arguments
+    /// Parameters
+    /// ----------
+    /// asset_value : float
+    ///     Firm asset value ``V_0`` (positive, finite), in the issuer's
+    ///     reporting currency.
+    /// asset_vol : float
+    ///     Annualized asset volatility as a decimal (``0.25`` is 25%).
+    /// debt_barrier : float
+    ///     Default barrier ``B``, typically total debt face, same units as
+    ///     ``asset_value``.
+    /// risk_free_rate : float
+    ///     Continuously compounded risk-free rate as a decimal.
     ///
-    /// * `asset_value` - Firm asset value (positive, finite)
-    /// * `asset_vol` - Annualized asset volatility as a decimal
-    /// * `debt_barrier` - Default barrier, typically total debt face
-    /// * `risk_free_rate` - Continuously compounded risk-free rate as a decimal
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     When inputs are non-finite or out of range.
     ///
-    /// # Errors
-    ///
-    /// Raises `ValueError` when inputs are non-finite or out of range.
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.models.credit import MertonModel
+    /// >>> round(MertonModel(100.0, 0.25, 80.0, 0.05).default_probability(1.0), 6)
+    /// 0.166629
     #[new]
+    #[pyo3(text_signature = "(asset_value, asset_vol, debt_barrier, risk_free_rate)")]
     fn new(
         asset_value: f64,
         asset_vol: f64,
@@ -218,7 +396,7 @@ impl PyMertonModel {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: MertonModel::new(asset_value, asset_vol, debt_barrier, risk_free_rate)
-                .map_err(display_to_py)?,
+                .map_err(core_to_py)?,
         })
     }
 
@@ -250,7 +428,7 @@ impl PyMertonModel {
                 payout_rate,
                 maturity,
             )
-            .map_err(display_to_py)?,
+            .map_err(core_to_py)?,
         })
     }
 
@@ -285,7 +463,7 @@ impl PyMertonModel {
                 asset_value,
                 payout_rate,
             )
-            .map_err(display_to_py)?,
+            .map_err(core_to_py)?,
         })
     }
 
@@ -321,7 +499,7 @@ impl PyMertonModel {
                 target_pd,
                 maturity,
             )
-            .map_err(display_to_py)?,
+            .map_err(core_to_py)?,
         })
     }
 
@@ -339,7 +517,7 @@ impl PyMertonModel {
     /// when the resulting default point is zero.
     #[staticmethod]
     fn kmv_default_point(short_term_debt: f64, long_term_debt: f64) -> PyResult<f64> {
-        MertonModel::kmv_default_point(short_term_debt, long_term_debt).map_err(display_to_py)
+        MertonModel::kmv_default_point(short_term_debt, long_term_debt).map_err(core_to_py)
     }
 
     /// Construct a Merton model with explicit barrier and dynamics specifications.
@@ -374,7 +552,7 @@ impl PyMertonModel {
                 barrier_type.inner,
                 dynamics.inner,
             )
-            .map_err(display_to_py)?,
+            .map_err(core_to_py)?,
         })
     }
 
@@ -400,7 +578,7 @@ impl PyMertonModel {
                 barrier_uncertainty,
                 mean_recovery,
             )
-            .map_err(display_to_py)?,
+            .map_err(core_to_py)?,
         })
     }
 
@@ -418,13 +596,15 @@ impl PyMertonModel {
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid MertonModel JSON"))?,
         })
     }
 
     /// Serialize this model to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "MertonModel serialization failed"))
     }
 
     /// Current firm asset value ``V_0``, in the issuer's reporting currency.
@@ -494,12 +674,45 @@ impl PyMertonModel {
     fn distance_to_default_with_drift(&self, asset_drift: f64, horizon: f64) -> PyResult<f64> {
         self.inner
             .distance_to_default_with_drift(asset_drift, horizon)
-            .map_err(display_to_py)
+            .map_err(core_to_py)
     }
 
     /// Risk-neutral default probability over `horizon` years.
     fn default_probability(&self, horizon: f64) -> f64 {
         self.inner.default_probability(horizon)
+    }
+
+    /// Risk-neutral cumulative default probabilities over several horizons.
+    ///
+    /// Parameters
+    /// ----------
+    /// horizons : list[float]
+    ///     Horizons in years; each must be finite and strictly positive.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.Series
+    ///     Float series named ``default_probability`` indexed by the horizon
+    ///     labels (``str(horizon)``), in input order.
+    ///
+    /// Raises ``ValueError`` when any horizon is non-finite or non-positive.
+    #[pyo3(text_signature = "($self, horizons)")]
+    fn default_probabilities<'py>(
+        &self,
+        py: Python<'py>,
+        horizons: Vec<f64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if let Some(bad) = horizons.iter().find(|h| !h.is_finite() || **h <= 0.0) {
+            return Err(value_error(format!(
+                "horizons must be finite and strictly positive, got {bad}"
+            )));
+        }
+        let labels: Vec<String> = horizons.iter().map(|h| h.to_string()).collect();
+        let values: Vec<f64> = horizons
+            .iter()
+            .map(|h| self.inner.default_probability(*h))
+            .collect();
+        values_to_series(py, values, &labels, "default_probability")
     }
 
     /// Physical-measure default probability (theoretical EDF) over `horizon` years.
@@ -517,7 +730,7 @@ impl PyMertonModel {
     fn default_probability_with_drift(&self, asset_drift: f64, horizon: f64) -> PyResult<f64> {
         self.inner
             .default_probability_with_drift(asset_drift, horizon)
-            .map_err(display_to_py)
+            .map_err(core_to_py)
     }
 
     /// Zero-coupon bond spread with exogenous `recovery` (decimal, not bp).
@@ -528,7 +741,7 @@ impl PyMertonModel {
     fn implied_spread(&self, horizon: f64, recovery: f64) -> PyResult<f64> {
         self.inner
             .implied_spread(horizon, recovery)
-            .map_err(display_to_py)
+            .map_err(core_to_py)
     }
 
     /// Merton (1974) endogenous debt spread at `horizon` years (decimal, not bp).
@@ -538,7 +751,7 @@ impl PyMertonModel {
     /// Raises ``ValueError`` when `horizon` is not positive, the barrier type
     /// is not terminal, or the implied debt value is non-positive.
     fn debt_spread(&self, horizon: f64) -> PyResult<f64> {
-        self.inner.debt_spread(horizon).map_err(display_to_py)
+        self.inner.debt_spread(horizon).map_err(core_to_py)
     }
 
     /// ISDA-style CDS par spread at `maturity` years (decimal, not bp).
@@ -556,7 +769,7 @@ impl PyMertonModel {
     fn cds_par_spread(&self, maturity: f64, recovery: f64) -> PyResult<f64> {
         self.inner
             .cds_par_spread(maturity, recovery)
-            .map_err(display_to_py)
+            .map_err(core_to_py)
     }
 
     /// Implied equity value and equity volatility at ``horizon`` years.
@@ -570,9 +783,7 @@ impl PyMertonModel {
     /// Raises ``ValueError`` when the firm is economically in default or the
     /// inversion is numerically ill-conditioned.
     fn try_implied_equity(&self, horizon: f64) -> PyResult<(f64, f64)> {
-        self.inner
-            .try_implied_equity(horizon)
-            .map_err(display_to_py)
+        self.inner.try_implied_equity(horizon).map_err(core_to_py)
     }
 
     /// Bootstrap a piecewise-constant hazard curve from structural default probabilities.
@@ -600,7 +811,7 @@ impl PyMertonModel {
         let curve = self
             .inner
             .to_hazard_curve(id, base_date, &tenors, recovery, day_count)
-            .map_err(display_to_py)?;
+            .map_err(core_to_py)?;
         Ok(PyHazardCurve::from_inner(Arc::new(curve)))
     }
 
@@ -626,7 +837,7 @@ impl PyMertonModel {
         let paths = self
             .inner
             .simulate_paths(num_paths, num_steps, horizon, &mut rng, antithetic)
-            .map_err(display_to_py)?;
+            .map_err(core_to_py)?;
         Ok(PySimulatedPaths::from_inner(paths))
     }
 
@@ -640,9 +851,15 @@ impl PyMertonModel {
     }
 }
 
+/// Monte Carlo asset-value paths from ``MertonModel.simulate_paths``.
+///
+/// ``asset_values`` is row-major: path ``p`` occupies indices
+/// ``p * values_per_path .. (p + 1) * values_per_path`` where
+/// ``values_per_path == num_steps + 1`` (the grid includes ``t = 0``).
 #[pyclass(
     name = "SimulatedPaths",
     module = "finstack_quant.models.credit",
+    frozen,
     skip_from_py_object
 )]
 #[derive(Clone)]
@@ -671,14 +888,16 @@ impl PySimulatedPaths {
     /// Deserialize simulated paths from their canonical JSON form.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: SimulatedPaths = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: SimulatedPaths = serde_json::from_str(json)
+            .map_err(|err| serde_json_to_py(err, "invalid SimulatedPaths JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize to canonical JSON (``times``, ``asset_values``, ``num_paths``,
     /// ``num_steps``).
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "SimulatedPaths serialization failed"))
     }
 
     /// Time grid from 0 to the simulation horizon.
@@ -703,6 +922,36 @@ impl PySimulatedPaths {
     #[getter]
     fn num_steps(&self) -> usize {
         self.inner.num_steps
+    }
+
+    /// Number of stored values per path (``num_steps + 1``, including ``t = 0``).
+    #[getter]
+    fn values_per_path(&self) -> usize {
+        self.inner.values_per_path()
+    }
+
+    /// Export the paths as a long-format :class:`pandas.DataFrame`.
+    ///
+    /// Columns: ``path`` (int), ``time`` (float, years), ``asset_value``
+    /// (float); one row per path per grid point, ordered by path then time.
+    /// Pivot with ``df.pivot(index="time", columns="path", values="asset_value")``
+    /// for a wide time-by-path frame.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let per_path = self.inner.values_per_path();
+        let n = self.inner.num_paths * per_path;
+        let mut path_col = Vec::with_capacity(n);
+        let mut time_col = Vec::with_capacity(n);
+        for p in 0..self.inner.num_paths {
+            for t in 0..per_path {
+                path_col.push(p as u64);
+                time_col.push(self.inner.times.get(t).copied().unwrap_or(f64::NAN));
+            }
+        }
+        let columns = PyDict::new(py);
+        columns.set_item("path", path_col)?;
+        columns.set_item("time", time_col)?;
+        columns.set_item("asset_value", self.inner.asset_values.clone())?;
+        dict_to_dataframe(py, &columns, None)
     }
 
     /// Return one asset value by path and time-grid index.
@@ -738,23 +987,142 @@ impl PySimulatedPaths {
     }
 }
 
+/// Notional-dependent recovery curve for PIK-accreting instruments.
+///
+/// Maps the current (accreted) notional to a recovery rate. ``kind`` names
+/// the active model: ``"constant"``, ``"inverse_linear"``,
+/// ``"inverse_power"``, ``"floored_inverse"`` or ``"linear_decline"`` (the
+/// canonical serde tags, which are also the keys in ``to_json``).
+///
+/// All recovery inputs are decimals in ``[0, 1]``; notionals are in the
+/// instrument's currency and must be strictly positive.
 #[pyclass(
     name = "DynamicRecoverySpec",
     module = "finstack_quant.models.credit",
+    frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct PyDynamicRecoverySpec {
     pub(crate) inner: DynamicRecoverySpec,
 }
 
 #[pymethods]
 impl PyDynamicRecoverySpec {
+    /// Constant recovery irrespective of notional.
+    ///
+    /// Parameters
+    /// ----------
+    /// recovery : float
+    ///     Recovery rate as a decimal in ``[0, 1]``.
+    ///
+    /// Raises ``ValueError`` when ``recovery`` is non-finite or outside ``[0, 1]``.
     #[staticmethod]
+    #[pyo3(text_signature = "(recovery)")]
     fn constant(recovery: f64) -> PyResult<Self> {
         Ok(Self {
-            inner: DynamicRecoverySpec::constant(recovery).map_err(display_to_py)?,
+            inner: DynamicRecoverySpec::constant(recovery).map_err(core_to_py)?,
         })
+    }
+
+    /// Recovery inversely proportional to notional: ``R(N) = R_0 * N_0 / N``.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_recovery : float
+    ///     Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+    /// base_notional : float
+    ///     Reference notional ``N_0`` (strictly positive).
+    ///
+    /// Raises ``ValueError`` on non-finite or out-of-range inputs.
+    #[staticmethod]
+    #[pyo3(text_signature = "(base_recovery, base_notional)")]
+    fn inverse_linear(base_recovery: f64, base_notional: f64) -> PyResult<Self> {
+        Ok(Self {
+            inner: DynamicRecoverySpec::inverse_linear(base_recovery, base_notional)
+                .map_err(core_to_py)?,
+        })
+    }
+
+    /// Recovery decaying as a power of notional: ``R(N) = R_0 * (N_0 / N)^exponent``.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_recovery : float
+    ///     Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+    /// base_notional : float
+    ///     Reference notional ``N_0`` (strictly positive).
+    /// exponent : float
+    ///     Non-negative decay exponent (``1.0`` reproduces ``inverse_linear``).
+    ///
+    /// Raises ``ValueError`` on non-finite or out-of-range inputs.
+    #[staticmethod]
+    #[pyo3(text_signature = "(base_recovery, base_notional, exponent)")]
+    fn inverse_power(base_recovery: f64, base_notional: f64, exponent: f64) -> PyResult<Self> {
+        Ok(Self {
+            inner: DynamicRecoverySpec::inverse_power(base_recovery, base_notional, exponent)
+                .map_err(core_to_py)?,
+        })
+    }
+
+    /// Inverse-linear recovery floored at a minimum: ``max(R_0 * N_0 / N, floor)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_recovery : float
+    ///     Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+    /// base_notional : float
+    ///     Reference notional ``N_0`` (strictly positive).
+    /// floor : float
+    ///     Minimum recovery as a decimal in ``[0, base_recovery]``.
+    ///
+    /// Raises ``ValueError`` on non-finite or out-of-range inputs.
+    #[staticmethod]
+    #[pyo3(text_signature = "(base_recovery, base_notional, floor)")]
+    fn floored_inverse(base_recovery: f64, base_notional: f64, floor: f64) -> PyResult<Self> {
+        Ok(Self {
+            inner: DynamicRecoverySpec::floored_inverse(base_recovery, base_notional, floor)
+                .map_err(core_to_py)?,
+        })
+    }
+
+    /// Recovery declining linearly with accretion:
+    /// ``R(N) = max(R_0 - slope * (N - N_0) / N_0, floor)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_recovery : float
+    ///     Reference recovery ``R_0`` as a decimal in ``[0, 1]``.
+    /// base_notional : float
+    ///     Reference notional ``N_0`` (strictly positive).
+    /// slope : float
+    ///     Non-negative recovery decline per unit of relative accretion.
+    /// floor : float
+    ///     Minimum recovery as a decimal in ``[0, base_recovery]``.
+    ///
+    /// Raises ``ValueError`` on non-finite or out-of-range inputs.
+    #[staticmethod]
+    #[pyo3(text_signature = "(base_recovery, base_notional, slope, floor)")]
+    fn linear_decline(
+        base_recovery: f64,
+        base_notional: f64,
+        slope: f64,
+        floor: f64,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: DynamicRecoverySpec::linear_decline(base_recovery, base_notional, slope, floor)
+                .map_err(core_to_py)?,
+        })
+    }
+
+    /// Canonical name of the active recovery model.
+    ///
+    /// One of ``"constant"``, ``"inverse_linear"``, ``"inverse_power"``,
+    /// ``"floored_inverse"``, ``"linear_decline"``.
+    #[getter]
+    fn kind(&self) -> PyResult<String> {
+        model_tag(self.inner.model())
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -767,17 +1135,28 @@ impl PyDynamicRecoverySpec {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
+    /// Deserialize a recovery specification from canonical JSON.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid DynamicRecoverySpec JSON"))?,
         })
     }
 
+    /// Serialize this specification to compact canonical JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "DynamicRecoverySpec serialization failed"))
     }
 
+    /// Recovery rate (decimal) at the given current notional.
+    ///
+    /// Parameters
+    /// ----------
+    /// notional : float
+    ///     Current (accreted) notional in the instrument's currency.
+    #[pyo3(text_signature = "($self, notional)")]
     fn recovery_at_notional(&self, notional: f64) -> f64 {
         self.inner.recovery_at_notional(notional)
     }
@@ -819,24 +1198,96 @@ impl PyDynamicRecoverySpec {
     }
 }
 
+/// Leverage-dependent hazard-rate feedback for PIK-accreting instruments.
+///
+/// Maps leverage (debt / assets) to an annualized hazard rate. ``kind``
+/// names the active mapping: ``"power_law"``, ``"exponential"`` or
+/// ``"tabular"`` (the canonical serde tags, also the keys in ``to_json``).
+/// Hazard rates are annualized decimals; leverage is a ratio.
 #[pyclass(
     name = "EndogenousHazardSpec",
     module = "finstack_quant.models.credit",
+    frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct PyEndogenousHazardSpec {
     pub(crate) inner: EndogenousHazardSpec,
 }
 
 #[pymethods]
 impl PyEndogenousHazardSpec {
+    /// Power-law feedback: ``lambda(L) = lambda_0 * (L / L_0)^exponent``.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_hazard : float
+    ///     Reference annualized hazard rate ``lambda_0`` (non-negative decimal).
+    /// base_leverage : float
+    ///     Reference leverage ``L_0`` (strictly positive ratio).
+    /// exponent : float
+    ///     Non-negative elasticity of hazard to leverage.
+    ///
+    /// Raises ``ValueError`` on non-finite or out-of-range inputs.
     #[staticmethod]
+    #[pyo3(text_signature = "(base_hazard, base_leverage, exponent)")]
     fn power_law(base_hazard: f64, base_leverage: f64, exponent: f64) -> PyResult<Self> {
         Ok(Self {
             inner: EndogenousHazardSpec::power_law(base_hazard, base_leverage, exponent)
-                .map_err(display_to_py)?,
+                .map_err(core_to_py)?,
         })
+    }
+
+    /// Exponential feedback: ``lambda(L) = lambda_0 * exp(sensitivity * (L - L_0))``.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_hazard : float
+    ///     Reference annualized hazard rate ``lambda_0`` (non-negative decimal).
+    /// base_leverage : float
+    ///     Reference leverage ``L_0`` (strictly positive ratio).
+    /// sensitivity : float
+    ///     Non-negative exponential sensitivity per unit of leverage.
+    ///
+    /// Raises ``ValueError`` on non-finite or out-of-range inputs.
+    #[staticmethod]
+    #[pyo3(text_signature = "(base_hazard, base_leverage, sensitivity)")]
+    fn exponential(base_hazard: f64, base_leverage: f64, sensitivity: f64) -> PyResult<Self> {
+        Ok(Self {
+            inner: EndogenousHazardSpec::exponential(base_hazard, base_leverage, sensitivity)
+                .map_err(core_to_py)?,
+        })
+    }
+
+    /// Piecewise-linear tabular feedback through ``(leverage, hazard)`` points.
+    ///
+    /// Parameters
+    /// ----------
+    /// leverage_points : list[float]
+    ///     Strictly increasing leverage ratios (at least two).
+    /// hazard_points : list[float]
+    ///     Non-negative annualized hazard rates, one per leverage point. The
+    ///     base leverage and base hazard are taken from the first point.
+    ///
+    /// Raises ``ValueError`` when the lists differ in length, have fewer than
+    /// two points, are not strictly increasing in leverage, or contain
+    /// non-finite or negative values.
+    #[staticmethod]
+    #[pyo3(text_signature = "(leverage_points, hazard_points)")]
+    fn tabular(leverage_points: Vec<f64>, hazard_points: Vec<f64>) -> PyResult<Self> {
+        Ok(Self {
+            inner: EndogenousHazardSpec::tabular(leverage_points, hazard_points)
+                .map_err(core_to_py)?,
+        })
+    }
+
+    /// Canonical name of the active leverage-to-hazard mapping.
+    ///
+    /// One of ``"power_law"``, ``"exponential"``, ``"tabular"``.
+    #[getter]
+    fn kind(&self) -> PyResult<String> {
+        model_tag(self.inner.leverage_hazard_map())
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -849,21 +1300,42 @@ impl PyEndogenousHazardSpec {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
+    /// Deserialize a hazard specification from canonical JSON.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid EndogenousHazardSpec JSON"))?,
         })
     }
 
+    /// Serialize this specification to compact canonical JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "EndogenousHazardSpec serialization failed"))
     }
 
+    /// Annualized hazard rate (decimal) at the given leverage ratio.
+    ///
+    /// Parameters
+    /// ----------
+    /// leverage : float
+    ///     Leverage ratio (debt / assets), non-negative.
+    #[pyo3(text_signature = "($self, leverage)")]
     fn hazard_at_leverage(&self, leverage: f64) -> f64 {
         self.inner.hazard_at_leverage(leverage)
     }
 
+    /// Annualized hazard rate after PIK accretion, with leverage
+    /// ``accreted_notional / asset_value``.
+    ///
+    /// Parameters
+    /// ----------
+    /// accreted_notional : float
+    ///     Notional outstanding after PIK accrual, in the instrument's currency.
+    /// asset_value : float
+    ///     Firm asset value in the same currency (strictly positive).
+    #[pyo3(text_signature = "($self, accreted_notional, asset_value)")]
     fn hazard_after_pik_accrual(&self, accreted_notional: f64, asset_value: f64) -> f64 {
         self.inner
             .hazard_after_pik_accrual(accreted_notional, asset_value)
@@ -905,20 +1377,45 @@ impl PyEndogenousHazardSpec {
     }
 }
 
+/// Snapshot of an obligor's credit state at a PIK toggle decision date.
+///
+/// Feeds ``ToggleExerciseModel.should_pik_with_uniform``. Hazard rates are
+/// annualized decimals, leverage is a ratio, and the monetary fields share
+/// the instrument's currency.
 #[pyclass(
     name = "CreditState",
     module = "finstack_quant.models.credit",
+    frozen,
     skip_from_py_object
 )]
 #[derive(Clone)]
-struct PyCreditState {
-    inner: CreditState,
+pub(crate) struct PyCreditState {
+    pub(crate) inner: CreditState,
 }
 
 #[pymethods]
 impl PyCreditState {
+    /// Build a credit-state snapshot.
+    ///
+    /// Parameters
+    /// ----------
+    /// hazard_rate : float, default 0.0
+    ///     Annualized instantaneous default intensity (decimal).
+    /// distance_to_default : float | None, default None
+    ///     Distance to default in standard deviations, when available.
+    /// leverage : float, default 0.0
+    ///     Leverage ratio (debt / assets).
+    /// accreted_notional : float, default 0.0
+    ///     PIK-accreted notional outstanding.
+    /// coupon_due : float, default 0.0
+    ///     Cash coupon due at the decision date.
+    /// asset_value : float | None, default None
+    ///     Fair value of the firm's assets, when available.
     #[new]
     #[pyo3(signature = (hazard_rate=0.0, distance_to_default=None, leverage=0.0, accreted_notional=0.0, coupon_due=0.0, asset_value=None))]
+    #[pyo3(
+        text_signature = "(hazard_rate=0.0, distance_to_default=None, leverage=0.0, accreted_notional=0.0, coupon_due=0.0, asset_value=None)"
+    )]
     fn new(
         hazard_rate: f64,
         distance_to_default: Option<f64>,
@@ -939,8 +1436,10 @@ impl PyCreditState {
         }
     }
 
+    /// Serialize this snapshot to compact canonical JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "CreditState serialization failed"))
     }
 
     /// Annualized instantaneous default intensity at this observation.
@@ -990,7 +1489,8 @@ impl PyCreditState {
     /// picklable (see `__reduce__`).
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: CreditState = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: CreditState = serde_json::from_str(json)
+            .map_err(|err| serde_json_to_py(err, "invalid CreditState JSON"))?;
         Ok(Self { inner })
     }
 
@@ -1010,32 +1510,106 @@ impl PyCreditState {
     }
 }
 
+/// PIK toggle exercise rule: threshold, stochastic (logistic) or nested
+/// Monte Carlo optimal exercise.
+///
+/// ``kind`` is ``"threshold"``, ``"stochastic"`` or ``"optimal_exercise"``.
+/// Credit-state variables are ``"hazard_rate"``, ``"distance_to_default"``
+/// or ``"leverage"``; threshold directions are ``"above"`` or ``"below"``.
 #[pyclass(
     name = "ToggleExerciseModel",
     module = "finstack_quant.models.credit",
+    frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct PyToggleExerciseModel {
     pub(crate) inner: ToggleExerciseModel,
 }
 
 #[pymethods]
 impl PyToggleExerciseModel {
+    /// Deterministic rule: PIK when ``variable`` is ``direction`` the threshold.
+    ///
+    /// Parameters
+    /// ----------
+    /// variable : str
+    ///     Credit-state variable observed: ``"hazard_rate"``,
+    ///     ``"distance_to_default"`` or ``"leverage"``.
+    /// threshold : float
+    ///     Trigger level in the variable's own units (annualized decimal
+    ///     hazard, standard deviations, or leverage ratio).
+    /// direction : str
+    ///     ``"above"`` to PIK when the variable exceeds the threshold,
+    ///     ``"below"`` to PIK when it falls under it.
+    ///
+    /// Raises ``ValueError`` for an unknown variable or direction string.
     #[staticmethod]
+    #[pyo3(text_signature = "(variable, threshold, direction)")]
     fn threshold(variable: &str, threshold: f64, direction: &str) -> PyResult<Self> {
-        let variable = variable
-            .parse::<CreditStateVariable>()
-            .map_err(display_to_py)?;
-        let direction = direction
-            .parse::<ThresholdDirection>()
-            .map_err(display_to_py)?;
+        let variable = parse_state_variable(variable)?;
+        let direction = parse_direction(direction)?;
         Ok(Self {
             inner: ToggleExerciseModel::threshold(variable, threshold, direction),
         })
     }
 
+    /// Stochastic rule: PIK with probability ``logistic(intercept + sensitivity * x)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// variable : str
+    ///     Credit-state variable ``x`` observed: ``"hazard_rate"``,
+    ///     ``"distance_to_default"`` or ``"leverage"``.
+    /// intercept : float
+    ///     Logit intercept.
+    /// sensitivity : float
+    ///     Logit slope per unit of the variable.
+    ///
+    /// Raises ``ValueError`` for an unknown variable string.
     #[staticmethod]
+    #[pyo3(text_signature = "(variable, intercept, sensitivity)")]
+    fn stochastic(variable: &str, intercept: f64, sensitivity: f64) -> PyResult<Self> {
+        let variable = parse_state_variable(variable)?;
+        Ok(Self {
+            inner: ToggleExerciseModel::stochastic(variable, intercept, sensitivity),
+        })
+    }
+
+    /// Whether the rule elects PIK for ``state`` given one uniform draw.
+    ///
+    /// Parameters
+    /// ----------
+    /// state : CreditState
+    ///     Observed credit state at the decision date.
+    /// u : float
+    ///     Uniform draw in ``[0, 1)``; ignored by threshold rules and used as
+    ///     the Bernoulli draw by stochastic rules. Optimal-exercise rules need
+    ///     nested simulation and return ``False`` here.
+    #[pyo3(text_signature = "($self, state, u)")]
+    fn should_pik_with_uniform(&self, state: &PyCreditState, u: f64) -> bool {
+        self.inner.should_pik_with_uniform(&state.inner, u)
+    }
+
+    /// Nested-Monte-Carlo optimal exercise rule.
+    ///
+    /// Parameters
+    /// ----------
+    /// nested_paths : int
+    ///     Inner simulation paths per decision date.
+    /// equity_discount_rate : float
+    ///     Continuously compounded equity discount rate (decimal).
+    /// asset_vol : float
+    ///     Annualized asset volatility (decimal).
+    /// risk_free_rate : float
+    ///     Continuously compounded risk-free rate (decimal).
+    /// horizon : float
+    ///     Inner simulation horizon in years.
+    #[staticmethod]
+    #[pyo3(
+        text_signature = "(nested_paths, equity_discount_rate, asset_vol, risk_free_rate, horizon)"
+    )]
     fn optimal(
         nested_paths: usize,
         equity_discount_rate: f64,
@@ -1064,15 +1638,19 @@ impl PyToggleExerciseModel {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
+    /// Deserialize an exercise rule from canonical JSON.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid ToggleExerciseModel JSON"))?,
         })
     }
 
+    /// Serialize this rule to compact canonical JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "ToggleExerciseModel serialization failed"))
     }
 
     /// Which exercise rule this model carries.
@@ -1114,6 +1692,56 @@ impl PyToggleExerciseModel {
     }
 }
 
+/// Canonical serde tag of an externally-tagged enum value (`"constant"`,
+/// `{"inverse_power": {...}}` -> `"inverse_power"`).
+fn model_tag<T: serde::Serialize>(value: &T) -> PyResult<String> {
+    match serde_json::to_value(value)
+        .map_err(|err| serde_json_to_py(err, "model tag serialization failed"))?
+    {
+        serde_json::Value::String(tag) => Ok(tag),
+        serde_json::Value::Object(map) if map.len() == 1 => map
+            .keys()
+            .next()
+            .cloned()
+            .ok_or_else(|| value_error("model tag object is empty")),
+        other => Err(value_error(format!(
+            "expected an externally tagged enum value, got {other}"
+        ))),
+    }
+}
+
+/// Render an externally-tagged enum as its Python constructor call:
+/// `"terminal"` -> `Name.terminal()`, `{"first_passage": {"k": v}}` ->
+/// `Name.first_passage(k=v)`. Never fails; falls back to `Name(...)`.
+fn variant_repr<T: serde::Serialize>(type_name: &str, value: &T) -> String {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(tag)) => format!("{type_name}.{tag}()"),
+        Ok(serde_json::Value::Object(map)) if map.len() == 1 => {
+            let (tag, fields) = match map.iter().next() {
+                Some(entry) => entry,
+                None => return format!("{type_name}(...)"),
+            };
+            let inner = crate::bindings::repr_support::repr_from_serde("", fields);
+            format!("{type_name}.{tag}{inner}")
+        }
+        _ => format!("{type_name}(...)"),
+    }
+}
+
+fn parse_state_variable(value: &str) -> PyResult<CreditStateVariable> {
+    value.parse::<CreditStateVariable>().map_err(|err| {
+        value_error(format!(
+            "{err} (expected one of hazard_rate, distance_to_default, leverage)"
+        ))
+    })
+}
+
+fn parse_direction(value: &str) -> PyResult<ThresholdDirection> {
+    value
+        .parse::<ThresholdDirection>()
+        .map_err(|err| value_error(format!("{err} (expected one of above, below)")))
+}
+
 pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new(py, "credit")?;
     module.setattr(
@@ -1134,6 +1762,7 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<PyEndogenousHazardSpec>()?;
     module.add_class::<PyCreditState>()?;
     module.add_class::<PyToggleExerciseModel>()?;
+    module.add_class::<PyRatingFactorTable>()?;
     module.add_function(wrap_pyfunction!(moodys_warf_factor, &module)?)?;
     scoring::register(py, &module)?;
     pd::register(py, &module)?;
@@ -1149,16 +1778,17 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
             "CreditState",
             "DynamicRecoverySpec",
             "EndogenousHazardSpec",
+            "MertonModel",
+            "RatingFactorTable",
+            "SimulatedPaths",
+            "ToggleExerciseModel",
             "lgd",
             "liability_management",
-            "MertonModel",
             "migration",
             "moodys_warf_factor",
             "pd",
             "recovery_waterfall",
             "scoring",
-            "SimulatedPaths",
-            "ToggleExerciseModel",
         ],
     )?;
     module.setattr("__all__", all)?;

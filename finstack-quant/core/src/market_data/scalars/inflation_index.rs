@@ -182,6 +182,18 @@ pub enum InflationLag {
     None,
 }
 
+impl std::fmt::Display for InflationLag {
+    /// Render the lag in the same market-convention form [`FromStr`](std::str::FromStr)
+    /// accepts: `"none"`, `"<n>M"` or `"<n>D"`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Months(n) => write!(f, "{n}M"),
+            Self::Days(n) => write!(f, "{n}D"),
+            Self::None => write!(f, "none"),
+        }
+    }
+}
+
 impl std::str::FromStr for InflationLag {
     type Err = Error;
 
@@ -568,6 +580,11 @@ impl InflationIndex {
     /// Expose current lag setting for bump/rebuild helpers.
     pub fn lag(&self) -> InflationLag {
         self.lag
+    }
+
+    /// Monthly seasonality factors (January through December), if configured.
+    pub fn seasonality(&self) -> Option<&[f64; 12]> {
+        self.seasonality.as_ref()
     }
 
     fn apply_lag(&self, date: Date) -> Result<Date> {

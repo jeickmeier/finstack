@@ -176,7 +176,7 @@ fn run_factor_brinson_attribution(
 ///
 /// Parameters
 /// ----------
-/// input_json : str
+/// input_json : str | dict | list | pandas.DataFrame
 ///     JSON ``FactorBrinsonInput`` with ``asset_ids``, ``asset_returns``,
 ///     ``exposures`` (row-major ``n_assets x n_factors``), ``factor_names``,
 ///     ``portfolio_weights`` and ``benchmark_weights``. Each weight vector
@@ -233,9 +233,11 @@ fn run_factor_brinson_attribution(
 #[pyo3(text_signature = "(input_json, factor_returns)")]
 fn factor_brinson_attribution(
     py: Python<'_>,
-    input_json: &str,
+    input_json: &Bound<'_, PyAny>,
     factor_returns: Vec<f64>,
 ) -> PyResult<PyFactorBrinsonResult> {
+    let input_json = crate::bindings::extract::extract_records_json(py, input_json, "input")?;
+    let input_json: &str = &input_json;
     Ok(PyFactorBrinsonResult {
         inner: run_factor_brinson_attribution(py, input_json, factor_returns)?,
     })
@@ -254,9 +256,11 @@ fn factor_brinson_attribution(
 #[pyo3(text_signature = "(input_json, factor_returns)")]
 fn factor_brinson_attribution_json(
     py: Python<'_>,
-    input_json: &str,
+    input_json: &Bound<'_, PyAny>,
     factor_returns: Vec<f64>,
 ) -> PyResult<String> {
+    let input_json = crate::bindings::extract::extract_records_json(py, input_json, "input")?;
+    let input_json: &str = &input_json;
     let result = run_factor_brinson_attribution(py, input_json, factor_returns)?;
     serde_json::to_string(&result)
         .map_err(|err| serde_json_to_py(err, "serialize FactorBrinsonResult"))

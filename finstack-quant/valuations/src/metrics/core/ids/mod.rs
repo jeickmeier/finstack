@@ -28,8 +28,13 @@ mod instrument;
 mod rates;
 mod risk;
 mod standard;
+mod suggest;
+mod unit;
 
 pub use group::MetricGroup;
+pub use unit::MetricUnit;
+
+pub(crate) use suggest::{closest_metric_names, MAX_METRIC_SUGGESTIONS};
 
 /// Strongly-typed metric identifier.
 ///
@@ -75,8 +80,10 @@ impl MetricId {
     /// # Errors
     ///
     /// Returns `Error::UnknownMetric` if the string does not match any standard
-    /// metric. The error includes the invalid metric name and a list of all
-    /// available standard metrics.
+    /// metric. The error carries the invalid metric name and at most
+    /// `MAX_METRIC_SUGGESTIONS` (5) standard metrics ranked by case-folded
+    /// similarity (`"DV01"` suggests `dv01`, `"modified_duration"` suggests
+    /// `duration_mod`).
     ///
     /// # Examples
     ///
@@ -115,10 +122,11 @@ impl MetricId {
         } else {
             Err(finstack_quant_core::Error::unknown_metric(
                 s,
-                Self::ALL_STANDARD
-                    .iter()
-                    .map(|m| m.as_str().to_string())
-                    .collect(),
+                closest_metric_names(
+                    s,
+                    Self::ALL_STANDARD.iter().map(MetricId::as_str),
+                    MAX_METRIC_SUGGESTIONS,
+                ),
             ))
         }
     }

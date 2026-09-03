@@ -530,7 +530,7 @@ impl PortfolioMarginAggregator {
     ) -> (Money, finstack_quant_core::HashMap<String, Money>) {
         let (total_im, breakdown) = self
             .simm_calculator
-            .calculate_from_sensitivities(sensitivities, self.base_currency);
+            .calculate_from_sensitivities_parts(sensitivities, self.base_currency);
         (Money::new(total_im, self.base_currency), breakdown)
     }
 }

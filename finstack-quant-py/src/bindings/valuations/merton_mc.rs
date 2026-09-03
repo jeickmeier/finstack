@@ -3,7 +3,7 @@
 use crate::bindings::models::credit::{
     PyDynamicRecoverySpec, PyEndogenousHazardSpec, PyMertonModel, PyToggleExerciseModel,
 };
-use crate::errors::display_to_py;
+use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::merton_mc::{
     BarrierCrossing, MertonMcConfig, MertonMcResult, PathStatistics, PikMode, PikSchedule,
 };
@@ -70,17 +70,45 @@ impl PyPikMode {
     }
 
     /// Deserialize a PIK mode from canonical JSON.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     JSON produced by ``to_json`` (``'"cash"'``, ``'"pik"'``,
+    ///     ``'"toggle"'`` or the tagged ``split`` object).
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``json`` is malformed or names an unknown mode.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|e| crate::errors::serde_json_to_py(e, "invalid PikMode JSON"))?,
         })
     }
 
     /// Serialize this PIK mode to compact JSON.
     #[allow(clippy::wrong_self_convention)]
+    #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    fn __repr__(&self) -> String {
+        match self.inner {
+            PikMode::Cash => "PikMode.cash()".to_string(),
+            PikMode::Pik => "PikMode.pik()".to_string(),
+            PikMode::Toggle => "PikMode.toggle()".to_string(),
+            PikMode::Split {
+                cash_fraction,
+                pik_fraction,
+            } => {
+                format!("PikMode.split(cash_fraction={cash_fraction}, pik_fraction={pik_fraction})")
+            }
+        }
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -146,16 +174,45 @@ impl PyPikSchedule {
     }
 
     /// Deserialize a PIK schedule from canonical JSON.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     JSON produced by ``to_json``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``json`` is malformed.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|e| crate::errors::serde_json_to_py(e, "invalid PikSchedule JSON"))?,
         })
     }
 
     /// Serialize this PIK schedule to compact JSON.
+    #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    fn __repr__(&self) -> String {
+        match &self.inner {
+            PikSchedule::Uniform(mode) => format!(
+                "PikSchedule.uniform({})",
+                PyPikMode::from_inner(*mode).__repr__()
+            ),
+            PikSchedule::Stepped(steps) => {
+                let items: Vec<String> = steps
+                    .iter()
+                    .map(|(t, mode)| format!("({t}, {})", PyPikMode::from_inner(*mode).__repr__()))
+                    .collect();
+                format!("PikSchedule.stepped([{}])", items.join(", "))
+            }
+        }
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -195,17 +252,37 @@ impl PyBarrierCrossing {
     }
 
     /// Deserialize a barrier-crossing policy from canonical JSON.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     ``'"discrete"'`` or ``'"brownian_bridge"'``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``json`` is malformed or names an unknown policy.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|e| crate::errors::serde_json_to_py(e, "invalid BarrierCrossing JSON"))?,
         })
     }
 
     /// Serialize this barrier-crossing policy to compact JSON.
     #[allow(clippy::wrong_self_convention)]
+    #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    fn __repr__(&self) -> String {
+        match self.inner {
+            BarrierCrossing::Discrete => "BarrierCrossing.discrete()".to_string(),
+            BarrierCrossing::BrownianBridge => "BarrierCrossing.brownian_bridge()".to_string(),
+        }
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -357,6 +434,59 @@ impl PyMertonMcResult {
         self.inner.standard_error
     }
 
+    /// Export the headline results as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``clean_price_pct``, ``dirty_price_pct``, ``expected_loss``,
+    /// ``unexpected_loss``, ``expected_shortfall_95``, ``average_pik_fraction``,
+    /// ``effective_spread_bp``, ``num_paths``, ``standard_error``,
+    /// ``default_rate``, ``avg_default_time``, ``avg_terminal_notional``,
+    /// ``avg_recovery_pct``, ``pik_exercise_rate``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let stats = &self.inner.path_statistics;
+        let row = serde_json::json!({
+            "clean_price_pct": self.inner.clean_price_pct,
+            "dirty_price_pct": self.inner.dirty_price_pct,
+            "expected_loss": self.inner.expected_loss,
+            "unexpected_loss": self.inner.unexpected_loss,
+            "expected_shortfall_95": self.inner.expected_shortfall_95,
+            "average_pik_fraction": self.inner.average_pik_fraction,
+            "effective_spread_bp": self.inner.effective_spread_bp,
+            "num_paths": self.inner.num_paths,
+            "standard_error": self.inner.standard_error,
+            "default_rate": stats.default_rate,
+            "avg_default_time": stats.avg_default_time,
+            "avg_terminal_notional": stats.avg_terminal_notional,
+            "avg_recovery_pct": stats.avg_recovery_pct,
+            "pik_exercise_rate": stats.pik_exercise_rate,
+        });
+        crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "clean_price_pct",
+                "dirty_price_pct",
+                "expected_loss",
+                "unexpected_loss",
+                "expected_shortfall_95",
+                "average_pik_fraction",
+                "effective_spread_bp",
+                "num_paths",
+                "standard_error",
+                "default_rate",
+                "avg_default_time",
+                "avg_terminal_notional",
+                "avg_recovery_pct",
+                "pik_exercise_rate",
+            ],
+        )
+    }
+
+    /// Jupyter rich display: the ``to_dataframe()`` table.
+    fn _repr_html_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_dataframe(py)?.call_method0("_repr_html_")
+    }
+
     /// Identify this value in notebooks and logs.
     ///
     /// The inner type is not `Serialize`, so the headline results are
@@ -370,6 +500,24 @@ impl PyMertonMcResult {
 }
 
 /// Configuration for Merton Monte Carlo PIK bond pricing.
+///
+/// Built from a structural ``MertonModel`` plus a flat recovery rate; every
+/// setter returns a new configuration (the receiver is unchanged), so calls
+/// chain: ``MertonMcConfig(model, 0.4).num_paths(20_000).seed(7)``.
+///
+/// Parameters
+/// ----------
+/// merton : MertonModel
+///     Structural credit model driving asset dynamics and default.
+/// recovery_rate : float
+///     Recovery on default as a decimal fraction in ``[0.0, 1.0]``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``recovery_rate`` is outside ``[0.0, 1.0]``.
+/// RuntimeError
+///     If the embedded Monte Carlo defaults cannot be loaded.
 #[pyclass(
     name = "MertonMcConfig",
     module = "finstack_quant.valuations.instruments",
@@ -390,10 +538,10 @@ impl PyMertonMcConfig {
     /// * `recovery_rate` - Recovery on default as a decimal fraction in
     ///   ``[0.0, 1.0]``.
     #[new]
+    #[pyo3(text_signature = "(merton, recovery_rate)")]
     fn new(merton: PyRef<'_, PyMertonModel>, recovery_rate: f64) -> PyResult<Self> {
         Ok(Self {
-            inner: MertonMcConfig::new(merton.inner.clone(), recovery_rate)
-                .map_err(display_to_py)?,
+            inner: MertonMcConfig::new(merton.inner.clone(), recovery_rate).map_err(core_to_py)?,
         })
     }
 
@@ -402,6 +550,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `s` - PIK schedule applied across coupon dates.
+    #[pyo3(text_signature = "($self, s)")]
     fn pik_schedule(&self, s: PyRef<'_, PyPikSchedule>) -> Self {
         Self {
             inner: self.inner.clone().pik_schedule(s.inner.clone()),
@@ -413,6 +562,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `n` - Path count (must be at least 2 for meaningful statistics).
+    #[pyo3(text_signature = "($self, n)")]
     fn num_paths(&self, n: usize) -> Self {
         Self {
             inner: self.inner.clone().num_paths(n),
@@ -424,6 +574,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `s` - Unsigned 64-bit seed passed to the path generator.
+    #[pyo3(text_signature = "($self, s)")]
     fn seed(&self, s: u64) -> Self {
         Self {
             inner: self.inner.clone().seed(s),
@@ -435,6 +586,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `a` - When ``True``, pair each path with its antithetic counterpart.
+    #[pyo3(text_signature = "($self, a)")]
     fn antithetic(&self, a: bool) -> Self {
         Self {
             inner: self.inner.clone().antithetic(a),
@@ -446,6 +598,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `n` - Grid density for asset evolution and barrier monitoring.
+    #[pyo3(text_signature = "($self, n)")]
     fn time_steps_per_year(&self, n: usize) -> Self {
         Self {
             inner: self.inner.clone().time_steps_per_year(n),
@@ -457,6 +610,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `p` - Discrete grid checks or Brownian-bridge continuous correction.
+    #[pyo3(text_signature = "($self, p)")]
     fn barrier_crossing(&self, p: PyRef<'_, PyBarrierCrossing>) -> Self {
         Self {
             inner: self.inner.clone().barrier_crossing(p.inner),
@@ -468,13 +622,14 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `r` - Recovery rate as a decimal in ``[0, 1]``.
+    #[pyo3(text_signature = "($self, r)")]
     fn default_recovery_rate(&self, r: f64) -> PyResult<Self> {
         Ok(Self {
             inner: self
                 .inner
                 .clone()
                 .default_recovery_rate(r)
-                .map_err(display_to_py)?,
+                .map_err(core_to_py)?,
         })
     }
 
@@ -483,6 +638,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `h` - Endogenous hazard specification applied pathwise at default.
+    #[pyo3(text_signature = "($self, h)")]
     fn endogenous_hazard(&self, h: PyRef<'_, PyEndogenousHazardSpec>) -> Self {
         Self {
             inner: self.inner.clone().endogenous_hazard(h.inner.clone()),
@@ -494,6 +650,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `r` - Dynamic recovery specification evaluated at accreted notional.
+    #[pyo3(text_signature = "($self, r)")]
     fn dynamic_recovery(&self, r: PyRef<'_, PyDynamicRecoverySpec>) -> Self {
         Self {
             inner: self.inner.clone().dynamic_recovery(r.inner),
@@ -508,6 +665,7 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `t` - Toggle exercise model deciding cash versus PIK at each toggle date.
+    #[pyo3(text_signature = "($self, t)")]
     fn toggle_model(&self, t: PyRef<'_, PyToggleExerciseModel>) -> Self {
         Self {
             inner: self.inner.clone().toggle_model(t.inner.clone()),
@@ -515,16 +673,52 @@ impl PyMertonMcConfig {
     }
 
     /// Deserialize a Merton MC configuration from canonical JSON.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     JSON produced by ``to_json``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``json`` is malformed or carries unknown fields.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(json).map_err(display_to_py)?,
+            inner: serde_json::from_str(json)
+                .map_err(|e| crate::errors::serde_json_to_py(e, "invalid MertonMcConfig JSON"))?,
         })
     }
 
     /// Serialize this configuration to compact JSON.
+    #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    fn __repr__(&self) -> String {
+        let bool_repr = super::convert::bool_repr;
+        format!(
+            "MertonMcConfig(num_paths={}, seed={}, antithetic={}, time_steps_per_year={}, barrier_crossing={}, default_recovery_rate={}, pik_schedule={}, endogenous_hazard={}, dynamic_recovery={}, toggle_model={})",
+            self.inner.num_paths,
+            self.inner.seed,
+            bool_repr(self.inner.antithetic),
+            self.inner.time_steps_per_year,
+            PyBarrierCrossing {
+                inner: self.inner.barrier_crossing
+            }
+            .__repr__(),
+            self.inner.default_recovery_rate,
+            PyPikSchedule {
+                inner: self.inner.pik_schedule.clone()
+            }
+            .__repr__(),
+            bool_repr(self.inner.endogenous_hazard.is_some()),
+            bool_repr(self.inner.dynamic_recovery.is_some()),
+            bool_repr(self.inner.toggle_model.is_some()),
+        )
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).

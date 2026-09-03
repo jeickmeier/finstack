@@ -496,7 +496,7 @@ fn test_forecast_spec_helpers() {
     assert_eq!(normal.params.get("seed").unwrap(), &serde_json::json!(42));
 
     // Test lognormal helper
-    let lognormal = ForecastSpec::lognormal(11.5, 0.15, 42);
+    let lognormal = ForecastSpec::log_normal(11.5, 0.15, 42);
     assert_eq!(lognormal.method, ForecastMethod::LogNormal);
 }
 

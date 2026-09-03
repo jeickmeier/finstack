@@ -47,7 +47,9 @@ pub enum FeeSpec {
         ///
         /// Use `"weekends_only"` when only weekend adjustment is required.
         calendar_id: String,
-        /// Stub-handling rule for irregular first or last fee periods.
+        /// Stub-handling rule for irregular first or last fee periods
+        /// (`ShortFront` when omitted from the wire form).
+        #[serde(default = "crate::serde_defaults::stub_short_front")]
         stub: StubKind,
         /// How the outstanding balance is sampled for fee calculation.
         #[serde(default, skip_serializing_if = "FeeAccrualBasis::is_default")]

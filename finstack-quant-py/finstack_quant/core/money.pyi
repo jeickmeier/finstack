@@ -26,8 +26,9 @@ Examples
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Union
+from typing import Optional, Union, overload
 
+from finstack_quant.core.config import FinstackConfig, RoundingMode
 from finstack_quant.core.currency import Currency
 
 __all__ = ["Money"]
@@ -44,17 +45,21 @@ class Money:
 
     Parameters
     ----------
-    amount : decimal.Decimal | float | int
-        Finite monetary amount. ``Decimal`` preserves its full decimal
-        precision. ``float`` and ``int`` inputs are converted through their
-        finite Python ``float`` value before being stored as Rust ``Decimal``.
+    amount : decimal.Decimal | float | int | str
+        Finite monetary amount. ``Decimal`` and decimal strings
+        (``"1234.56"``) are parsed exactly. ``float`` and ``int`` inputs are
+        converted through their finite Python ``float`` value before being
+        stored as Rust ``Decimal``.
     currency : Currency | str
         ISO-4217 currency (object or alphabetic code string).
+    config : FinstackConfig | None
+        When given, ``float``/``int`` amounts are rounded on ingest using the
+        config's rounding mode and per-currency ingest scale.
 
     Raises
     ------
     ValueError
-        If *amount* is not finite or *currency* is invalid.
+        If *amount* is not finite / not parsable or *currency* is invalid.
 
     Examples
     --------
@@ -64,26 +69,40 @@ class Money:
     'USD 100.00'
     >>> usd_100 * 1.5
     Money(150.0, 'USD')
+    >>> Money("1234567.891", "USD").format(group=",")
+    'USD 1,234,567.89'
+    >>> Money(300.0, "USD") / Money(100.0, "USD")
+    3.0
     """
 
-    def __init__(self, amount: Union[float, int, Decimal], currency: Union[Currency, str]) -> None:
+    def __init__(
+        self,
+        amount: Union[float, int, Decimal, str],
+        currency: Union[Currency, str],
+        config: Optional[FinstackConfig] = None,
+    ) -> None:
         """
         Construct from an amount and a currency.
 
         Parameters
         ----------
-        amount : float | int | decimal.Decimal
-            Finite monetary amount. ``Decimal`` inputs preserve full precision
-            (no IEEE 754 round-trip); ``float``/``int`` follow standard IEEE 754
-            semantics. Use ``Decimal`` when exact decimal precision matters.
+        amount : float | int | decimal.Decimal | str
+            Finite monetary amount. ``Decimal`` and ``str`` inputs preserve
+            full precision (no IEEE 754 round-trip); ``float``/``int`` follow
+            standard IEEE 754 semantics.
         currency : Currency | str
             Currency object or ISO-4217 alphabetic code string.
+        config : FinstackConfig | None
+            Optional config whose rounding mode and ingest scale are applied
+            to ``float``/``int`` amounts.
 
         Raises
         ------
         ValueError
             If *amount* is not finite, cannot be parsed as a Decimal, or
             *currency* is invalid.
+        TypeError
+            If *amount* is not a number, ``Decimal`` or ``str``.
         """
         ...
 
@@ -202,12 +221,18 @@ class Money:
         """
         ...
 
-    def format(self, decimals: int | None = None, show_currency: bool = True) -> str:
+    def format(
+        self,
+        decimals: int | None = None,
+        show_currency: bool = True,
+        group: str | None = None,
+        rounding: Union[RoundingMode, str, None] = None,
+    ) -> str:
         """
-        Format with *decimals* places and optional currency prefix.
+        Format the amount with optional currency prefix, grouping and rounding.
 
-        When *decimals* is omitted the currency's ISO minor-unit precision
-        is used.
+        Delegates to the canonical Rust ``Money::format_with``. When
+        *decimals* is omitted the currency's ISO minor-unit precision is used.
 
         Parameters
         ----------
@@ -215,15 +240,23 @@ class Money:
             Number of decimal places. Defaults to the currency's minor units.
         show_currency : bool
             Whether to prepend the currency code (default ``True``).
+        group : str | None
+            Single-character thousands separator (e.g. ``","``); ``None``
+            disables grouping.
+        rounding : RoundingMode | str | None
+            Rounding applied to the displayed value; a ``RoundingMode`` or
+            its exact lowercase name. Defaults to bankers rounding.
 
         Returns
         -------
         str
-            Formatted string such as ``"USD 100.00"``.
+            Formatted string such as ``"USD 100.00"`` or ``"1,234.57"``.
 
-        Notes
-        -----
-        This method does not raise; it returns the stored or derived value.
+        Raises
+        ------
+        ValueError
+            If *group* is not a single character or *rounding* is an
+            unrecognised name.
         """
         ...
 
@@ -322,25 +355,28 @@ class Money:
         ...
 
     @classmethod
-    def from_tuple(cls, tup: tuple[float, str]) -> Money:
+    def from_tuple(cls, tup: tuple[Union[float, int, Decimal, str], Union[Currency, str]]) -> Money:
         """
-        Build from ``(amount, currency_code)`` tuple.
+        Build from an ``(amount, currency)`` tuple.
 
         Parameters
         ----------
-        tup : tuple[float, str]
-            A two-element tuple of ``(amount, code)``.
+        tup : tuple
+            A two-element tuple of ``(amount, currency)``; ``amount`` accepts
+            the same types as the constructor (``float``, ``int``,
+            ``Decimal``, ``str``) and ``currency`` a ``Currency`` or ISO code.
 
         Returns
         -------
         Money
+            Money built through the same ingest path as the constructor
+            (``Decimal``/``str`` exact, numbers via binary float).
 
-            Money built through the binary-float ingest path, using the
-            shortest round-trippable Decimal representation and parsed ISO code.
         Raises
         ------
         ValueError
-            If the currency code is invalid or the amount is non-finite.
+            If the tuple does not have two elements, the currency is invalid
+            or the amount is non-finite / unparsable.
 
         Examples
         --------
@@ -356,7 +392,19 @@ class Money:
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
     def __ne__(self, other: object) -> bool: ...
-    def __lt__(self, other: Money) -> bool: ...
+    def __lt__(self, other: Money) -> bool:
+        """Order two amounts of the same currency.
+
+        Raises
+        ------
+        ValueError
+            ``Currency mismatch: expected X, got Y`` when currencies differ.
+
+        Returns
+        -------
+        bool
+        """
+        ...
     def __le__(self, other: Money) -> bool: ...
     def __gt__(self, other: Money) -> bool: ...
     def __ge__(self, other: Money) -> bool: ...
@@ -364,7 +412,54 @@ class Money:
     def __sub__(self, other: Money) -> Money: ...
     def __mul__(self, other: float) -> Money: ...
     def __rmul__(self, other: float) -> Money: ...
+    @overload
+    def __truediv__(self, other: Money) -> float: ...
+    @overload
     def __truediv__(self, other: float) -> Money: ...
+    def __truediv__(self, other: Union[Money, float]) -> Union[Money, float]:
+        """Divide by a scalar (``-> Money``) or by a same-currency ``Money`` (``-> float`` ratio).
+
+        Raises
+        ------
+        ValueError
+            ``division by zero`` for a zero divisor, or a currency mismatch
+            when dividing by ``Money`` in another currency.
+
+        Returns
+        -------
+        Money | float
+        """
+        ...
     def __neg__(self) -> Money: ...
+    def __abs__(self) -> Money:
+        """Absolute value in the same currency.
+
+        Returns
+        -------
+        Money
+        """
+        ...
+    def __float__(self) -> float:
+        """``float(money)`` — the ``amount`` view.
+
+        Returns
+        -------
+        float
+        """
+        ...
+    def __round__(self, ndigits: int | None = None) -> Money:
+        """Bankers-round the amount to *ndigits* places (default: currency minor units).
+
+        Raises
+        ------
+        ValueError
+            If *ndigits* is negative.
+
+        Returns
+        -------
+        Money
+        """
+        ...
     def __radd__(self, other: Union[Money, float]) -> Money: ...
     def __rsub__(self, other: float) -> Money: ...
+    def __reduce__(self) -> tuple[object, tuple[str]]: ...

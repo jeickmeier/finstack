@@ -22,6 +22,7 @@ DynamicRecoverySpec = _models.credit.DynamicRecoverySpec
 EndogenousHazardSpec = _models.credit.EndogenousHazardSpec
 CreditState = _models.credit.CreditState
 ToggleExerciseModel = _models.credit.ToggleExerciseModel
+RatingFactorTable = _models.credit.RatingFactorTable
 moodys_warf_factor = _models.credit.moodys_warf_factor
 lgd = _models.credit.lgd
 liability_management = _models.credit.liability_management
@@ -47,6 +48,7 @@ __all__ = [
     "DynamicRecoverySpec",
     "EndogenousHazardSpec",
     "MertonModel",
+    "RatingFactorTable",
     "SimulatedPaths",
     "ToggleExerciseModel",
     "lgd",

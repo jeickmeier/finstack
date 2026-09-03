@@ -10,7 +10,7 @@
 
 use super::schema::{CalibrationEnvelope, CalibrationPlan};
 use crate::api::context_builder;
-use crate::api::errors::EnvelopeError;
+use crate::api::errors::{EnvelopeError, StrictLoadDiagnostic};
 use crate::api::market_datum::MarketDatum;
 use crate::api::schema::CalibrationStep;
 use crate::api::schema::{CalibrationResult, CalibrationResultEnvelope};
@@ -87,6 +87,10 @@ pub struct ExecutionErrorDetails {
     pub cause: String,
     /// Original structured envelope error, when applicable.
     pub envelope_error: Option<EnvelopeError>,
+    /// Structured strict-load diagnostics (JSON pointer, message, expected
+    /// version, ...) when ingestion rejected the document; empty otherwise.
+    #[serde(default)]
+    pub diagnostics: Vec<StrictLoadDiagnostic>,
 }
 
 /// Engine error retaining a single structured contract across all stages.
@@ -165,6 +169,10 @@ impl ExecuteError {
                     }),
                     _ => None,
                 };
+                let diagnostics = match error {
+                    EnvelopeError::StrictLoad { diagnostics, .. } => diagnostics.clone(),
+                    _ => Vec::new(),
+                };
                 ExecutionErrorDetails {
                     stage: *stage,
                     step_id: error.step_id().map(str::to_string),
@@ -172,6 +180,7 @@ impl ExecuteError {
                     solver_diagnostics,
                     cause: error.to_string(),
                     envelope_error: Some(error.clone()),
+                    diagnostics,
                 }
             }
             Self::Other {
@@ -185,6 +194,7 @@ impl ExecuteError {
                 solver_diagnostics: None,
                 cause: source.to_string(),
                 envelope_error: None,
+                diagnostics: Vec::new(),
             },
         }
     }
@@ -473,7 +483,8 @@ fn aggregate_plan_report(
         } else {
             "Plan execution completed with failures"
         },
-    );
+    )
+    .with_plan_aggregation(step_reports);
     report.update_metadata(
         "market_freshness_status",
         if config.market_freshness.is_verifiable() {
@@ -865,8 +876,13 @@ mod tests {
             &cfg,
         );
 
+        // Plan aggregation keeps the raw residual aggregates on `rmse` /
+        // `max_residual` and exposes the tolerance-normalized values on the
+        // `*_ratio` fields, so the dimensionless assertion reads `rmse_ratio`.
         let expected = ((1.0_f64 + 4.0) / 2.0).sqrt();
-        assert!((report.rmse - expected).abs() < 1e-12);
+        assert!(
+            (report.rmse_ratio.expect("plan aggregation sets rmse_ratio") - expected).abs() < 1e-12
+        );
         assert!((report.objective_value - expected).abs() < 1e-12);
         assert_eq!(
             report.metadata.get("residual_units").map(String::as_str),

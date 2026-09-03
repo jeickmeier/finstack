@@ -92,7 +92,7 @@ pub use spec::{
     LoanCall, LoanCallSchedule, LoanCallType, MarginStepUp, OidEirSpec, OidPolicy, PikToggle,
     TermLoanCovenantEvents, TermLoanSpec,
 };
-pub use types::{RateSpec, TermLoan};
+pub use types::{RateSpec, TermLoan, TermLoanBuilder};
 
 pub use pricing::TermLoanDiscountingPricer;
 pub use pricing::TermLoanTreePricer;

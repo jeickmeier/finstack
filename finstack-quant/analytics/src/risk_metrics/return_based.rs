@@ -29,13 +29,42 @@ pub(crate) fn invalid_annualization_factor(annualize: bool, ann_factor: f64) -> 
 /// [`finstack_quant_core::dates::DayCount`] (Act/365F, Act/Act, Bus/252, …).
 /// `Bus252` requires a holiday calendar on the facade; missing calendar is
 /// an error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CagrDayCount {
     /// Actual calendar days divided by 365.25 (default).
     #[default]
     Act365_25,
     /// Any core day-count convention.
     DayCount(DayCount),
+}
+
+impl std::str::FromStr for CagrDayCount {
+    type Err = crate::error::Error;
+
+    /// Parse a CAGR day-count label.
+    ///
+    /// Accepts `"act365_25"`, `"act_365_25"` or `"act/365.25"` for
+    /// [`CagrDayCount::Act365_25`]; every other token is parsed as a core
+    /// [`DayCount`] name (for example `"act_365f"`, `"bus_252"`).
+    fn from_str(label: &str) -> Result<Self, Self::Err> {
+        match label {
+            "act365_25" | "act_365_25" | "act/365.25" => Ok(Self::Act365_25),
+            other => other
+                .parse::<DayCount>()
+                .map(Self::DayCount)
+                .map_err(crate::error::Error::Validation),
+        }
+    }
+}
+
+impl std::fmt::Display for CagrDayCount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Act365_25 => f.write_str("act365_25"),
+            Self::DayCount(day_count) => write!(f, "{day_count}"),
+        }
+    }
 }
 
 /// Compound annual growth rate from a return series over explicit dates.

@@ -13,7 +13,7 @@ use crate::bindings::pandas_utils::{
     serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
     ColumnSchema,
 };
-use crate::errors::display_to_py;
+use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     self as rust_structured_credit, OasResult, ScenarioTable, StructuredCredit, TrancheMetrics,
 };
@@ -49,7 +49,7 @@ fn extract_structured_credit(
             ))),
         }
     })
-    .map_err(display_to_py)
+    .map_err(core_to_py)
 }
 
 /// Solve a z-spread-equivalent discount margin for a floating-rate tranche.
@@ -61,7 +61,7 @@ fn extract_structured_credit(
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | StructuredCredit
+/// instrument : StructuredCredit | str
 ///     Tagged JSON for a ``StructuredCredit`` deal, or a typed
 ///     ``StructuredCredit`` instance.
 /// tranche_id : str
@@ -92,17 +92,17 @@ fn extract_structured_credit(
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_discount_margin",
-    text_signature = "(instrument_json, tranche_id, market, as_of, target_pv)"
+    text_signature = "(instrument, tranche_id, market, as_of, target_pv)"
 )]
 fn structured_credit_tranche_discount_margin(
     py: Python<'_>,
-    instrument_json: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
     target_pv: f64,
 ) -> PyResult<f64> {
-    let deal = extract_structured_credit(py, instrument_json)?;
+    let deal = extract_structured_credit(py, instrument)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
@@ -114,7 +114,7 @@ fn structured_credit_tranche_discount_margin(
             &as_of,
             target_pv,
         )
-        .map_err(display_to_py)
+        .map_err(core_to_py)
     })
 }
 
@@ -122,7 +122,7 @@ fn structured_credit_tranche_discount_margin(
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | StructuredCredit
+/// instrument : StructuredCredit | str
 ///     Tagged JSON for a ``StructuredCredit`` deal, or a typed
 ///     ``StructuredCredit`` instance.
 /// tranche_id : str
@@ -140,16 +140,16 @@ fn structured_credit_tranche_discount_margin(
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_breakeven_cdr",
-    text_signature = "(instrument_json, tranche_id, market, as_of)"
+    text_signature = "(instrument, tranche_id, market, as_of)"
 )]
 fn structured_credit_tranche_breakeven_cdr(
     py: Python<'_>,
-    instrument_json: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
 ) -> PyResult<f64> {
-    let deal = extract_structured_credit(py, instrument_json)?;
+    let deal = extract_structured_credit(py, instrument)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
@@ -160,7 +160,7 @@ fn structured_credit_tranche_breakeven_cdr(
             &market,
             &as_of,
         )
-        .map_err(display_to_py)
+        .map_err(core_to_py)
     })
 }
 
@@ -168,7 +168,7 @@ fn structured_credit_tranche_breakeven_cdr(
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | StructuredCredit
+/// instrument : StructuredCredit | str
 ///     Tagged JSON for a ``StructuredCredit`` deal, or a typed
 ///     ``StructuredCredit`` instance.
 /// tranche_id : str
@@ -180,9 +180,9 @@ fn structured_credit_tranche_breakeven_cdr(
 /// as_of : datetime.date | str
 ///     Valuation date, either a date-like object (``datetime.date``,
 ///     ``pandas.Timestamp``) or an ISO 8601 string.
-/// config_json : str, optional
-///     Serialized ``OasConfig``. All fields are currently required when
-///     supplied.
+/// config : dict | str, optional
+///     ``OasConfig`` as a dict or JSON string. All fields are currently
+///     required when supplied.
 ///
 /// Returns
 /// -------
@@ -191,23 +191,26 @@ fn structured_credit_tranche_breakeven_cdr(
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_oas",
-    signature = (instrument_json, tranche_id, market_price_pct, market, as_of, config_json=None),
-    text_signature = "(instrument_json, tranche_id, market_price_pct, market, as_of, config_json=None)"
+    signature = (instrument, tranche_id, market_price_pct, market, as_of, config=None),
+    text_signature = "(instrument, tranche_id, market_price_pct, market, as_of, config=None)"
 )]
 fn structured_credit_tranche_oas(
     py: Python<'_>,
-    instrument_json: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
     tranche_id: &str,
     market_price_pct: f64,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
-    config_json: Option<&str>,
+    config: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyOasResult> {
-    let deal = extract_structured_credit(py, instrument_json)?;
+    let deal = extract_structured_credit(py, instrument)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
-    let config_json = config_json.map(str::to_owned);
+    let config_json = config
+        .filter(|value| !value.is_none())
+        .map(|value| crate::bindings::module_utils::py_to_json_string(py, value, "OasConfig"))
+        .transpose()?;
     let inner = py
         .detach(move || {
             rust_structured_credit::structured_credit_tranche_oas(
@@ -219,7 +222,7 @@ fn structured_credit_tranche_oas(
                 config_json.as_deref(),
             )
         })
-        .map_err(display_to_py)?;
+        .map_err(core_to_py)?;
     Ok(PyOasResult { inner })
 }
 
@@ -227,7 +230,7 @@ fn structured_credit_tranche_oas(
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | StructuredCredit
+/// instrument : StructuredCredit | str
 ///     Tagged JSON for a ``StructuredCredit`` deal, or a typed
 ///     ``StructuredCredit`` instance.
 /// tranche_id : str
@@ -248,18 +251,18 @@ fn structured_credit_tranche_oas(
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_metrics",
-    signature = (instrument_json, tranche_id, market, as_of, market_price_pct=None),
-    text_signature = "(instrument_json, tranche_id, market, as_of, market_price_pct=None)"
+    signature = (instrument, tranche_id, market, as_of, market_price_pct=None),
+    text_signature = "(instrument, tranche_id, market, as_of, market_price_pct=None)"
 )]
 fn structured_credit_tranche_metrics(
     py: Python<'_>,
-    instrument_json: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
     market_price_pct: Option<f64>,
 ) -> PyResult<PyTrancheMetrics> {
-    let deal = extract_structured_credit(py, instrument_json)?;
+    let deal = extract_structured_credit(py, instrument)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
@@ -273,7 +276,7 @@ fn structured_credit_tranche_metrics(
                 market_price_pct,
             )
         })
-        .map_err(display_to_py)?;
+        .map_err(core_to_py)?;
     Ok(PyTrancheMetrics { inner })
 }
 
@@ -281,7 +284,7 @@ fn structured_credit_tranche_metrics(
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | StructuredCredit
+/// instrument : StructuredCredit | str
 ///     Tagged JSON for a ``StructuredCredit`` deal, or a typed
 ///     ``StructuredCredit`` instance.
 /// tranche_id : str
@@ -291,9 +294,9 @@ fn structured_credit_tranche_metrics(
 /// as_of : datetime.date | str
 ///     Valuation date, either a date-like object (``datetime.date``,
 ///     ``pandas.Timestamp``) or an ISO 8601 string.
-/// grid_json : str
-///     Serialized ``ScenarioGrid``. The grid is capped at 10,000 cells because
-///     each cell reprices the entire deal.
+/// grid : dict | str
+///     ``ScenarioGrid`` as a dict or JSON string. The grid is capped at 10,000
+///     cells because each cell reprices the entire deal.
 ///
 /// Returns
 /// -------
@@ -302,21 +305,21 @@ fn structured_credit_tranche_metrics(
 #[pyfunction]
 #[pyo3(
     name = "structured_credit_tranche_scenario_table",
-    text_signature = "(instrument_json, tranche_id, market, as_of, grid_json)"
+    text_signature = "(instrument, tranche_id, market, as_of, grid)"
 )]
 fn structured_credit_tranche_scenario_table(
     py: Python<'_>,
-    instrument_json: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
     tranche_id: &str,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
-    grid_json: &str,
+    grid: &Bound<'_, PyAny>,
 ) -> PyResult<PyScenarioTable> {
-    let deal = extract_structured_credit(py, instrument_json)?;
+    let deal = extract_structured_credit(py, instrument)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
-    let grid_json = grid_json.to_owned();
+    let grid_json = crate::bindings::module_utils::py_to_json_string(py, grid, "ScenarioGrid")?;
     let inner = py
         .detach(move || {
             rust_structured_credit::structured_credit_tranche_scenario_table(
@@ -327,7 +330,7 @@ fn structured_credit_tranche_scenario_table(
                 &grid_json,
             )
         })
-        .map_err(display_to_py)?;
+        .map_err(core_to_py)?;
     Ok(PyScenarioTable { inner })
 }
 
@@ -346,6 +349,11 @@ pub struct PyOasResult {
 
 #[pymethods]
 impl PyOasResult {
+    /// Jupyter rich display: delegates to ``to_dataframe()``.
+    fn _repr_html_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_dataframe(py)?.call_method0("_repr_html_")
+    }
+
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
     ///
     /// Reconstruction goes through the same strict serde round-trip as
@@ -480,6 +488,11 @@ pub struct PyTrancheMetrics {
 
 #[pymethods]
 impl PyTrancheMetrics {
+    /// Jupyter rich display: delegates to ``to_dataframe()``.
+    fn _repr_html_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_dataframe(py)?.call_method0("_repr_html_")
+    }
+
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
     ///
     /// Reconstruction goes through the same strict serde round-trip as
@@ -662,6 +675,11 @@ pub struct PyScenarioTable {
 
 #[pymethods]
 impl PyScenarioTable {
+    /// Jupyter rich display: delegates to ``to_dataframe()``.
+    fn _repr_html_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.to_dataframe(py)?.call_method0("_repr_html_")
+    }
+
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
     ///
     /// Reconstruction goes through the same strict serde round-trip as

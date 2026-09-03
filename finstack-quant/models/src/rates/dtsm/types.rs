@@ -213,6 +213,9 @@ impl YieldPanel {
 /// Time series of extracted Nelson-Siegel factors.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FactorTimeSeries {
+    /// Observation dates copied from the source [`YieldPanel`] (length T)
+    /// when the panel carried them; `None` for unlabeled panels.
+    pub dates: Option<Vec<finstack_quant_core::dates::Date>>,
     /// Factor matrix: T rows x 3 columns [beta1, beta2, beta3].
     /// beta1 = level, beta2 = slope, beta3 = curvature.
     pub factors: DMatrix<f64>,
@@ -233,6 +236,24 @@ impl FactorTimeSeries {
             .map(|k| {
                 (0..self.factors.nrows())
                     .map(|i| self.factors[(i, k)])
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Number of observation dates (rows of the factor matrix).
+    #[must_use]
+    pub fn num_dates(&self) -> usize {
+        self.factors.nrows()
+    }
+
+    /// The residual matrix as row-major nested vectors (`residuals[t][tenor]`).
+    #[must_use]
+    pub fn residual_rows(&self) -> Vec<Vec<f64>> {
+        (0..self.residuals.nrows())
+            .map(|i| {
+                (0..self.residuals.ncols())
+                    .map(|j| self.residuals[(i, j)])
                     .collect()
             })
             .collect()

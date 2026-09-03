@@ -555,6 +555,48 @@ impl ScheduleParams {
             2,
         )
     }
+
+    /// Fail-fast validation of the schedule conventions.
+    ///
+    /// Checks that `calendar_id` resolves to a registered holiday calendar
+    /// (or `"weekends_only"`) and that `payment_lag_days` is non-negative, so
+    /// a typo in a calendar id surfaces at construction time instead of deep
+    /// inside a schedule build.
+    ///
+    /// # Arguments
+    ///
+    /// None beyond `self`; every field of the parameters is inspected.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when the calendar id
+    /// is unknown or the payment lag is negative.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_cashflows::builder::ScheduleParams;
+    ///
+    /// assert!(ScheduleParams::usd_sofr_swap().validate().is_ok());
+    /// let mut bad = ScheduleParams::usd_sofr_swap();
+    /// bad.calendar_id = "not-a-calendar".to_string();
+    /// assert!(bad.validate().is_err());
+    /// ```
+    pub fn validate(&self) -> finstack_quant_core::Result<()> {
+        crate::builder::calendar::resolve_calendar_strict(&self.calendar_id).map_err(|err| {
+            finstack_quant_core::Error::Validation(format!(
+                "unknown calendar_id '{}': {err}",
+                self.calendar_id
+            ))
+        })?;
+        if self.payment_lag_days < 0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "payment_lag_days must be non-negative; got {}",
+                self.payment_lag_days
+            )));
+        }
+        Ok(())
+    }
 }
 
 /// Fixed-rate coupon window with a shared schedule.

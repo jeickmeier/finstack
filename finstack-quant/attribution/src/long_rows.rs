@@ -13,6 +13,7 @@
 //! |---|---|
 //! | `kind` | Dotted path identifying the row's origin (closed taxonomy below) |
 //! | `factor` | Parent factor family (`"rates"`, `"credit"`, `"fx"`, ...) |
+//! | `sub` | `kind` with the `factor.` prefix removed (`"by_curve"`, `"coupon_income.rates"`, ...) |
 //! | `key_a` | Primary identifier (curve id, pair label, level name, ...) |
 //! | `key_b` | Secondary key when present (tenor, `to` currency, bucket path) |
 //! | `amount` | Signed P&L amount as `f64` |
@@ -87,6 +88,9 @@ pub struct LongDetailRow {
     pub kind: &'static str,
     /// Parent factor family (e.g. `"rates"`, `"carry"`, `"credit_factor"`).
     pub factor: &'static str,
+    /// Sub-component of `kind` after the `factor` prefix (e.g. `"by_curve"`,
+    /// `"coupon_income.rates"`, `"level.by_bucket"`).
+    pub sub: &'static str,
     /// Primary identifier: curve id, pair label, level name, or component.
     pub key_a: String,
     /// Secondary key when present: tenor, `to` currency, or bucket path.
@@ -95,6 +99,13 @@ pub struct LongDetailRow {
     pub amount: f64,
     /// ISO-4217 currency code of this row's own `Money` value.
     pub currency: String,
+}
+
+/// Strip the `factor.` prefix from a dotted `kind`, leaving the sub-component.
+fn kind_sub(kind: &'static str, factor: &'static str) -> &'static str {
+    kind.strip_prefix(factor)
+        .and_then(|rest| rest.strip_prefix('.'))
+        .unwrap_or("")
 }
 
 impl LongDetailRow {
@@ -109,6 +120,7 @@ impl LongDetailRow {
         Self {
             kind,
             factor,
+            sub: kind_sub(kind, factor),
             key_a,
             key_b,
             amount: money.amount(),
@@ -623,6 +635,7 @@ mod tests {
             LongDetailRow {
                 kind: "rates.by_curve",
                 factor: "rates",
+                sub: "by_curve",
                 key_a: "USD-OIS".to_string(),
                 key_b: None,
                 amount: 120.0,
@@ -631,6 +644,7 @@ mod tests {
             LongDetailRow {
                 kind: "rates.by_tenor",
                 factor: "rates",
+                sub: "by_tenor",
                 key_a: "USD-OIS".to_string(),
                 key_b: Some("5Y".to_string()),
                 amount: 80.0,
@@ -639,6 +653,7 @@ mod tests {
             LongDetailRow {
                 kind: "rates.discount_total",
                 factor: "rates",
+                sub: "discount_total",
                 key_a: String::new(),
                 key_b: None,
                 amount: 100.0,
@@ -647,6 +662,7 @@ mod tests {
             LongDetailRow {
                 kind: "rates.forward_total",
                 factor: "rates",
+                sub: "forward_total",
                 key_a: String::new(),
                 key_b: None,
                 amount: 20.0,
@@ -655,6 +671,7 @@ mod tests {
             LongDetailRow {
                 kind: "carry.total",
                 factor: "carry",
+                sub: "total",
                 key_a: "total".to_string(),
                 key_b: None,
                 amount: 50.0,
@@ -663,6 +680,7 @@ mod tests {
             LongDetailRow {
                 kind: "carry.coupon_income",
                 factor: "carry",
+                sub: "coupon_income",
                 key_a: "total".to_string(),
                 key_b: None,
                 amount: 40.0,
@@ -671,6 +689,7 @@ mod tests {
             LongDetailRow {
                 kind: "carry.coupon_income.rates",
                 factor: "carry",
+                sub: "coupon_income.rates",
                 key_a: "rates_part".to_string(),
                 key_b: None,
                 amount: 30.0,
@@ -679,6 +698,7 @@ mod tests {
             LongDetailRow {
                 kind: "carry.coupon_income.credit",
                 factor: "carry",
+                sub: "coupon_income.credit",
                 key_a: "credit_part".to_string(),
                 key_b: None,
                 amount: 10.0,
@@ -687,6 +707,7 @@ mod tests {
             LongDetailRow {
                 kind: "carry.pull_to_par",
                 factor: "carry",
+                sub: "pull_to_par",
                 key_a: "pull_to_par".to_string(),
                 key_b: None,
                 amount: 5.0,
@@ -695,6 +716,7 @@ mod tests {
             LongDetailRow {
                 kind: "carry.roll_down",
                 factor: "carry",
+                sub: "roll_down",
                 key_a: "total".to_string(),
                 key_b: None,
                 amount: 5.0,
@@ -703,6 +725,7 @@ mod tests {
             LongDetailRow {
                 kind: "credit_factor.generic",
                 factor: "credit_factor",
+                sub: "generic",
                 key_a: "generic".to_string(),
                 key_b: None,
                 amount: 60.0,
@@ -711,6 +734,7 @@ mod tests {
             LongDetailRow {
                 kind: "credit_factor.level",
                 factor: "credit_factor",
+                sub: "level",
                 key_a: "rating".to_string(),
                 key_b: None,
                 amount: 25.0,
@@ -719,6 +743,7 @@ mod tests {
             LongDetailRow {
                 kind: "credit_factor.level.by_bucket",
                 factor: "credit_factor",
+                sub: "level.by_bucket",
                 key_a: "rating".to_string(),
                 key_b: Some("IG".to_string()),
                 amount: 25.0,
@@ -727,6 +752,7 @@ mod tests {
             LongDetailRow {
                 kind: "credit_factor.adder",
                 factor: "credit_factor",
+                sub: "adder",
                 key_a: "adder".to_string(),
                 key_b: None,
                 amount: 10.0,
@@ -735,6 +761,7 @@ mod tests {
             LongDetailRow {
                 kind: "credit_factor.curve_shape",
                 factor: "credit_factor",
+                sub: "curve_shape",
                 key_a: "curve_shape".to_string(),
                 key_b: None,
                 amount: 5.0,
@@ -759,6 +786,7 @@ mod tests {
             serde_json::json!({
                 "kind": "rates.by_curve",
                 "factor": "rates",
+                "sub": "by_curve",
                 "key_a": "USD-OIS",
                 "key_b": null,
                 "amount": 1.5,

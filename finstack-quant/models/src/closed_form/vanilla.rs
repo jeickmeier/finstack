@@ -58,7 +58,8 @@ pub const ONE_PERCENT: f64 = 100.0;
 /// This struct is suitable for both equity options (with dividend yield) and
 /// FX options (with foreign rate), as it includes both `rho_r` (domestic) and
 /// `rho_q` (foreign/dividend) sensitivities.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BsGreeks {
     /// Delta sensitivity per unit.
     pub delta: f64,
@@ -213,16 +214,16 @@ pub fn checked_closed_form_value(value: f64, what: &str) -> Result<f64> {
 ///
 /// * `spot` - Current spot price S
 /// * `strike` - Exercise price K in the same units as `spot`.
-/// * `r` - Domestic (risk-free) rate, continuously compounded
-/// * `q` - Dividend yield or foreign rate, continuously compounded
-/// * `sigma` - Volatility σ (annualized)
-/// * `t` - Time to expiration T (in years)
+/// * `rate` - Domestic (risk-free) rate, continuously compounded decimal
+/// * `div_yield` - Dividend yield or foreign rate, continuously compounded decimal
+/// * `vol` - Volatility σ (annualized, decimal)
+/// * `expiry` - Time to expiration T (in years)
 /// * `option_type` - Call or put payoff convention used for intrinsic value
 ///   and the Black-Scholes pricing formula.
 ///
 /// # Returns
 ///
-/// Option price per unit of the underlying. At expiration (t ≤ 0), returns intrinsic value.
+/// Option price per unit of the underlying. At expiration (expiry ≤ 0), returns intrinsic value.
 ///
 #[must_use]
 #[inline]
@@ -230,18 +231,18 @@ pub fn checked_closed_form_value(value: f64, what: &str) -> Result<f64> {
 pub fn bs_price_unchecked(
     spot: f64,
     strike: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
-    t: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    expiry: f64,
     option_type: OptionType,
 ) -> f64 {
-    if t <= 0.0 {
+    if expiry <= 0.0 {
         return vanilla_expiry_payoff_unchecked(spot, strike, option_type);
     }
-    if sigma == 0.0 {
-        let discounted_spot = spot * (-q * t).exp();
-        let discounted_strike = strike * (-r * t).exp();
+    if vol == 0.0 {
+        let discounted_spot = spot * (-div_yield * expiry).exp();
+        let discounted_strike = strike * (-rate * expiry).exp();
         return match option_type {
             OptionType::Call => (discounted_spot - discounted_strike).max(0.0),
             OptionType::Put => (discounted_strike - discounted_spot).max(0.0),
@@ -249,14 +250,14 @@ pub fn bs_price_unchecked(
     }
 
     // Use combined d1_d2 to avoid redundant computation
-    let (d1, d2) = d1_d2(spot, strike, r, sigma, t, q);
+    let (d1, d2) = d1_d2(spot, strike, rate, vol, expiry, div_yield);
 
     // Compute CDFs - use symmetry N(-x) = 1 - N(x) to reduce calls
     let cdf_d1 = finstack_quant_core::math::norm_cdf(d1);
     let cdf_d2 = finstack_quant_core::math::norm_cdf(d2);
 
-    let exp_q_t = (-q * t).exp();
-    let exp_r_t = (-r * t).exp();
+    let exp_q_t = (-div_yield * expiry).exp();
+    let exp_r_t = (-rate * expiry).exp();
 
     let raw_price = match option_type {
         OptionType::Call => spot * exp_q_t * cdf_d1 - strike * exp_r_t * cdf_d2,
@@ -282,29 +283,29 @@ pub fn bs_price_unchecked(
 ///
 /// * `spot` - Current underlying spot price in the option's price units.
 /// * `strike` - Exercise price in the same units as `spot`.
-/// * `r` - Continuously compounded domestic risk-free rate as a decimal.
-/// * `q` - Continuously compounded dividend yield or foreign-rate carry as a
+/// * `rate` - Continuously compounded domestic risk-free rate as a decimal.
+/// * `div_yield` - Continuously compounded dividend yield or foreign-rate carry as a
 ///   decimal.
-/// * `sigma` - Annualized lognormal volatility as a decimal.
-/// * `t` - Remaining time to expiry in years.
+/// * `vol` - Annualized lognormal volatility as a decimal.
+/// * `expiry` - Remaining time to expiry in years.
 /// * `option_type` - Call or put payoff convention for the returned price.
 #[allow(clippy::too_many_arguments)]
 pub fn bs_price(
     spot: f64,
     strike: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
-    t: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    expiry: f64,
     option_type: OptionType,
 ) -> Result<f64> {
-    if !sigma.is_finite() || sigma < 0.0 {
+    if !vol.is_finite() || vol < 0.0 {
         return Err(Error::Validation(format!(
-            "Black-Scholes volatility must be finite and non-negative, got {sigma}"
+            "Black-Scholes volatility must be finite and non-negative, got {vol}"
         )));
     }
     checked_closed_form_value(
-        bs_price_unchecked(spot, strike, r, q, sigma, t, option_type),
+        bs_price_unchecked(spot, strike, rate, div_yield, vol, expiry, option_type),
         "Black-Scholes price",
     )
 }
@@ -317,10 +318,10 @@ pub fn bs_price(
 ///
 /// * `spot` - Current spot price S
 /// * `strike` - Exercise price K in the same units as the underlying spot.
-/// * `r` - Domestic (risk-free) rate, continuously compounded
-/// * `q` - Dividend yield or foreign rate, continuously compounded
-/// * `sigma` - Volatility σ (annualized)
-/// * `t` - Time to expiration T (in years)
+/// * `rate` - Domestic (risk-free) rate, continuously compounded decimal
+/// * `div_yield` - Dividend yield or foreign rate, continuously compounded decimal
+/// * `vol` - Volatility σ (annualized, decimal)
+/// * `expiry` - Time to expiration T (in years)
 /// * `option_type` - Call or put payoff convention for the reported Greeks.
 /// * `theta_days_per_year` - Day-count basis for theta conversion (see below)
 ///
@@ -366,10 +367,10 @@ pub fn bs_price(
 pub fn bs_greeks_unchecked(
     spot: f64,
     strike: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
-    t: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    expiry: f64,
     option_type: OptionType,
     theta_days_per_year: f64,
 ) -> BsGreeks {
@@ -388,7 +389,7 @@ pub fn bs_greeks_unchecked(
     // `bs_call_greeks`/`bs_put_greeks`; without this, `t = 0` flows into
     // `d1_d2` and produces `0/0 = NaN` delta at exactly ATM plus a spurious
     // non-zero theta from the `−rK·N(d2)` discounting term.
-    if t <= 0.0 {
+    if expiry <= 0.0 {
         let delta = match option_type {
             OptionType::Call => f64::from(spot > strike),
             OptionType::Put => -f64::from(spot < strike),
@@ -400,12 +401,12 @@ pub fn bs_greeks_unchecked(
     }
 
     // Use combined d1_d2 to compute both values in one pass (avoids duplicate ln/sqrt)
-    let (d1, d2) = d1_d2(spot, strike, r, sigma, t, q);
+    let (d1, d2) = d1_d2(spot, strike, rate, vol, expiry, div_yield);
 
     // Pre-compute shared exponentials
-    let exp_q_t = (-q * t).exp();
-    let exp_r_t = (-r * t).exp();
-    let sqrt_t = t.sqrt();
+    let exp_q_t = (-div_yield * expiry).exp();
+    let exp_r_t = (-rate * expiry).exp();
+    let sqrt_t = expiry.sqrt();
 
     // PDF is always needed for gamma/vega/theta
     let pdf_d1 = finstack_quant_core::math::norm_pdf(d1);
@@ -422,10 +423,10 @@ pub fn bs_greeks_unchecked(
     };
 
     // Gamma is the same for calls and puts
-    let gamma = if spot <= 0.0 || sigma <= 0.0 || sqrt_t <= 0.0 {
+    let gamma = if spot <= 0.0 || vol <= 0.0 || sqrt_t <= 0.0 {
         0.0
     } else {
-        exp_q_t * pdf_d1 / (spot * sigma * sqrt_t)
+        exp_q_t * pdf_d1 / (spot * vol * sqrt_t)
     };
 
     // Vega is the same for calls and puts (per 1% vol)
@@ -434,32 +435,32 @@ pub fn bs_greeks_unchecked(
     // Theta differs by option type
     // Common term for both: -S * φ(d1) * σ * e^(-qT) / (2√T)
     let theta_common = if sqrt_t > 0.0 {
-        -spot * pdf_d1 * sigma * exp_q_t / (2.0 * sqrt_t)
+        -spot * pdf_d1 * vol * exp_q_t / (2.0 * sqrt_t)
     } else {
         0.0
     };
 
     let theta = match option_type {
         OptionType::Call => {
-            let term2 = q * spot * cdf_d1 * exp_q_t;
-            let term3 = -r * strike * exp_r_t * cdf_d2;
+            let term2 = div_yield * spot * cdf_d1 * exp_q_t;
+            let term3 = -rate * strike * exp_r_t * cdf_d2;
             (theta_common + term2 + term3) / theta_days_per_year
         }
         OptionType::Put => {
-            let term2 = -q * spot * cdf_m_d1 * exp_q_t;
-            let term3 = r * strike * exp_r_t * cdf_m_d2;
+            let term2 = -div_yield * spot * cdf_m_d1 * exp_q_t;
+            let term3 = rate * strike * exp_r_t * cdf_m_d2;
             (theta_common + term2 + term3) / theta_days_per_year
         }
     };
 
     let rho_r = match option_type {
-        OptionType::Call => strike * t * exp_r_t * cdf_d2 / ONE_PERCENT,
-        OptionType::Put => -strike * t * exp_r_t * cdf_m_d2 / ONE_PERCENT,
+        OptionType::Call => strike * expiry * exp_r_t * cdf_d2 / ONE_PERCENT,
+        OptionType::Put => -strike * expiry * exp_r_t * cdf_m_d2 / ONE_PERCENT,
     };
 
     let rho_q = match option_type {
-        OptionType::Call => -spot * t * exp_q_t * cdf_d1 / ONE_PERCENT,
-        OptionType::Put => spot * t * exp_q_t * cdf_m_d1 / ONE_PERCENT,
+        OptionType::Call => -spot * expiry * exp_q_t * cdf_d1 / ONE_PERCENT,
+        OptionType::Put => spot * expiry * exp_q_t * cdf_m_d1 / ONE_PERCENT,
     };
 
     BsGreeks {
@@ -481,11 +482,11 @@ pub fn bs_greeks_unchecked(
 ///
 /// * `spot` - Current underlying spot price in the option's price units.
 /// * `strike` - Exercise price in the same units as `spot`.
-/// * `r` - Continuously compounded domestic risk-free rate as a decimal.
-/// * `q` - Continuously compounded dividend yield or foreign-rate carry as a
+/// * `rate` - Continuously compounded domestic risk-free rate as a decimal.
+/// * `div_yield` - Continuously compounded dividend yield or foreign-rate carry as a
 ///   decimal.
-/// * `sigma` - Positive annualized lognormal volatility as a decimal.
-/// * `t` - Positive remaining time to expiry in years.
+/// * `vol` - Positive annualized lognormal volatility as a decimal.
+/// * `expiry` - Positive remaining time to expiry in years.
 /// * `option_type` - Call or put payoff convention for the reported Greeks.
 /// * `theta_days_per_year` - Positive calendar or trading-day basis used to
 ///   convert annual theta into the returned per-day amount.
@@ -493,20 +494,20 @@ pub fn bs_greeks_unchecked(
 pub fn bs_greeks(
     spot: f64,
     strike: f64,
-    r: f64,
-    q: f64,
-    sigma: f64,
-    t: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+    expiry: f64,
     option_type: OptionType,
     theta_days_per_year: f64,
 ) -> Result<BsGreeks> {
     for (name, value) in [
         ("spot", spot),
         ("strike", strike),
-        ("r", r),
-        ("q", q),
-        ("sigma", sigma),
-        ("t", t),
+        ("rate", rate),
+        ("div_yield", div_yield),
+        ("vol", vol),
+        ("expiry", expiry),
         ("theta_days_per_year", theta_days_per_year),
     ] {
         if !value.is_finite() {
@@ -520,19 +521,19 @@ pub fn bs_greeks(
             "Black-Scholes Greeks require positive spot and strike, got spot={spot}, strike={strike}"
         )));
     }
-    if sigma <= 0.0 || t <= 0.0 || theta_days_per_year <= 0.0 {
+    if vol <= 0.0 || expiry <= 0.0 || theta_days_per_year <= 0.0 {
         return Err(Error::Validation(format!(
-            "Black-Scholes Greeks require positive sigma, t, and theta_days_per_year, got sigma={sigma}, t={t}, theta_days_per_year={theta_days_per_year}"
+            "Black-Scholes Greeks require positive vol, expiry, and theta_days_per_year, got vol={vol}, expiry={expiry}, theta_days_per_year={theta_days_per_year}"
         )));
     }
 
     let greeks = bs_greeks_unchecked(
         spot,
         strike,
-        r,
-        q,
-        sigma,
-        t,
+        rate,
+        div_yield,
+        vol,
+        expiry,
         option_type,
         theta_days_per_year,
     );

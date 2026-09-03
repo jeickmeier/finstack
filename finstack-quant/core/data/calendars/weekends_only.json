@@ -1,0 +1,6 @@
+{
+  "id": "weekends_only",
+  "name": "Weekends Only",
+  "ignore_weekends": true,
+  "rules": []
+}

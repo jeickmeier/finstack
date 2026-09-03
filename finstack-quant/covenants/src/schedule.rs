@@ -56,6 +56,22 @@ impl ThresholdSchedule {
         }
         Ok(Self(entries))
     }
+
+    /// Effective-date / threshold entries in ascending date order.
+    pub fn entries(&self) -> &[(Date, f64)] {
+        &self.0
+    }
+
+    /// Threshold in force on `test_date`: the last entry whose effective date
+    /// is on or before it, or `None` when no entry has taken effect yet.
+    ///
+    /// # Arguments
+    ///
+    /// * `test_date` - Covenant test date for which the latest threshold
+    ///   effective on or before that date is required.
+    pub fn threshold_for(&self, test_date: Date) -> Option<f64> {
+        threshold_for_date(self, test_date)
+    }
 }
 
 /// Resolve threshold for a given test date from a piecewise-constant schedule.

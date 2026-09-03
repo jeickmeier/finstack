@@ -42,9 +42,14 @@
 //!
 //! - Keys are opaque; time order is lexicographic (use ISO-8601 for calendar
 //!   chronology).
-//! - `window`, `periods`, `half_life`, and EWMA `span` count finite
-//!   observations (pandas `skipna`). Gaps do not expand the window; missing
-//!   rows do not decay EWMA or half-life.
+//! - `periods` (`returns`, `log_returns`, `diff`, `lag`) counts finite
+//!   observations (pandas `skipna`): a `None` row never advances the lag, so
+//!   `v_t` is compared with the `periods`-th finite value before it. Missing
+//!   rows do not decay EWMA or half-life. Rolling `window`s span the trailing
+//!   `window` rows of the entity; only finite rows inside the window
+//!   contribute and `min_periods` of them are required.
+//! - `params` are strict: a key the operation does not read (for example
+//!   `"windows"`) is rejected instead of silently falling back to the default.
 //! - Outputs preserve input order and length; element `i` of the output
 //!   corresponds to element `i` of `values`.
 //! - `None` and non-finite inputs are skipped; they produce `None` outputs.

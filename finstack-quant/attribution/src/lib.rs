@@ -26,11 +26,12 @@
 //!
 //! | Entry point | Use when |
 //! |---|---|
-//! | [`simple_pnl_bridge`] | Only raw endpoint P&L in an explicit currency is required |
+//! | [`pnl_bridge`] | Only raw endpoint P&L in an explicit currency is required |
 //! | [`attribute_pnl_metrics_based`] | Precomputed first- and optional second-order sensitivities provide a fast approximation |
 //! | [`attribute_pnl`] with [`AttributionMethod::Parallel`] | Independent factor effects and an interaction residual are required |
 //! | [`attribute_pnl`] with [`AttributionMethod::Waterfall`] | An ordered full-revaluation decomposition is required |
 //! | [`attribute_pnl`] with [`AttributionMethod::Taylor`] | A bump-and-reprice first- or second-order decomposition is required |
+//! | [`attribute_pnl_many`] | One [`AttributionSpec`] template applied to a list of instruments (order-preserving batch) |
 //!
 //! Repricing methods take one [`AttributionRequest`] carrying the instrument,
 //! both market states and dates, the Finstack configuration, and the optional
@@ -42,13 +43,13 @@
 //! - Positive P&L is a gain to the long-position holder.
 //! - Decomposition methods use a total-return basis: `total_pnl` includes cash
 //!   paid in `[T₀, T₁)`, while `mark_to_market_pnl` preserves the raw endpoint
-//!   value change when available. [`simple_pnl_bridge`] returns only that raw
+//!   value change when available. [`pnl_bridge`] returns only that raw
 //!   endpoint change.
 //! - Repricing methods isolate the date roll before market moves. Waterfall
 //!   orders must begin with [`AttributionFactor::Carry`]; metrics-based carry
 //!   uses `CarryTotal` or theta over the elapsed days.
 //! - Direct decomposition functions report in the instrument's native pricing
-//!   currency; [`simple_pnl_bridge`] accepts an explicit target currency.
+//!   currency; [`pnl_bridge`] accepts an explicit target currency.
 //!   [`AttributionConfig::target_currency`] can translate aggregate fields and
 //!   every Money leaf of the detail maps: opening value uses T₀ market/date FX,
 //!   closing value uses T₁ market/date FX, factors and detail leaves use T₁ FX,
@@ -172,9 +173,9 @@ pub use return_contribution::{
     ReturnContributionWeighting,
 };
 pub use spec::{
-    default_attribution_metrics, validate_attribution_json, AttributionConfig, AttributionEnvelope,
-    AttributionJsonInputs, AttributionResult, AttributionResultEnvelope, AttributionSchema,
-    AttributionSpec, ATTRIBUTION_SCHEMA,
+    attribute_pnl_many, default_attribution_metrics, validate_attribution_json, AttributionConfig,
+    AttributionEnvelope, AttributionJsonInputs, AttributionResult, AttributionResultEnvelope,
+    AttributionSchema, AttributionSpec, ATTRIBUTION_SCHEMA,
 };
 pub use target_currency::translate_to_target_currency;
 pub use taylor::TaylorAttributionConfig;
@@ -359,7 +360,7 @@ pub fn attribute_pnl(
 /// # Examples
 ///
 /// ```no_run
-/// use finstack_quant_attribution::simple_pnl_bridge;
+/// use finstack_quant_attribution::pnl_bridge;
 /// use finstack_quant_valuations::instruments::Instrument;
 /// use finstack_quant_core::currency::Currency;
 /// use finstack_quant_core::market_data::context::MarketContext;
@@ -371,7 +372,7 @@ pub fn attribute_pnl(
 /// let market_t0 = MarketContext::new();
 /// let market_t1 = MarketContext::new();
 ///
-/// let pnl = simple_pnl_bridge(
+/// let pnl = pnl_bridge(
 ///     &instrument,
 ///     &market_t0,
 ///     &market_t1,
@@ -383,7 +384,7 @@ pub fn attribute_pnl(
 /// # Ok(())
 /// # }
 /// ```
-pub fn simple_pnl_bridge(
+pub fn pnl_bridge(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
     market_t1: &MarketContext,

@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 
+use crate::bindings::core::money::PyMoney;
+use crate::bindings::valuations::convert::money_to_py;
 use crate::errors::core_to_py;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     Tranche, TrancheStructure,
@@ -85,12 +87,65 @@ impl PyTrancheStructure {
         Ok(Self { inner })
     }
 
+    /// Deserialize from the JSON produced by ``to_json``.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict JSON object with exactly the fields ``to_json`` writes.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed or has the wrong shape.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json)
+            .map_err(|err| crate::errors::serde_json_to_py(err, "invalid TrancheStructure JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to the canonical JSON wire form.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(crate::errors::display_to_py)
+    }
+
+    /// Return every field as a plain ``dict`` (canonical serde shape).
+    #[pyo3(text_signature = "($self)")]
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner)
+    }
+
+    /// Support ``pickle`` through the ``to_json`` / ``from_json`` round-trip.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Tranches in payment-priority order.
+    #[getter]
+    fn tranches(&self) -> Vec<PyTranche> {
+        self.inner
+            .tranches
+            .iter()
+            .map(|t| PyTranche { inner: t.clone() })
+            .collect()
+    }
+
+    /// Total original size of the capital structure.
+    #[getter]
+    fn total_size(&self) -> PyMoney {
+        money_to_py(self.inner.total_size)
+    }
+
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
             "TrancheStructure(tranches={}, total_size={})",
             self.inner.tranches.len(),
-            self.inner.total_size
+            self.inner.total_size.amount()
         )
     }
 }

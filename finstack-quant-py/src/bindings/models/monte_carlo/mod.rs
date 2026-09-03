@@ -1,10 +1,9 @@
 //! Python bindings for the `finstack-quant-models` crate.
 //!
-//! Exposes canonical European, Asian, LSMC, Heston, analytical, and Greek
-//! workflows. Advanced Rust process, discretization, RNG, and payoff types
+//! Exposes canonical European, Asian, LSMC, Heston, and Greek workflows;
+//! closed-form Black-Scholes references live at `finstack_quant.models`. Advanced Rust process, discretization, RNG, and payoff types
 //! remain Rust-only.
 
-mod analytical;
 mod engine;
 mod greeks;
 mod pricers;
@@ -24,7 +23,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     results::register(py, &m)?;
     engine::register(py, &m)?;
     pricers::register(py, &m)?;
-    analytical::register(py, &m)?;
     greeks::register(py, &m)?;
 
     let all = PyList::new(
@@ -38,8 +36,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "EuropeanPricer",
             "PathDependentPricer",
             "LsmcPricer",
-            "black_scholes_call",
-            "black_scholes_put",
             "price_heston_call",
             "price_heston_put",
             "finite_diff_delta",

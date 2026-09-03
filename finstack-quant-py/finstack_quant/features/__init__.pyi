@@ -4,7 +4,9 @@ Feature engineering: panel-data transformations for signal research.
 Bindings for the ``finstack-quant-features`` crate
 (``finstack_quant.features``). Provides time-series, cross-sectional, and
 pairwise transforms (z-score, rank, rolling mean, neutralization, risk-scaled
-weights) plus a general panel dispatcher :func:`transform_panel_json`.
+weights) plus a general panel dispatcher :func:`transform_panel` (typed) /
+:func:`transform_panel_json` (JSON), and the operation selectors
+:class:`TimeSeriesOp`, :class:`CrossSectionalOp`, :class:`PairwiseOp`.
 
 Examples
 --------
@@ -15,12 +17,22 @@ Examples
 
 from __future__ import annotations
 
+import datetime
+from collections.abc import Sequence
 from types import ModuleType
 from typing import Any
 
+import pandas as pd
+
 TransformParams = dict[str, Any]
+KeyColumn = Sequence[str | int | datetime.date | Any]
 
 __all__ = [
+    "CrossSectionalOp",
+    "PairwiseOp",
+    "PanelTransformResult",
+    "PanelTransformSpec",
+    "TimeSeriesOp",
     "clean_signal",
     "dataframe",
     "neutralize",
@@ -31,6 +43,7 @@ __all__ = [
     "rolling_regression_residual",
     "transform_cross_sectional",
     "transform_cross_sectional_grouped",
+    "transform_panel",
     "transform_panel_json",
     "transform_timeseries",
     "transform_timeseries_pairwise",
@@ -38,11 +51,690 @@ __all__ = [
 
 dataframe: ModuleType
 
+class TimeSeriesOp:
+    """
+    Time-series (per-entity, backward-looking) operation selector.
+
+    Accepts the snake_case name (``TimeSeriesOp("returns")``) or an
+    ``UPPER_SNAKE`` member (``TimeSeriesOp["RETURNS"]``). ``values()``
+    lists every accepted name; ``param_keys`` lists the JSON ``params`` keys the
+    operation reads (any other key is rejected).
+
+    Examples
+    --------
+    >>> from finstack_quant.features import TimeSeriesOp
+    >>> TimeSeriesOp("returns").param_keys
+    ['periods']
+    """
+
+    __members__: dict[str, TimeSeriesOp]
+
+    def __init__(self, name: str) -> None:
+        """
+        Parse an operation from its snake_case name.
+
+        Parameters
+        ----------
+        name : str
+            Canonical operation name; see :meth:`values`.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is not accepted; the message lists every accepted name.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import TimeSeriesOp
+        >>> TimeSeriesOp("returns").name
+        'returns'
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Canonical snake_case operation name.
+
+        Returns
+        -------
+        str
+            Wire name such as ``"returns"``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def param_keys(self) -> list[str]:
+        """
+        JSON ``params`` keys this operation reads.
+
+        Returns
+        -------
+        list[str]
+            Accepted parameter keys; any other key raises ``ValueError``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @staticmethod
+    def values() -> list[str]:
+        """
+        Every accepted operation name, in declaration order.
+
+        Returns
+        -------
+        list[str]
+            Canonical names.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import TimeSeriesOp
+        >>> "returns" in TimeSeriesOp.values()
+        True
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def __class_getitem__(cls, key: str) -> TimeSeriesOp:
+        """
+        Look up an operation by ``UPPER_SNAKE`` member name.
+
+        Parameters
+        ----------
+        key : str
+            Member name such as ``"RETURNS"``.
+
+        Returns
+        -------
+        TimeSeriesOp
+            The matching operation.
+
+        Raises
+        ------
+        KeyError
+            If ``key`` is not a member.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+class CrossSectionalOp:
+    """
+    Cross-sectional (per-timestamp) operation selector.
+
+    Accepts the snake_case name (``CrossSectionalOp("winsorize")``) or an
+    ``UPPER_SNAKE`` member (``CrossSectionalOp["WINSORIZE"]``). ``values()``
+    lists every accepted name; ``param_keys`` lists the JSON ``params`` keys the
+    operation reads (any other key is rejected).
+
+    Examples
+    --------
+    >>> from finstack_quant.features import CrossSectionalOp
+    >>> CrossSectionalOp("winsorize").param_keys
+    ['lower', 'upper']
+    """
+
+    __members__: dict[str, CrossSectionalOp]
+
+    def __init__(self, name: str) -> None:
+        """
+        Parse an operation from its snake_case name.
+
+        Parameters
+        ----------
+        name : str
+            Canonical operation name; see :meth:`values`.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is not accepted; the message lists every accepted name.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import CrossSectionalOp
+        >>> CrossSectionalOp("winsorize").name
+        'winsorize'
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Canonical snake_case operation name.
+
+        Returns
+        -------
+        str
+            Wire name such as ``"winsorize"``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def param_keys(self) -> list[str]:
+        """
+        JSON ``params`` keys this operation reads.
+
+        Returns
+        -------
+        list[str]
+            Accepted parameter keys; any other key raises ``ValueError``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @staticmethod
+    def values() -> list[str]:
+        """
+        Every accepted operation name, in declaration order.
+
+        Returns
+        -------
+        list[str]
+            Canonical names.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import CrossSectionalOp
+        >>> "winsorize" in CrossSectionalOp.values()
+        True
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def __class_getitem__(cls, key: str) -> CrossSectionalOp:
+        """
+        Look up an operation by ``UPPER_SNAKE`` member name.
+
+        Parameters
+        ----------
+        key : str
+            Member name such as ``"WINSORIZE"``.
+
+        Returns
+        -------
+        CrossSectionalOp
+            The matching operation.
+
+        Raises
+        ------
+        KeyError
+            If ``key`` is not a member.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+class PairwiseOp:
+    """
+    Pairwise rolling operation selector (cov / corr / beta).
+
+    Accepts the snake_case name (``PairwiseOp("rolling_beta")``) or an
+    ``UPPER_SNAKE`` member (``PairwiseOp["ROLLING_BETA"]``). ``values()``
+    lists every accepted name; ``param_keys`` lists the JSON ``params`` keys the
+    operation reads (any other key is rejected).
+
+    Examples
+    --------
+    >>> from finstack_quant.features import PairwiseOp
+    >>> PairwiseOp("rolling_beta").param_keys
+    ['window', 'min_periods']
+    """
+
+    __members__: dict[str, PairwiseOp]
+
+    def __init__(self, name: str) -> None:
+        """
+        Parse an operation from its snake_case name.
+
+        Parameters
+        ----------
+        name : str
+            Canonical operation name; see :meth:`values`.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is not accepted; the message lists every accepted name.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import PairwiseOp
+        >>> PairwiseOp("rolling_beta").name
+        'rolling_beta'
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Canonical snake_case operation name.
+
+        Returns
+        -------
+        str
+            Wire name such as ``"rolling_beta"``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def param_keys(self) -> list[str]:
+        """
+        JSON ``params`` keys this operation reads.
+
+        Returns
+        -------
+        list[str]
+            Accepted parameter keys; any other key raises ``ValueError``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @staticmethod
+    def values() -> list[str]:
+        """
+        Every accepted operation name, in declaration order.
+
+        Returns
+        -------
+        list[str]
+            Canonical names.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import PairwiseOp
+        >>> "rolling_beta" in PairwiseOp.values()
+        True
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def __class_getitem__(cls, key: str) -> PairwiseOp:
+        """
+        Look up an operation by ``UPPER_SNAKE`` member name.
+
+        Parameters
+        ----------
+        key : str
+            Member name such as ``"ROLLING_BETA"``.
+
+        Returns
+        -------
+        PairwiseOp
+            The matching operation.
+
+        Raises
+        ------
+        KeyError
+            If ``key`` is not a member.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
+
+class PanelTransformSpec:
+    """
+    Specification for a sequential panel transform pipeline.
+
+    Examples
+    --------
+    >>> from finstack_quant.features import PanelTransformSpec
+    >>> spec = PanelTransformSpec(
+    ...     [1.0, 3.0], [{"name": "r", "family": "cross_sectional", "op": "rank"}], time_key=["d", "d"]
+    ... )
+    >>> spec.operation_names
+    ['r']
+    """
+
+    def __init__(
+        self,
+        values: Sequence[float | None],
+        operations: Sequence[dict[str, Any]],
+        entity: KeyColumn | None = None,
+        order: KeyColumn | None = None,
+        time_key: KeyColumn | None = None,
+    ) -> None:
+        """
+        Construct a panel spec.
+
+        Parameters
+        ----------
+        values : sequence of float or None
+            Input value column; ``None`` / NaN is missing.
+        operations : sequence of dict
+            Ordered operations ``{"name", "family" ("timeseries" |
+            "cross_sectional"), "op", "params"?, "input"?}``.
+        entity : sequence, optional
+            Row-aligned entity keys (required for time-series ops; str, int
+            or date-like, coerced to str).
+        order : sequence, optional
+            Row-aligned sort keys (required for time-series ops).
+        time_key : sequence, optional
+            Row-aligned partition keys (required for cross-sectional ops).
+
+        Raises
+        ------
+        ValueError
+            If an operation mapping is malformed (unknown family, op, or key).
+
+        Examples
+        --------
+        >>> from finstack_quant.features import PanelTransformSpec
+        >>> PanelTransformSpec([1.0], [], time_key=["d"]).operation_names
+        []
+        """
+        ...
+
+    @property
+    def operation_names(self) -> list[str]:
+        """
+        Output column names in operation order.
+
+        Returns
+        -------
+        list[str]
+            Operation ``name`` fields.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def values(self) -> list[float | None]:
+        """
+        Input value column.
+
+        Returns
+        -------
+        list[float | None]
+            Values as supplied.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the JSON accepted by :func:`transform_panel_json`.
+
+        Returns
+        -------
+        str
+            JSON document.
+
+        Raises
+        ------
+        ValueError
+            If a value cannot be represented in JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PanelTransformSpec:
+        """
+        Deserialize from JSON (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document.
+
+        Returns
+        -------
+        PanelTransformSpec
+            Reconstructed spec.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import PanelTransformSpec
+        >>> PanelTransformSpec.from_json('{"values": [1.0], "operations": []}').values
+        [1.0]
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form.
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If a value cannot be represented in JSON.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class PanelTransformResult:
+    """
+    Ordered output columns of a panel transform pipeline.
+
+    Examples
+    --------
+    >>> from finstack_quant.features import transform_panel
+    >>> res = transform_panel({
+    ...     "values": [1.0, 3.0],
+    ...     "time_key": ["d", "d"],
+    ...     "operations": [{"name": "r", "family": "cross_sectional", "op": "rank"}],
+    ... })
+    >>> res.columns
+    ['r']
+    """
+
+    @property
+    def columns(self) -> list[str]:
+        """
+        Output column names in operation order.
+
+        Returns
+        -------
+        list[str]
+            Column names.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def get_column(self, name: str) -> list[float | None]:
+        """
+        Values of one output column, aligned to the input rows.
+
+        Parameters
+        ----------
+        name : str
+            Operation output name (case-sensitive).
+
+        Returns
+        -------
+        list[float | None]
+            Column values.
+
+        Raises
+        ------
+        KeyError
+            If no column has that name.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the JSON produced by :func:`transform_panel_json`.
+
+        Returns
+        -------
+        str
+            ``{"columns": [{"name", "values"}, ...]}``.
+
+        Raises
+        ------
+        ValueError
+            If a value cannot be represented in JSON.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PanelTransformResult:
+        """
+        Deserialize from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON document.
+
+        Returns
+        -------
+        PanelTransformResult
+            Reconstructed result.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.features import PanelTransformResult
+        >>> PanelTransformResult.from_json('{"columns": []}').columns
+        []
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form.
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If a value cannot be represented in JSON.
+        """
+        ...
+
+    def to_dataframe(self, index: Any | None = None) -> pd.DataFrame:
+        """
+        Columns as a ``pandas.DataFrame`` (one float column per operation).
+
+        Parameters
+        ----------
+        index : pandas.Index or sequence, optional
+            Row index to attach (e.g. the source frame's index).
+
+        Returns
+        -------
+        pandas.DataFrame
+            ``None`` outputs become ``NaN``.
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+def transform_panel(spec: PanelTransformSpec | dict[str, Any] | str) -> PanelTransformResult:
+    """
+    Apply a named panel transform pipeline (typed twin of :func:`transform_panel_json`).
+
+    Operations run sequentially; each reads the previous column unless
+    ``input`` selects ``"values"`` or an earlier operation name.
+
+    Parameters
+    ----------
+    spec : PanelTransformSpec, dict or str
+        Typed spec, an equivalent dict (``values``, ``operations``, optional
+        ``entity`` / ``order`` / ``time_key``), or its JSON.
+
+    Returns
+    -------
+    PanelTransformResult
+        Ordered output columns with ``get_column`` and ``to_dataframe``.
+
+    Raises
+    ------
+    ValueError
+        If the spec is malformed, an operation name is duplicated or reserved,
+        ``input`` is unknown, or an operation fails.
+
+    Examples
+    --------
+    >>> from finstack_quant.features import transform_panel
+    >>> spec = {
+    ...     "values": [1.0, 3.0],
+    ...     "time_key": ["d", "d"],
+    ...     "operations": [{"name": "r", "family": "cross_sectional", "op": "rank"}],
+    ... }
+    >>> transform_panel(spec).get_column("r")
+    [0.0, 1.0]
+    """
+    ...
+
 def transform_timeseries(
     values: list[float | None],
-    entity: list[str],
-    order: list[str],
-    op: str,
+    entity: KeyColumn,
+    order: KeyColumn,
+    op: str | TimeSeriesOp | CrossSectionalOp | PairwiseOp,
     params: TransformParams | None = None,
 ) -> list[float | None]:
     """
@@ -124,8 +816,8 @@ def transform_timeseries(
 
 def transform_cross_sectional(
     values: list[float | None],
-    time_key: list[str],
-    op: str,
+    time_key: KeyColumn,
+    op: str | TimeSeriesOp | CrossSectionalOp | PairwiseOp,
     params: TransformParams | None = None,
 ) -> list[float | None]:
     """
@@ -191,9 +883,9 @@ def transform_cross_sectional(
 
 def transform_cross_sectional_grouped(
     values: list[float | None],
-    time_key: list[str],
-    groups: list[str],
-    op: str,
+    time_key: KeyColumn,
+    groups: KeyColumn,
+    op: str | TimeSeriesOp | CrossSectionalOp | PairwiseOp,
     params: TransformParams | None = None,
 ) -> list[float | None]:
     """
@@ -246,7 +938,7 @@ def transform_cross_sectional_grouped(
 
 def neutralize(
     values: list[float | None],
-    time_key: list[str],
+    time_key: KeyColumn,
     exposures: list[list[float | None]],
     params: TransformParams | None = None,
 ) -> list[float | None]:
@@ -296,9 +988,9 @@ def neutralize(
 def transform_timeseries_pairwise(
     values: list[float | None],
     other: list[float | None],
-    entity: list[str],
-    order: list[str],
-    op: str,
+    entity: KeyColumn,
+    order: KeyColumn,
+    op: str | TimeSeriesOp | CrossSectionalOp | PairwiseOp,
     params: TransformParams | None = None,
 ) -> list[float | None]:
     """
@@ -364,8 +1056,8 @@ def transform_timeseries_pairwise(
 def rolling_regression_residual(
     values: list[float | None],
     exposures: list[list[float | None]],
-    entity: list[str],
-    order: list[str],
+    entity: KeyColumn,
+    order: KeyColumn,
     params: TransformParams | None = None,
 ) -> list[float | None]:
     """
@@ -427,7 +1119,7 @@ def rolling_regression_residual(
 
 def risk_scaled_weights(
     values: list[float | None],
-    time_key: list[str],
+    time_key: KeyColumn,
     volatility: list[float | None],
 ) -> list[float | None]:
     """
@@ -474,7 +1166,7 @@ def risk_scaled_weights(
 
 def clean_signal(
     values: list[float | None],
-    time_key: list[str],
+    time_key: KeyColumn,
     params: TransformParams | None = None,
 ) -> list[float | None]:
     """
@@ -517,7 +1209,7 @@ def clean_signal(
 
 def normalize_signal(
     values: list[float | None],
-    time_key: list[str],
+    time_key: KeyColumn,
     params: TransformParams | None = None,
 ) -> list[float | None]:
     """
@@ -560,7 +1252,7 @@ def normalize_signal(
 
 def rank_to_weights(
     values: list[float | None],
-    time_key: list[str],
+    time_key: KeyColumn,
 ) -> list[float | None]:
     """
     Convert cross-sectional ranks into gross-normalized long/short weights.
@@ -597,7 +1289,7 @@ def rank_to_weights(
 
 def neutralize_and_zscore(
     values: list[float | None],
-    time_key: list[str],
+    time_key: KeyColumn,
     exposures: list[list[float | None]],
     params: TransformParams | None = None,
 ) -> list[float | None]:

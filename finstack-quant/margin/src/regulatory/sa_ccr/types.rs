@@ -175,6 +175,18 @@ impl SaCcrNettingSetConfig {
     }
 
     /// Create an unmargined netting set configuration.
+    ///
+    /// Threshold, MTA and NICA are zero and `mpor_days` is the 10-business-day
+    /// bilateral default, which only matters for the reporting maturity factor
+    /// of an unmargined set.
+    ///
+    /// # Arguments
+    ///
+    /// * `netting_set_id` - Bilateral or cleared netting-set key.
+    /// * `collateral` - Net collateral held, in the reporting currency
+    ///   (positive = bank holds collateral).
+    /// * `as_of` - Valuation date for forward-start and remaining-maturity
+    ///   calculations.
     #[must_use]
     pub fn unmargined(netting_set_id: NettingSetId, collateral: f64, as_of: Date) -> Self {
         Self {
@@ -190,6 +202,19 @@ impl SaCcrNettingSetConfig {
     }
 
     /// Create a margined netting set configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `netting_set_id` - Bilateral or cleared netting-set key.
+    /// * `collateral` - Net collateral held, in the reporting currency
+    ///   (positive = bank holds collateral).
+    /// * `threshold` - CSA threshold (TH), non-negative, reporting currency.
+    /// * `mta` - Minimum transfer amount, non-negative, reporting currency.
+    /// * `nica` - Net independent collateral amount, signed, reporting currency.
+    /// * `mpor_days` - Margin period of risk in business days; must be
+    ///   positive (10 for bilateral, 5 for cleared under BCBS 279).
+    /// * `as_of` - Valuation date for forward-start and remaining-maturity
+    ///   calculations.
     #[must_use]
     pub fn margined(
         netting_set_id: NettingSetId,

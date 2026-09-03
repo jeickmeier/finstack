@@ -154,7 +154,12 @@ impl PortfolioValuation {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(tag = "mode", content = "metrics", rename_all = "snake_case")]
 pub enum RequestedMetrics {
-    /// Standard portfolio metric set only.
+    /// Standard portfolio metric set only: PV plus `dv01`.
+    ///
+    /// Kept intentionally small so a plain book values under
+    /// `strict_risk = true`; pricer-specific metrics (`theta`, `cs01`,
+    /// Greeks, bucketed ladders) are requested explicitly through
+    /// [`RequestedMetrics::StandardPlus`] or [`RequestedMetrics::Only`].
     #[default]
     Standard,
     /// Standard set plus the listed extra metrics (de-duplicated).

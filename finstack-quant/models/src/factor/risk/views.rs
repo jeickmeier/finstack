@@ -3,7 +3,7 @@
 use super::{PositionRiskDecomposition, RiskBudgetResult};
 
 /// Serializable Expected Shortfall contribution row.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PositionEsContributionView {
     /// Position identifier.
     pub position_id: String,
@@ -16,7 +16,7 @@ pub struct PositionEsContributionView {
 }
 
 /// Serializable Expected Shortfall decomposition view.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ParametricEsDecompositionView {
     /// Total portfolio VaR.
     pub portfolio_var: f64,

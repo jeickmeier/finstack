@@ -358,6 +358,10 @@ impl BootstrapTarget for InflationCurveTarget {
     type Quote = CalibrationQuote;
     type Curve = InflationCurve;
 
+    fn residual_key(&self, quote: &Self::Quote, _idx: usize) -> String {
+        quote.quote_id().to_string()
+    }
+
     fn quote_time(&self, quote: &Self::Quote) -> Result<f64> {
         Ok(quote.pillar_time())
     }

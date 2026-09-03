@@ -14,5 +14,7 @@ mod tests_stepup;
 pub(crate) use super::cashflow_spec::CashflowSpec;
 pub use crate::cashflow::builder::AmortizationSpec;
 
-pub use definitions::{Bond, BondSettlementConvention, CallPut, CallPutSchedule, MakeWholeSpec};
+pub use definitions::{
+    Bond, BondBuilder, BondSettlementConvention, CallPut, CallPutSchedule, MakeWholeSpec,
+};
 pub use return_floor::{IssuePrice, ProtectionWindow, ReturnFloorKind, ReturnFloorSpec};

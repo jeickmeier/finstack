@@ -249,32 +249,53 @@ pub enum BusinessDayConvention {
     Nearest,
 }
 
-impl core::fmt::Display for BusinessDayConvention {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let s = match self {
-            BusinessDayConvention::Unadjusted => "Unadjusted",
-            BusinessDayConvention::Following => "Following",
-            BusinessDayConvention::ModifiedFollowing => "ModifiedFollowing",
-            BusinessDayConvention::Preceding => "Preceding",
-            BusinessDayConvention::ModifiedPreceding => "ModifiedPreceding",
-            BusinessDayConvention::Nearest => "Nearest",
-        };
-        f.write_str(s)
+impl BusinessDayConvention {
+    /// Stable snake_case wire name, identical to the serde representation.
+    #[inline]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            BusinessDayConvention::Unadjusted => "unadjusted",
+            BusinessDayConvention::Following => "following",
+            BusinessDayConvention::ModifiedFollowing => "modified_following",
+            BusinessDayConvention::Preceding => "preceding",
+            BusinessDayConvention::ModifiedPreceding => "modified_preceding",
+            BusinessDayConvention::Nearest => "nearest",
+        }
     }
 }
 
+/// `Display` emits the snake_case serde name so `to_string()` round-trips
+/// through `FromStr` and matches the JSON wire form.
+impl core::fmt::Display for BusinessDayConvention {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Parses the snake_case serde name or a market short code, ASCII
+/// case-insensitively: `MF`/`MODFOLLOWING` → `ModifiedFollowing`, `F` →
+/// `Following`, `P` → `Preceding`, `MP`/`MODPRECEDING` → `ModifiedPreceding`,
+/// `NONE` → `Unadjusted`.
 impl core::str::FromStr for BusinessDayConvention {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "unadjusted" => Ok(BusinessDayConvention::Unadjusted),
-            "following" => Ok(BusinessDayConvention::Following),
-            "modified_following" => Ok(BusinessDayConvention::ModifiedFollowing),
-            "preceding" => Ok(BusinessDayConvention::Preceding),
-            "modified_preceding" => Ok(BusinessDayConvention::ModifiedPreceding),
+        match s.trim().to_ascii_lowercase().as_str() {
+            "unadjusted" | "none" => Ok(BusinessDayConvention::Unadjusted),
+            "following" | "f" => Ok(BusinessDayConvention::Following),
+            "modified_following" | "mf" | "modfollowing" => {
+                Ok(BusinessDayConvention::ModifiedFollowing)
+            }
+            "preceding" | "p" => Ok(BusinessDayConvention::Preceding),
+            "modified_preceding" | "mp" | "modpreceding" => {
+                Ok(BusinessDayConvention::ModifiedPreceding)
+            }
             "nearest" => Ok(BusinessDayConvention::Nearest),
-            _ => Err(format!("Unknown business day convention: {}", s)),
+            _ => Err(format!(
+                "Unknown business day convention: '{s}'; expected one of unadjusted, \
+                 following, modified_following, preceding, modified_preceding, nearest \
+                 (or short codes NONE, F, MF, P, MP)"
+            )),
         }
     }
 }

@@ -1,9 +1,13 @@
 //! Python bindings for horizon total return analysis.
 
 use crate::bindings::attribution::PyPnlAttribution;
-use crate::bindings::extract::extract_market;
-use crate::errors::{core_to_py, display_to_py};
+use crate::bindings::extract::{extract_instrument_json, extract_market};
+use crate::bindings::pandas_utils::serde_to_py;
+use crate::errors::{core_to_py, display_to_py, scenarios_to_py};
 use pyo3::prelude::*;
+
+use super::engine::PyApplicationReport;
+use super::extract::{extract_config, extract_scenario_spec, recalibration_provider};
 
 /// Compute horizon total return under a scenario.
 ///
@@ -13,75 +17,82 @@ use pyo3::prelude::*;
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str
-///     Canonical v1 instrument envelope.
+/// instrument : Instrument | str
+///     Typed instrument (``Bond``, ``CreditDefaultSwap``, ``InterestRateSwap``,
+///     ...) or a canonical v1 instrument envelope JSON string.
 /// market : MarketContext | str
-///     A ``MarketContext`` object or JSON string.
-/// as_of : datetime.date | str
-///     Valuation date, either a date-like object (``datetime.date``,
-///     ``pandas.Timestamp``) or an ISO 8601 string (e.g. ``"2025-01-15"``).
-/// scenario_json : str
-///     JSON-serialized ``ScenarioSpec``.
-/// method : str, optional
-///     Attribution method: ``"parallel"`` (default), ``"waterfall"``,
-///     ``"metrics_based"``, or ``"taylor"``.
-/// calendar_id : str, optional
+///     A ``MarketContext`` object or JSON string. Never mutated; the scenario
+///     is applied to an internal copy.
+/// as_of : datetime.date | datetime.datetime | pandas.Timestamp | str
+///     Valuation date (ISO 8601 accepted, e.g. ``"2025-01-15"``).
+/// scenario : ScenarioSpec | str
+///     Typed scenario or JSON-serialized ``ScenarioSpec``.
+/// method : str, default "parallel"
+///     Attribution method: ``"parallel"``, ``"waterfall"``,
+///     ``"metrics_based"``, or ``"taylor"``. ``"metrics_based"`` re-prices
+///     the instrument with the default attribution metric set (DV01, CS01,
+///     vega, ...) under the same configuration and recalibration provider
+///     the scenario engine uses; instruments lacking a metric raise
+///     ``RuntimeError`` rather than silently dropping the factor.
+/// config : FinstackConfig | str | None, default None
+///     Library configuration (rounding, tolerances, bump sizes) threaded
+///     into both the scenario engine and the attribution pricing.
+/// calendar_id : str | None, default None
 ///     Holiday calendar used to business-day adjust ``time_roll_forward``
 ///     targets under ``TimeRollMode.business_days`` (e.g. ``"nyse"``,
-///     ``"target"``). Defaults to a weekends-only calendar, so business-day
-///     rolls always avoid weekends but not market holidays. Raises
-///     ``ValueError`` if the identifier is not a built-in calendar.
+///     ``"target"``). ``None`` uses a weekends-only calendar.
 ///
 /// Returns
 /// -------
 /// HorizonResult
-///     Decomposed total return with factor attribution.
+///     Decomposed total return with factor attribution and the scenario
+///     ``ApplicationReport``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If an input fails to parse or validate, ``method`` is unknown,
+///     ``calendar_id`` is not a built-in calendar, or the scenario contains
+///     an instrument-scoped operation (horizon analysis prices one instrument
+///     instance at both dates).
+/// KeyError
+///     If the scenario references market data or tenors that do not exist.
+/// RuntimeError
+///     If pricing or attribution fails.
 ///
 /// Notes
 /// -----
-/// ``total_return_pct`` returns ``nan`` when the initial value and total P&L
-/// are denominated in different currencies (no implicit FX conversion is
-/// applied); ``annualized_return`` returns ``None`` in that case. The
-/// ``initial_value`` / ``terminal_value`` getters return bare amounts — use
-/// ``to_json()`` for the currency-qualified values.
-///
-/// The scenario is applied to an internal copy of the market context; the
-/// caller's ``market`` object is never mutated. The GIL is released while the
-/// scenario and attribution computations run.
+/// ``total_return`` is a decimal fraction (``0.05`` = +5%) and is ``nan``
+/// when the initial value and total P&L are denominated in different
+/// currencies (no implicit FX conversion); ``annualized_return`` is ``None``
+/// in that case. The GIL is released while the scenario and attribution
+/// computations run.
 #[pyfunction]
-#[allow(clippy::too_many_arguments)] // Mirrors the Python keyword-argument surface.
-#[pyo3(signature = (instrument_json, market, as_of, scenario_json, method = "parallel", config = None, calendar_id = None))]
+#[pyo3(signature = (instrument, market, as_of, scenario, method = "parallel", config = None, calendar_id = None))]
 pub(crate) fn compute_horizon_return<'py>(
     py: Python<'py>,
-    instrument_json: &str,
+    instrument: &Bound<'py, PyAny>,
     market: &Bound<'py, PyAny>,
     as_of: &Bound<'py, PyAny>,
-    scenario_json: &str,
+    scenario: &Bound<'py, PyAny>,
     method: &str,
-    config: Option<&str>,
+    config: Option<&Bound<'py, PyAny>>,
     calendar_id: Option<&str>,
 ) -> PyResult<PyHorizonResult> {
     use finstack_quant_valuations::instruments::InstrumentEnvelope;
     use std::sync::Arc;
 
-    let boxed = InstrumentEnvelope::from_str(instrument_json).map_err(core_to_py)?;
+    let instrument_json = extract_instrument_json(instrument)?;
+    let boxed = InstrumentEnvelope::from_str(&instrument_json).map_err(core_to_py)?;
     let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> = Arc::from(boxed);
 
     // Owned copy so the compute can run without the GIL.
     let market_ctx = extract_market(py, market)?;
-
     let date = crate::bindings::date_utils::extract_date(as_of)?;
-
-    let scenario: finstack_quant_scenarios::ScenarioSpec =
-        serde_json::from_str(scenario_json).map_err(display_to_py)?;
-
+    let scenario = extract_scenario_spec(scenario)?;
     let attribution_method = finstack_quant_scenarios::horizon::attribution_method_from_str(method)
-        .map_err(|e| crate::errors::value_error(e.to_string()))?;
-
-    let finstack_config = match config {
-        Some(json) => serde_json::from_str(json).map_err(display_to_py)?,
-        None => finstack_quant_core::config::FinstackConfig::default(),
-    };
+        .map_err(scenarios_to_py)?;
+    let finstack_config = extract_config(config)?;
 
     // Run analysis with the GIL released: horizon attribution revalues the
     // instrument multiple times (potentially rayon-parallel) and can run for
@@ -89,13 +100,14 @@ pub(crate) fn compute_horizon_return<'py>(
     let mut analyzer = finstack_quant_scenarios::horizon::HorizonAnalysis::new(
         attribution_method,
         finstack_config,
-    );
+    )
+    .with_recalibration_provider(recalibration_provider());
     if let Some(id) = calendar_id {
         analyzer = analyzer.with_calendar_id(id);
     }
     let result = py
         .detach(|| analyzer.compute(&instrument, &market_ctx, date, &scenario))
-        .map_err(display_to_py)?;
+        .map_err(scenarios_to_py)?;
 
     Ok(PyHorizonResult { inner: result })
 }
@@ -103,8 +115,9 @@ pub(crate) fn compute_horizon_return<'py>(
 /// Horizon total return result.
 ///
 /// Wraps a full P&L attribution with scenario context and convenience
-/// accessors for total return percentage, annualized return, and
-/// per-factor contributions.
+/// accessors for total return (decimal fraction), annualized return, and
+/// per-factor contributions. ``scenario_report`` is the ``ApplicationReport``
+/// from applying the scenario.
 #[pyclass(
     name = "HorizonResult",
     module = "finstack_quant.scenarios",
@@ -116,6 +129,20 @@ pub(crate) struct PyHorizonResult {
     inner: finstack_quant_scenarios::horizon::HorizonResult,
 }
 
+const HORIZON_COLUMNS: [&str; 11] = [
+    "initial_value",
+    "terminal_value",
+    "currency",
+    "total_pnl",
+    "total_return",
+    "annualized_return",
+    "horizon_days",
+    "user_operations",
+    "expanded_operations",
+    "operations_applied",
+    "warning_count",
+];
+
 #[pymethods]
 impl PyHorizonResult {
     /// Full P&L attribution breakdown.
@@ -126,16 +153,22 @@ impl PyHorizonResult {
         }
     }
 
-    /// Initial instrument value.
+    /// Initial instrument value (bare amount in ``currency``).
     #[getter]
     fn initial_value(&self) -> f64 {
         self.inner.initial_value.amount()
     }
 
-    /// Final instrument value after scenario.
+    /// Final instrument value after the scenario (bare amount in ``currency``).
     #[getter]
     fn terminal_value(&self) -> f64 {
         self.inner.terminal_value.amount()
+    }
+
+    /// ISO-4217 code of the initial and terminal values.
+    #[getter]
+    fn currency(&self) -> String {
+        self.inner.initial_value.currency().to_string()
     }
 
     /// Horizon in calendar days (``None`` if no time-roll).
@@ -146,52 +179,36 @@ impl PyHorizonResult {
 
     /// Total return as a decimal fraction (``0.05`` = +5%).
     ///
-    /// Note the library is not uniform here: ``PnlAttribution.residual_pct``
-    /// and ``CheckReport.materiality_relative_pct`` are already ×100.
+    /// ``nan`` when the initial value and total P&L are in different
+    /// currencies or the initial value is negative; ``0.0`` when the initial
+    /// value is zero.
     #[getter]
-    fn total_return_pct(&self) -> f64 {
-        self.inner.total_return_pct()
+    fn total_return(&self) -> f64 {
+        self.inner.total_return()
     }
 
-    /// Annualized return (``None`` if no time-roll).
+    /// Annualized return as a decimal fraction (``None`` if no time-roll or
+    /// ``total_return`` is not finite).
     #[getter]
     fn annualized_return(&self) -> Option<f64> {
         self.inner.annualized_return()
     }
 
-    /// Number of scenario effects successfully applied.
+    /// Report from applying the scenario (counters, change manifest,
+    /// structured warnings, time-roll report).
     #[getter]
-    fn operations_applied(&self) -> usize {
-        self.inner.scenario_report.operations_applied
+    fn scenario_report(&self) -> PyApplicationReport {
+        PyApplicationReport::from_inner(self.inner.scenario_report.clone())
     }
 
-    /// Number of user-provided scenario operations before hierarchy expansion.
+    /// Structured warnings from scenario application (``list[dict]`` with a
+    /// ``kind`` discriminator); shorthand for ``scenario_report.warnings``.
     #[getter]
-    fn user_operations(&self) -> usize {
-        self.inner.scenario_report.user_operations
+    fn warnings<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.scenario_report.warnings)
     }
 
-    /// Number of direct operations after hierarchy expansion and deduplication.
-    #[getter]
-    fn expanded_operations(&self) -> usize {
-        self.inner.scenario_report.expanded_operations
-    }
-
-    /// Warnings from scenario application, rendered in human-readable form.
-    #[getter]
-    fn warnings(&self) -> Vec<String> {
-        self.inner
-            .scenario_report
-            .warnings
-            .iter()
-            .map(ToString::to_string)
-            .collect()
-    }
-
-    /// Warnings from scenario application as a JSON-encoded array, mirroring
-    /// the structured `Warning` enum. Parse with `json.loads(...)` to obtain
-    /// `list[dict]` where each entry has a `kind` discriminator plus
-    /// variant-specific fields.
+    /// The structured warnings as one JSON-encoded array.
     #[getter]
     fn warnings_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner.scenario_report.warnings).map_err(display_to_py)
@@ -200,11 +217,10 @@ impl PyHorizonResult {
     /// Factor contribution as decimal fraction of initial value.
     ///
     /// ``factor`` must be one of the canonical serde names from
-    /// ``AttributionFactor::as_str()``: ``"carry"``, ``"rates_curves"``,
+    /// ``AttributionFactor``: ``"carry"``, ``"rates_curves"``,
     /// ``"credit_curves"``, ``"inflation_curves"``, ``"correlations"``,
     /// ``"fx"``, ``"volatility"``, ``"market_scalars"``, or
-    /// ``"model_parameters"``. Historical Python-only aliases (``"rates"``,
-    /// ``"credit"``, ``"vol"``, ...) are no longer accepted.
+    /// ``"model_parameters"``.
     fn factor_contribution(&self, factor: &str) -> PyResult<f64> {
         use finstack_quant_attribution::AttributionFactor;
         let f: AttributionFactor = serde_json::from_value(serde_json::Value::String(
@@ -226,17 +242,14 @@ impl PyHorizonResult {
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
-    ///
-    /// Reconstruction goes through the same strict serde round-trip as
-    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
-    /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Deserialize from JSON produced by :meth:`to_json`.
+    /// Deserialize from JSON produced by ``to_json``.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: finstack_quant_scenarios::horizon::HorizonResult =
             serde_json::from_str(json).map_err(display_to_py)?;
@@ -246,15 +259,10 @@ impl PyHorizonResult {
     /// Export the horizon summary as a single-row pandas ``DataFrame``.
     ///
     /// Columns: ``initial_value``, ``terminal_value``, ``currency``,
-    /// ``total_pnl``, ``total_return_pct``, ``annualized_return``,
+    /// ``total_pnl``, ``total_return``, ``annualized_return``,
     /// ``horizon_days``, ``user_operations``, ``expanded_operations``,
-    /// ``operations_applied``, ``warning_count``.
-    ///
-    /// ``initial_value`` and ``terminal_value`` are bare amounts in
-    /// ``currency``. When the initial value and total P&L are denominated in
-    /// different currencies, ``total_return_pct`` is ``nan`` and
-    /// ``annualized_return`` is ``None`` — the same no-implicit-FX rule the
-    /// getters follow.
+    /// ``operations_applied``, ``warning_count``. ``total_return`` and
+    /// ``annualized_return`` are decimal fractions.
     ///
     /// For the factor-level breakdown use
     /// ``result.attribution.to_dataframe()``.
@@ -264,7 +272,7 @@ impl PyHorizonResult {
             "terminal_value": self.inner.terminal_value.amount(),
             "currency": self.inner.initial_value.currency().to_string(),
             "total_pnl": self.inner.attribution.total_pnl.amount(),
-            "total_return_pct": self.inner.total_return_pct(),
+            "total_return": self.inner.total_return(),
             "annualized_return": self.inner.annualized_return(),
             "horizon_days": self.inner.horizon_days,
             "user_operations": self.inner.scenario_report.user_operations,
@@ -275,71 +283,30 @@ impl PyHorizonResult {
         crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema(
             py,
             &row,
-            &[
-                "initial_value",
-                "terminal_value",
-                "currency",
-                "total_pnl",
-                "total_return_pct",
-                "annualized_return",
-                "horizon_days",
-                "user_operations",
-                "expanded_operations",
-                "operations_applied",
-                "warning_count",
-            ],
+            &HORIZON_COLUMNS,
         )
     }
 
-    /// Human-readable summary.
+    /// Human-readable multi-line summary (total and annualized return,
+    /// horizon, values, and the carry / rates / credit / residual legs).
     fn explain(&self) -> String {
-        let mut s = String::new();
-        s.push_str(&format!(
-            "Horizon Total Return: {:.4}%\n",
-            self.inner.total_return_pct() * 100.0
-        ));
-        if let Some(ann) = self.inner.annualized_return() {
-            s.push_str(&format!("Annualized: {:.4}%\n", ann * 100.0));
-        }
-        if let Some(days) = self.inner.horizon_days {
-            s.push_str(&format!("Horizon: {} days\n", days));
-        }
-        s.push_str(&format!("Initial Value: {}\n", self.inner.initial_value));
-        s.push_str(&format!("Terminal Value: {}\n", self.inner.terminal_value));
-        s.push_str(&format!(
-            "Total P&L: {}\n",
-            self.inner.attribution.total_pnl
-        ));
-        s.push_str(&format!("  Carry: {}\n", self.inner.attribution.carry));
-        s.push_str(&format!(
-            "  Rates: {}\n",
-            self.inner.attribution.rates_curves_pnl
-        ));
-        s.push_str(&format!(
-            "  Credit: {}\n",
-            self.inner.attribution.credit_curves_pnl
-        ));
-        s.push_str(&format!(
-            "  Residual: {}\n",
-            self.inner.attribution.residual
-        ));
-        s
+        self.inner.to_string()
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "HorizonResult(total_return={:.4}%, horizon_days={:?})",
-            self.inner.total_return_pct() * 100.0,
-            self.inner.horizon_days,
+            "HorizonResult(total_return={:.6}, horizon_days={})",
+            self.inner.total_return(),
+            self.inner
+                .horizon_days
+                .map_or_else(|| "None".to_string(), |d| d.to_string()),
         )
     }
 
     /// Render as an HTML table in Jupyter notebooks.
     ///
-    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
-    /// truncation applies and a large result stays a small repr. Returns
-    /// `None` if the frame cannot be built, which makes IPython fall back to
-    /// `__repr__` instead of raising from the display hook.
+    /// Delegates to the frame from ``to_dataframe``. Returns ``None`` if the
+    /// frame cannot be built, which makes IPython fall back to ``__repr__``.
     fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()

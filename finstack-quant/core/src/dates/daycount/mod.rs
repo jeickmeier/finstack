@@ -851,6 +851,80 @@ impl DayCount {
     pub fn calendar_days(start: Date, end: Date) -> i64 {
         (end - start).whole_days()
     }
+
+    /// Canonical snake_case names accepted by [`FromStr`](std::str::FromStr),
+    /// in declaration order.
+    pub const NAMES: &'static [&'static str] = &[
+        "act_360",
+        "act_365f",
+        "act_365l",
+        "nl_365",
+        "30_360",
+        "30e_360",
+        "30e_360_isda",
+        "30_360_it",
+        "act_act",
+        "act_act_isma",
+        "act_act_afb",
+        "bus_252",
+    ];
+
+    /// Leniently parse a day-count name as written on term sheets.
+    ///
+    /// Unlike the strict [`FromStr`](std::str::FromStr) implementation, this
+    /// is ASCII case-insensitive, treats `/`, `-` and spaces as `_`, collapses
+    /// repeated separators, and accepts the common market spellings
+    /// `ACT/ACT ICMA` (→ `act_act_isma`), `ACT/ACT ISDA` (→ `act_act`),
+    /// `ACT/365` (→ `act_365f`), `30/360` (→ `30_360`) and `30E/360`.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - Day-count label such as `"ACT/360"`, `"Act/Act ICMA"`,
+    ///   `"30E/360 ISDA"` or any canonical snake_case name from [`Self::NAMES`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Validation` naming the input and listing the accepted
+    /// canonical names when no spelling matches.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_core::dates::DayCount;
+    ///
+    /// assert_eq!(DayCount::parse("ACT/360")?, DayCount::Act360);
+    /// assert_eq!(DayCount::parse("Act/Act ICMA")?, DayCount::ActActIsma);
+    /// assert_eq!(DayCount::parse("30E/360 ISDA")?, DayCount::ThirtyE360Isda);
+    /// # Ok::<(), finstack_quant_core::Error>(())
+    /// ```
+    pub fn parse(s: &str) -> crate::Result<Self> {
+        let mut normalized = String::with_capacity(s.len());
+        let mut last_sep = true;
+        for ch in s.trim().chars() {
+            if ch == '/' || ch == '-' || ch == '_' || ch.is_whitespace() {
+                if !last_sep {
+                    normalized.push('_');
+                }
+                last_sep = true;
+            } else {
+                normalized.push(ch.to_ascii_lowercase());
+                last_sep = false;
+            }
+        }
+        let normalized = normalized.trim_end_matches('_');
+        let canonical = match normalized {
+            "act_act_icma" | "act_act_isma" => "act_act_isma",
+            "act_act_isda" | "act_act" | "actual_actual" => "act_act",
+            "act_365" | "act_365_fixed" | "act_365f" | "actual_365" => "act_365f",
+            "act_360" | "actual_360" => "act_360",
+            "30_360_us" | "30_360_bond" | "30u_360" | "30_360" => "30_360",
+            "30e_360_isda" | "30_360_isda" => "30e_360_isda",
+            "30e_360" | "30_360_eurobond" => "30e_360",
+            "30_360_it" | "30_360_italian" => "30_360_it",
+            other => other,
+        };
+        canonical.parse::<Self>().map_err(crate::Error::Validation)
+    }
 }
 
 impl std::fmt::Display for DayCount {
@@ -890,7 +964,51 @@ impl std::str::FromStr for DayCount {
             "act_act_isma" => Ok(Self::ActActIsma),
             "act_act_afb" => Ok(Self::ActActAfb),
             "bus_252" => Ok(Self::Bus252),
-            other => Err(format!("unknown day-count convention: {other}")),
+            other => Err(format!(
+                "unknown day-count convention: '{other}'; expected one of {}",
+                Self::NAMES.join(", ")
+            )),
+        }
+    }
+}
+
+#[cfg(test)]
+mod parse_tests {
+    use super::DayCount;
+
+    #[test]
+    fn lenient_parse_accepts_term_sheet_spellings() {
+        let cases = [
+            ("ACT/360", DayCount::Act360),
+            ("act_360", DayCount::Act360),
+            ("Act/365", DayCount::Act365F),
+            ("ACT/365F", DayCount::Act365F),
+            ("ACT/ACT ICMA", DayCount::ActActIsma),
+            ("act/act isma", DayCount::ActActIsma),
+            ("ACT/ACT ISDA", DayCount::ActAct),
+            ("Act/Act", DayCount::ActAct),
+            ("ACT/ACT AFB", DayCount::ActActAfb),
+            ("30/360", DayCount::Thirty360),
+            ("30E/360", DayCount::ThirtyE360),
+            ("30E/360 ISDA", DayCount::ThirtyE360Isda),
+            ("30/360 IT", DayCount::Thirty360It),
+            ("NL/365", DayCount::Nl365),
+            ("BUS/252", DayCount::Bus252),
+            (" bus-252 ", DayCount::Bus252),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(DayCount::parse(input).expect(input), expected, "{input}");
+        }
+    }
+
+    #[test]
+    fn strict_from_str_rejects_lenient_spellings_and_lists_names() {
+        let err = "ACT/360".parse::<DayCount>().expect_err("strict");
+        assert!(err.contains("'ACT/360'") && err.contains("act_360") && err.contains("bus_252"));
+        let err = DayCount::parse("nope").expect_err("unknown");
+        assert!(err.to_string().contains("act_act_isma"));
+        for name in DayCount::NAMES {
+            assert_eq!(&name.parse::<DayCount>().expect(name).to_string(), name);
         }
     }
 }

@@ -2,13 +2,11 @@ use crate::bindings::module_utils::py_to_serde;
 use crate::bindings::pandas_utils::dict_to_dataframe;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use serde::Deserialize;
 
 use finstack_quant_models::factor::risk::{
     self as model_risk, PositionBudgetEntry, RiskBudgetResult,
 };
 use finstack_quant_portfolio::factor_model::{self as fm, FactorContributionDelta, WhatIfResult};
-use finstack_quant_portfolio::types::PositionId;
 
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
 use crate::errors::portfolio_to_py;
@@ -16,40 +14,13 @@ use crate::errors::portfolio_to_py;
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::contributions::PyRiskDecomposition;
 
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum PositionChangeSpec {
-    Remove {
-        position_id: String,
-    },
-    Resize {
-        position_id: String,
-        new_quantity: f64,
-    },
-}
-
+/// Deserialize what-if position changes straight into the canonical Rust
+/// `PositionChange` wire shape (`{"kind": "remove" | "resize" | "add", ...}`).
 fn parse_position_changes(
     py: Python<'_>,
     changes: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<fm::PositionChange>> {
-    let specs: Vec<PositionChangeSpec> = py_to_serde(py, changes, "position changes")?;
-    Ok(py.detach(move || {
-        specs
-            .into_iter()
-            .map(|spec| match spec {
-                PositionChangeSpec::Remove { position_id } => fm::PositionChange::Remove {
-                    position_id: PositionId::new(position_id),
-                },
-                PositionChangeSpec::Resize {
-                    position_id,
-                    new_quantity,
-                } => fm::PositionChange::Resize {
-                    position_id: PositionId::new(position_id),
-                    new_quantity,
-                },
-            })
-            .collect::<Vec<_>>()
-    }))
+    py_to_serde(py, changes, "position changes")
 }
 
 /// Per-position budget comparison entry.
@@ -281,7 +252,11 @@ impl PyRiskBudgetResult {
             "RiskBudgetResult(positions={}, total_overbudget={}, has_breach={})",
             self.inner.positions.len(),
             self.inner.total_overbudget,
-            self.inner.has_breach,
+            if self.inner.has_breach {
+                "True"
+            } else {
+                "False"
+            },
         )
     }
 
@@ -483,15 +458,36 @@ impl PyWhatIfResult {
     }
 }
 
+// The literal default below must stay equal to the Rust canonical constant so
+// the generated text signature shows the real number.
+const _: () = assert!(model_risk::DEFAULT_UTILIZATION_THRESHOLD == 1.2);
+
 /// Evaluate a per-position risk budget against actual component VaRs,
-/// returning a typed :class:`RiskBudgetResult`.
+/// returning a typed ``RiskBudgetResult``.
 ///
-/// Validation (array-length agreement, duplicate position-id rejection) and
-/// the default ``utilization_threshold`` live in the Rust
-/// ``evaluate_risk_budget_arrays`` / ``DEFAULT_UTILIZATION_THRESHOLD``
-/// canonical path shared with the WASM binding.
+/// Args:
+///     position_ids: Position identifiers aligned with ``actual_var`` and
+///         ``target_var_pct``; duplicates are rejected.
+///     actual_var: Realized component VaR per position (portfolio currency,
+///         loss convention).
+///     target_var_pct: Target share of portfolio VaR per position, as
+///         fractions that sum to one.
+///     portfolio_var: Portfolio VaR whose magnitude scales each target share
+///         into a target component VaR.
+///     utilization_threshold: Ratio ``actual / target`` above which a position
+///         is flagged as breaching; defaults to ``DEFAULT_UTILIZATION_THRESHOLD``
+///         (``1.2``).
+///
+/// Returns:
+///     ``RiskBudgetResult`` with per-position utilization, excess and breach
+///     flags.
+///
+/// Raises:
+///     ValueError: If array lengths differ, a position id is duplicated,
+///         non-empty target shares do not sum to one, or a non-zero component
+///         is paired with a zero ``portfolio_var``.
 #[pyfunction]
-#[pyo3(signature = (position_ids, actual_var, target_var_pct, portfolio_var, utilization_threshold = model_risk::DEFAULT_UTILIZATION_THRESHOLD))]
+#[pyo3(signature = (position_ids, actual_var, target_var_pct, portfolio_var, utilization_threshold = 1.2))]
 pub(super) fn evaluate_risk_budget(
     py: Python<'_>,
     position_ids: Vec<String>,

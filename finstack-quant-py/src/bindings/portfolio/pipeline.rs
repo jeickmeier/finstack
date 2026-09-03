@@ -6,7 +6,11 @@
 //! downstream calls (``aggregate_metrics``, ``portfolio_result_*``) avoid
 //! a JSON round-trip.
 
-use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
+use crate::bindings::core::currency::extract_currency;
+use crate::bindings::extract::{
+    extract_cashflows_ref, extract_market_ref, extract_portfolio_ref, extract_scenario_spec,
+    extract_scenario_specs,
+};
 use crate::bindings::portfolio::scenario_pnl::PyScenarioPnl;
 use crate::bindings::portfolio::types::{PyPortfolioCashflows, PyPortfolioValuation};
 use crate::bindings::scenarios::engine::PyApplicationReport;
@@ -74,10 +78,12 @@ fn run_portfolio_valuation(
 ///     valuation. Set ``False`` only for an intentional PV-preserving
 ///     fallback that records failed metrics as diagnostics.
 /// metrics : list[str] | None
-///     Exact risk metrics to compute. ``None`` requests the standard set;
-///     an empty list performs PV-only valuation. Names are validated
-///     strictly against the standard ``MetricId`` set; an unknown name
-///     raises ``ValueError`` listing the available metrics.
+///     Exact risk metrics to compute. ``None`` requests the standard set
+///     (PV plus ``dv01``, which every rate-sensitive pricer supports);
+///     an empty list performs PV-only valuation. Pricer-specific metrics
+///     such as ``theta``, ``cs01`` or the Greeks must be listed explicitly.
+///     Names are validated strictly against the standard ``MetricId`` set;
+///     an unknown name raises ``ValueError`` listing the available metrics.
 ///
 /// Returns
 /// -------
@@ -155,11 +161,12 @@ fn aggregate_full_cashflows(
 ///
 /// Parameters
 /// ----------
-/// cashflows_json : str
-///     Full cashflow-ladder JSON or a ``{date: {ccy: {kind: money}}}`` object
+/// cashflows : PortfolioCashflows | str
+///     A :class:`PortfolioCashflows` ladder (fast path, no parse), full
+///     cashflow-ladder JSON, or a ``{date: {ccy: {kind: money}}}`` object
 ///     (optionally wrapped as ``{"by_date": ...}``). Kind keys are opaque
 ///     strings; amounts may be JSON numbers or decimal strings.
-/// currency : str
+/// currency : Currency | str
 ///     ISO-4217 code selecting which per-date currency bucket to net.
 ///
 /// Returns
@@ -170,8 +177,10 @@ fn aggregate_full_cashflows(
 ///
 /// Raises
 /// ------
+/// TypeError
+///     If ``cashflows`` is neither a ``PortfolioCashflows`` nor a string.
 /// ValueError
-///     If ``cashflows_json`` is not JSON, ``currency`` is unknown, or
+///     If ``cashflows`` is not JSON, ``currency`` is unknown, or
 ///     ``by_date`` is not an object.
 ///
 /// Examples
@@ -183,21 +192,30 @@ fn aggregate_full_cashflows(
 /// ... )
 /// [('2025-01-15', -100.0)]
 #[pyfunction]
-#[pyo3(text_signature = "(cashflows_json, currency)")]
+#[pyo3(text_signature = "(cashflows, currency)")]
 fn net_in_currency_by_date(
     py: Python<'_>,
-    cashflows_json: &str,
-    currency: &str,
+    cashflows: &Bound<'_, PyAny>,
+    currency: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<(String, f64)>> {
-    let cashflows_json = cashflows_json.to_owned();
-    let currency = currency.to_owned();
-    py.detach(move || {
-        finstack_quant_portfolio::cashflows::net_in_currency_by_date_json(
-            &cashflows_json,
-            &currency,
-        )
-    })
-    .map_err(portfolio_to_py)
+    let ccy = extract_currency(currency)?;
+    if let Ok(cashflows_json) = cashflows.extract::<String>() {
+        let code = ccy.to_string();
+        return py
+            .detach(move || {
+                finstack_quant_portfolio::cashflows::net_in_currency_by_date_json(
+                    &cashflows_json,
+                    &code,
+                )
+            })
+            .map_err(portfolio_to_py);
+    }
+    let ladder = extract_cashflows_ref(py, cashflows)?;
+    Ok(ladder
+        .net_in_currency_by_date(ccy)
+        .into_iter()
+        .map(|(date, amount)| (date.to_string(), amount))
+        .collect())
 }
 
 /// Apply a scenario to a portfolio and revalue it.
@@ -205,9 +223,12 @@ fn net_in_currency_by_date(
 /// Parameters
 /// ----------
 /// portfolio : Portfolio | str
-/// scenario_json : str
-///     JSON-serialized ``ScenarioSpec``.
+///     Built portfolio or canonical ``PortfolioSpec`` JSON.
+/// scenario : ScenarioSpec | str
+///     Typed :class:`~finstack_quant.scenarios.ScenarioSpec` or its canonical
+///     JSON string.
 /// market : MarketContext | str
+///     Base market to shock before revaluation.
 ///
 /// Returns
 /// -------
@@ -215,17 +236,15 @@ fn net_in_currency_by_date(
 ///     The revalued portfolio and the scenario application report. Call
 ///     ``.to_json()`` on either for its wire form.
 #[pyfunction]
+#[pyo3(text_signature = "(portfolio, scenario, market)")]
 fn apply_scenario_and_revalue(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
-    scenario_json: &str,
+    scenario: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
 ) -> PyResult<(PyPortfolioValuation, PyApplicationReport)> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
-    let scenario_json = scenario_json.to_owned();
-    let scenario: finstack_quant_scenarios::ScenarioSpec = py
-        .detach(move || serde_json::from_str(&scenario_json))
-        .map_err(display_to_py)?;
+    let scenario = extract_scenario_spec(py, scenario)?;
     let market = extract_market_ref(py, market)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
     let portfolio_ref: &finstack_quant_portfolio::Portfolio = &portfolio;
@@ -251,29 +270,30 @@ fn apply_scenario_and_revalue(
 /// Parameters
 /// ----------
 /// portfolio : Portfolio | str
-/// scenario_json : str
-///     JSON-serialized ``ScenarioSpec``.
+///     Built portfolio or canonical ``PortfolioSpec`` JSON.
+/// scenario : ScenarioSpec | str
+///     Typed :class:`~finstack_quant.scenarios.ScenarioSpec` or its canonical
+///     JSON string.
 /// market : MarketContext | str
+///     Unshocked base market.
 ///
 /// Returns
 /// -------
 /// tuple[ScenarioPnl, ApplicationReport]
-///     The P&L ladder (``total`` plus ``by_position``, all base-currency) and
-///     the scenario application report. ``ScenarioPnl`` offers
-///     ``to_dataframe()`` and ``to_series()``; call ``.to_json()`` on either
-///     for its wire form.
+///     The P&L ladder (``total`` plus ``by_position``, all base-currency
+///     floats; ``ScenarioPnl.currency`` names the currency) and the scenario
+///     application report. ``ScenarioPnl`` offers ``to_dataframe()`` and
+///     ``to_series()``; call ``.to_json()`` on either for its wire form.
 #[pyfunction]
+#[pyo3(text_signature = "(portfolio, scenario, market)")]
 fn scenario_pnl(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
-    scenario_json: &str,
+    scenario: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
 ) -> PyResult<(PyScenarioPnl, PyApplicationReport)> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
-    let scenario_json = scenario_json.to_owned();
-    let scenario: finstack_quant_scenarios::ScenarioSpec = py
-        .detach(move || serde_json::from_str(&scenario_json))
-        .map_err(display_to_py)?;
+    let scenario = extract_scenario_spec(py, scenario)?;
     let market = extract_market_ref(py, market)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
     let portfolio_ref: &finstack_quant_portfolio::Portfolio = &portfolio;
@@ -298,14 +318,11 @@ fn scenario_pnl(
 fn run_scenario_pnl_batch(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
-    scenarios_json: &str,
+    scenarios: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<finstack_quant_portfolio::scenarios::ScenarioPnlBatchItem>> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
-    let scenarios_json = scenarios_json.to_owned();
-    let scenarios: Vec<finstack_quant_scenarios::ScenarioSpec> = py
-        .detach(move || serde_json::from_str(&scenarios_json))
-        .map_err(display_to_py)?;
+    let scenarios = extract_scenario_specs(py, scenarios)?;
     let market = extract_market_ref(py, market)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
 
@@ -334,10 +351,11 @@ fn run_scenario_pnl_batch(
 ///     A built :class:`Portfolio` or canonical JSON-serialized
 ///     ``PortfolioSpec``. The Rust batch engine values its unstressed base leg
 ///     once for the complete request.
-/// scenarios_json : str
-///     Canonical JSON array of ``ScenarioSpec`` objects, in the output order
-///     required by the caller. An empty array returns ``[]`` without a
-///     valuation.
+/// scenarios : list[ScenarioSpec | str] | str
+///     Ordered scenarios: a Python sequence whose items are typed
+///     ``ScenarioSpec`` objects or canonical JSON strings, or one canonical
+///     JSON array string. Output order matches input order. An empty batch
+///     returns ``[]`` without a valuation.
 /// market : MarketContext | str
 ///     The unshocked market snapshot, supplied as a typed object or canonical
 ///     JSON string.
@@ -353,20 +371,19 @@ fn run_scenario_pnl_batch(
 /// Raises
 /// ------
 /// ValueError
-///     If ``scenarios_json`` is not a JSON array of valid ``ScenarioSpec``
-///     values.
+///     If ``scenarios`` contains JSON that is not a valid ``ScenarioSpec``.
 /// PortfolioError
 ///     If scenario application, valuation, or base-currency P&L differencing
 ///     fails. The error identifies the earliest failing input scenario.
 #[pyfunction]
-#[pyo3(text_signature = "(portfolio, scenarios_json, market)")]
+#[pyo3(text_signature = "(portfolio, scenarios, market)")]
 fn scenario_pnl_batch(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
-    scenarios_json: &str,
+    scenarios: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<crate::bindings::portfolio::scenario_pnl::PyScenarioPnlBatchItem>> {
-    let results = run_scenario_pnl_batch(py, portfolio, scenarios_json, market)?;
+    let results = run_scenario_pnl_batch(py, portfolio, scenarios, market)?;
     Ok(results
         .into_iter()
         .map(|inner| crate::bindings::portfolio::scenario_pnl::PyScenarioPnlBatchItem { inner })
@@ -385,14 +402,14 @@ fn scenario_pnl_batch(
 ///     ``report`` use the same stable JSON shapes returned separately by
 ///     :func:`scenario_pnl`. An empty scenario array returns ``"[]"``.
 #[pyfunction]
-#[pyo3(text_signature = "(portfolio, scenarios_json, market)")]
+#[pyo3(text_signature = "(portfolio, scenarios, market)")]
 fn scenario_pnl_batch_json(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
-    scenarios_json: &str,
+    scenarios: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
-    let results = run_scenario_pnl_batch(py, portfolio, scenarios_json, market)?;
+    let results = run_scenario_pnl_batch(py, portfolio, scenarios, market)?;
     py.detach(move || serde_json::to_string(&results))
         .map_err(display_to_py)
 }

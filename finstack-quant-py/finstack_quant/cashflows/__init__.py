@@ -32,7 +32,12 @@ for _name, _mod in _submodules.items():
     if _key not in _sys.modules:
         _sys.modules[_key] = _mod
 
+ScheduleBuildOpts = _cashflows.ScheduleBuildOpts
+build_cashflow_schedule = _cashflows.build_cashflow_schedule
 build_cashflow_schedule_json = _cashflows.build_cashflow_schedule_json
+dated_flows = _cashflows.dated_flows
+schedule_from_classified_flows = _cashflows.schedule_from_classified_flows
+schedule_from_dated_flows = _cashflows.schedule_from_dated_flows
 validate_cashflow_schedule_json = _cashflows.validate_cashflow_schedule_json
 dated_flows_json = _cashflows.dated_flows_json
 accrued_interest = _cashflows.accrued_interest
@@ -44,27 +49,36 @@ mdr_to_cdr = _cashflows.mdr_to_cdr
 
 for _fn in (
     "accrued_interest",
+    "build_cashflow_schedule",
     "build_cashflow_schedule_json",
     "cdr_to_mdr",
     "cpr_to_smm",
+    "dated_flows",
     "dated_flows_json",
     "mdr_to_cdr",
+    "schedule_from_classified_flows",
+    "schedule_from_dated_flows",
     "smm_to_cpr",
     "validate_cashflow_schedule_json",
 ):
     globals()[_fn].__module__ = __name__
 
 __all__: list[str] = [
+    "ScheduleBuildOpts",
     "accrual",
     "accrued_interest",
     "aggregation",
+    "build_cashflow_schedule",
     "build_cashflow_schedule_json",
     "builder",
     "cdr_to_mdr",
     "cpr_to_smm",
+    "dated_flows",
     "dated_flows_json",
     "mdr_to_cdr",
     "primitives",
+    "schedule_from_classified_flows",
+    "schedule_from_dated_flows",
     "schema",
     "smm_to_cpr",
     "validate_cashflow_schedule_json",

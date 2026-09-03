@@ -168,7 +168,7 @@ class TestCapFloorTyped:
         assert payload["instrument"]["spec"]["calendar_id"] == "nyse"
 
     def test_missing_required_field_raises(self) -> None:
-        with pytest.raises(ValueError, match="Invalid input data"):
+        with pytest.raises(ValueError, match="missing required field"):
             CapFloor.builder().id("CAP-BAD").build()
 
     def test_nan_strike_raises(self) -> None:

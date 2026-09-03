@@ -6,7 +6,7 @@ Covers ``CheckReport.to_dataframe()`` / ``to_findings_dataframe()`` and
 ``CheckReport`` objects are built through the public ``from_json`` constructor
 against hand-written payloads so the tests stay self-contained and do not need a
 full check-suite run (the suite runner is Rust-side only). Monte Carlo results
-are produced end-to-end through ``ModelBuilder`` and ``run_monte_carlo``.
+are produced end-to-end through ``ModelBuilder`` and ``Evaluator.evaluate_monte_carlo``.
 """
 
 from __future__ import annotations
@@ -18,11 +18,11 @@ import pytest
 
 from finstack_quant.statements import (
     CheckReport,
+    Evaluator,
     ForecastSpec,
     ModelBuilder,
     MonteCarloConfig,
     MonteCarloResults,
-    run_monte_carlo,
 )
 
 CHECK_RESULT_COLUMNS = [
@@ -136,7 +136,7 @@ def _monte_carlo_results(*, include_path_data: bool, n_paths: int = 16) -> Monte
     builder.forecast("revenue", ForecastSpec.normal(0.0, 5.0, 42))
     model = builder.build()
     config = MonteCarloConfig(n_paths, 7, [0.05, 0.5, 0.95], include_path_data)
-    return run_monte_carlo(model, config)
+    return Evaluator().evaluate_monte_carlo(model, config)
 
 
 # CheckReport
@@ -222,7 +222,7 @@ def test_monte_carlo_to_dataframe_is_percentile_by_period() -> None:
     df = results.to_dataframe("revenue")
 
     assert isinstance(df, pd.DataFrame)
-    assert list(df.columns) == ["p0.05", "p0.5", "p0.95"]
+    assert list(df.columns) == ["p5", "p50", "p95"]
     assert df.index.name == "period"
     assert list(df.index) == results.forecast_periods
     assert len(df) == len(results.forecast_periods) == 3
@@ -232,8 +232,8 @@ def test_monte_carlo_to_dataframe_percentiles_are_ordered() -> None:
     """Each period's percentiles are non-decreasing across the fan."""
     df = _monte_carlo_results(include_path_data=False).to_dataframe("revenue")
 
-    assert (df["p0.05"] <= df["p0.5"]).all()
-    assert (df["p0.5"] <= df["p0.95"]).all()
+    assert (df["p5"] <= df["p50"]).all()
+    assert (df["p50"] <= df["p95"]).all()
 
 
 def test_monte_carlo_to_dataframe_matches_get_percentile_series() -> None:
@@ -244,7 +244,7 @@ def test_monte_carlo_to_dataframe_matches_get_percentile_series() -> None:
 
     assert series is not None
     for period, value in series.items():
-        assert df.loc[period, "p0.5"] == pytest.approx(value)
+        assert df.loc[period, "p50"] == pytest.approx(value)
 
 
 def test_monte_carlo_to_dataframe_keeps_missing_percentile_as_nan() -> None:
@@ -258,7 +258,7 @@ def test_monte_carlo_to_dataframe_keeps_missing_percentile_as_nan() -> None:
     df = MonteCarloResults.from_json(json.dumps(payload)).to_dataframe("revenue")
 
     assert list(df.index) == results.forecast_periods
-    assert pd.isna(df.loc[first_period, "p0.5"])
+    assert pd.isna(df.loc[first_period, "p50"])
 
 
 def test_monte_carlo_to_dataframe_raises_for_unknown_metric() -> None:

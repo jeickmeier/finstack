@@ -66,6 +66,16 @@ pub(crate) trait BootstrapTarget {
         Ok(Vec::new())
     }
 
+    /// Stable residual / diagnostics label for a quote in the report.
+    ///
+    /// Production targets return the quote's `QuoteId` so report residuals
+    /// and per-quote diagnostics are keyed by the identifier the caller
+    /// supplied in the envelope. Defaults to `quote_{idx:06}` (position in
+    /// time-sorted order) for targets whose quotes carry no identifier.
+    fn residual_key(&self, _quote: &Self::Quote, idx: usize) -> String {
+        format!("quote_{idx:06}")
+    }
+
     /// Whether the target can stop its scan at the nearest sign-changing bracket.
     ///
     /// This optimization is valid only when the residual is monotone in the

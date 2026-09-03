@@ -2,16 +2,30 @@
 
 use crate::bindings::core::market_data::context::PyMarketContext;
 use crate::bindings::extract::{extract_market, extract_model_ref};
-use crate::bindings::pandas_utils::{serde_object_to_single_row_dataframe, serde_to_py};
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    serde_to_py,
+};
 use crate::bindings::statements::types::PyFinancialModelSpec;
-use crate::errors::display_to_py;
+use crate::errors::{display_to_py, scenarios_to_py, value_error};
+use finstack_quant_scenarios::engine::{ApplicationEnvelope, ApplicationReport};
+use finstack_quant_scenarios::ScenarioSpec;
+use finstack_quant_valuations::instruments::Instrument;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
+use super::extract::{extract_config, extract_instruments, extract_scenario_spec, scenario_engine};
+
 /// Report describing what a scenario application changed.
 ///
-/// Returned by :func:`apply_scenario` and :func:`apply_scenario_to_market` as
-/// the ``report`` attribute of an :class:`ApplicationResult`.
+/// Returned as the ``report`` attribute of an ``ApplicationResult`` from
+/// ``apply_scenario`` / ``apply_scenario_to_market`` and as
+/// ``HorizonResult.scenario_report``.
+///
+/// ``warnings`` is a list of structured dicts, each carrying a ``kind``
+/// discriminator (``"equity_not_found"``, ``"discount_curve_heuristic"``, ...)
+/// plus variant-specific fields; ``warnings_json`` is the same list as one
+/// JSON string.
 #[pyclass(
     name = "ApplicationReport",
     module = "finstack_quant.scenarios",
@@ -20,8 +34,23 @@ use pyo3::types::PyAny;
 )]
 #[derive(Clone)]
 pub struct PyApplicationReport {
-    pub(crate) inner: finstack_quant_scenarios::engine::ApplicationReport,
+    pub(crate) inner: ApplicationReport,
 }
+
+impl PyApplicationReport {
+    pub(crate) fn from_inner(inner: ApplicationReport) -> Self {
+        Self { inner }
+    }
+}
+
+const REPORT_COLUMNS: [&str; 6] = [
+    "operations_applied",
+    "user_operations",
+    "expanded_operations",
+    "warning_count",
+    "as_of_changed",
+    "all_dirty",
+];
 
 #[pymethods]
 impl PyApplicationReport {
@@ -46,14 +75,23 @@ impl PyApplicationReport {
         self.inner.expanded_operations
     }
 
-    /// Non-fatal warnings raised while applying the scenario.
+    /// Non-fatal warnings raised while applying the scenario, as structured
+    /// dicts with a ``kind`` discriminator plus variant-specific fields.
     #[getter]
-    fn warnings(&self) -> Vec<String> {
-        self.inner
-            .warnings
-            .iter()
-            .map(ToString::to_string)
-            .collect()
+    fn warnings<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.warnings)
+    }
+
+    /// The structured warnings as one JSON-encoded array.
+    #[getter]
+    fn warnings_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner.warnings).map_err(display_to_py)
+    }
+
+    /// Number of warnings raised while applying the scenario.
+    #[getter]
+    fn warning_count(&self) -> usize {
+        self.inner.warnings.len()
     }
 
     /// Audit stamp: numeric mode, rounding context, and FX policy in force.
@@ -83,9 +121,103 @@ impl PyApplicationReport {
             .transpose()
     }
 
-    /// Export the report counters as a single-row :class:`pandas.DataFrame`.
+    /// Export the report counters as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``operations_applied``, ``user_operations``,
+    /// ``expanded_operations``, ``warning_count``, ``as_of_changed``,
+    /// ``all_dirty``. Use ``changes_to_dataframe()`` for the per-target
+    /// change manifest and ``carry_to_dataframe()`` for time-roll carry.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        serde_object_to_single_row_dataframe(py, &self.inner)
+        let row = serde_json::json!({
+            "operations_applied": self.inner.operations_applied,
+            "user_operations": self.inner.user_operations,
+            "expanded_operations": self.inner.expanded_operations,
+            "warning_count": self.inner.warnings.len(),
+            "as_of_changed": self.inner.changes.as_of_changed,
+            "all_dirty": self.inner.changes.all_dirty,
+        });
+        serde_object_to_single_row_dataframe_with_schema(py, &row, &REPORT_COLUMNS)
+    }
+
+    /// Export the market targets the scenario actually changed, one row per
+    /// target.
+    ///
+    /// Columns: ``kind`` (``curve``, ``volatility_index``,
+    /// ``base_correlation``, ``vol_surface``, ``equity_price``, ``fx``),
+    /// ``id`` (curve / surface / price identifier, or ``BASE/QUOTE`` for FX)
+    /// and ``curve_kind`` (curve family for ``curve`` rows, else ``None``).
+    /// Empty when nothing changed.
+    fn changes_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        use finstack_quant_scenarios::engine::ScenarioMarketTarget as T;
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .changes
+            .market_targets
+            .iter()
+            .map(|target| {
+                let (kind, id, curve_kind) = match target {
+                    T::Curve {
+                        curve_kind,
+                        curve_id,
+                    } => (
+                        "curve",
+                        curve_id.as_str().to_string(),
+                        serde_json::to_value(curve_kind)
+                            .ok()
+                            .and_then(|v| v.as_str().map(str::to_string)),
+                    ),
+                    T::VolatilityIndex { curve_id } => {
+                        ("volatility_index", curve_id.as_str().to_string(), None)
+                    }
+                    T::BaseCorrelation { surface_id } => {
+                        ("base_correlation", surface_id.as_str().to_string(), None)
+                    }
+                    T::VolSurface { vol_surface_id } => {
+                        ("vol_surface", vol_surface_id.as_str().to_string(), None)
+                    }
+                    T::EquityPrice { price_id } => {
+                        ("equity_price", price_id.as_str().to_string(), None)
+                    }
+                    T::Fx { base, quote } => ("fx", format!("{base}/{quote}"), None),
+                };
+                serde_json::json!({ "kind": kind, "id": id, "curve_kind": curve_kind })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(
+            py,
+            &rows,
+            &[("kind", "str"), ("id", "str"), ("curve_kind", "str")],
+        )
+    }
+
+    /// Export per-instrument carry from the time roll, one row per
+    /// instrument and currency.
+    ///
+    /// Columns: ``instrument_id``, ``amount`` (carry P&L as a float),
+    /// ``currency``. Empty when the scenario had no ``time_roll_forward`` or
+    /// no instruments were supplied.
+    fn carry_to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let mut rows = Vec::new();
+        if let Some(roll) = &self.inner.time_roll {
+            for (instrument_id, by_currency) in &roll.instrument_carry {
+                for (currency, money) in by_currency {
+                    rows.push(serde_json::json!({
+                        "instrument_id": instrument_id,
+                        "amount": money.amount(),
+                        "currency": currency.to_string(),
+                    }));
+                }
+            }
+        }
+        serde_rows_to_dataframe_with_schema(
+            py,
+            &rows,
+            &[
+                ("instrument_id", "str"),
+                ("amount", "float64"),
+                ("currency", "str"),
+            ],
+        )
     }
 
     /// Serialize to a compact JSON string.
@@ -97,8 +229,7 @@ impl PyApplicationReport {
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: finstack_quant_scenarios::engine::ApplicationReport =
-            serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: ApplicationReport = serde_json::from_str(json).map_err(display_to_py)?;
         Ok(Self { inner })
     }
 
@@ -108,18 +239,23 @@ impl PyApplicationReport {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Identify this value in notebooks and logs.
-    ///
-    /// Rendered from the wire representation, so the fields shown are the
-    /// fields `to_json()` names. Collections are summarised by length; use
-    /// `to_json()` or a DataFrame exit when the contents matter.
     fn __repr__(&self) -> String {
-        crate::bindings::repr_support::repr_from_serde("ApplicationReport", &self.inner)
+        format!(
+            "ApplicationReport(operations_applied={}, user_operations={}, expanded_operations={}, warnings={})",
+            self.inner.operations_applied,
+            self.inner.user_operations,
+            self.inner.expanded_operations,
+            self.inner.warnings.len(),
+        )
     }
 }
 
 /// Result of applying a scenario: the mutated market, the mutated model (when
 /// one was supplied), and the application report.
+///
+/// Instruments passed to ``apply_scenario*`` are mutated in place by the Rust
+/// engine but are not returned; ``report.changes`` and
+/// ``report.carry_to_dataframe()`` describe what happened to them.
 #[pyclass(
     name = "ApplicationResult",
     module = "finstack_quant.scenarios",
@@ -129,7 +265,7 @@ impl PyApplicationReport {
 pub struct PyApplicationResult {
     market: finstack_quant_core::market_data::context::MarketContext,
     model: Option<finstack_quant_statements::FinancialModelSpec>,
-    report: finstack_quant_scenarios::engine::ApplicationReport,
+    report: ApplicationReport,
 }
 
 #[pymethods]
@@ -151,26 +287,21 @@ impl PyApplicationResult {
     /// What the scenario changed.
     #[getter]
     fn report(&self) -> PyApplicationReport {
-        PyApplicationReport {
-            inner: self.report.clone(),
-        }
+        PyApplicationReport::from_inner(self.report.clone())
     }
 
-    /// Export the application report as a single-row pandas ``DataFrame``.
+    /// Export the application report counters as a single-row pandas
+    /// ``DataFrame`` (same columns as ``ApplicationReport.to_dataframe``).
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        PyApplicationReport {
-            inner: self.report.clone(),
-        }
-        .to_dataframe(py)
+        PyApplicationReport::from_inner(self.report.clone()).to_dataframe(py)
     }
 
     /// Serialize to a compact JSON string.
     ///
-    /// Emits the canonical
-    /// :rust:struct:`finstack_quant_scenarios::engine::ApplicationEnvelope`
-    /// shape, with ``market`` and ``model`` as nested objects.
+    /// Emits the canonical ``ApplicationEnvelope`` shape, with ``market`` and
+    /// ``model`` as nested objects.
     fn to_json(&self) -> PyResult<String> {
-        let envelope = finstack_quant_scenarios::engine::ApplicationEnvelope::from_contexts(
+        let envelope = ApplicationEnvelope::from_contexts(
             self.report.clone(),
             &self.market,
             self.model.as_ref(),
@@ -179,35 +310,22 @@ impl PyApplicationResult {
         serde_json::to_string(&envelope).map_err(display_to_py)
     }
 
-    /// Deserialize from a JSON string produced by :meth:`to_json`.
-    ///
-    /// Accepts the canonical
-    /// :rust:struct:`finstack_quant_scenarios::engine::ApplicationEnvelope`
-    /// shape and rebuilds the market, model, and report.
+    /// Deserialize from a JSON string produced by ``to_json``.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let envelope: finstack_quant_scenarios::engine::ApplicationEnvelope =
-            serde_json::from_str(json).map_err(display_to_py)?;
+        let envelope: ApplicationEnvelope = serde_json::from_str(json).map_err(display_to_py)?;
+        let (market, model, report) = envelope.into_parts();
         let market: finstack_quant_core::market_data::context::MarketContext =
-            serde_json::from_value(envelope.market).map_err(display_to_py)?;
-        let model: Option<finstack_quant_statements::FinancialModelSpec> = envelope
-            .model
+            serde_json::from_value(market).map_err(display_to_py)?;
+        let model: Option<finstack_quant_statements::FinancialModelSpec> = model
             .map(serde_json::from_value)
             .transpose()
             .map_err(display_to_py)?;
         Ok(Self {
             market,
             model,
-            report: finstack_quant_scenarios::engine::ApplicationReport {
-                operations_applied: envelope.operations_applied,
-                user_operations: envelope.user_operations,
-                expanded_operations: envelope.expanded_operations,
-                changes: envelope.changes,
-                warnings: envelope.warnings,
-                meta: envelope.meta,
-                time_roll: envelope.time_roll,
-            },
+            report,
         })
     }
 
@@ -217,87 +335,128 @@ impl PyApplicationResult {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Identify this value in notebooks and logs.
-    ///
-    /// Rendered from the wire representation, so the fields shown are the
-    /// fields `to_json()` names. Collections are summarised by length; use
-    /// `to_json()` or a DataFrame exit when the contents matter.
     fn __repr__(&self) -> String {
-        crate::bindings::repr_support::repr_from_serde("ApplicationResult", &self.market)
+        format!(
+            "ApplicationResult(operations_applied={}, user_operations={}, expanded_operations={}, warnings={}, model={})",
+            self.report.operations_applied,
+            self.report.user_operations,
+            self.report.expanded_operations,
+            self.report.warnings.len(),
+            if self.model.is_some() { "True" } else { "False" },
+        )
     }
 }
 
-fn apply_with_context(
-    spec: &finstack_quant_scenarios::ScenarioSpec,
-    market: &mut finstack_quant_core::market_data::context::MarketContext,
-    model: Option<&mut finstack_quant_statements::FinancialModelSpec>,
+/// Everything the engine needs beyond the market itself.
+struct ApplyInputs<'a> {
+    spec: &'a ScenarioSpec,
+    model: Option<&'a mut finstack_quant_statements::FinancialModelSpec>,
+    instruments: Option<&'a mut Vec<Box<dyn Instrument>>>,
     as_of: time::Date,
-) -> finstack_quant_scenarios::Result<finstack_quant_scenarios::engine::ApplicationReport> {
-    let engine = finstack_quant_scenarios::ScenarioEngine::new().with_recalibration_provider(
-        std::sync::Arc::new(
-            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-        ),
-    );
+    config: finstack_quant_core::config::FinstackConfig,
+}
+
+fn apply_with_context(
+    market: &mut finstack_quant_core::market_data::context::MarketContext,
+    inputs: ApplyInputs<'_>,
+) -> finstack_quant_scenarios::Result<ApplicationReport> {
+    let engine = scenario_engine(Some(inputs.config));
     let mut ctx = finstack_quant_scenarios::ExecutionContext {
         market,
-        model,
-        instruments: None,
+        model: inputs.model,
+        instruments: inputs.instruments,
         rate_bindings: None,
         calendar: None,
-        as_of,
+        as_of: inputs.as_of,
     };
-    engine.apply(spec, &mut ctx)
+    engine.apply(inputs.spec, &mut ctx)
+}
+
+fn require_instruments(
+    spec: &ScenarioSpec,
+    instruments: &Option<Vec<Box<dyn Instrument>>>,
+) -> PyResult<()> {
+    if spec.mutates_instruments() && instruments.is_none() {
+        return Err(value_error(
+            "scenario contains instrument-scoped operations (instrument_price_pct_by_*, \
+             instrument_spread_bp_by_*, asset_correlation_pts, prepay_default_correlation_pts) \
+             but no `instruments` were supplied; pass instruments=[...] or remove those operations",
+        ));
+    }
+    Ok(())
 }
 
 /// Apply a scenario to a market context and financial model.
 ///
 /// Parameters
 /// ----------
-/// scenario_json : str
-///     JSON-serialized ``ScenarioSpec``.
+/// scenario : ScenarioSpec | str
+///     Typed scenario or JSON-serialized ``ScenarioSpec``.
 /// market : MarketContext | str
-///     A ``MarketContext`` object or a JSON string.
+///     A ``MarketContext`` object or a JSON string. Never mutated; the result
+///     carries a modified copy.
 /// model : FinancialModelSpec | str
 ///     A ``FinancialModelSpec`` object or a JSON string.
-/// as_of : datetime.date | str
-///     Valuation date, either a date-like object or an ISO 8601 string.
+/// as_of : datetime.date | datetime.datetime | pandas.Timestamp | str
+///     Valuation date (ISO 8601 accepted).
+/// instruments : list[Instrument | str] | None, default None
+///     Typed instruments (``Bond``, ``CreditDefaultSwap``, ...) or canonical
+///     instrument-envelope JSON strings. Required when the scenario contains
+///     instrument-scoped operations; also used for carry when the scenario
+///     contains ``time_roll_forward``. Mutations are not returned.
+/// config : FinstackConfig | str | None, default None
+///     Library configuration (rounding policy stamped into ``report.meta``).
+///     ``None`` uses the library default.
 ///
 /// Returns
 /// -------
 /// ApplicationResult
-///     Typed result exposing ``market`` (:class:`MarketContext`), ``model``
-///     (:class:`FinancialModelSpec`), and ``report``
-///     (:class:`ApplicationReport`). Call ``.to_json()`` for the canonical
-///     JSON envelope.
+///     Typed result exposing ``market``, ``model`` and ``report``.
 ///
-/// Notes
-/// -----
-/// This entry point supplies no instrument portfolio and no holiday calendar
-/// to the engine, so instrument-scoped operations
-/// (``instrument_price_pct_by_*``, ``instrument_spread_bp_by_*``,
-/// ``asset_correlation_pts``, ``prepay_default_correlation_pts``) are inert
-/// and produce a warning, and ``time_roll_forward`` in ``business_days`` mode
-/// adjusts without holiday information.
+/// Raises
+/// ------
+/// ValueError
+///     If any input fails to parse or validate, or the scenario mutates
+///     instruments and ``instruments`` is ``None``.
+/// KeyError
+///     If the scenario references market data, statement nodes, tenors or
+///     instruments that do not exist.
+/// RuntimeError
+///     If the engine fails internally.
 #[pyfunction]
+#[pyo3(signature = (scenario, market, model, as_of, instruments=None, config=None))]
 fn apply_scenario(
     py: Python<'_>,
-    scenario_json: &str,
+    scenario: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     model: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
+    instruments: Option<Vec<Bound<'_, PyAny>>>,
+    config: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyApplicationResult> {
-    let spec: finstack_quant_scenarios::ScenarioSpec =
-        serde_json::from_str(scenario_json).map_err(display_to_py)?;
+    let spec = extract_scenario_spec(scenario)?;
     let mut market = extract_market(py, market)?;
     let mut model = extract_model_ref(model)?.into_owned();
     let date = crate::bindings::date_utils::extract_date(as_of)?;
+    let mut instruments = extract_instruments(instruments)?;
+    require_instruments(&spec, &instruments)?;
+    let config = extract_config(config)?;
 
     // Release the GIL for scenario application: shifts + re-pricing can run for seconds.
     let (report, market, model) = py.detach(|| {
-        let report = apply_with_context(&spec, &mut market, Some(&mut model), date);
+        let report = apply_with_context(
+            &mut market,
+            ApplyInputs {
+                spec: &spec,
+                model: Some(&mut model),
+                instruments: instruments.as_mut(),
+                as_of: date,
+                config,
+            },
+        );
         (report, market, model)
     });
-    let report = report.map_err(display_to_py)?;
+    let report = report.map_err(scenarios_to_py)?;
 
     Ok(PyApplicationResult {
         market,
@@ -310,40 +469,74 @@ fn apply_scenario(
 ///
 /// Parameters
 /// ----------
-/// scenario_json : str
-///     JSON-serialized ``ScenarioSpec``.
+/// scenario : ScenarioSpec | str
+///     Typed scenario or JSON-serialized ``ScenarioSpec``.
 /// market : MarketContext | str
-///     A ``MarketContext`` object or a JSON string.
-/// as_of : datetime.date | str
-///     Valuation date, either a date-like object or an ISO 8601 string.
+///     A ``MarketContext`` object or a JSON string. Never mutated.
+/// as_of : datetime.date | datetime.datetime | pandas.Timestamp | str
+///     Valuation date (ISO 8601 accepted).
+/// instruments : list[Instrument | str] | None, default None
+///     Typed instruments or canonical envelope JSON strings; required for
+///     instrument-scoped operations, used for carry under
+///     ``time_roll_forward``. Mutations are not returned.
+/// config : FinstackConfig | str | None, default None
+///     Library configuration; ``None`` uses the default.
 ///
 /// Returns
 /// -------
 /// ApplicationResult
 ///     Typed result whose ``model`` attribute is ``None``.
 ///
-/// Notes
-/// -----
-/// As with ``apply_scenario``, no instrument portfolio or holiday calendar is
-/// supplied: instrument-scoped operations are inert (with a warning) and
-/// business-day time rolls adjust without holiday information.
+/// Raises
+/// ------
+/// ValueError
+///     If any input fails to parse or validate, or the scenario mutates
+///     instruments and ``instruments`` is ``None``.
+/// KeyError
+///     If the scenario references market data, tenors or instruments that do
+///     not exist.
+/// RuntimeError
+///     If the engine fails internally.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.scenarios import CurveKind, OperationSpec, ScenarioSpec, apply_scenario_to_market
+/// >>> from finstack_quant.core.market_data import MarketContext
+/// >>> spec = ScenarioSpec("up25", [OperationSpec.curve_parallel_bp("discount", "USD-OIS", 25.0)])
+/// >>> result = apply_scenario_to_market(spec, MarketContext(), "2025-01-15")
+/// >>> result.report.user_operations
+/// 1
 #[pyfunction]
+#[pyo3(signature = (scenario, market, as_of, instruments=None, config=None))]
 fn apply_scenario_to_market(
     py: Python<'_>,
-    scenario_json: &str,
+    scenario: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
+    instruments: Option<Vec<Bound<'_, PyAny>>>,
+    config: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyApplicationResult> {
-    let spec: finstack_quant_scenarios::ScenarioSpec =
-        serde_json::from_str(scenario_json).map_err(display_to_py)?;
+    let spec = extract_scenario_spec(scenario)?;
     let mut market = extract_market(py, market)?;
     let date = crate::bindings::date_utils::extract_date(as_of)?;
+    let mut instruments = extract_instruments(instruments)?;
+    require_instruments(&spec, &instruments)?;
+    let config = extract_config(config)?;
 
     let (report, market) = py.detach(|| {
-        let report = apply_with_context(&spec, &mut market, None, date);
+        let report = apply_with_context(
+            &mut market,
+            ApplyInputs {
+                spec: &spec,
+                model: None,
+                instruments: instruments.as_mut(),
+                as_of: date,
+                config,
+            },
+        );
         (report, market)
     });
-    let report = report.map_err(display_to_py)?;
+    let report = report.map_err(scenarios_to_py)?;
 
     Ok(PyApplicationResult {
         market,

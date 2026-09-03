@@ -6,6 +6,7 @@ import math
 import pytest
 
 from finstack_quant.models.monte_carlo import (
+    Estimate,
     EuropeanPricer,
     GbmPathSummary,
     finite_diff_delta,
@@ -16,7 +17,7 @@ from finstack_quant.models.monte_carlo import (
     simulate_gbm_paths,
 )
 
-GreekFunction = Callable[..., tuple[float, float]]
+GreekFunction = Callable[..., Estimate]
 
 
 class TestEuropeanPricer:
@@ -190,5 +191,5 @@ def test_finite_difference_greeks_map_invalid_stencils_to_value_error(
             num_paths=8,
             num_steps=1,
             bump_size=bump_size,
-            option_type="call",
+            is_call=True,
         )

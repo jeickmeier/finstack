@@ -284,7 +284,7 @@ def build_convertible() -> ConvertibleBond:
         .issue_date(datetime.date(2024, 1, 15))
         .maturity(datetime.date(2029, 1, 15))
         .discount_curve_id("USD-OIS")
-        .conversion_json(conversion)
+        .conversion(conversion)
         .underlying_equity_id("ACME")
         .build()
     )

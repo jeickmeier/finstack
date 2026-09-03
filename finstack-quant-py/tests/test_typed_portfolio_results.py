@@ -136,7 +136,7 @@ def _market(as_of: str = AS_OF, bump: float = 0.0) -> MarketContext:
 
 
 def _scenario_batch_json() -> str:
-    from finstack_quant.scenarios import parse_scenario_spec
+    from finstack_quant.scenarios import ScenarioSpec
 
     scenarios = []
     for scenario_id, bp in (("up_10bp", 10.0), ("down_15bp", -15.0)):
@@ -149,7 +149,7 @@ def _scenario_batch_json() -> str:
                 "bp": bp,
             }
         ]
-        spec = parse_scenario_spec(json.dumps({"id": scenario_id, "operations": operations}))
+        spec = ScenarioSpec.from_json(json.dumps({"id": scenario_id, "operations": operations}))
         scenarios.append(json.loads(spec.to_json()))
     return json.dumps(scenarios)
 

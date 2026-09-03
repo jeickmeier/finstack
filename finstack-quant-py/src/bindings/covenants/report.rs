@@ -13,14 +13,17 @@ use pyo3::prelude::*;
 /// human-readable explanation, and the audit stamp (numeric mode, rounding
 /// context, FX policy) in force when the covenant was evaluated.
 ///
-/// Construct via :func:`evaluate_engine` or :meth:`from_json`.
+/// Construct via ``CovenantEngine.evaluate``, ``evaluate_engine`` or
+/// ``from_json``. Two reports compare equal when every field, including the
+/// audit stamp, is equal.
 #[pyclass(
     name = "CovenantReport",
     module = "finstack_quant.covenants",
     frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct PyCovenantReport {
     pub(crate) inner: finstack_quant_covenants::CovenantReport,
 }
@@ -142,13 +145,20 @@ impl PyCovenantReport {
     }
 
     fn __repr__(&self) -> String {
+        fn opt(value: Option<f64>) -> String {
+            value.map_or("None".to_string(), |v| v.to_string())
+        }
         format!(
-            "CovenantReport(covenant_type={:?}, passed={}, actual_value={:?}, threshold={:?}, headroom={:?})",
+            "CovenantReport(covenant_id={}, covenant_type={:?}, passed={}, actual_value={}, threshold={}, headroom={})",
+            self.inner
+                .covenant_id
+                .as_deref()
+                .map_or("None".to_string(), |id| format!("{id:?}")),
             self.inner.covenant_type,
-            self.inner.passed,
-            self.inner.actual_value,
-            self.inner.threshold,
-            self.inner.headroom,
+            if self.inner.passed { "True" } else { "False" },
+            opt(self.inner.actual_value),
+            opt(self.inner.threshold),
+            opt(self.inner.headroom),
         )
     }
 

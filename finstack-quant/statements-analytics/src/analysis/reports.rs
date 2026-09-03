@@ -24,8 +24,10 @@
 //! ```
 
 use finstack_quant_core::dates::PeriodId;
+use finstack_quant_core::table::{TableColumn, TableColumnData, TableColumnRole, TableEnvelope};
 use finstack_quant_statements::evaluator::StatementResult;
-use serde::Serialize;
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 use std::fmt::{self, Write as FmtWrite};
 
 // Table Formatting
@@ -262,6 +264,45 @@ impl<'a> PLSummaryReport<'a> {
     }
 }
 
+impl PLSummaryReport<'_> {
+    /// Export the report as a long table: one row per (line item, period).
+    ///
+    /// Columns: `line_item` (Utf8), `period` (Utf8), and `value`
+    /// (nullable Float64). Missing line items are `null` rather than `0.0`,
+    /// mirroring the `-` cells in the text rendering. Values are in the node's
+    /// own units (monetary nodes are unwrapped to their decimal amount).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the table envelope cannot be assembled (column
+    /// length mismatch), which cannot happen for the columns built here.
+    pub fn to_table(&self) -> finstack_quant_core::Result<TableEnvelope> {
+        let capacity = self.line_items.len() * self.periods.len();
+        let mut line_items = Vec::with_capacity(capacity);
+        let mut periods = Vec::with_capacity(capacity);
+        let mut values = Vec::with_capacity(capacity);
+        for line_item in &self.line_items {
+            for period in &self.periods {
+                line_items.push(line_item.clone());
+                periods.push(period.to_string());
+                values.push(self.results.get(line_item, period));
+            }
+        }
+        let columns = vec![
+            TableColumn::new("line_item", TableColumnData::String(line_items))
+                .with_role(TableColumnRole::Dimension),
+            TableColumn::new("period", TableColumnData::String(periods))
+                .with_role(TableColumnRole::Index),
+            TableColumn::new("value", TableColumnData::NullableFloat64(values))
+                .with_role(TableColumnRole::Measure),
+        ];
+        let mut metadata = IndexMap::new();
+        metadata.insert("layout".to_string(), serde_json::json!("long"));
+        metadata.insert("source".to_string(), serde_json::json!("pl_summary_report"));
+        TableEnvelope::new_with_metadata(columns, metadata)
+    }
+}
+
 impl fmt::Display for PLSummaryReport<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut table = TableBuilder::new();
@@ -352,7 +393,7 @@ fn interest_coverage_at(results: &StatementResult, at: &PeriodId) -> Option<f64>
 
 /// One period's structured credit metrics. Each metric is `None` when it
 /// cannot be computed for that period (e.g. an incomplete TTM window).
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreditAssessmentPoint {
     /// Period identifier rendered as a string (e.g. `"2025Q4"`).
     pub period: String,
@@ -365,7 +406,7 @@ pub struct CreditAssessmentPoint {
 }
 
 /// Structured credit assessment: leverage, interest coverage, and free cash
-/// flow at an `as_of` period plus a per-period series for trend display.
+/// flow at a `period` plus a per-period series for trend display.
 ///
 /// This is the structured counterpart of [`CreditAssessmentReport`]; both share
 /// the same TTM computation so the numbers always agree.
@@ -378,17 +419,17 @@ pub struct CreditAssessmentPoint {
 /// # use finstack_quant_statements_analytics::analysis::CreditAssessment;
 /// # let results = StatementResult::new();
 /// let assessment = CreditAssessment::compute(&results, PeriodId::quarter(2025, 4));
-/// assert_eq!(assessment.as_of, "2025Q4");
+/// assert_eq!(assessment.period, "2025Q4");
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreditAssessment {
-    /// As-of period rendered as a string (e.g. `"2025Q4"`).
-    pub as_of: String,
-    /// Leverage ratio at `as_of`.
+    /// Assessment period rendered as a string (e.g. `"2025Q4"`).
+    pub period: String,
+    /// Leverage ratio at `period`.
     pub leverage_ratio: Option<f64>,
-    /// Interest coverage at `as_of`.
+    /// Interest coverage at `period`.
     pub interest_coverage: Option<f64>,
-    /// Free cash flow at `as_of`.
+    /// Free cash flow at `period`.
     pub free_cash_flow: Option<f64>,
     /// Per-period series (ascending) for trend display.
     pub series: Vec<CreditAssessmentPoint>,
@@ -397,16 +438,16 @@ pub struct CreditAssessment {
 impl CreditAssessment {
     /// Compute a structured credit assessment from statement results.
     ///
-    /// The series spans every period (≤ `as_of`) present on any of the driver
+    /// The series spans every period (≤ `period`) present on any of the driver
     /// nodes (`ebitda`, `total_debt`, `interest_expense`, `free_cash_flow`),
     /// in ascending order.
-    pub fn compute(results: &StatementResult, as_of: PeriodId) -> Self {
+    pub fn compute(results: &StatementResult, period: PeriodId) -> Self {
         let mut periods: std::collections::BTreeSet<PeriodId> = std::collections::BTreeSet::new();
         for node in ["ebitda", "total_debt", "interest_expense", "free_cash_flow"] {
             if let Some(series) = results.get_node(node) {
-                for (period, _) in series.iter() {
-                    if *period <= as_of {
-                        periods.insert(*period);
+                for (observed, _) in series.iter() {
+                    if *observed <= period {
+                        periods.insert(*observed);
                     }
                 }
             }
@@ -423,10 +464,10 @@ impl CreditAssessment {
             .collect();
 
         Self {
-            as_of: as_of.to_string(),
-            leverage_ratio: leverage_at(results, &as_of),
-            interest_coverage: interest_coverage_at(results, &as_of),
-            free_cash_flow: results.get("free_cash_flow", &as_of),
+            period: period.to_string(),
+            leverage_ratio: leverage_at(results, &period),
+            interest_coverage: interest_coverage_at(results, &period),
+            free_cash_flow: results.get("free_cash_flow", &period),
             series,
         }
     }
@@ -458,27 +499,27 @@ impl CreditAssessment {
 /// ```
 pub struct CreditAssessmentReport<'a> {
     results: &'a StatementResult,
-    as_of: PeriodId,
+    period: PeriodId,
 }
 
 impl<'a> CreditAssessmentReport<'a> {
     /// Create a new credit assessment report.
-    pub fn new(results: &'a StatementResult, as_of: PeriodId) -> Self {
-        Self { results, as_of }
+    pub fn new(results: &'a StatementResult, period: PeriodId) -> Self {
+        Self { results, period }
     }
 
     fn calculate_leverage_ratio(&self) -> Option<f64> {
-        leverage_at(self.results, &self.as_of)
+        leverage_at(self.results, &self.period)
     }
 
     fn calculate_interest_coverage(&self) -> Option<f64> {
-        interest_coverage_at(self.results, &self.as_of)
+        interest_coverage_at(self.results, &self.period)
     }
 }
 
 impl fmt::Display for CreditAssessmentReport<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut output = format!("Credit Assessment as of {}\n\n", self.as_of);
+        let mut output = format!("Credit Assessment as of {}\n\n", self.period);
 
         if let Some(leverage) = self.calculate_leverage_ratio() {
             output.push_str(&format!("Total Debt / TTM EBITDA:    {:.2}x\n", leverage));
@@ -488,7 +529,7 @@ impl fmt::Display for CreditAssessmentReport<'_> {
             output.push_str(&format!("TTM EBITDA / TTM Interest:  {:.2}x\n", coverage));
         }
 
-        if let Some(fcf) = self.results.get("free_cash_flow", &self.as_of) {
+        if let Some(fcf) = self.results.get("free_cash_flow", &self.period) {
             output.push_str(&format!(
                 "Free Cash Flow:             ${:.2}M\n",
                 fcf / 1_000_000.0
@@ -598,10 +639,10 @@ mod tests {
             .or_default()
             .insert(PeriodId::quarter(2025, 4), 300.0);
 
-        let as_of = PeriodId::quarter(2025, 4);
-        let assessment = CreditAssessment::compute(&results, as_of);
+        let period = PeriodId::quarter(2025, 4);
+        let assessment = CreditAssessment::compute(&results, period);
 
-        assert_eq!(assessment.as_of, as_of.to_string());
+        assert_eq!(assessment.period, period.to_string());
         assert_eq!(assessment.leverage_ratio, Some(3.0));
         assert_eq!(assessment.interest_coverage, Some(10.0));
         assert_eq!(assessment.free_cash_flow, None);

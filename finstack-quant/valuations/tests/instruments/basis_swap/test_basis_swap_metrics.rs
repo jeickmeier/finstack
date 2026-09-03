@@ -125,17 +125,17 @@ fn dv01_metrics() {
     // Extract per-curve DV01s from measures using composite keys
     let dv01_discount = res
         .measures
-        .get("bucketed_dv01::USD_x2dOIS")
+        .get("bucketed_dv01::USD-OIS")
         .copied()
         .expect("discount-curve bucketed DV01 must be present");
     let dv01_primary_fwd = res
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
+        .get("bucketed_dv01::USD-SOFR-3M")
         .copied()
         .expect("primary-forward bucketed DV01 must be present");
     let dv01_reference_fwd = res
         .measures
-        .get("bucketed_dv01::USD_x2dSOFR_x2d1M")
+        .get("bucketed_dv01::USD-SOFR-1M")
         .copied()
         .expect("reference-forward bucketed DV01 must be present");
 

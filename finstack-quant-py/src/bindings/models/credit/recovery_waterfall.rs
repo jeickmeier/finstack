@@ -1,8 +1,10 @@
 //! Python bindings for `finstack_quant_models::credit::recovery_waterfall`.
 
-use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
-use crate::bindings::pandas_utils::ColumnSchema;
-use crate::errors::{core_to_py, display_to_py};
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
+};
+use crate::errors::{core_to_py, serde_json_to_py};
 use finstack_quant_models::credit::recovery_waterfall::{
     self as waterfall, RecoveryAllocation, RecoveryClaim, RecoveryWaterfallResult,
 };
@@ -24,13 +26,17 @@ const ALLOCATION_COLUMNS: &[ColumnSchema<'static>] = &[
 ];
 
 /// A claim participating in an absolute-priority recovery waterfall.
+///
+/// Monetary fields share the estate's currency; ``collateral_haircut`` is a
+/// decimal fraction in [0, 1]. Validation happens in ``allocate_recovery``.
 #[pyclass(
     name = "RecoveryClaim",
     module = "finstack_quant.models.credit.recovery_waterfall",
     frozen,
+    eq,
     from_py_object
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PyRecoveryClaim {
     pub(crate) inner: RecoveryClaim,
 }
@@ -38,8 +44,32 @@ pub struct PyRecoveryClaim {
 #[pymethods]
 impl PyRecoveryClaim {
     /// Create a recovery claim.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Stable identifier, unique after trimming whitespace.
+    /// seniority : str
+    ///     Free-form seniority class label carried through to the allocation.
+    /// priority : int
+    ///     Absolute-priority rank; lower ranks are paid first.
+    /// principal : float
+    ///     Principal outstanding (>= 0).
+    /// accrued : float, default 0.0
+    ///     Accrued but unpaid interest included in the claim.
+    /// penalties : float, default 0.0
+    ///     Penalties and fees included in the claim.
+    /// collateral_value : float | None, default None
+    ///     Gross value of collateral pledged to this claim, or ``None`` for an
+    ///     unsecured claim.
+    /// collateral_haircut : float, default 0.0
+    ///     Haircut applied to ``collateral_value`` as a decimal in [0, 1].
     #[new]
-    #[pyo3(signature = (id, seniority, priority, principal, accrued=0.0, penalties=0.0, collateral=None))]
+    #[pyo3(signature = (id, seniority, priority, principal, accrued=0.0, penalties=0.0, collateral_value=None, collateral_haircut=0.0))]
+    #[pyo3(
+        text_signature = "(id, seniority, priority, principal, accrued=0.0, penalties=0.0, collateral_value=None, collateral_haircut=0.0)"
+    )]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         id: String,
         seniority: String,
@@ -47,12 +77,9 @@ impl PyRecoveryClaim {
         principal: f64,
         accrued: f64,
         penalties: f64,
-        collateral: Option<(f64, f64)>,
+        collateral_value: Option<f64>,
+        collateral_haircut: f64,
     ) -> Self {
-        let (collateral_value, collateral_haircut) = match collateral {
-            Some((value, haircut)) => (Some(value), haircut),
-            None => (None, 0.0),
-        };
         Self {
             inner: RecoveryClaim {
                 id,
@@ -121,9 +148,31 @@ impl PyRecoveryClaim {
         self.inner.total_claim()
     }
 
+    /// Deserialize from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid RecoveryClaim JSON"))?,
+        })
+    }
+
+    /// Serialize to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "RecoveryClaim serialization failed"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Identify this value in notebooks and logs.
     fn __repr__(&self) -> String {
         format!(
-            "RecoveryClaim(id='{}', seniority='{}', priority={}, total_claim={})",
+            "RecoveryClaim(id={:?}, seniority={:?}, priority={}, total_claim={})",
             self.inner.id,
             self.inner.seniority,
             self.inner.priority,
@@ -137,9 +186,10 @@ impl PyRecoveryClaim {
     name = "RecoveryAllocation",
     module = "finstack_quant.models.credit.recovery_waterfall",
     frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PyRecoveryAllocation {
     inner: RecoveryAllocation,
 }
@@ -200,6 +250,34 @@ impl PyRecoveryAllocation {
         self.inner.deficiency
     }
 
+    /// Deserialize from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid RecoveryAllocation JSON"))?,
+        })
+    }
+
+    /// Serialize to compact canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "RecoveryAllocation serialization failed"))
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Export as a single-row pandas ``DataFrame`` with the same columns as
+    /// ``RecoveryWaterfallResult.to_dataframe``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let columns: Vec<&str> = ALLOCATION_COLUMNS.iter().map(|(name, _)| *name).collect();
+        serde_object_to_single_row_dataframe_with_schema(py, &self.inner, &columns)
+    }
+
     /// Identify this value in notebooks and logs.
     ///
     /// Rendered from the wire representation, so the fields shown are the
@@ -227,13 +305,15 @@ impl PyRecoveryWaterfallResult {
     /// Deserialize a waterfall result from canonical JSON.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        let inner = serde_json::from_str(json)
+            .map_err(|err| serde_json_to_py(err, "invalid RecoveryWaterfallResult JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize this result to compact canonical JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "RecoveryWaterfallResult serialization failed"))
     }
 
     /// Support pickle through the canonical JSON representation.
@@ -315,6 +395,19 @@ impl PyRecoveryWaterfallResult {
 }
 
 /// Allocate an estate, inclusive of collateral, across recovery claims.
+///
+/// Parameters
+/// ----------
+/// estate_value : float
+///     Total distributable estate including pledged collateral (>= 0).
+/// claims : list[RecoveryClaim]
+///     Claims to satisfy; collateral is applied first, then the remaining
+///     estate by ascending ``priority``.
+///
+/// Returns a ``RecoveryWaterfallResult``.
+///
+/// Raises ``ValueError`` for negative amounts, haircuts outside [0, 1], or
+/// duplicate claim ids after trimming.
 #[pyfunction]
 #[pyo3(text_signature = "(estate_value, claims)")]
 fn allocate_recovery(

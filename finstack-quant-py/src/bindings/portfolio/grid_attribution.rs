@@ -321,11 +321,11 @@ fn run_grid_carino_link(
 ///
 /// Parameters
 /// ----------
-/// portfolio_json : str
+/// portfolio_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``GridPosition`` objects (``cell``, ``sector``,
 ///     ``weight``, ``total_return``) for the portfolio side; weights must
 ///     sum to ``1.0`` within ``1e-6``.
-/// benchmark_json : str
+/// benchmark_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``GridPosition`` objects for the benchmark side; same
 ///     weight-sum requirement.
 ///
@@ -370,9 +370,15 @@ fn run_grid_carino_link(
 #[pyo3(text_signature = "(portfolio_json, benchmark_json)")]
 fn grid_attribution(
     py: Python<'_>,
-    portfolio_json: &str,
-    benchmark_json: &str,
+    portfolio_json: &Bound<'_, PyAny>,
+    benchmark_json: &Bound<'_, PyAny>,
 ) -> PyResult<PyGridAttributionResult> {
+    let portfolio_json =
+        crate::bindings::extract::extract_records_json(py, portfolio_json, "portfolio")?;
+    let portfolio_json: &str = &portfolio_json;
+    let benchmark_json =
+        crate::bindings::extract::extract_records_json(py, benchmark_json, "benchmark")?;
+    let benchmark_json: &str = &benchmark_json;
     Ok(PyGridAttributionResult {
         inner: run_grid_attribution(py, portfolio_json, benchmark_json)?,
     })
@@ -390,9 +396,15 @@ fn grid_attribution(
 #[pyo3(text_signature = "(portfolio_json, benchmark_json)")]
 fn grid_attribution_json(
     py: Python<'_>,
-    portfolio_json: &str,
-    benchmark_json: &str,
+    portfolio_json: &Bound<'_, PyAny>,
+    benchmark_json: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
+    let portfolio_json =
+        crate::bindings::extract::extract_records_json(py, portfolio_json, "portfolio")?;
+    let portfolio_json: &str = &portfolio_json;
+    let benchmark_json =
+        crate::bindings::extract::extract_records_json(py, benchmark_json, "benchmark")?;
+    let benchmark_json: &str = &benchmark_json;
     let result = run_grid_attribution(py, portfolio_json, benchmark_json)?;
     serde_json::to_string(&result)
         .map_err(|err| serde_json_to_py(err, "serialize GridAttributionResult"))
@@ -410,7 +422,7 @@ fn grid_attribution_json(
 ///
 /// Parameters
 /// ----------
-/// periods_json : str
+/// periods_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``GridAttributionResult`` objects, in chronological
 ///     order, each the wire output of :func:`grid_attribution_json` (or
 ///     ``GridAttributionResult.to_json()``).
@@ -452,7 +464,12 @@ fn grid_attribution_json(
 /// 0.0203
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
-fn grid_carino_link(py: Python<'_>, periods_json: &str) -> PyResult<PyGridCarinoLinkedResult> {
+fn grid_carino_link(
+    py: Python<'_>,
+    periods_json: &Bound<'_, PyAny>,
+) -> PyResult<PyGridCarinoLinkedResult> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
     Ok(PyGridCarinoLinkedResult {
         inner: run_grid_carino_link(py, periods_json)?,
     })
@@ -468,7 +485,9 @@ fn grid_carino_link(py: Python<'_>, periods_json: &str) -> PyResult<PyGridCarino
 ///     JSON-serialized ``GridCarinoLinkedResult``.
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
-fn grid_carino_link_json(py: Python<'_>, periods_json: &str) -> PyResult<String> {
+fn grid_carino_link_json(py: Python<'_>, periods_json: &Bound<'_, PyAny>) -> PyResult<String> {
+    let periods_json = crate::bindings::extract::extract_records_json(py, periods_json, "periods")?;
+    let periods_json: &str = &periods_json;
     let result = run_grid_carino_link(py, periods_json)?;
     serde_json::to_string(&result)
         .map_err(|err| serde_json_to_py(err, "serialize GridCarinoLinkedResult"))

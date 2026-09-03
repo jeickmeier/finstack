@@ -235,6 +235,10 @@ impl BootstrapTarget for XccyBasisTarget {
     type Quote = CalibrationQuote;
     type Curve = DiscountCurve;
 
+    fn residual_key(&self, quote: &Self::Quote, _idx: usize) -> String {
+        quote.quote_id().to_string()
+    }
+
     fn quote_time(&self, quote: &Self::Quote) -> Result<f64> {
         Ok(quote.pillar_time())
     }

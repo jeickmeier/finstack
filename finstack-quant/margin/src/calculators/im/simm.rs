@@ -21,7 +21,7 @@
 //!
 //! Where K_i is the risk-weighted sensitivity for bucket i.
 //!
-//! > **Implementation note:** `calculate_from_sensitivities` applies intra-bucket
+//! > **Implementation note:** `calculate_from_sensitivities_parts` applies intra-bucket
 //! > tenor correlations for IR delta, vega margin (IR, credit qualifying,
 //! > credit non-qualifying, equity, commodity, FX), curvature
 //! > risk, concentration add-ons, and the SIMM risk-class correlation matrix.
@@ -34,7 +34,7 @@
 //!   currency amounts per 1bp move before they reach this module.
 //! - Tenor keys must match the registry-backed tenor labels exactly.
 //! - The aggregation currency is chosen by the caller to
-//!   [`SimmCalculator::calculate_from_sensitivities`].
+//!   [`SimmCalculator::calculate_from_sensitivities_parts`].
 //!
 //! # References
 //!
@@ -124,7 +124,7 @@ impl SimmParams {
     }
 
     fn commodity_bucket_weight(&self, bucket: &str) -> f64 {
-        let key = bucket_id_from_label(bucket)
+        let key = crate::types::commodity_bucket_id(bucket)
             .map(|id| id.to_string())
             .unwrap_or_else(|| "other".to_string());
         self.commodity_bucket_weights
@@ -370,7 +370,7 @@ impl SimmCalculator {
         self.params.version
     }
 
-    /// Margin period of risk (days).
+    /// Margin period of risk in business days (ISDA SIMM: 10).
     #[must_use]
     pub fn mpor_days(&self) -> u32 {
         self.params.mpor_days
@@ -380,7 +380,7 @@ impl SimmCalculator {
     ///
     /// # Arguments
     ///
-    /// * `days` - Margin period of risk in calendar days
+    /// * `days` - Margin period of risk in business days (ISDA SIMM standard is 10)
     ///
     /// # Returns
     ///
@@ -780,7 +780,7 @@ impl SimmCalculator {
         let mut weighted_buckets: Vec<(u8, f64)> = by_bucket
             .iter()
             .filter_map(|(bucket, amount)| {
-                let bucket_id = bucket_id_from_label(bucket)?;
+                let bucket_id = crate::types::commodity_bucket_id(bucket)?;
                 let weight = weight_for(bucket);
                 Some((bucket_id, amount * weight))
             })
@@ -930,10 +930,14 @@ impl SimmCalculator {
         }
     }
 
-    /// Calculate SIMM margin from pre-computed sensitivities.
+    /// Calculate SIMM margin from pre-computed sensitivities as a raw
+    /// `(total, breakdown)` tuple.
     ///
-    /// This is the primary entry point for SIMM calculation when you have
-    /// `SimmSensitivities` from a `Marginable` instrument.
+    /// Specialised variant of [`Self::calculate_from_sensitivities`] for Rust
+    /// callers that aggregate many netting sets and do not want an
+    /// [`ImResult`] envelope. It performs no validation; call
+    /// [`SimmSensitivities::validate`] first when the container comes from
+    /// untrusted data.
     ///
     /// # Arguments
     ///
@@ -964,7 +968,7 @@ impl SimmCalculator {
     /// sensitivities.add_ir_delta(Currency::USD, "5Y", 50_000.0);
     ///
     /// let (total, breakdown) =
-    ///     calc.calculate_from_sensitivities(&sensitivities, Currency::USD);
+    ///     calc.calculate_from_sensitivities_parts(&sensitivities, Currency::USD);
     ///
     /// assert!(total >= 0.0);
     /// assert!(breakdown.contains_key("IR_Delta"));
@@ -975,7 +979,7 @@ impl SimmCalculator {
     /// # References
     ///
     /// - ISDA SIMM: `docs/REFERENCES.md#isda-simm`
-    pub fn calculate_from_sensitivities(
+    pub fn calculate_from_sensitivities_parts(
         &self,
         sensitivities: &SimmSensitivities,
         currency: Currency,
@@ -1206,26 +1210,40 @@ impl SimmCalculator {
 
     /// Calculate SIMM from explicit sensitivities and return a full [`ImResult`].
     ///
+    /// This is the canonical entry point: it validates the container with
+    /// [`SimmSensitivities::validate`] first, so a mistyped tenor or commodity
+    /// bucket errors instead of silently pricing to zero margin, then stamps
+    /// the methodology, MPOR and calculation date. Use
+    /// [`Self::calculate_from_sensitivities_parts`] for the raw
+    /// `(total, breakdown)` tuple without validation or stamping.
+    ///
     /// # Arguments
     ///
-    /// * `sensitivities` - SIMM sensitivity container.
-    /// * `currency` - Reporting currency for the margin result.
-    /// * `as_of` - Calculation date.
-    #[must_use]
-    pub fn calculate_from_sensitivities_result(
+    /// * `sensitivities` - SIMM sensitivity container using the units documented on [`SimmSensitivities`].
+    /// * `currency` - Currency label for the returned [`Money`] amounts. No FX
+    ///   conversion is applied: the amounts are the raw SIMM aggregates of the
+    ///   sensitivities as supplied, merely labelled in `currency`.
+    /// * `as_of` - Calculation date stamped on the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error from [`SimmSensitivities::validate`] when a
+    /// tenor, commodity bucket, identifier or amount is invalid.
+    pub fn calculate_from_sensitivities(
         &self,
         sensitivities: &SimmSensitivities,
         currency: Currency,
         as_of: Date,
-    ) -> ImResult {
-        let (amount, breakdown) = self.calculate_from_sensitivities(sensitivities, currency);
-        ImResult::with_breakdown(
+    ) -> Result<ImResult> {
+        sensitivities.validate()?;
+        let (amount, breakdown) = self.calculate_from_sensitivities_parts(sensitivities, currency);
+        Ok(ImResult::with_breakdown(
             Money::new(amount, currency),
             ImMethodology::Simm,
             as_of,
             self.mpor_days(),
             breakdown,
-        )
+        ))
     }
 
     /// Aggregate risk class margins with the SIMM inter-risk-class correlation matrix.
@@ -1245,38 +1263,6 @@ impl SimmCalculator {
     }
 }
 
-fn bucket_id_from_label(bucket: &str) -> Option<u8> {
-    let trimmed = bucket.trim();
-    if let Ok(value) = trimmed.parse::<u8>() {
-        return Some(value);
-    }
-    let normalized: String = trimmed
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect::<String>()
-        .to_ascii_lowercase();
-    match normalized.as_str() {
-        "coal" => Some(1),
-        "crude" => Some(2),
-        "lightends" => Some(3),
-        "middledistillates" => Some(4),
-        "heavydistillates" => Some(5),
-        "northamericannaturalgas" => Some(6),
-        "europeannaturalgas" => Some(7),
-        "northamericanpowerandcarbon" => Some(8),
-        "europeanpowerandcarbon" => Some(9),
-        "freight" => Some(10),
-        "basemetals" => Some(11),
-        "preciousmetals" => Some(12),
-        "grainsandoilseed" => Some(13),
-        "softsandotheragriculturals" => Some(14),
-        "livestockanddairy" => Some(15),
-        "other" => Some(16),
-        "indexes" | "indices" => Some(17),
-        _ => None,
-    }
-}
-
 impl ImCalculator for SimmCalculator {
     fn calculate(
         &self,
@@ -1287,7 +1273,9 @@ impl ImCalculator for SimmCalculator {
         let mtm = instrument.mtm_for_vm(context, as_of)?;
         let currency = mtm.currency();
         let sensitivities = instrument.simm_sensitivities(context, as_of)?;
-        let (total_im, breakdown) = self.calculate_from_sensitivities(&sensitivities, currency);
+        sensitivities.validate()?;
+        let (total_im, breakdown) =
+            self.calculate_from_sensitivities_parts(&sensitivities, currency);
 
         debug!(
             instrument = instrument.id(),
@@ -1460,7 +1448,7 @@ mod tests {
         sens.add_ir_delta(Currency::USD, "5Y", 100_000.0);
         sens.add_equity_delta("AAPL", 100_000.0);
 
-        let (total_im, breakdown) = calc.calculate_from_sensitivities(&sens, Currency::USD);
+        let (total_im, breakdown) = calc.calculate_from_sensitivities_parts(&sens, Currency::USD);
 
         let ir_margin = breakdown
             .get("IR_Delta")
@@ -1516,7 +1504,7 @@ mod tests {
         sensitivities.add_ir_vega(Currency::USD, "5Y", 500_000.0);
         sensitivities.add_ir_vega(Currency::EUR, "5Y", 500_000.0);
 
-        let (_, breakdown) = calc.calculate_from_sensitivities(&sensitivities, Currency::USD);
+        let (_, breakdown) = calc.calculate_from_sensitivities_parts(&sensitivities, Currency::USD);
         let ir_vega_margin = breakdown
             .get("IR_Vega")
             .expect("M-15: IR vega margin should be present")
@@ -1655,7 +1643,7 @@ mod tests {
         );
         let market = MarketContext::new();
 
-        let expected = calc.calculate_from_sensitivities(&sensitivities, Currency::USD);
+        let expected = calc.calculate_from_sensitivities_parts(&sensitivities, Currency::USD);
         let actual = calc
             .calculate(&instrument, &market, as_of)
             .expect("SIMM calculation should succeed");
@@ -1849,7 +1837,7 @@ mod tests {
         sens.add_credit_qualifying_delta(SimmCreditSector::Sovereign, "GOVT_A", "5Y", 50_000.0);
         sens.add_credit_qualifying_delta(SimmCreditSector::Financial, "BANK_A", "5Y", 50_000.0);
 
-        let (total_im, breakdown) = calc.calculate_from_sensitivities(&sens, Currency::USD);
+        let (total_im, breakdown) = calc.calculate_from_sensitivities_parts(&sens, Currency::USD);
         assert!(total_im > 0.0, "total IM should be positive");
         assert!(
             breakdown.contains_key("Credit_Qualifying_Delta"),
@@ -1892,8 +1880,8 @@ mod tests {
         bumped.params.cq_vega_weight = base.params.cq_vega_weight * 2.0;
 
         let sens = credit_commodity_vega_sensitivities();
-        let (baseline, _) = base.calculate_from_sensitivities(&sens, Currency::USD);
-        let (with_bump, _) = bumped.calculate_from_sensitivities(&sens, Currency::USD);
+        let (baseline, _) = base.calculate_from_sensitivities_parts(&sens, Currency::USD);
+        let (with_bump, _) = bumped.calculate_from_sensitivities_parts(&sens, Currency::USD);
 
         assert!(baseline > 0.0, "baseline margin must be positive");
         assert_ne!(
@@ -1912,8 +1900,8 @@ mod tests {
         bumped.params.cnq_vega_weight = base.params.cnq_vega_weight * 2.0;
 
         let sens = credit_commodity_vega_sensitivities();
-        let (baseline, _) = base.calculate_from_sensitivities(&sens, Currency::USD);
-        let (with_bump, _) = bumped.calculate_from_sensitivities(&sens, Currency::USD);
+        let (baseline, _) = base.calculate_from_sensitivities_parts(&sens, Currency::USD);
+        let (with_bump, _) = bumped.calculate_from_sensitivities_parts(&sens, Currency::USD);
 
         assert!(baseline > 0.0, "baseline margin must be positive");
         assert_ne!(
@@ -1932,8 +1920,8 @@ mod tests {
         bumped.params.commodity_vega_weight = base.params.commodity_vega_weight * 2.0;
 
         let sens = credit_commodity_vega_sensitivities();
-        let (baseline, _) = base.calculate_from_sensitivities(&sens, Currency::USD);
-        let (with_bump, _) = bumped.calculate_from_sensitivities(&sens, Currency::USD);
+        let (baseline, _) = base.calculate_from_sensitivities_parts(&sens, Currency::USD);
+        let (with_bump, _) = bumped.calculate_from_sensitivities_parts(&sens, Currency::USD);
 
         assert!(baseline > 0.0, "baseline margin must be positive");
         assert_ne!(
@@ -1950,25 +1938,26 @@ mod tests {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
         let mut anchor = SimmSensitivities::new(Currency::USD);
         anchor.add_ir_delta(Currency::USD, "5Y", 10_000.0);
-        let (baseline, _) = calc.calculate_from_sensitivities(&anchor, Currency::USD);
+        let (baseline, _) = calc.calculate_from_sensitivities_parts(&anchor, Currency::USD);
 
         let mut with_cq = anchor.clone();
         with_cq.add_credit_qualifying_vega(SimmCreditSector::Financial, "BANK_A", "5Y", 25_000.0);
-        let (cq_total, cq_breakdown) = calc.calculate_from_sensitivities(&with_cq, Currency::USD);
+        let (cq_total, cq_breakdown) =
+            calc.calculate_from_sensitivities_parts(&with_cq, Currency::USD);
         assert_ne!(baseline, cq_total, "CQ vega must change total IM");
         assert!(cq_breakdown.contains_key("Credit_Qualifying_Vega"));
 
         let mut with_cnq = anchor.clone();
         with_cnq.add_credit_non_qualifying_vega("RMBS_A", "5Y", 15_000.0);
         let (cnq_total, cnq_breakdown) =
-            calc.calculate_from_sensitivities(&with_cnq, Currency::USD);
+            calc.calculate_from_sensitivities_parts(&with_cnq, Currency::USD);
         assert_ne!(baseline, cnq_total, "CNQ vega must change total IM");
         assert!(cnq_breakdown.contains_key("Credit_NonQualifying_Vega"));
 
         let mut with_commodity = anchor.clone();
         with_commodity.add_commodity_vega("Crude", 20_000.0);
         let (commodity_total, commodity_breakdown) =
-            calc.calculate_from_sensitivities(&with_commodity, Currency::USD);
+            calc.calculate_from_sensitivities_parts(&with_commodity, Currency::USD);
         assert_ne!(
             baseline, commodity_total,
             "commodity vega must change total IM"
@@ -1987,8 +1976,9 @@ mod tests {
         zeroed.add_credit_non_qualifying_vega("RMBS_A", "5Y", 0.0);
         zeroed.add_commodity_vega("Crude", 0.0);
 
-        let (baseline, _) = calc.calculate_from_sensitivities(&anchor, Currency::USD);
-        let (with_zero, breakdown) = calc.calculate_from_sensitivities(&zeroed, Currency::USD);
+        let (baseline, _) = calc.calculate_from_sensitivities_parts(&anchor, Currency::USD);
+        let (with_zero, breakdown) =
+            calc.calculate_from_sensitivities_parts(&zeroed, Currency::USD);
 
         assert_eq!(baseline, with_zero, "zero vega must not move the margin");
         assert!(!breakdown.contains_key("Credit_Qualifying_Vega"));
@@ -2032,5 +2022,40 @@ mod tests {
         commodity.insert("Crude".to_string(), 20_000.0);
         let expected_commodity = 20_000.0 * calc.params.commodity_vega_weight;
         assert!((calc.calculate_commodity_vega(&commodity) - expected_commodity).abs() < 1e-6);
+    }
+
+    #[test]
+    fn registry_ir_tenors_match_the_published_simm_tenor_set() {
+        let calc = SimmCalculator::new(SimmVersion::default()).expect("registry should load");
+        let mut registry: Vec<&str> = calc
+            .params
+            .ir_delta_weights
+            .keys()
+            .map(String::as_str)
+            .collect();
+        registry.sort_unstable();
+        let mut published: Vec<&str> = crate::SIMM_TENORS.to_vec();
+        published.sort_unstable();
+        assert_eq!(registry, published, "registry tenors drifted");
+    }
+
+    #[test]
+    fn typed_calculation_rejects_unknown_tenor_instead_of_zero_margin() {
+        let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
+        let as_of = Date::from_calendar_date(2025, time::Month::January, 15).expect("date");
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_ir_delta(Currency::USD, "7Y", 50_000.0);
+        let err = calc
+            .calculate_from_sensitivities(&sens, Currency::USD, as_of)
+            .expect_err("7Y must be rejected");
+        assert!(err.to_string().contains("7Y"), "{err}");
+
+        let mut good = SimmSensitivities::new(Currency::USD);
+        good.add_ir_delta(Currency::USD, "5Y", 50_000.0);
+        let result = calc
+            .calculate_from_sensitivities(&good, Currency::USD, as_of)
+            .expect("valid tenor prices");
+        assert!(result.amount.amount() > 0.0);
+        assert_eq!(result.mpor_days, calc.mpor_days());
     }
 }

@@ -1,15 +1,54 @@
 //! PnlAttribution Python wrapper.
 
+use crate::bindings::date_utils::date_to_py;
 use crate::bindings::pandas_utils::{
     serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
     serde_to_py, ColumnSchema,
 };
-use crate::errors::display_to_py;
+use crate::errors::{display_to_py, serde_json_to_py};
 use finstack_quant_attribution::{
     pnl_attribution_carry_rows, pnl_attribution_credit_factor_rows, pnl_attribution_long_rows,
     pnl_attribution_wide_row,
 };
 use pyo3::prelude::*;
+
+/// Column schema shared by the long-format detail exports.
+const LONG_DETAIL_COLUMNS: [ColumnSchema<'static>; 7] = [
+    ("kind", "str"),
+    ("factor", "str"),
+    ("sub", "str"),
+    ("key_a", "str"),
+    ("key_b", "str"),
+    ("amount", "float64"),
+    ("currency", "str"),
+];
+
+/// Column schema of the wide single-row export (`to_dataframe`) and of the
+/// batch table returned by `attribute_pnl_many`.
+pub(crate) const WIDE_COLUMNS: [ColumnSchema<'static>; 22] = [
+    ("instrument_id", "str"),
+    ("method", "str"),
+    ("t0", "str"),
+    ("t1", "str"),
+    ("currency", "str"),
+    ("total_pnl", "float64"),
+    ("mark_to_market_pnl", "float64"),
+    ("carry", "float64"),
+    ("rates_curves_pnl", "float64"),
+    ("credit_curves_pnl", "float64"),
+    ("inflation_curves_pnl", "float64"),
+    ("correlations_pnl", "float64"),
+    ("fx_pnl", "float64"),
+    ("fx_translation_pnl", "float64"),
+    ("vol_pnl", "float64"),
+    ("cross_factor_pnl", "float64"),
+    ("model_params_pnl", "float64"),
+    ("market_scalars_pnl", "float64"),
+    ("residual", "float64"),
+    ("residual_pct", "float64"),
+    ("num_repricings", "int64"),
+    ("result_invalid", "bool"),
+];
 
 /// P&L attribution result for a single instrument.
 ///
@@ -17,16 +56,16 @@ use pyo3::prelude::*;
 /// credit curves, inflation, correlations, FX, volatility, cross-factor
 /// interactions, model parameters, market scalars, and residual.
 ///
-/// Construct via :func:`attribute_pnl` or :meth:`from_json`.
-const LONG_DETAIL_COLUMNS: [ColumnSchema<'static>; 6] = [
-    ("kind", "str"),
-    ("factor", "str"),
-    ("key_a", "str"),
-    ("key_b", "str"),
-    ("amount", "float64"),
-    ("currency", "str"),
-];
-
+/// Construct via ``attribute_pnl`` or ``from_json``.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.attribution import PnlAttribution
+/// >>> try:
+/// ...     PnlAttribution.from_json("{}")
+/// ... except ValueError as exc:
+/// ...     "total_pnl" in str(exc)
+/// True
 #[pyclass(
     name = "PnlAttribution",
     module = "finstack_quant.attribution",
@@ -50,11 +89,14 @@ impl PyPnlAttribution {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Deserialize from JSON.
+    /// Deserialize from JSON produced by ``to_json``.
+    ///
+    /// Raises ``ValueError`` when the JSON does not match the wire schema.
     #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: finstack_quant_attribution::PnlAttribution =
-            serde_json::from_str(json).map_err(display_to_py)?;
+        let inner: finstack_quant_attribution::PnlAttribution = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid PnlAttribution JSON"))?;
         Ok(Self { inner })
     }
 
@@ -190,16 +232,32 @@ impl PyPnlAttribution {
         self.inner.meta.method.as_str().to_owned()
     }
 
-    /// Start date (T₀) as ISO string.
+    /// Start date (T₀) as ``datetime.date``.
     #[getter]
-    fn t0(&self) -> String {
-        self.inner.meta.t0.to_string()
+    fn t0<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.meta.t0)
     }
 
-    /// End date (T₁) as ISO string.
+    /// End date (T₁) as ``datetime.date``.
     #[getter]
-    fn t1(&self) -> String {
-        self.inner.meta.t1.to_string()
+    fn t1<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.meta.t1)
+    }
+
+    /// Risk metric ids the attribution method consumes.
+    ///
+    /// Non-empty only for ``metrics_based`` (``theta``, ``dv01``, ``cs01``,
+    /// ``bucketed_cs01``, ``vega``, ... plus the second-order terms); the
+    /// repricing methods return an empty list because they do not use
+    /// pre-computed metrics.
+    fn required_metrics(&self) -> Vec<String> {
+        self.inner
+            .meta
+            .method
+            .required_metrics()
+            .iter()
+            .map(ToString::to_string)
+            .collect()
     }
 
     /// Number of repricings performed.
@@ -428,40 +486,17 @@ impl PyPnlAttribution {
         // Without this, a EUR `fx_pnl` beside a USD total is presented as
         // comparable and `df[factors].sum(axis=1)` silently adds unlike units.
         let wide = pnl_attribution_wide_row(&self.inner).map_err(display_to_py)?;
-        serde_object_to_single_row_dataframe_with_schema(
-            py,
-            &wide,
-            &[
-                "instrument_id",
-                "method",
-                "t0",
-                "t1",
-                "currency",
-                "total_pnl",
-                "mark_to_market_pnl",
-                "carry",
-                "rates_curves_pnl",
-                "credit_curves_pnl",
-                "inflation_curves_pnl",
-                "correlations_pnl",
-                "fx_pnl",
-                "fx_translation_pnl",
-                "vol_pnl",
-                "cross_factor_pnl",
-                "model_params_pnl",
-                "market_scalars_pnl",
-                "residual",
-                "residual_pct",
-                "num_repricings",
-                "result_invalid",
-            ],
-        )
+        let names: Vec<&str> = WIDE_COLUMNS.iter().map(|(name, _)| *name).collect();
+        serde_object_to_single_row_dataframe_with_schema(py, &wide, &names)
     }
 
     /// Export every populated detail breakdown as a single long-format DataFrame.
     ///
-    /// Columns: ``kind``, ``factor``, ``key_a``, ``key_b``, ``amount``,
-    /// ``currency``.
+    /// Columns: ``kind``, ``factor``, ``sub``, ``key_a``, ``key_b``,
+    /// ``amount``, ``currency``. ``sub`` is ``kind`` with the ``factor.``
+    /// prefix removed (``"by_curve"``, ``"coupon_income.rates"``), so
+    /// ``df.pivot_table(index="factor", columns="sub", values="amount")``
+    /// works without string surgery.
     ///
     /// ``kind`` is a dotted path identifying the row's origin
     /// (e.g. ``"rates.by_curve"``, ``"rates.by_tenor"``, ``"credit.by_curve"``,
@@ -491,13 +526,15 @@ impl PyPnlAttribution {
 
     /// Export the carry decomposition as a long-format DataFrame.
     ///
-    /// Columns: ``kind`` (``carry.total`` / ``carry.theta`` /
+    /// Columns: ``kind``, ``factor``, ``sub``, ``key_a``, ``key_b``,
+    /// ``amount``, ``currency`` as in :meth:`to_long_dataframe`.
+    /// ``kind`` is one of ``carry.total`` / ``carry.theta`` /
     /// ``carry.coupon_income`` / ``carry.coupon_income.rates`` /
     /// ``carry.coupon_income.credit`` / ``carry.pull_to_par`` /
     /// ``carry.roll_down`` / ``carry.roll_down.rates`` /
-    /// ``carry.roll_down.credit`` / ``carry.funding_cost``), ``factor``
-    /// (always ``"carry"``), ``key_a``, ``key_b`` (always null here),
-    /// ``amount``, ``currency``. The rates/credit split rows are present only
+    /// ``carry.roll_down.credit`` / ``carry.funding_cost``; ``factor`` is
+    /// always ``"carry"`` and ``key_b`` always null here. The rates/credit
+    /// split rows are present only
     /// when a ``CreditFactorModel`` was supplied to the attribution and the
     /// source line carries a typed split (PR-8b §7.1).
     ///
@@ -511,12 +548,13 @@ impl PyPnlAttribution {
     /// Export the credit-factor hierarchy decomposition as a long-format
     /// DataFrame.
     ///
-    /// Columns: ``kind`` (``credit_factor.generic`` / ``credit_factor.level``
-    /// / ``credit_factor.level.by_bucket`` / ``credit_factor.adder`` /
-    /// ``credit_factor.curve_shape`` / ``credit_factor.adder_by_issuer``),
-    /// ``factor`` (always ``"credit_factor"``), ``key_a`` (level name or
-    /// component), ``key_b`` (bucket path / issuer id when applicable),
-    /// ``amount``, ``currency``.
+    /// Columns: ``kind``, ``factor``, ``sub``, ``key_a``, ``key_b``,
+    /// ``amount``, ``currency`` as in :meth:`to_long_dataframe`. ``kind`` is
+    /// one of ``credit_factor.generic`` / ``credit_factor.level`` /
+    /// ``credit_factor.level.by_bucket`` / ``credit_factor.adder`` /
+    /// ``credit_factor.curve_shape`` / ``credit_factor.adder_by_issuer``;
+    /// ``factor`` is always ``"credit_factor"``, ``key_a`` the level name or
+    /// component, ``key_b`` the bucket path / issuer id when applicable.
     ///
     /// Returns an empty DataFrame (zero rows, schema columns present) when
     /// ``credit_factor_detail`` is not populated (no ``credit_factor_model``

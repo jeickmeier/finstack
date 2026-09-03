@@ -250,7 +250,7 @@ fn bench_pv_by_period_scaling(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| {
                 black_box(&schedule)
-                    .pv_by_period(
+                    .pv_by_period_with_discounting(
                         black_box(&periods),
                         PvDiscountSource::Discount {
                             disc: black_box(disc.as_ref()),

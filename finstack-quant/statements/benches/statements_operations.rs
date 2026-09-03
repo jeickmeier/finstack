@@ -502,7 +502,7 @@ fn bench_forecast_methods(c: &mut Criterion) {
                 AmountOrScalar::scalar(100_000.0),
             )],
         )
-        .forecast("revenue", ForecastSpec::lognormal(0.05, 0.10, 42))
+        .forecast("revenue", ForecastSpec::log_normal(0.05, 0.10, 42))
         .build()
         .unwrap();
 

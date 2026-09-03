@@ -6,7 +6,11 @@
 use crate::factor::FactorId;
 
 /// Positions x factors sensitivity matrix stored in row-major order.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Serializes with serde as `{position_ids, factor_ids, data, n_factors}`
+/// where `data` is the flat row-major slice; this is the wire form host
+/// bindings use for `to_json` / `from_json`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SensitivityMatrix {
     position_ids: Vec<String>,
     factor_ids: Vec<FactorId>,

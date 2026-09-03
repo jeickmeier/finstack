@@ -2,8 +2,9 @@
 
 use crate::bindings::date_utils::date_to_py;
 use crate::bindings::pandas_utils::{
-    dates_to_pylist, dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
-    serde_rows_to_dataframe_with_schema, ColumnSchema,
+    dates_to_datetime_index, dict_to_dataframe, labeled_values_to_series,
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
 };
 use crate::errors::display_to_py;
 use finstack_quant_analytics as fa;
@@ -126,13 +127,96 @@ impl PyPeriodStats {
         self.inner.kelly_criterion
     }
 
+    /// The twelve statistics as a ``pandas.Series`` named ``period_stats``
+    /// and indexed by statistic name (``best``, ``worst``, ``win_rate``, ...).
+    ///
+    /// Streak counts are cast to ``float`` so the Series stays ``float64``.
+    fn to_series<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let labels: Vec<String> = PERIOD_STATS_COLUMNS
+            .iter()
+            .map(|(name, _)| (*name).to_owned())
+            .collect();
+        labeled_values_to_series(py, &labels, self.values(), "period_stats")
+    }
+
+    /// The twelve statistics as a single-row ``pandas.DataFrame``.
+    ///
+    /// Columns: ``best``, ``worst``, ``consecutive_wins``,
+    /// ``consecutive_losses``, ``win_rate``, ``avg_return``, ``avg_win``,
+    /// ``avg_loss``, ``payoff_ratio``, ``profit_factor``, ``cpc_ratio``,
+    /// ``kelly_criterion``. One row per ticker after ``pd.concat`` across
+    /// tickers. Non-finite ratios (``inf`` on a loss-free sample) arrive as
+    /// ``None`` and make that column ``object`` dtype.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "best": self.inner.best,
+            "worst": self.inner.worst,
+            "consecutive_wins": self.inner.consecutive_wins,
+            "consecutive_losses": self.inner.consecutive_losses,
+            "win_rate": self.inner.win_rate,
+            "avg_return": self.inner.avg_return,
+            "avg_win": self.inner.avg_win,
+            "avg_loss": self.inner.avg_loss,
+            "payoff_ratio": self.inner.payoff_ratio,
+            "profit_factor": self.inner.profit_factor,
+            "cpc_ratio": self.inner.cpc_ratio,
+            "kelly_criterion": self.inner.kelly_criterion,
+        });
+        let names: Vec<&str> = PERIOD_STATS_COLUMNS.iter().map(|(name, _)| *name).collect();
+        serde_object_to_single_row_dataframe_with_schema(py, &row, &names)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "PeriodStats(win_rate={:.4}, avg_return={:.6})",
             self.inner.win_rate, self.inner.avg_return
         )
     }
+
+    /// Render as an HTML table in Jupyter notebooks (delegates to
+    /// ``to_dataframe``; ``None`` falls back to ``__repr__``).
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
+
+impl PyPeriodStats {
+    /// Statistic values in `PERIOD_STATS_COLUMNS` order.
+    fn values(&self) -> Vec<f64> {
+        let s = &self.inner;
+        vec![
+            s.best,
+            s.worst,
+            s.consecutive_wins as f64,
+            s.consecutive_losses as f64,
+            s.win_rate,
+            s.avg_return,
+            s.avg_win,
+            s.avg_loss,
+            s.payoff_ratio,
+            s.profit_factor,
+            s.cpc_ratio,
+            s.kelly_criterion,
+        ]
+    }
+}
+
+/// Column order shared by `PeriodStats.to_series` / `to_dataframe`.
+const PERIOD_STATS_COLUMNS: &[ColumnSchema<'static>] = &[
+    ("best", "float64"),
+    ("worst", "float64"),
+    ("consecutive_wins", "int64"),
+    ("consecutive_losses", "int64"),
+    ("win_rate", "float64"),
+    ("avg_return", "float64"),
+    ("avg_win", "float64"),
+    ("avg_loss", "float64"),
+    ("payoff_ratio", "float64"),
+    ("profit_factor", "float64"),
+    ("cpc_ratio", "float64"),
+    ("kelly_criterion", "float64"),
+];
 
 /// Regression beta with confidence interval.
 #[pyclass(name = "BetaResult", module = "finstack_quant.analytics", frozen)]
@@ -378,13 +462,13 @@ impl PyRollingGreeks {
         slice_to_pyarray(py, &self.inner.betas)
     }
 
-    /// Convert to a pandas ``DataFrame`` with date index and alpha/beta columns.
+    /// Convert to a pandas ``DataFrame`` with a ``DatetimeIndex`` and
+    /// ``alpha`` / ``beta`` columns.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         data.set_item("alpha", slice_to_pyarray(py, &self.inner.alphas))?;
         data.set_item("beta", slice_to_pyarray(py, &self.inner.betas))?;
-        let dates = dates_to_pylist(py, &self.inner.dates)?;
-        let idx = dates.into_pyobject(py)?.into_any();
+        let idx = dates_to_datetime_index(py, &self.inner.dates)?;
         dict_to_dataframe(py, &data, Some(idx))
     }
 
@@ -617,11 +701,45 @@ impl PyDrawdownEpisode {
         self.inner.truncated_at_start
     }
 
+    /// Export as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``start``, ``valley``, ``end`` (``datetime64``; ``NaT`` while
+    /// still in drawdown), ``duration_days``, ``max_drawdown``,
+    /// ``near_recovery_threshold``, ``truncated_at_start``. Stack episodes
+    /// with ``pd.concat`` or use
+    /// ``Performance.to_drawdown_details_dataframe`` for the top-N table.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let pd = py.import("pandas")?;
+        let data = PyDict::new(py);
+        data.set_item("start", dates_to_datetime_index(py, &[self.inner.start])?)?;
+        data.set_item("valley", dates_to_datetime_index(py, &[self.inner.valley])?)?;
+        let end = match self.inner.end {
+            Some(d) => date_to_py(py, d)?.into_any(),
+            None => py.None().into_bound(py),
+        };
+        data.set_item("end", pd.call_method1("to_datetime", (vec![end],))?)?;
+        data.set_item("duration_days", vec![self.inner.duration_days])?;
+        data.set_item("max_drawdown", vec![self.inner.max_drawdown])?;
+        data.set_item(
+            "near_recovery_threshold",
+            vec![self.inner.near_recovery_threshold],
+        )?;
+        data.set_item("truncated_at_start", vec![self.inner.truncated_at_start])?;
+        dict_to_dataframe(py, &data, None)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "DrawdownEpisode(dd={:.4}, days={})",
             self.inner.max_drawdown, self.inner.duration_days
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks (delegates to
+    /// ``to_dataframe``; ``None`` falls back to ``__repr__``).
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -656,6 +774,12 @@ impl PyLookbackReturns {
         serde_to_json(&self.inner)
     }
 
+    /// Ticker names aligned with the ``mtd`` / ``qtd`` / ``ytd`` / ``fytd``
+    /// vectors.
+    #[getter]
+    fn ticker_names(&self) -> Vec<String> {
+        self.inner.ticker_names.clone()
+    }
     /// Month-to-date returns per ticker.
     #[getter]
     fn mtd<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
@@ -677,21 +801,29 @@ impl PyLookbackReturns {
         slice_to_pyarray(py, &self.inner.fytd)
     }
 
-    /// Convert to a pandas ``DataFrame`` with ticker names as index.
+    /// Convert to a pandas ``DataFrame`` indexed by :attr:`ticker_names`.
     ///
     /// Columns: mtd, qtd, ytd, and fytd.
-    fn to_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        ticker_names: Vec<String>,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         data.set_item("mtd", slice_to_pyarray(py, &self.inner.mtd))?;
         data.set_item("qtd", slice_to_pyarray(py, &self.inner.qtd))?;
         data.set_item("ytd", slice_to_pyarray(py, &self.inner.ytd))?;
         data.set_item("fytd", slice_to_pyarray(py, &self.inner.fytd))?;
-        let idx = ticker_names.into_pyobject(py)?.into_any();
+        let idx = self
+            .inner
+            .ticker_names
+            .clone()
+            .into_pyobject(py)?
+            .into_any();
         dict_to_dataframe(py, &data, Some(idx))
+    }
+
+    /// Render as an HTML table in Jupyter notebooks (delegates to
+    /// ``to_dataframe``; ``None`` falls back to ``__repr__``).
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 
     fn __repr__(&self) -> String {
@@ -793,7 +925,7 @@ impl PyDatedSeries {
         &self.value_column
     }
 
-    /// Convert to a pandas ``DataFrame`` with the date column as index and a
+    /// Convert to a pandas ``DataFrame`` with a ``DatetimeIndex`` and a
     /// single value column named after [`value_column`](Self::value_column).
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
@@ -801,8 +933,7 @@ impl PyDatedSeries {
             self.value_column.as_str(),
             slice_to_pyarray(py, &self.inner.values),
         )?;
-        let dates = dates_to_pylist(py, &self.inner.dates)?;
-        let idx = dates.into_pyobject(py)?.into_any();
+        let idx = dates_to_datetime_index(py, &self.inner.dates)?;
         dict_to_dataframe(py, &data, Some(idx))
     }
 

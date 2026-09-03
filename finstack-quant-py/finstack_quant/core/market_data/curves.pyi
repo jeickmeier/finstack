@@ -18,9 +18,9 @@ from finstack_quant.core.market_data import FxDeltaVolSurface as FxDeltaVolSurfa
 from finstack_quant.core.market_data import HazardCurve as HazardCurve
 from finstack_quant.core.market_data import InflationCurve as InflationCurve
 from finstack_quant.core.market_data import PriceCurve as PriceCurve
+from finstack_quant.core.market_data import SabrParameterData as SabrParameterData
 from finstack_quant.core.market_data import VolCube as VolCube
 from finstack_quant.core.market_data import VolSurface as VolSurface
-from finstack_quant.core.market_data import VolatilityIndexCurve as VolatilityIndexCurve
 
 __all__ = [
     "BaseCorrelationCurve",
@@ -31,7 +31,7 @@ __all__ = [
     "HazardCurve",
     "InflationCurve",
     "PriceCurve",
+    "SabrParameterData",
     "VolCube",
     "VolSurface",
-    "VolatilityIndexCurve",
 ]

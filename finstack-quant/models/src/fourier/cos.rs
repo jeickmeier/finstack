@@ -49,12 +49,12 @@ pub struct BlackScholesCosParams {
     pub strike: f64,
     /// Continuously-compounded risk-free rate.
     pub rate: f64,
-    /// Continuous dividend yield.
-    pub dividend: f64,
+    /// Continuous dividend yield (decimal, annualized).
+    pub div_yield: f64,
     /// Annualized volatility.
     pub vol: f64,
     /// Time to expiry in years.
-    pub maturity: f64,
+    pub expiry: f64,
     /// `true` for call, `false` for put.
     pub is_call: bool,
     /// Optional COS term count; defaults to [`CosConfig::default`].
@@ -70,8 +70,8 @@ pub struct VarianceGammaCosParams {
     pub strike: f64,
     /// Continuously-compounded risk-free rate.
     pub rate: f64,
-    /// Continuous dividend yield.
-    pub dividend: f64,
+    /// Continuous dividend yield (decimal, annualized).
+    pub div_yield: f64,
     /// Volatility of the subordinated Brownian motion.
     pub sigma: f64,
     /// Drift of the subordinated Brownian motion.
@@ -79,7 +79,7 @@ pub struct VarianceGammaCosParams {
     /// Variance rate of the Gamma subordinator.
     pub nu: f64,
     /// Time to expiry in years.
-    pub maturity: f64,
+    pub expiry: f64,
     /// `true` for call, `false` for put.
     pub is_call: bool,
     /// Optional COS term count; defaults to [`CosConfig::default`].
@@ -95,8 +95,8 @@ pub struct MertonJumpCosParams {
     pub strike: f64,
     /// Continuously-compounded risk-free rate.
     pub rate: f64,
-    /// Continuous dividend yield.
-    pub dividend: f64,
+    /// Continuous dividend yield (decimal, annualized).
+    pub div_yield: f64,
     /// Diffusion volatility.
     pub sigma: f64,
     /// Mean of log-jump size.
@@ -106,7 +106,7 @@ pub struct MertonJumpCosParams {
     /// Jump intensity, in expected jumps per year.
     pub lambda: f64,
     /// Time to expiry in years.
-    pub maturity: f64,
+    pub expiry: f64,
     /// `true` for call, `false` for put.
     pub is_call: bool,
     /// Optional COS term count; defaults to [`CosConfig::default`].
@@ -117,13 +117,19 @@ pub struct MertonJumpCosParams {
 ///
 /// # Arguments
 ///
-/// * `params` - Black-Scholes COS input bag containing spot, strike, maturity,
+/// * `params` - Black-Scholes COS input bag containing spot, strike, expiry,
 ///   continuous rates/carry, volatility, payoff direction, and optional term
 ///   count; `None` uses [`CosConfig::default`].
 pub fn bs_cos_price(params: BlackScholesCosParams) -> std::result::Result<f64, FourierError> {
+    if !params.vol.is_finite() || params.vol <= 0.0 {
+        return Err(FourierError::model_failure(format!(
+            "Black-Scholes COS volatility must be finite and strictly positive, got {}",
+            params.vol
+        )));
+    }
     let cf = BlackScholesCf {
         r: params.rate,
-        q: params.dividend,
+        q: params.div_yield,
         sigma: params.vol,
     };
     price_from_cf(
@@ -131,7 +137,7 @@ pub fn bs_cos_price(params: BlackScholesCosParams) -> std::result::Result<f64, F
         params.spot,
         params.strike,
         params.rate,
-        params.maturity,
+        params.expiry,
         params.is_call,
         params.n_terms,
     )
@@ -147,7 +153,7 @@ pub fn bs_cos_price(params: BlackScholesCosParams) -> std::result::Result<f64, F
 pub fn vg_cos_price(params: VarianceGammaCosParams) -> std::result::Result<f64, FourierError> {
     let cf = VarianceGammaCf {
         r: params.rate,
-        q: params.dividend,
+        q: params.div_yield,
         sigma: params.sigma,
         nu: params.nu,
         theta: params.theta,
@@ -157,7 +163,7 @@ pub fn vg_cos_price(params: VarianceGammaCosParams) -> std::result::Result<f64, 
         params.spot,
         params.strike,
         params.rate,
-        params.maturity,
+        params.expiry,
         params.is_call,
         params.n_terms,
     )
@@ -175,7 +181,7 @@ pub fn merton_jump_cos_price(
 ) -> std::result::Result<f64, FourierError> {
     let cf = MertonJumpCf {
         r: params.rate,
-        q: params.dividend,
+        q: params.div_yield,
         sigma: params.sigma,
         lambda: params.lambda,
         mu_j: params.mu_jump,
@@ -186,7 +192,7 @@ pub fn merton_jump_cos_price(
         params.spot,
         params.strike,
         params.rate,
-        params.maturity,
+        params.expiry,
         params.is_call,
         params.n_terms,
     )
@@ -205,15 +211,15 @@ fn price_from_cf(
     spot: f64,
     strike: f64,
     rate: f64,
-    maturity: f64,
+    expiry: f64,
     is_call: bool,
     n_terms: Option<usize>,
 ) -> std::result::Result<f64, FourierError> {
     let pricer = CosPricer::new(cf, cos_config(n_terms));
     if is_call {
-        pricer.price_call(spot, strike, rate, maturity)
+        pricer.price_call(spot, strike, rate, expiry)
     } else {
-        pricer.price_put(spot, strike, rate, maturity)
+        pricer.price_put(spot, strike, rate, expiry)
     }
 }
 

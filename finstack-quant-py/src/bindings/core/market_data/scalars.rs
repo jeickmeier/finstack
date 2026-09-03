@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use finstack_quant_core::market_data::scalars::{
-    InflationIndex, InflationInterpolation, ScalarTimeSeries, SeriesInterpolation,
+    InflationIndex, InflationInterpolation, InflationLag, ScalarTimeSeries, SeriesInterpolation,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
@@ -76,9 +76,30 @@ impl PyScalarTimeSeries {
 impl PyScalarTimeSeries {
     /// Construct a scalar time series from dated observations.
     ///
-    /// Observation values may be floats, ints, or ``decimal.Decimal`` values.
-    /// Decimal values must round-trip through the Rust ``f64`` storage exactly.
-    /// ``currency`` accepts either a ``Currency`` wrapper or an ISO code string.
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Series identifier.
+    /// observations : list[tuple[datetime.date | str, float | int | decimal.Decimal]]
+    ///     Dated values; ``Decimal`` values must round-trip through ``float`` exactly.
+    ///     Dates must be unique; any order is accepted.
+    /// currency : Currency | str, optional
+    ///     Currency tag for monetary series; ``None`` for unitless values.
+    /// interpolation : str, optional
+    ///     ``"step"`` (default, last observation carried forward) or ``"linear"``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``observations`` is empty or has duplicate dates, a value is
+    ///     non-finite, or ``interpolation`` is not a recognised label.
+    ///
+    /// Example
+    /// -------
+    /// >>> from finstack_quant.core.market_data import ScalarTimeSeries
+    /// >>> series = ScalarTimeSeries("SOFR", [("2025-01-01", 0.04), ("2025-01-03", 0.05)], interpolation="linear")
+    /// >>> series.value_on("2025-01-02")
+    /// 0.045
     #[new]
     #[pyo3(signature = (id, observations, currency=None, interpolation=None))]
     fn new(
@@ -137,9 +158,64 @@ impl PyScalarTimeSeries {
             .collect()
     }
 
-    /// Interpolated value on a date.
+    /// Value on a date under the series interpolation policy.
+    ///
+    /// Parameters
+    /// ----------
+    /// date : datetime.date | str
+    ///     Lookup date; must lie within the observation range.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``date`` is outside the observed range.
+    #[pyo3(text_signature = "(self, date)")]
     fn value_on(&self, date: &Bound<'_, PyAny>) -> PyResult<f64> {
         self.inner.value_on(py_to_date(date)?).map_err(core_to_py)
+    }
+
+    /// Value on an exact observation date (no interpolation).
+    ///
+    /// Parameters
+    /// ----------
+    /// date : datetime.date | str
+    ///     Must match a stored observation date exactly.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If no observation exists on ``date``.
+    #[pyo3(text_signature = "(self, date)")]
+    fn value_on_exact(&self, date: &Bound<'_, PyAny>) -> PyResult<f64> {
+        self.inner
+            .value_on_exact(py_to_date(date)?)
+            .map_err(core_to_py)
+    }
+
+    /// Earliest observation date.
+    #[getter]
+    fn first_date<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .first_date()
+            .map(|d| date_to_py(py, d))
+            .transpose()
+    }
+
+    /// Latest observation date.
+    #[getter]
+    fn last_date<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .last_date()
+            .map(|d| date_to_py(py, d))
+            .transpose()
     }
 
     /// Export as a pandas ``DataFrame`` indexed by observation date.
@@ -245,16 +321,70 @@ impl PyInflationIndex {
 impl PyInflationIndex {
     /// Construct an inflation index from dated observations.
     ///
-    /// ``currency`` accepts either a ``Currency`` wrapper or an ISO code string.
-    /// ``interpolation`` accepts ``"step"`` or ``"linear"``.
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Index identifier (e.g. ``"US-CPI-U"``).
+    /// observations : list[tuple[datetime.date | str, float | int | decimal.Decimal]]
+    ///     Dated index levels; ``Decimal`` values must round-trip through ``float`` exactly.
+    /// currency : Currency | str
+    ///     Currency of the index.
+    /// interpolation : str, optional
+    ///     ``"step"`` (default, last observation carried forward) or ``"linear"``.
+    /// lag : str | int, optional
+    ///     Publication lag applied before lookups: ``"none"`` (default),
+    ///     ``"3M"``/``"90D"`` market strings, or an integer number of months.
+    /// seasonality : list[float], optional
+    ///     Twelve multiplicative factors, January through December.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``observations`` is empty or has duplicate dates, a label is
+    ///     unknown, or ``seasonality`` does not have exactly 12 entries.
+    ///
+    /// Example
+    /// -------
+    /// >>> from finstack_quant.core.market_data import InflationIndex
+    /// >>> index = InflationIndex("US-CPI", [("2025-01-01", 300.0), ("2025-02-01", 301.5)], "USD", lag="3M")
+    /// >>> index.lag
+    /// '3M'
     #[new]
-    #[pyo3(signature = (id, observations, currency, interpolation=None))]
+    #[pyo3(signature = (id, observations, currency, interpolation=None, lag=None, seasonality=None))]
     fn new(
         id: &str,
         observations: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)>,
         currency: &Bound<'_, PyAny>,
         interpolation: Option<&str>,
+        lag: Option<&Bound<'_, PyAny>>,
+        seasonality: Option<Vec<f64>>,
     ) -> PyResult<Self> {
+        let lag = match lag {
+            None => None,
+            Some(value) => Some(if let Ok(months) = value.extract::<u8>() {
+                if months == 0 {
+                    InflationLag::None
+                } else {
+                    InflationLag::Months(months)
+                }
+            } else {
+                let label: String = value.extract().map_err(|_| {
+                    crate::errors::value_error(
+                        "lag must be an int number of months or a string like \"3M\", \"90D\" or \"none\"",
+                    )
+                })?;
+                label.parse::<InflationLag>().map_err(core_to_py)?
+            }),
+        };
+        let seasonality = match seasonality {
+            None => None,
+            Some(factors) => Some(<[f64; 12]>::try_from(factors).map_err(|got| {
+                crate::errors::value_error(format!(
+                    "seasonality must have exactly 12 monthly factors, got {}",
+                    got.len()
+                ))
+            })?),
+        };
         let observations = observations
             .iter()
             .enumerate()
@@ -271,12 +401,94 @@ impl PyInflationIndex {
             .transpose()
             .map_err(crate::errors::value_error)?
             .unwrap_or_default();
-        let inner = InflationIndex::new(id, observations, currency)
+        let mut inner = InflationIndex::new(id, observations, currency)
             .map_err(core_to_py)?
             .with_interpolation(interpolation);
+        if let Some(lag) = lag {
+            inner = inner.with_lag(lag);
+        }
+        if let Some(factors) = seasonality {
+            inner = inner.with_seasonality(factors).map_err(core_to_py)?;
+        }
         Ok(Self {
             inner: Arc::new(inner),
         })
+    }
+
+    /// Indexation ratio ``value_on(settle_date) / value_on(base_date)`` with lag and seasonality applied.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_date : datetime.date | str
+    ///     Reference date of the base index level.
+    /// settle_date : datetime.date | str
+    ///     Date of the uplifted level.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If either lag-adjusted date is outside the observation range.
+    #[pyo3(text_signature = "(self, base_date, settle_date)")]
+    fn ratio(&self, base_date: &Bound<'_, PyAny>, settle_date: &Bound<'_, PyAny>) -> PyResult<f64> {
+        self.inner
+            .ratio(py_to_date(base_date)?, py_to_date(settle_date)?)
+            .map_err(core_to_py)
+    }
+
+    /// Reference CPI for a date under an explicit month lag (bond-style lookup).
+    ///
+    /// Parameters
+    /// ----------
+    /// date : datetime.date | str
+    ///     Contract date.
+    /// lag_months : int
+    ///     Months to look back before interpolating (``3`` for TIPS/gilts).
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the lagged date is outside the observation range.
+    #[pyo3(text_signature = "(self, date, lag_months)")]
+    fn ref_cpi_months_lag(&self, date: &Bound<'_, PyAny>, lag_months: u32) -> PyResult<f64> {
+        self.inner
+            .ref_cpi_months_lag(py_to_date(date)?, lag_months)
+            .map_err(core_to_py)
+    }
+
+    /// ``(first_date, last_date)`` of the stored observations.
+    ///
+    /// Returns
+    /// -------
+    /// tuple[datetime.date, datetime.date]
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the index has no observations.
+    #[pyo3(text_signature = "(self)")]
+    fn date_range<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+        let (first, last) = self.inner.date_range().map_err(core_to_py)?;
+        Ok((date_to_py(py, first)?, date_to_py(py, last)?))
+    }
+
+    /// Publication lag label: ``"none"``, ``"<n>M"`` or ``"<n>D"``.
+    #[getter]
+    fn lag(&self) -> String {
+        self.inner.lag().to_string()
+    }
+
+    /// Twelve monthly seasonality factors (January first), or ``None``.
+    #[getter]
+    fn seasonality(&self) -> Option<Vec<f64>> {
+        self.inner.seasonality().map(|f| f.to_vec())
     }
 
     /// Inflation-index identifier.

@@ -20,7 +20,7 @@ use indexmap::IndexMap;
 /// This is the highest-level analysis envelope in the crate. Monetary outputs
 /// remain in the evaluated model currency, while coverage/leverage metrics are
 /// plain scalar ratios.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CorporateAnalysis {
     /// Full statement evaluation (all nodes, all periods)
     pub statement: StatementResult,

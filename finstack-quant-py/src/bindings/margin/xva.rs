@@ -1,7 +1,7 @@
 //! Python wrappers for XVA types (CVA/DVA/FVA configuration and results).
 
 use crate::bindings::pandas_utils::{
-    dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
+    dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema, serde_to_py,
 };
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_margin::xva::types as xva;
@@ -70,6 +70,26 @@ impl PyFundingConfig {
         Ok(Self { inner })
     }
 
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from the JSON produced by ``to_json``; raises
+    /// ``ValueError`` on malformed input or a config that fails validation.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: xva::FundingConfig = serde_json::from_str(json).map_err(display_to_py)?;
+        inner.validate().map_err(core_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
     /// Funding spread in basis points.
     #[getter]
     fn funding_spread_bp(&self) -> f64 {
@@ -109,15 +129,27 @@ impl PyFundingConfig {
 
     fn __repr__(&self) -> String {
         format!(
-            "FundingConfig(spread={:.1}bp, benefit={:?}bp, mva={})",
+            "FundingConfig(funding_spread_bp={}, funding_benefit_bp={}, margin_funding_spread_bp={}, im_profile={})",
             self.inner.funding_spread_bp,
-            self.inner.funding_benefit_bp,
-            self.inner.im_profile.is_some(),
+            self.inner
+                .funding_benefit_bp
+                .map_or("None".to_string(), |v| v.to_string()),
+            self.inner
+                .margin_funding_spread_bp
+                .map_or("None".to_string(), |v| v.to_string()),
+            if self.inner.im_profile.is_some() {
+                "ImProfile(...)"
+            } else {
+                "None"
+            },
         )
     }
 }
 
 /// Diagnostics from exposure simulation.
+///
+/// Counters an exposure engine attaches to an ``ExposureProfile``: how many
+/// market-roll and valuation failures occurred over how many time points.
 #[pyclass(
     name = "ExposureDiagnostics",
     module = "finstack_quant.margin",
@@ -130,6 +162,43 @@ pub struct PyExposureDiagnostics {
 
 #[pymethods]
 impl PyExposureDiagnostics {
+    /// Create a diagnostics record from its three counters (all default to
+    /// zero).
+    #[new]
+    #[pyo3(signature = (market_roll_failures = 0, valuation_failures = 0, total_time_points = 0))]
+    fn new(
+        market_roll_failures: usize,
+        valuation_failures: usize,
+        total_time_points: usize,
+    ) -> Self {
+        Self {
+            inner: xva::ExposureDiagnostics {
+                market_roll_failures,
+                valuation_failures,
+                total_time_points,
+            },
+        }
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from the JSON produced by ``to_json``; raises
+    /// ``ValueError`` on malformed input.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: xva::ExposureDiagnostics = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
     /// Number of market-roll failures.
     #[getter]
     fn market_roll_failures(&self) -> usize {
@@ -171,18 +240,80 @@ pub struct PyExposureProfile {
 
 #[pymethods]
 impl PyExposureProfile {
-    /// Construct from vectors.
+    /// Construct from parallel vectors on a time grid.
+    ///
+    /// ``times`` are strictly positive year fractions; ``mtm_values``,
+    /// ``epe`` and ``ene`` are amounts in the netting set's currency at each
+    /// time. ``diagnostics`` optionally attaches the engine's failure
+    /// counters. Values are stored as given; ``validate()`` and the XVA
+    /// entry points check consistency.
     #[new]
-    fn new(times: Vec<f64>, mtm_values: Vec<f64>, epe: Vec<f64>, ene: Vec<f64>) -> Self {
+    #[pyo3(signature = (times, mtm_values, epe, ene, diagnostics = None))]
+    fn new(
+        times: Vec<f64>,
+        mtm_values: Vec<f64>,
+        epe: Vec<f64>,
+        ene: Vec<f64>,
+        diagnostics: Option<&PyExposureDiagnostics>,
+    ) -> Self {
         Self {
             inner: xva::ExposureProfile {
                 times,
                 mtm_values,
                 epe,
                 ene,
-                diagnostics: None,
+                diagnostics: diagnostics.map(|d| d.inner.clone()),
             },
         }
+    }
+
+    /// Build a profile from the frame ``to_dataframe`` emits: columns
+    /// ``mtm_values``, ``epe``, ``ene`` indexed by time in years.
+    ///
+    /// Raises ``ValueError`` if a column is missing or non-numeric, and
+    /// ``TypeError`` when ``frame`` is not a pandas ``DataFrame``.
+    #[staticmethod]
+    fn from_dataframe(frame: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn column(frame: &Bound<'_, PyAny>, name: &str) -> PyResult<Vec<f64>> {
+            let column = frame.get_item(name).map_err(|_| {
+                crate::errors::value_error(format!("from_dataframe: column '{name}' is missing"))
+            })?;
+            column
+                .call_method0("tolist")?
+                .extract::<Vec<f64>>()
+                .map_err(|_| {
+                    crate::errors::value_error(format!(
+                        "from_dataframe: column '{name}' must be numeric"
+                    ))
+                })
+        }
+        let times: Vec<f64> = frame
+            .getattr("index")?
+            .call_method0("tolist")?
+            .extract()
+            .map_err(|_| {
+                crate::errors::value_error("from_dataframe: index must hold times in years")
+            })?;
+        Ok(Self {
+            inner: xva::ExposureProfile {
+                times,
+                mtm_values: column(frame, "mtm_values")?,
+                epe: column(frame, "epe")?,
+                ene: column(frame, "ene")?,
+                diagnostics: None,
+            },
+        })
+    }
+
+    /// Engine diagnostics attached to the profile, or ``None``.
+    #[getter]
+    fn diagnostics(&self) -> Option<PyExposureDiagnostics> {
+        self.inner
+            .diagnostics
+            .as_ref()
+            .map(|inner| PyExposureDiagnostics {
+                inner: inner.clone(),
+            })
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -254,7 +385,15 @@ impl PyExposureProfile {
     }
 
     fn __repr__(&self) -> String {
-        format!("ExposureProfile(points={})", self.inner.times.len())
+        format!(
+            "ExposureProfile(points={}, diagnostics={})",
+            self.inner.times.len(),
+            if self.inner.diagnostics.is_some() {
+                "ExposureDiagnostics(...)"
+            } else {
+                "None"
+            }
+        )
     }
 
     /// Render as an HTML table in Jupyter notebooks.
@@ -373,6 +512,14 @@ impl PyXvaResult {
         self.inner.effective_epe_profile.clone()
     }
 
+    /// Policy metadata stamped by the computing layer as a dict: numeric
+    /// mode, active rounding context, any applied FX policy and the
+    /// parallel-execution flag.
+    #[getter]
+    fn meta<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.meta)
+    }
+
     /// Export the XVA components as a single-row pandas ``DataFrame``.
     ///
     /// Columns: ``cva``, ``dva``, ``fva``, ``mva``, ``total_xva``,
@@ -436,15 +583,29 @@ impl PyXvaResult {
     }
 
     fn __repr__(&self) -> String {
+        fn opt(value: Option<f64>) -> String {
+            value.map_or("None".to_string(), |v| format!("{v:.4}"))
+        }
         format!(
-            "XvaResult(cva={:.4}, dva={:?}, fva={:?}, mva={:?}, total_xva={:.4}, max_pfe={:.2})",
+            "XvaResult(cva={:.4}, dva={}, fva={}, mva={}, total_xva={:.4}, max_pfe={:.2})",
             self.inner.cva,
-            self.inner.dva,
-            self.inner.fva,
-            self.inner.mva,
+            opt(self.inner.dva),
+            opt(self.inner.fva),
+            opt(self.inner.mva),
             self.inner.total_xva,
             self.inner.max_pfe
         )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -513,7 +674,15 @@ impl PyImDecayProfile {
     }
 
     fn __repr__(&self) -> String {
-        format!("ImDecayProfile({:?})", self.inner)
+        match &self.inner {
+            mva::ImDecayProfile::Constant => "ImDecayProfile(constant)".to_string(),
+            mva::ImDecayProfile::LinearToMaturity { maturity_years } => {
+                format!("ImDecayProfile(linear_to_maturity, maturity_years={maturity_years})")
+            }
+            mva::ImDecayProfile::SqrtTime { maturity_years } => {
+                format!("ImDecayProfile(sqrt_time, maturity_years={maturity_years})")
+            }
+        }
     }
 }
 
@@ -723,8 +892,9 @@ fn im_profile_from_simm(
 /// ----------
 /// im_profile : ImProfile
 ///     Expected IM profile.
-/// funding_spread_curve : list[tuple[float, float]]
-///     ``(time_years, spread_bp)`` pairs; a single pair means a flat spread.
+/// funding_spread_curve : list[tuple[float, float]] | pandas.Series
+///     ``(time_years, spread_bp)`` pairs, or a ``Series`` of spreads in bp
+///     indexed by time in years; a single pair means a flat spread.
 /// discount_curve : DiscountCurve
 ///     Risk-free discount curve.
 /// survival_curve : HazardCurve | None
@@ -733,10 +903,11 @@ fn im_profile_from_simm(
 #[pyo3(signature = (im_profile, funding_spread_curve, discount_curve, survival_curve=None))]
 fn compute_mva(
     im_profile: &PyImProfile,
-    funding_spread_curve: Vec<(f64, f64)>,
+    funding_spread_curve: &Bound<'_, PyAny>,
     discount_curve: &PyDiscountCurve,
     survival_curve: Option<&PyHazardCurve>,
 ) -> PyResult<PyMvaResult> {
+    let funding_spread_curve = super::frame::pairs_from_series_or_list(funding_spread_curve)?;
     let inner = mva::compute_mva(
         &im_profile.inner,
         &funding_spread_curve,

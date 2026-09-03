@@ -1,11 +1,17 @@
 //! Python wrappers for the statement evaluator and results.
 
-use super::types::PyFinancialModelSpec;
-use crate::bindings::core::market_data::context::PyMarketContext;
+use super::capital_structure::PyCapitalStructureCashflows;
+use super::monte_carlo::{extract_config, PyMonteCarloResults};
+use super::parse_period_id;
 use crate::bindings::core::money::PyMoney;
-use crate::bindings::date_utils::py_to_date;
-use crate::bindings::pandas_utils::{selected_table_to_dataframe, table_to_dataframe};
-use crate::errors::{display_to_py, statements_to_py};
+use crate::bindings::date_utils::{date_to_py, extract_date};
+use crate::bindings::extract::{extract_market_ref, extract_model_ref};
+use crate::bindings::pandas_utils::{
+    selected_table_to_dataframe, table_to_dataframe, values_to_series,
+};
+use crate::errors::{serde_json_to_py, statements_to_py};
+use finstack_quant_statements::evaluator::PeriodDateConvention;
+use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -37,14 +43,16 @@ impl PyStatementResult {
     #[pyo3(text_signature = "(json, /)")]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: finstack_quant_statements::evaluator::StatementResult =
-            serde_json::from_str(json).map_err(display_to_py)?;
+            serde_json::from_str(json)
+                .map_err(|e| serde_json_to_py(e, "invalid StatementResult JSON"))?;
         Ok(Self { inner })
     }
 
     /// Serialize to JSON.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_json::to_string(&self.inner)
+            .map_err(|e| serde_json_to_py(e, "failed to serialize StatementResult"))
     }
 
     /// Get the value for a node at a specific period.
@@ -66,6 +74,12 @@ impl PyStatementResult {
     ///     monetary nodes (currency not carried; use :meth:`get_money` for
     ///     that) and a unitless scalar otherwise. ``None`` when the node or
     ///     period is unknown.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``period`` is not a valid period id; the message restates the
+    ///     accepted grammar (``2025Q1``, ``2025M3``, ``2025``, ...).
     #[pyo3(text_signature = "($self, node_id, period)")]
     fn get(&self, node_id: &str, period: &str) -> PyResult<Option<f64>> {
         let pid = parse_period_id(period)?;
@@ -161,6 +175,17 @@ impl PyStatementResult {
             .map(|inner| super::checks::PyCheckReport { inner })
     }
 
+    /// Capital-structure cashflows (interest, principal, fees, balances per
+    /// instrument and period), or ``None`` when the model has no capital
+    /// structure or was evaluated without a market context.
+    #[getter]
+    fn cs_cashflows(&self) -> Option<PyCapitalStructureCashflows> {
+        self.inner
+            .cs_cashflows
+            .clone()
+            .map(|inner| PyCapitalStructureCashflows { inner })
+    }
+
     /// Get every evaluated period for one node as a dict.
     ///
     /// Parameters
@@ -190,6 +215,100 @@ impl PyStatementResult {
             }
             None => Ok(None),
         }
+    }
+
+    /// One node's evaluated series as a pandas ``Series``.
+    ///
+    /// Parameters
+    /// ----------
+    /// node_id : str
+    ///     Node identifier (e.g. ``"revenue"``).
+    ///
+    /// Returns
+    /// -------
+    /// pd.Series
+    ///     Float64 series named ``node_id``, indexed by period identifier
+    ///     string in evaluation order, in the node's own units (currency
+    ///     amount for monetary nodes — see :meth:`get_money` for the
+    ///     currency — unitless otherwise).
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If ``node_id`` is not in the result.
+    #[pyo3(text_signature = "($self, node_id)")]
+    fn to_series<'py>(&self, py: Python<'py>, node_id: &str) -> PyResult<Bound<'py, PyAny>> {
+        let period_map = self
+            .inner
+            .get_node(node_id)
+            .ok_or_else(|| PyKeyError::new_err(format!("unknown node: {node_id:?}")))?;
+        let labels: Vec<String> = period_map.keys().map(ToString::to_string).collect();
+        let values: Vec<f64> = period_map.values().copied().collect();
+        values_to_series(py, values, &labels, node_id)
+    }
+
+    /// Export one node as a dated cashflow schedule.
+    ///
+    /// Bridges period-based statement output into dated-cashflow consumers
+    /// (real-estate NOI DCFs, valuation instruments). Periods are taken in
+    /// ``model`` timeline order; periods without a value are skipped.
+    ///
+    /// Parameters
+    /// ----------
+    /// model : FinancialModelSpec | str
+    ///     The model that produced this result (its periods supply the
+    ///     dates); a typed model or its JSON.
+    /// node_id : str
+    ///     Node identifier to export.
+    /// convention : {"end", "start"}, default "end"
+    ///     ``"end"`` dates each period on its last inclusive day
+    ///     (``end - 1 day``, since periods are half-open ``[start, end)``);
+    ///     ``"start"`` uses the period start date.
+    ///
+    /// Returns
+    /// -------
+    /// list[tuple[datetime.date, float]]
+    ///     ``(date, value)`` pairs in timeline order, in the node's own
+    ///     units.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If ``node_id`` is not in the result.
+    /// ValueError
+    ///     If ``convention`` is not ``"end"`` or ``"start"``.
+    #[pyo3(signature = (model, node_id, convention="end"), text_signature = "($self, model, node_id, convention='end')")]
+    fn to_dated_schedule<'py>(
+        &self,
+        py: Python<'py>,
+        model: &Bound<'py, PyAny>,
+        node_id: &str,
+        convention: &str,
+    ) -> PyResult<Vec<(Bound<'py, PyAny>, f64)>> {
+        let convention = match convention {
+            "end" => PeriodDateConvention::End,
+            "start" => PeriodDateConvention::Start,
+            other => {
+                return Err(crate::errors::value_error(format!(
+                    "convention must be 'end' or 'start', got {other:?}"
+                )))
+            }
+        };
+        if !self.inner.nodes.contains_key(node_id) {
+            return Err(PyKeyError::new_err(format!("unknown node: {node_id:?}")));
+        }
+        let model = extract_model_ref(model)?;
+        let schedule = finstack_quant_statements::evaluator::node_to_dated_schedule(
+            &model,
+            &self.inner,
+            node_id,
+            convention,
+        )
+        .map_err(statements_to_py)?;
+        schedule
+            .into_iter()
+            .map(|(date, value)| Ok((date_to_py(py, date)?, value)))
+            .collect()
     }
 
     /// All node identifiers in the result, in evaluation order.
@@ -343,7 +462,18 @@ impl PyStatementResult {
         crate::bindings::core::table::PyArrowTable::from_envelope(&table)
     }
 
-    /// Return the debug representation with node and period counts.
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to ``to_dataframe("wide")`` (nodes as rows, periods as
+    /// columns), so pandas' own row/column truncation applies. Returns
+    /// ``None`` if the frame cannot be built, which makes IPython fall back
+    /// to ``__repr__`` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py, "wide").ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+
+    /// Return the representation with node and period counts.
     fn __repr__(&self) -> String {
         format!(
             "StatementResult(nodes={}, periods={})",
@@ -410,20 +540,32 @@ impl PyEvaluator {
     ///
     /// Parameters
     /// ----------
-    /// model : FinancialModelSpec
-    ///     The model specification to evaluate.
+    /// model : FinancialModelSpec | str
+    ///     The model specification to evaluate — a typed model or its
+    ///     canonical JSON.
     ///
     /// Returns
     /// -------
     /// StatementResult
     ///     Evaluation results with per-node, per-period values.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If a formula references a node that does not exist.
+    /// ValueError
+    ///     If the model JSON is malformed or evaluation fails (cyclic
+    ///     dependencies, invalid formulas, forecast parameter errors).
+    /// RuntimeError
+    ///     If capital-structure processing fails.
     #[pyo3(text_signature = "($self, model)")]
     fn evaluate(
         &mut self,
         py: Python<'_>,
-        model: &PyFinancialModelSpec,
+        model: &Bound<'_, PyAny>,
     ) -> PyResult<PyStatementResult> {
-        let model_inner = &model.inner;
+        let model = extract_model_ref(model)?;
+        let model_inner: &finstack_quant_statements::FinancialModelSpec = &model;
         let evaluator = &mut self.inner;
         let result = py
             .detach(|| evaluator.evaluate(model_inner))
@@ -438,33 +580,98 @@ impl PyEvaluator {
     ///
     /// Parameters
     /// ----------
-    /// model : FinancialModelSpec
-    ///     The model specification to evaluate.
-    /// market : MarketContext
-    ///     Market data context used for instrument pricing.
-    /// as_of : datetime.date
-    ///     Valuation/as-of date.
+    /// model : FinancialModelSpec | str
+    ///     The model specification to evaluate — a typed model or its
+    ///     canonical JSON.
+    /// market : MarketContext | str
+    ///     Market data context used for instrument pricing — typed or its
+    ///     canonical JSON.
+    /// as_of : datetime.date | datetime.datetime | pandas.Timestamp | str
+    ///     Valuation/as-of date; ISO ``YYYY-MM-DD`` strings are accepted.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If a formula references an unknown node or a required curve is
+    ///     missing from ``market``.
+    /// ValueError
+    ///     If ``as_of`` is not date-like, the model/market JSON is
+    ///     malformed, or evaluation fails.
+    /// RuntimeError
+    ///     If capital-structure cashflow generation or the waterfall fails.
     #[pyo3(text_signature = "($self, model, market, as_of)")]
     fn evaluate_with_market(
         &mut self,
         py: Python<'_>,
-        model: &PyFinancialModelSpec,
-        market: &PyMarketContext,
+        model: &Bound<'_, PyAny>,
+        market: &Bound<'_, PyAny>,
         as_of: &Bound<'_, PyAny>,
     ) -> PyResult<PyStatementResult> {
-        let as_of = py_to_date(as_of)?;
-        let model_inner = &model.inner;
-        let market_inner = &market.inner;
+        let as_of = extract_date(as_of)?;
+        let model = extract_model_ref(model)?;
+        let market = extract_market_ref(py, market)?;
+        let model_inner: &finstack_quant_statements::FinancialModelSpec = &model;
+        let market_inner: &finstack_quant_core::market_data::context::MarketContext = &market;
         let evaluator = &mut self.inner;
         let result = py
             .detach(|| evaluator.evaluate_with_market(model_inner, market_inner, as_of))
             .map_err(statements_to_py)?;
         Ok(PyStatementResult { inner: result })
     }
-}
 
-fn parse_period_id(s: &str) -> PyResult<finstack_quant_core::dates::PeriodId> {
-    s.parse().map_err(crate::errors::core_to_py)
+    /// Run a Monte Carlo simulation over the model's forecast periods.
+    ///
+    /// Each path re-draws every stochastic forecast (normal, log-normal,
+    /// mean-reverting, bootstrap) with a per-path seed derived from the
+    /// configured base seed, evaluates the model, and aggregates the
+    /// configured percentiles per node and period. Releases the GIL while
+    /// paths run.
+    ///
+    /// Parameters
+    /// ----------
+    /// model : FinancialModelSpec | str
+    ///     A typed model or its canonical JSON. Models with a capital
+    ///     structure are rejected.
+    /// config : MonteCarloConfig | str
+    ///     Typed configuration or JSON with ``n_paths``, ``seed``, optional
+    ///     ``percentiles`` (decimal fractions in [0, 1]), and optional
+    ///     ``include_path_data``.
+    ///
+    /// Returns
+    /// -------
+    /// MonteCarloResults
+    ///     Percentile fans per metric, forecast periods, warnings, and the
+    ///     optional per-path table.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the model or config JSON is malformed, ``n_paths`` is zero, a
+    ///     percentile is outside [0, 1], the model has a capital structure,
+    ///     or any path fails to evaluate.
+    /// KeyError
+    ///     If a formula references an unknown node.
+    #[pyo3(text_signature = "($self, model, config)")]
+    fn evaluate_monte_carlo(
+        &mut self,
+        py: Python<'_>,
+        model: &Bound<'_, PyAny>,
+        config: &Bound<'_, PyAny>,
+    ) -> PyResult<PyMonteCarloResults> {
+        let model = extract_model_ref(model)?;
+        let config = extract_config(config)?;
+        let model_inner: &finstack_quant_statements::FinancialModelSpec = &model;
+        let evaluator = &mut self.inner;
+        let inner = py
+            .detach(|| evaluator.evaluate_monte_carlo(model_inner, &config))
+            .map_err(statements_to_py)?;
+        Ok(PyMonteCarloResults { inner })
+    }
+
+    /// Return ``Evaluator()``.
+    fn __repr__(&self) -> String {
+        "Evaluator()".to_string()
+    }
 }
 
 /// Register evaluator classes.

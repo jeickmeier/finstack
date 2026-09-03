@@ -159,11 +159,14 @@ fn sharpe_sortino_volatility_finite() {
 fn tail_metrics_finite() {
     let perf = build_perf();
     for raw in [
-        perf.value_at_risk(Some(0.95)),
-        perf.expected_shortfall(Some(0.95)),
-        perf.parametric_var(Some(0.95), None),
-        perf.cornish_fisher_var(Some(0.95), None),
-        perf.tail_ratio(Some(0.95)),
+        perf.value_at_risk(Some(0.95)).expect("valid confidence"),
+        perf.expected_shortfall(Some(0.95))
+            .expect("valid confidence"),
+        perf.parametric_var(Some(0.95), None)
+            .expect("valid confidence"),
+        perf.cornish_fisher_var(Some(0.95), None)
+            .expect("valid confidence"),
+        perf.tail_ratio(Some(0.95)).expect("valid confidence"),
     ] {
         let v = typed_vec(raw);
         assert_eq!(v.len(), 2);

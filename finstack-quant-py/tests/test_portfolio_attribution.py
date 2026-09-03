@@ -101,9 +101,9 @@ def test_attribute_portfolio_pnl_returns_typed_aggregate_money_and_nested_json()
     assert by_position["USD-POS"]["total_pnl"]["currency"] == "USD"
 
     report = result.reconciliation_check(1.0e-8)
-    assert report["is_reconciled"] is True
-    assert report["tolerance"] == pytest.approx(1.0e-8)
-    assert abs(float(report["total_residual"])) <= 1.0e-8
+    assert report.is_reconciled is True
+    assert report.tolerance == pytest.approx(1.0e-8)
+    assert abs(float(report.total_residual)) <= 1.0e-8
 
     restored = json.loads(result.to_json())
     assert restored["by_position"] == by_position

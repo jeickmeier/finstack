@@ -79,14 +79,16 @@ sensitivities.add_ir_delta(Currency::USD, "5Y", 50_000.0);
 sensitivities.add_equity_delta("AAPL", 100_000.0);
 
 // (total_im: f64, breakdown: HashMap<String, Money>)
-let (total_im, breakdown) = calc.calculate_from_sensitivities(&sensitivities, Currency::USD);
+let (total_im, breakdown) = calc.calculate_from_sensitivities_parts(&sensitivities, Currency::USD);
 assert!(total_im >= 0.0);
 assert!(breakdown.contains_key("IR_Delta"));
 # Ok::<(), finstack_quant_core::Error>(())
 ```
 
-`calculate_from_sensitivities_result(&sens, currency, as_of)` returns the same
-numbers wrapped in an `ImResult` with methodology and MPOR stamped.
+`calculate_from_sensitivities(&sens, currency, as_of)` is the canonical entry
+point: it validates the container (unknown tenors and commodity buckets are
+rejected rather than priced as zero) and returns the same numbers wrapped in
+an `ImResult` with methodology and MPOR stamped.
 
 ### Variation margin
 

@@ -26,15 +26,15 @@ impl JsCopulaSpec {
     }
 
     /// Student-t copula with specified degrees of freedom (must be > 2).
-    /// @param df - Positive Student-t copula degrees of freedom controlling tail thickness.
+    /// @param degreesOfFreedom - Student-t degrees of freedom controlling tail thickness; finite and strictly greater than two.
     ///
     /// # Errors
     ///
-    /// Throws a JavaScript exception if `df` is not finite and strictly greater
-    /// than two.
+    /// Throws a JavaScript exception if `degreesOfFreedom` is not finite and
+    /// strictly greater than two.
     #[wasm_bindgen(js_name = studentT)]
-    pub fn student_t(df: f64) -> Result<JsCopulaSpec, JsValue> {
-        CopulaSpec::student_t(df)
+    pub fn student_t(degrees_of_freedom: f64) -> Result<JsCopulaSpec, JsValue> {
+        CopulaSpec::student_t(degrees_of_freedom)
             .map(|inner| Self { inner })
             .map_err(to_js_err)
     }

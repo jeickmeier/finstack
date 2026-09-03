@@ -143,12 +143,28 @@ impl RatingPath {
 /// let paths = sim.simulate(0, 1000, &mut rng).expect("valid simulation inputs");
 /// assert_eq!(paths.len(), 1000);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "MigrationSimulatorWire")]
 pub struct MigrationSimulator {
     /// The generator matrix.
     generator: GeneratorMatrix,
     /// Simulation horizon in years.
     horizon: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MigrationSimulatorWire {
+    generator: GeneratorMatrix,
+    horizon: f64,
+}
+
+impl TryFrom<MigrationSimulatorWire> for MigrationSimulator {
+    type Error = MigrationError;
+
+    fn try_from(wire: MigrationSimulatorWire) -> Result<Self, Self::Error> {
+        Self::new(wire.generator, wire.horizon)
+    }
 }
 
 impl MigrationSimulator {

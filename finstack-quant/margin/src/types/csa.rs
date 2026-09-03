@@ -8,6 +8,7 @@ use super::enums::ImMethodology;
 use super::serde_validation;
 use super::thresholds::{ImParameters, VmParameters};
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
 
@@ -162,12 +163,135 @@ impl CsaSpec {
         Self::regulatory_for_currency(Currency::EUR, "EUR-REGULATORY-CSA", "EUR-ESTR")
     }
 
-    fn regulatory_for_currency(
+    /// Create a standard regulatory CSA for any currency from the embedded
+    /// registry: zero VM threshold, daily exchange, SIMM IM, BCBS-IOSCO
+    /// eligible collateral and the currency's default margin calendar.
+    ///
+    /// # Arguments
+    ///
+    /// * `currency` - Base currency for thresholds, MTA and collateral values.
+    /// * `id` - CSA identifier used in margin lookups; must be non-empty.
+    /// * `collateral_curve` - Discount curve id for collateral valuation
+    ///   (typically the currency's OIS/RFR curve, e.g. `"GBP-SONIA"`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the embedded margin registry cannot be loaded.
+    pub fn regulatory_for_currency(
         currency: Currency,
         id: &str,
         collateral_curve: &str,
     ) -> Result<Self> {
         Self::regulatory_inner(None, currency, id, collateral_curve)
+    }
+
+    /// Return a copy with bilateral (legacy, non-zero) VM threshold terms.
+    ///
+    /// Rounding and independent amount keep the registry defaults of
+    /// [`VmParameters::with_threshold`] when `None`; frequency and settlement
+    /// lag are unchanged from the current spec.
+    ///
+    /// # Arguments
+    ///
+    /// * `threshold` - VM threshold below which no margin is exchanged, in
+    ///   the CSA base currency.
+    /// * `mta` - Minimum transfer amount in the CSA base currency.
+    /// * `rounding` - Optional transfer rounding increment in the base
+    ///   currency; `None` keeps the default (10,000).
+    /// * `independent_amount` - Optional independent amount in the base
+    ///   currency; `None` keeps zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if any supplied amount is not in the CSA
+    /// base currency.
+    pub fn with_vm_threshold(
+        mut self,
+        threshold: Money,
+        mta: Money,
+        rounding: Option<Money>,
+        independent_amount: Option<Money>,
+    ) -> Result<Self> {
+        for (name, money) in [
+            ("threshold", Some(threshold)),
+            ("mta", Some(mta)),
+            ("rounding", rounding),
+            ("independent_amount", independent_amount),
+        ] {
+            if let Some(money) = money {
+                if money.currency() != self.base_currency {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "CSA '{}' VM {name} currency mismatch: expected {}, got {}",
+                        self.id,
+                        self.base_currency,
+                        money.currency()
+                    )));
+                }
+            }
+        }
+        let frequency = self.vm_params.frequency;
+        let settlement_lag = self.vm_params.settlement_lag;
+        let mut vm = VmParameters::with_threshold(threshold, mta);
+        if let Some(rounding) = rounding {
+            vm.rounding = rounding;
+        }
+        if let Some(ia) = independent_amount {
+            vm.independent_amount = ia;
+        }
+        vm.frequency = frequency;
+        vm.settlement_lag = settlement_lag;
+        self.vm_params = vm;
+        Ok(self)
+    }
+
+    /// Return a copy with explicit initial-margin terms.
+    ///
+    /// Starts from [`ImParameters::for_methodology`] for the CSA base
+    /// currency and overrides the four negotiable terms.
+    ///
+    /// # Arguments
+    ///
+    /// * `methodology` - IM calculation regime (SIMM, schedule, ...).
+    /// * `mpor_days` - Margin period of risk in business days; must be positive.
+    /// * `threshold` - IM threshold in the CSA base currency.
+    /// * `mta` - IM minimum transfer amount in the CSA base currency.
+    /// * `segregated` - Whether IM must be held with a third-party custodian.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if `mpor_days` is zero, an amount is not in
+    /// the CSA base currency, or the embedded registry cannot be loaded.
+    pub fn with_im(
+        mut self,
+        methodology: ImMethodology,
+        mpor_days: u32,
+        threshold: Money,
+        mta: Money,
+        segregated: bool,
+    ) -> Result<Self> {
+        if mpor_days == 0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "CSA '{}' IM mpor_days must be positive",
+                self.id
+            )));
+        }
+        for (name, money) in [("threshold", threshold), ("mta", mta)] {
+            if money.currency() != self.base_currency {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "CSA '{}' IM {name} currency mismatch: expected {}, got {}",
+                    self.id,
+                    self.base_currency,
+                    money.currency()
+                )));
+            }
+        }
+        let mut im = ImParameters::for_methodology(methodology, self.base_currency)?;
+        im.mpor_days = mpor_days;
+        im.threshold = threshold;
+        im.mta = mta;
+        im.segregated = segregated;
+        self.im_params = Some(im);
+        Ok(self)
     }
 
     /// Create a CSA using overrides resolved from a config.
@@ -262,7 +386,6 @@ impl CsaSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_core::money::Money;
 
     #[test]
     fn usd_regulatory_csa() {
@@ -292,10 +415,48 @@ mod tests {
     }
 
     #[test]
+    fn with_vm_threshold_and_with_im_override_terms_in_base_currency() {
+        let csa = CsaSpec::usd_regulatory()
+            .expect("registry should load")
+            .with_vm_threshold(
+                Money::new(300_000.0, Currency::USD),
+                Money::new(50_000.0, Currency::USD),
+                None,
+                Some(Money::new(100_000.0, Currency::USD)),
+            )
+            .expect("same-currency terms")
+            .with_im(
+                ImMethodology::Schedule,
+                5,
+                Money::new(1_000_000.0, Currency::USD),
+                Money::new(0.0, Currency::USD),
+                true,
+            )
+            .expect("same-currency IM terms");
+        assert_eq!(csa.vm_threshold().amount(), 300_000.0);
+        assert_eq!(csa.vm_params.independent_amount.amount(), 100_000.0);
+        assert_eq!(csa.vm_params.rounding.amount(), 10_000.0);
+        let im = csa.im_params.as_ref().expect("im");
+        assert_eq!(im.methodology, ImMethodology::Schedule);
+        assert_eq!(im.mpor_days, 5);
+        assert!(im.segregated);
+
+        let mismatch = CsaSpec::usd_regulatory()
+            .expect("registry should load")
+            .with_vm_threshold(
+                Money::new(1.0, Currency::EUR),
+                Money::new(0.0, Currency::USD),
+                None,
+                None,
+            );
+        assert!(mismatch.is_err());
+    }
+
+    #[test]
     fn unmapped_currency_uses_registered_weekends_calendar() {
         let csa = CsaSpec::regulatory_for_currency(Currency::NZD, "NZD-CSA", "NZD-OIS")
             .expect("registry should load");
-        assert_eq!(csa.calendar_id, "weekends");
+        assert_eq!(csa.calendar_id, "weekends_only");
         csa.validate().expect("fallback calendar should resolve");
     }
 }

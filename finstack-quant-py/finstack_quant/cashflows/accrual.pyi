@@ -19,23 +19,25 @@ Example::
     ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
     ...     .build(None)
     ... )
-    >>> accrued_interest_amount(schedule, datetime.date(2025, 4, 15))
+    >>> accrued_interest_amount(schedule, datetime.date(2025, 4, 15)).amount
     12500.0
 
 Examples
 --------
 >>> from finstack_quant.cashflows.accrual import AccrualMethod
->>> str(AccrualMethod.LINEAR)
-'AccrualMethod(Linear)'
+>>> repr(AccrualMethod.LINEAR)
+'AccrualMethod.LINEAR'
 
 """
 
 from __future__ import annotations
 
 import datetime
+from typing import Any
 
 from finstack_quant.cashflows.builder import CashFlowSchedule
 from finstack_quant.core.dates import Tenor
+from finstack_quant.core.money import Money
 
 __all__ = [
     "AccrualConfig",
@@ -81,6 +83,22 @@ class AccrualMethod:
     compound within a coupon period (e.g. some leveraged loans). Use
     ``AccrualMethod.LINEAR`` for bond markets that follow ICMA Rule 251.1.
     """
+
+    @property
+    def name(self) -> str:
+        """
+        Canonical snake_case label (``"linear"`` / ``"compounded"``).
+
+        Returns
+        -------
+        str
+            Canonical snake_case label (``"linear"`` / ``"compounded"``).
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
 
 class ExCouponRule:
     """
@@ -189,6 +207,73 @@ class ExCouponRule:
         """
         ...
 
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.accrual import ExCouponRule
+        >>> isinstance(ExCouponRule(7).to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ExCouponRule:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        ExCouponRule
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.accrual import ExCouponRule
+        >>> value = ExCouponRule(7)
+        >>> ExCouponRule.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class AccrualConfig:
     """
     Generic configuration for schedule-driven interest accrual.
@@ -246,6 +331,137 @@ class AccrualConfig:
         """
         ...
 
+    @property
+    def method(self) -> AccrualMethod:
+        """
+        Accrual method in force.
+
+        Returns
+        -------
+        AccrualMethod
+            Accrual method in force.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def ex_coupon(self) -> ExCouponRule | None:
+        """
+        Ex-coupon rule, if any.
+
+        Returns
+        -------
+        ExCouponRule | None
+            Ex-coupon rule, if any.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def include_pik(self) -> bool:
+        """
+        Whether PIK interest is included in the accrued amount.
+
+        Returns
+        -------
+        bool
+            Whether PIK interest is included in the accrued amount.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def frequency(self) -> Tenor | None:
+        """
+        Coupon frequency used for ACT/ACT ICMA, if set.
+
+        Returns
+        -------
+        Tenor | None
+            Coupon frequency used for ACT/ACT ICMA, if set.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.accrual import AccrualConfig
+        >>> isinstance(AccrualConfig().to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> AccrualConfig:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        AccrualConfig
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.accrual import AccrualConfig
+        >>> value = AccrualConfig()
+        >>> AccrualConfig.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class AccrualIndex:
     """
     Precomputed accrual state for repeated ``accrued_at`` queries.
@@ -271,7 +487,7 @@ class AccrualIndex:
     ... )
     >>> index = AccrualIndex.build(schedule)
     >>> index.accrued_at(datetime.date(2025, 4, 15))
-    12500.0
+    Money(12500, 'USD')
     """
 
     @classmethod
@@ -324,20 +540,20 @@ class AccrualIndex:
         """
         ...
 
-    def accrued_at(self, as_of: datetime.date) -> float:
+    def accrued_at(self, as_of: datetime.date | str) -> Money:
         """
         Accrued interest as of *as_of* using the prebuilt periods.
 
         Parameters
         ----------
-        as_of : datetime.date
+        as_of : datetime.date or str
             Accrual cut-off date; dates outside all coupon periods return
-            ``0.0``.
+            zero.
 
         Returns
         -------
-        float
-            Accrued interest in the schedule's currency space; negative
+        Money
+            Accrued interest in the schedule's notional currency; negative
             inside an active ex-coupon window.
 
         Raises
@@ -349,9 +565,9 @@ class AccrualIndex:
 
 def accrued_interest_amount(
     schedule: CashFlowSchedule,
-    as_of: datetime.date,
+    as_of: datetime.date | str,
     config: AccrualConfig | None = None,
-) -> float:
+) -> Money:
     """
     Compute accrued interest for a schedule as of *as_of*.
 
@@ -360,18 +576,17 @@ def accrued_interest_amount(
     schedule : CashFlowSchedule
         Canonical cashflow schedule containing coupon, PIK, and notional
         flows.
-    as_of : datetime.date
-        Accrual cut-off date; dates outside all coupon periods return
-        ``0.0``.
+    as_of : datetime.date or str
+        Accrual cut-off date; dates outside all coupon periods return zero.
     config : AccrualConfig, optional
         Accrual method and ex-coupon configuration (default linear, PIK
         included).
 
     Returns
     -------
-    float
-        Accrued interest in the schedule's currency space; negative inside
-        an active ex-coupon window.
+    Money
+        Accrued interest in the schedule's notional currency; negative
+        inside an active ex-coupon window.
 
     Raises
     ------
@@ -395,7 +610,7 @@ def accrued_interest_amount(
     ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
     ...     .build(None)
     ... )
-    >>> accrued_interest_amount(schedule, datetime.date(2025, 4, 15))
+    >>> accrued_interest_amount(schedule, datetime.date(2025, 4, 15)).amount
     12500.0
     """
     ...

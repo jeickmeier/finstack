@@ -14,17 +14,17 @@ import datetime
 
 import pandas as pd
 
-from typing import Any, Literal
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal, overload
 
 from finstack_quant.attribution import PnlAttribution
+from finstack_quant.core.config import FinstackConfig
 from finstack_quant.core.dates import DayCount
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.statements import FinancialModelSpec
 from finstack_quant.scenarios import schema as schema
 
 __all__ = [
-    "parse_scenario_spec",
-    "build_scenario_spec",
     "compose_scenarios",
     "validate_scenario_spec",
     "list_builtin_templates",
@@ -37,6 +37,7 @@ __all__ = [
     "compute_horizon_return",
     "ApplicationReport",
     "ApplicationResult",
+    "HierarchyTarget",
     "HorizonResult",
     "OperationSpec",
     "RateBindingSpec",
@@ -80,8 +81,11 @@ class ScenarioSpec:
     --------
     >>> from finstack_quant.scenarios import CurveKind, OperationSpec, ScenarioSpec
     >>> operation = OperationSpec.curve_parallel_bp(CurveKind.discount(), "USD-OIS", 25.0)
-    >>> ScenarioSpec("rates_up", [operation]).id
+    >>> spec = ScenarioSpec("rates_up", [operation])
+    >>> spec.id
     'rates_up'
+    >>> spec == ScenarioSpec.from_json(spec.to_json())
+    True
     """
 
     def __init__(
@@ -143,6 +147,99 @@ class ScenarioSpec:
         ------
         ValueError
             If the scenario violates a canonical Rust validation rule.
+        """
+        ...
+
+    def requires_instruments(self) -> bool:
+        """Whether applying this scenario needs instruments in the execution context.
+
+        Returns
+        -------
+        bool
+            ``True`` when any operation is instrument-scoped or a
+            ``time_roll_forward`` (which reads instruments for carry).
+
+        Raises
+        ------
+        None
+            This method does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import OperationSpec, ScenarioSpec
+        >>> ScenarioSpec("roll", [OperationSpec.time_roll_forward("1M")]).requires_instruments()
+        True
+        """
+        ...
+
+    def mutates_instruments(self) -> bool:
+        """Whether applying this scenario can replace or mutate instruments.
+
+        Returns
+        -------
+        bool
+            ``True`` for instrument price, spread, or structured-credit
+            correlation shocks; ``False`` for market-only scenarios and time
+            rolls. ``apply_scenario*`` raise ``ValueError`` when this is
+            ``True`` and no ``instruments`` are supplied.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import OperationSpec, ScenarioSpec
+        >>> ScenarioSpec("roll", [OperationSpec.time_roll_forward("1M")]).mutates_instruments()
+        False
+        """
+        ...
+
+    def with_hazard_bump_mode(self, mode: Literal["solve_to_par", "first_order_shift"]) -> ScenarioSpec:
+        """Return a copy with a different ParCDS hazard delivery mode.
+
+        Parameters
+        ----------
+        mode : {"solve_to_par", "first_order_shift"}
+            ``solve_to_par`` re-bootstraps hazard from shocked par spreads;
+            ``first_order_shift`` shifts hazard knots in place.
+
+        Returns
+        -------
+        ScenarioSpec
+            New specification with ``hazard_bump_mode`` replaced.
+
+        Raises
+        ------
+        ValueError
+            If ``mode`` is not one of the accepted labels.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import ScenarioSpec
+        >>> ScenarioSpec("s", []).with_hazard_bump_mode("first_order_shift").hazard_bump_mode
+        'first_order_shift'
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on every field (id, operations, priority, modes).
+
+        Parameters
+        ----------
+        other : object
+            Value to compare; non-``ScenarioSpec`` values compare unequal.
+
+        Returns
+        -------
+        bool
+            ``True`` when both specs serialize identically.
+
+        Raises
+        ------
+        None
+            This method does not raise.
         """
         ...
 
@@ -385,6 +482,26 @@ class TemplateMetadata:
         """
         ...
 
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on every metadata field.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare; non-``TemplateMetadata`` values compare unequal.
+
+        Returns
+        -------
+        bool
+            ``True`` when both values serialize identically.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
     @staticmethod
     def from_json(json: str) -> TemplateMetadata:
         """Deserialize template metadata from canonical JSON.
@@ -428,86 +545,6 @@ class TemplateMetadata:
         """
         ...
 
-def parse_scenario_spec(json_str: str) -> ScenarioSpec:
-    """
-    Parse, validate, and re-serialize a ``ScenarioSpec`` from JSON.
-
-    Parameters
-    ----------
-    json_str : str
-        JSON-serialized ``ScenarioSpec``.
-
-    Returns
-    -------
-    ScenarioSpec
-        Validated typed scenario specification.
-
-    Raises
-    ------
-    ValueError
-        If the JSON is malformed or fails scenario-spec validation.
-
-    Examples
-    --------
-    >>> from finstack_quant.scenarios import parse_scenario_spec
-    >>> parsed = parse_scenario_spec('{"id":"s","name":"S","operations":[]}')
-    >>> parsed.resolution_mode
-    'most_specific_wins'
-    """
-    ...
-
-def build_scenario_spec(
-    id: str,
-    operations: list[OperationSpec],
-    name: str | None = None,
-    description: str | None = None,
-    priority: int = 0,
-    resolution_mode: Literal["most_specific_wins", "cumulative"] = "most_specific_wins",
-    hazard_bump_mode: Literal["solve_to_par", "first_order_shift"] = "solve_to_par",
-) -> ScenarioSpec:
-    """
-    Construct a typed ``ScenarioSpec`` from fields and ordered operations.
-
-    Parameters
-    ----------
-    id : str
-        Stable scenario identifier.
-    operations : list[OperationSpec]
-        Ordered typed scenario operations.
-    name : str, optional
-        Display name.
-    description : str, optional
-        Long description.
-    priority : int, default 0
-        Composition priority (lower runs first).
-    resolution_mode : str, default "most_specific_wins"
-        Hierarchy conflict policy. Accepted values are
-        ``"most_specific_wins"`` and ``"cumulative"``.
-    hazard_bump_mode : str, default "solve_to_par"
-        ParCDS delivery. Accepted values are ``"solve_to_par"`` (re-bootstrap
-        hazard from shocked par spreads) and ``"first_order_shift"`` (shift
-        hazard knots in place).
-
-    Returns
-    -------
-    ScenarioSpec
-        Validated typed scenario specification.
-
-    Raises
-    ------
-    ValueError
-        If ``resolution_mode`` or ``hazard_bump_mode`` is not recognized, or
-        the resulting scenario fails validation.
-
-    Examples
-    --------
-    >>> from finstack_quant.scenarios import build_scenario_spec
-    >>> built = build_scenario_spec("s1", [], resolution_mode="cumulative")
-    >>> built.resolution_mode
-    'cumulative'
-    """
-    ...
-
 def compose_scenarios(specs: list[ScenarioSpec]) -> ScenarioSpec:
     """
     Merge multiple scenario specs using the scenario engine composer.
@@ -535,14 +572,14 @@ def compose_scenarios(specs: list[ScenarioSpec]) -> ScenarioSpec:
     """
     ...
 
-def validate_scenario_spec(json_str: str) -> None:
+def validate_scenario_spec(scenario: ScenarioSpec | str) -> None:
     """
     Validate a scenario specification without applying it.
 
     Parameters
     ----------
-    json_str : str
-        JSON-serialized ``ScenarioSpec``.
+    scenario : ScenarioSpec | str
+        Typed scenario or JSON-serialized ``ScenarioSpec``.
 
     Returns
     -------
@@ -553,7 +590,8 @@ def validate_scenario_spec(json_str: str) -> None:
     Raises
     ------
     ValueError
-        If ``json_str`` is not valid JSON or fails validation.
+        If ``scenario`` is not valid JSON or fails validation; the message is
+        the one ``ScenarioSpec.validate()`` raises.
 
     Examples
     --------
@@ -708,7 +746,7 @@ class ApplicationReport:
     --------
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
-    >>> report = apply_scenario_to_market(compose_scenarios([]).to_json(), MarketContext(), "2025-01-15").report
+    >>> report = apply_scenario_to_market(compose_scenarios([]), MarketContext(), "2025-01-15").report
     >>> (report.operations_applied, report.user_operations, report.warnings)
     (0, 0, [])
     """
@@ -766,15 +804,51 @@ class ApplicationReport:
         ...
 
     @property
-    def warnings(self) -> list[str]:
+    def warnings(self) -> list[dict[str, Any]]:
         """
         Non-fatal warnings raised while applying the scenario.
 
         Returns
         -------
-        list[str]
-            Rendered warning messages, in the order the engine emitted them.
-            Empty when the scenario applied cleanly.
+        list[dict[str, Any]]
+            Structured warnings in emission order. Each dict carries a
+            ``kind`` discriminator (``"equity_not_found"``,
+            ``"discount_curve_heuristic"``, ``"commodity_shock_outside_range"``,
+            ...) plus variant-specific fields. Empty when the scenario applied
+            cleanly.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def warnings_json(self) -> str:
+        """
+        The structured warnings as one JSON-encoded array.
+
+        Returns
+        -------
+        str
+            JSON array; ``json.loads`` gives the same list as ``warnings``.
+
+        Raises
+        ------
+        ValueError
+            If the warnings cannot be serialized.
+        """
+        ...
+
+    @property
+    def warning_count(self) -> int:
+        """
+        Number of warnings raised while applying the scenario.
+
+        Returns
+        -------
+        int
+            ``len(warnings)``.
 
         Notes
         -----
@@ -843,13 +917,81 @@ class ApplicationReport:
         Returns
         -------
         pd.DataFrame
-            One row holding the operation counters and the serialized
-            ``changes``/``warnings`` fields.
+            One row with columns ``operations_applied``, ``user_operations``,
+            ``expanded_operations``, ``warning_count``, ``as_of_changed`` and
+            ``all_dirty``.
 
         Raises
         ------
         ValueError
             If the result cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.scenarios import ScenarioSpec, apply_scenario_to_market
+        >>> frame = apply_scenario_to_market(ScenarioSpec("s", []), MarketContext(), "2025-01-15").report.to_dataframe()
+        >>> list(frame.columns)[:4]
+        ['operations_applied', 'user_operations', 'expanded_operations', 'warning_count']
+        """
+        ...
+
+    def changes_to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the market targets the scenario actually changed, one row each.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``kind`` (``curve``, ``volatility_index``,
+            ``base_correlation``, ``vol_surface``, ``equity_price``, ``fx``),
+            ``id`` (identifier, or ``BASE/QUOTE`` for FX) and ``curve_kind``
+            (curve family for ``curve`` rows, else ``None``). Empty, with the
+            same columns, when nothing changed.
+
+        Raises
+        ------
+        ValueError
+            If the manifest cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.scenarios import ScenarioSpec, apply_scenario_to_market
+        >>> frame = apply_scenario_to_market(
+        ...     ScenarioSpec("s", []), MarketContext(), "2025-01-15"
+        ... ).report.changes_to_dataframe()
+        >>> list(frame.columns)
+        ['kind', 'id', 'curve_kind']
+        """
+        ...
+
+    def carry_to_dataframe(self) -> pd.DataFrame:
+        """
+        Export per-instrument carry from the time roll, one row per
+        instrument and currency.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``instrument_id``, ``amount`` (carry P&L as a float) and
+            ``currency`` (ISO-4217 code). Empty when the scenario had no
+            ``time_roll_forward`` or no instruments were supplied.
+
+        Raises
+        ------
+        ValueError
+            If the carry rows cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.scenarios import ScenarioSpec, apply_scenario_to_market
+        >>> frame = apply_scenario_to_market(
+        ...     ScenarioSpec("s", []), MarketContext(), "2025-01-15"
+        ... ).report.carry_to_dataframe()
+        >>> list(frame.columns)
+        ['instrument_id', 'amount', 'currency']
         """
         ...
 
@@ -913,7 +1055,7 @@ class ApplicationResult:
     --------
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
-    >>> applied = apply_scenario_to_market(compose_scenarios([]).to_json(), MarketContext(), "2025-01-15")
+    >>> applied = apply_scenario_to_market(compose_scenarios([]), MarketContext(), "2025-01-15")
     >>> (type(applied.market).__name__, applied.model, applied.report.operations_applied)
     ('MarketContext', None, 0)
     """
@@ -964,6 +1106,29 @@ class ApplicationResult:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the application report counters as a single-row pandas DataFrame.
+
+        Returns
+        -------
+        pd.DataFrame
+            Same columns as :meth:`ApplicationReport.to_dataframe`.
+
+        Raises
+        ------
+        ValueError
+            If the result cannot be serialized into a pandas object.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.scenarios import ScenarioSpec, apply_scenario_to_market
+        >>> len(apply_scenario_to_market(ScenarioSpec("s", []), MarketContext(), "2025-01-15").to_dataframe())
+        1
         """
         ...
 
@@ -1021,47 +1186,59 @@ class ApplicationResult:
         ...
 
 def apply_scenario(
-    scenario_json: str,
-    market: Any,
-    model: Any,
-    as_of: datetime.date | str,
+    scenario: ScenarioSpec | str,
+    market: MarketContext | str,
+    model: FinancialModelSpec | str,
+    as_of: datetime.date | datetime.datetime | pd.Timestamp | str,
+    instruments: Sequence[Any] | None = None,
+    config: FinstackConfig | str | None = None,
 ) -> ApplicationResult:
     """
     Apply a scenario to both market data and a financial model.
 
     Parameters
     ----------
-    scenario_json : str
-        JSON ``ScenarioSpec``.
-    market : Any
-        ``MarketContext`` object or JSON ``MarketContext`` string.
-    model : Any
+    scenario : ScenarioSpec | str
+        Typed scenario or JSON-serialized ``ScenarioSpec``.
+    market : MarketContext | str
+        ``MarketContext`` object or JSON ``MarketContext`` string. Never
+        mutated; the result carries a modified copy.
+    model : FinancialModelSpec | str
         ``FinancialModelSpec`` object or JSON ``FinancialModelSpec`` string.
-    as_of : datetime.date | str
-        Valuation date, either a date-like object or an ISO 8601 string.
+    as_of : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Valuation date (ISO 8601 accepted).
+    instruments : Sequence[Instrument | str] | None, default None
+        Typed instruments (``Bond``, ``CreditDefaultSwap``, ...) or canonical
+        instrument-envelope JSON strings. Required when the scenario contains
+        instrument-scoped operations; also used for carry under
+        ``time_roll_forward``. Mutations are not returned; inspect
+        ``report.changes`` and ``report.carry_to_dataframe()``.
+    config : FinstackConfig | str | None, default None
+        Library configuration (rounding policy stamped into ``report.meta``);
+        ``None`` uses the library default.
 
     Returns
     -------
     ApplicationResult
-        Typed result exposing :attr:`~ApplicationResult.market`
-        (``MarketContext``), :attr:`~ApplicationResult.model`
-        (``FinancialModelSpec``), and :attr:`~ApplicationResult.report`
-        (:class:`ApplicationReport`). Call ``.to_json()`` for the canonical
-        JSON envelope.
+        Typed result exposing :attr:`~ApplicationResult.market`,
+        :attr:`~ApplicationResult.model` and :attr:`~ApplicationResult.report`.
 
     Notes
     -----
-    This entry point supplies no instrument portfolio and no holiday calendar
-    to the engine, so instrument-scoped operations
-    (``instrument_price_pct_by_*``, ``instrument_spread_bp_by_*``,
-    ``asset_correlation_pts``, ``prepay_default_correlation_pts``) are inert
-    and produce a warning, and ``time_roll_forward`` in ``business_days`` mode
-    adjusts without holiday information.
+    No holiday calendar is supplied, so ``time_roll_forward`` in
+    ``business_days`` mode adjusts against a weekends-only calendar. Quote
+    replay operations use a fresh cached recalibration provider.
 
     Raises
     ------
     ValueError
-        If the scenario JSON is malformed or application fails.
+        If an input fails to parse or validate, or the scenario mutates
+        instruments and ``instruments`` is ``None``.
+    KeyError
+        If the scenario references market data, statement nodes, tenors or
+        instruments that do not exist.
+    RuntimeError
+        If the engine fails internally.
 
     Examples
     --------
@@ -1072,28 +1249,37 @@ def apply_scenario(
     ...     '{"id":"2025Q1","start":"2025-01-01","end":"2025-04-01",'
     ...     '"is_actual":false}],"nodes":{}}'
     ... )
-    >>> applied = apply_scenario(compose_scenarios([]).to_json(), MarketContext(), model, "2025-01-15")
+    >>> applied = apply_scenario(compose_scenarios([]), MarketContext(), model, "2025-01-15")
     >>> applied.report.operations_applied
     0
     """
     ...
 
 def apply_scenario_to_market(
-    scenario_json: str,
-    market: Any,
-    as_of: datetime.date | str,
+    scenario: ScenarioSpec | str,
+    market: MarketContext | str,
+    as_of: datetime.date | datetime.datetime | pd.Timestamp | str,
+    instruments: Sequence[Any] | None = None,
+    config: FinstackConfig | str | None = None,
 ) -> ApplicationResult:
     """
     Apply a scenario to market data only (no model mutations returned).
 
     Parameters
     ----------
-    scenario_json : str
-        JSON ``ScenarioSpec``.
-    market : Any
-        ``MarketContext`` object or JSON ``MarketContext`` string.
-    as_of : datetime.date | str
-        Valuation date, either a date-like object or an ISO 8601 string.
+    scenario : ScenarioSpec | str
+        Typed scenario or JSON-serialized ``ScenarioSpec``.
+    market : MarketContext | str
+        ``MarketContext`` object or JSON ``MarketContext`` string. Never
+        mutated.
+    as_of : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Valuation date (ISO 8601 accepted).
+    instruments : Sequence[Instrument | str] | None, default None
+        Typed instruments or canonical envelope JSON strings; required for
+        instrument-scoped operations, used for carry under
+        ``time_roll_forward``. Mutations are not returned.
+    config : FinstackConfig | str | None, default None
+        Library configuration; ``None`` uses the default.
 
     Returns
     -------
@@ -1103,22 +1289,39 @@ def apply_scenario_to_market(
 
     Notes
     -----
-    As with :func:`apply_scenario`, no instrument portfolio or holiday
-    calendar is supplied: instrument-scoped operations are inert (with a
-    warning) and business-day time rolls adjust without holiday information.
+    No holiday calendar is supplied, so business-day time rolls adjust
+    against a weekends-only calendar.
 
     Raises
     ------
     ValueError
-        If the scenario JSON is malformed or application fails.
+        If an input fails to parse or validate, or the scenario mutates
+        instruments and ``instruments`` is ``None``.
+    KeyError
+        If the scenario references market data, tenors or instruments that
+        do not exist.
+    RuntimeError
+        If the engine fails internally.
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data import MarketContext
-    >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
-    >>> applied = apply_scenario_to_market(compose_scenarios([]).to_json(), MarketContext(), "2025-01-15")
-    >>> applied.report.operations_applied
-    0
+    >>> import datetime as dt
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> from finstack_quant.scenarios import OperationSpec, ScenarioSpec, apply_scenario_to_market
+    >>> market = MarketContext()
+    >>> market.insert(
+    ...     DiscountCurve(
+    ...         "USD-OIS",
+    ...         dt.date(2025, 1, 15),
+    ...         [(0.0, 1.0), (1.0, 0.96), (2.0, 0.92)],
+    ...         day_count="act_365f",
+    ...     )
+    ... )
+    MarketContext(discount=['USD-OIS'], fx=False)
+    >>> spec = ScenarioSpec("up25", [OperationSpec.curve_parallel_bp("discount", "USD-OIS", 25.0)])
+    >>> applied = apply_scenario_to_market(spec, market, "2025-01-15")
+    >>> applied.report.user_operations
+    1
     """
     ...
 
@@ -1135,7 +1338,7 @@ class HorizonResult:
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import compose_scenarios, compute_horizon_return
     >>> try:
-    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios([]).to_json())
+    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios([]))
     ... except ValueError as exc:
     ...     print(str(exc).split(":")[0])
     Validation error
@@ -1182,7 +1385,24 @@ class HorizonResult:
         Returns
         -------
         float
-            Present value after scenario shocks and time roll.
+            Present value after scenario shocks and time roll, as a bare
+            amount in ``currency``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def currency(self) -> str:
+        """
+        ISO-4217 currency of ``initial_value`` and ``terminal_value``.
+
+        Returns
+        -------
+        str
+            Currency code, e.g. ``"USD"``.
 
         Notes
         -----
@@ -1208,14 +1428,16 @@ class HorizonResult:
         ...
 
     @property
-    def total_return_pct(self) -> float:
+    def total_return(self) -> float:
         """
-        Total return as decimal fraction (0.05 = 5%).
+        Total return as a decimal fraction (``0.05`` = +5%).
 
         Returns
         -------
         float
-            ``(terminal_value - initial_value) / initial_value``.
+            ``total_pnl / initial_value``; ``nan`` when the initial value and
+            total P&L are in different currencies (no implicit FX) or the
+            initial value is negative, ``0.0`` when the initial value is zero.
 
         Notes
         -----
@@ -1241,14 +1463,15 @@ class HorizonResult:
         ...
 
     @property
-    def operations_applied(self) -> int:
+    def scenario_report(self) -> ApplicationReport:
         """
-        Number of scenario effects successfully applied.
+        Report from applying the scenario to the market copy.
 
         Returns
         -------
-        int
-            Low-level applied-effect count, not an operation-coverage ratio.
+        ApplicationReport
+            Operation counters, change manifest, structured warnings and the
+            time-roll report (``horizon_days`` comes from it).
 
         Notes
         -----
@@ -1257,46 +1480,15 @@ class HorizonResult:
         ...
 
     @property
-    def user_operations(self) -> int:
+    def warnings(self) -> list[dict[str, Any]]:
         """
-        Number of user-provided scenario operations before hierarchy expansion.
+        Structured warnings emitted during scenario application.
 
         Returns
         -------
-        int
-            Count of operations in the original ``ScenarioSpec``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def expanded_operations(self) -> int:
-        """
-        Number of direct operations after hierarchy expansion and deduplication.
-
-        Returns
-        -------
-        int
-            Count of unique operations after template hierarchy expansion.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def warnings(self) -> list[str]:
-        """
-        Warnings emitted during scenario application (rendered Display form).
-
-        Returns
-        -------
-        list[str]
-            Human-readable warning strings.
+        list[dict[str, Any]]
+            Same as ``scenario_report.warnings``: dicts with a ``kind``
+            discriminator plus variant-specific fields.
 
         Notes
         -----
@@ -1309,18 +1501,15 @@ class HorizonResult:
         """
         JSON-encoded structured warnings.
 
-        Each entry is a `Warning` record with a ``kind`` discriminator plus
-        variant-specific fields, mirroring the WASM binding. Parse with
-        ``json.loads(...)`` to dispatch on ``kind`` programmatically.
-
         Returns
         -------
         str
-            JSON array of structured warning objects.
+            JSON array; ``json.loads`` gives the same list as ``warnings``.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
+        Raises
+        ------
+        ValueError
+            If the warnings cannot be serialized.
         """
         ...
 
@@ -1366,8 +1555,8 @@ class HorizonResult:
         """
         ...
 
-    @classmethod
-    def from_json(cls, json: str) -> HorizonResult:
+    @staticmethod
+    def from_json(json: str) -> HorizonResult:
         """
         Deserialize from JSON produced by :meth:`to_json`.
 
@@ -1402,12 +1591,13 @@ class HorizonResult:
         Export the horizon summary as a single-row pandas ``DataFrame``.
 
         Columns: ``initial_value``, ``terminal_value``, ``currency``,
-        ``total_pnl``, ``total_return_pct``, ``annualized_return``,
+        ``total_pnl``, ``total_return``, ``annualized_return``,
         ``horizon_days``, ``user_operations``, ``expanded_operations``,
         ``operations_applied``, ``warning_count``.
 
-        ``total_return_pct`` is a decimal fraction (``0.05`` = +5%). For the
-        factor-level breakdown use ``result.attribution.to_dataframe()``.
+        ``total_return`` and ``annualized_return`` are decimal fractions
+        (``0.05`` = +5%). For the factor-level breakdown use
+        ``result.attribution.to_dataframe()``.
 
         Returns
         -------
@@ -1428,7 +1618,9 @@ class HorizonResult:
         Returns
         -------
         str
-            Multi-line text suitable for notebook display.
+            Multi-line text (total and annualized return, horizon, values,
+            and the carry / rates / credit / residual legs) rendered by the
+            Rust ``Display`` implementation.
 
         Notes
         -----
@@ -1436,13 +1628,29 @@ class HorizonResult:
         """
         ...
 
+    def _repr_html_(self) -> str | None:
+        """
+        Render as an HTML table in Jupyter notebooks.
+
+        Returns
+        -------
+        str or None
+            HTML for the frame from :meth:`to_dataframe`, or ``None`` when the
+            frame cannot be built (IPython then falls back to ``__repr__``).
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
 def compute_horizon_return(
-    instrument_json: str,
-    market: Any,
-    as_of: datetime.date | str,
-    scenario_json: str,
-    method: str = "parallel",
-    config: str | None = None,
+    instrument: Any,
+    market: MarketContext | str,
+    as_of: datetime.date | datetime.datetime | pd.Timestamp | str,
+    scenario: ScenarioSpec | str,
+    method: Literal["parallel", "waterfall", "metrics_based", "taylor"] = "parallel",
+    config: FinstackConfig | str | None = None,
     calendar_id: str | None = None,
 ) -> HorizonResult:
     """
@@ -1450,19 +1658,25 @@ def compute_horizon_return(
 
     Parameters
     ----------
-    instrument_json : str
-        Canonical v1 instrument envelope.
-    market : Any
-        ``MarketContext`` object or JSON string.
-    as_of : datetime.date | str
-        Valuation date, either a date-like object or an ISO 8601 string.
-    scenario_json : str
-        JSON-serialized ``ScenarioSpec``.
-    method : str, default "parallel"
-        Attribution method — ``"parallel"``, ``"waterfall"``,
-        ``"metrics_based"``, or ``"taylor"``.
-    config : str, optional
-        JSON-serialized ``FinstackConfig``.
+    instrument : Instrument | str
+        Typed instrument (``Bond``, ``CreditDefaultSwap``,
+        ``InterestRateSwap``, ...) or a canonical v1 instrument envelope JSON
+        string.
+    market : MarketContext | str
+        ``MarketContext`` object or JSON string; never mutated.
+    as_of : datetime.date | datetime.datetime | pandas.Timestamp | str
+        Valuation date (ISO 8601 accepted).
+    scenario : ScenarioSpec | str
+        Typed scenario or JSON-serialized ``ScenarioSpec``.
+    method : {"parallel", "waterfall", "metrics_based", "taylor"}
+        Attribution method. ``"metrics_based"`` re-prices the instrument with
+        the default attribution metric set (DV01, CS01, vega, ...) using the
+        same configuration and recalibration provider as the scenario
+        engine; instruments lacking one of those metrics raise
+        ``RuntimeError`` instead of silently dropping the factor.
+    config : FinstackConfig | str | None, default None
+        Library configuration threaded into both the scenario engine and the
+        attribution pricing; ``None`` uses the default.
     calendar_id : str, optional
         Holiday calendar used to business-day adjust ``time_roll_forward``
         targets under ``TimeRollMode.business_days`` (e.g. ``"nyse"``,
@@ -1473,19 +1687,27 @@ def compute_horizon_return(
     Returns
     -------
     HorizonResult
-        Decomposed total return and factor attribution.
+        Decomposed total return and factor attribution, with the scenario
+        ``ApplicationReport`` as ``scenario_report``.
 
     Raises
     ------
     ValueError
-        If any input JSON is malformed or the scenario application fails.
+        If an input fails to parse or validate, ``method`` is unknown,
+        ``calendar_id`` is not a built-in calendar, or the scenario contains
+        an instrument-scoped operation (horizon analysis prices one
+        instrument instance at both dates).
+    KeyError
+        If the scenario references market data or tenors that do not exist.
+    RuntimeError
+        If pricing or attribution fails.
 
     Examples
     --------
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import compose_scenarios, compute_horizon_return
     >>> try:
-    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios([]).to_json())
+    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios([]))
     ... except ValueError as exc:
     ...     print(str(exc).split(":")[0])
     Validation error
@@ -1497,7 +1719,7 @@ def compute_horizon_return(
 # These mirror the Rust ``OperationSpec`` enum and its supporting enums. They
 # replace the raw-JSON authoring path so quants can write
 # ``OperationSpec.curve_parallel_bp(...)`` and feed the result straight into
-# ``build_scenario_spec`` via ``op.to_json()``.
+# ``ScenarioSpec(...)``.
 
 class CurveKind:
     """
@@ -1509,6 +1731,65 @@ class CurveKind:
     >>> CurveKind.discount().value
     'discount'
     """
+
+    def __init__(self, label: str) -> None:
+        """
+        Construct from the canonical snake-case wire label.
+
+        Parameters
+        ----------
+        label : str
+            One of ``"discount"``, ``"forward"``, ``"par_cds"``, ``"inflation"``, ``"commodity"``.
+
+        Raises
+        ------
+        ValueError
+            If ``label`` is not an accepted wire label.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import CurveKind
+        >>> CurveKind("par_cds").value
+        'par_cds'
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Variant equality; non-``CurveKind`` values compare unequal.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare.
+
+        Returns
+        -------
+        bool
+            ``True`` when both are the same variant.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """
+        Hash consistent with ``__eq__`` so values work as dict keys.
+
+        Returns
+        -------
+        int
+            Variant hash.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
 
     @classmethod
     def discount(cls) -> CurveKind:
@@ -1663,6 +1944,65 @@ class TenorMatchMode:
     'exact'
     """
 
+    def __init__(self, label: str) -> None:
+        """
+        Construct from the canonical snake-case wire label.
+
+        Parameters
+        ----------
+        label : str
+            One of ``"exact"``, ``"interpolate"``.
+
+        Raises
+        ------
+        ValueError
+            If ``label`` is not an accepted wire label.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import TenorMatchMode
+        >>> TenorMatchMode("interpolate").value
+        'interpolate'
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Variant equality; non-``TenorMatchMode`` values compare unequal.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare.
+
+        Returns
+        -------
+        bool
+            ``True`` when both are the same variant.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """
+        Hash consistent with ``__eq__`` so values work as dict keys.
+
+        Returns
+        -------
+        int
+            Variant hash.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
     @classmethod
     def exact(cls) -> TenorMatchMode:
         """
@@ -1749,6 +2089,65 @@ class TimeRollMode:
     >>> TimeRollMode.calendar_days().value
     'calendar_days'
     """
+
+    def __init__(self, label: str) -> None:
+        """
+        Construct from the canonical snake-case wire label.
+
+        Parameters
+        ----------
+        label : str
+            One of ``"business_days"``, ``"calendar_days"``, ``"approximate"``.
+
+        Raises
+        ------
+        ValueError
+            If ``label`` is not an accepted wire label.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import TimeRollMode
+        >>> TimeRollMode("calendar_days").value
+        'calendar_days'
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Variant equality; non-``TimeRollMode`` values compare unequal.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare.
+
+        Returns
+        -------
+        bool
+            ``True`` when both are the same variant.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """
+        Hash consistent with ``__eq__`` so values work as dict keys.
+
+        Returns
+        -------
+        int
+            Variant hash.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
 
     @classmethod
     def business_days(cls) -> TimeRollMode:
@@ -1858,6 +2257,65 @@ class Compounding:
     >>> Compounding.continuous().value
     'continuous'
     """
+
+    def __init__(self, label: str) -> None:
+        """
+        Construct from the canonical snake-case wire label.
+
+        Parameters
+        ----------
+        label : str
+            One of ``"simple"``, ``"continuous"``, ``"annual"``, ``"semi_annual"``, ``"quarterly"``, ``"monthly"``.
+
+        Raises
+        ------
+        ValueError
+            If ``label`` is not an accepted wire label.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import Compounding
+        >>> Compounding("annual").value
+        'annual'
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Variant equality; non-``Compounding`` values compare unequal.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare.
+
+        Returns
+        -------
+        bool
+            ``True`` when both are the same variant.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """
+        Hash consistent with ``__eq__`` so values work as dict keys.
+
+        Returns
+        -------
+        int
+            Variant hash.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
 
     @classmethod
     def simple(cls) -> Compounding:
@@ -2033,6 +2491,8 @@ class RateBindingSpec:
     >>> spec = RateBindingSpec("node_1", "USD-OIS", "5Y", Compounding.continuous())
     >>> (spec.curve_id, spec.tenor, spec.compounding.value)
     ('USD-OIS', '5Y', 'continuous')
+    >>> spec == RateBindingSpec("node_1", "USD-OIS", "5Y", "continuous")
+    True
     """
 
     def __init__(
@@ -2040,7 +2500,7 @@ class RateBindingSpec:
         node_id: str,
         curve_id: str,
         tenor: str,
-        compounding: Compounding | None = None,
+        compounding: Compounding | str | None = None,
         day_count: DayCount | None = None,
     ) -> None:
         """
@@ -2053,16 +2513,57 @@ class RateBindingSpec:
         curve_id : str
             Market curve identifier (e.g. ``"USD-OIS"``).
         tenor : str
-            Tenor string (e.g. ``"5Y"``).
-        compounding : Compounding, optional
-            Compounding convention used when converting the bound rate. Defaults to ``None`` (use curve default).
+            Tenor string (e.g. ``"5Y"``); parsed eagerly by :meth:`validate`.
+        compounding : Compounding | str, optional
+            Output compounding convention, typed or as its wire label
+            (``"continuous"``, ``"annual"``, ...). Defaults to continuous.
+            The extracted rate stays a decimal annualized rate.
         day_count : DayCount, optional
             Typed day-count convention. Defaults to ``None`` (use curve default).
 
         Raises
         ------
         ValueError
-            If required fields are empty or invalid.
+            If ``compounding`` is not an accepted label.
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate identifiers and eagerly parse the tenor.
+
+        Raises
+        ------
+        ValueError
+            If ``node_id`` or ``curve_id`` is blank, or ``tenor`` is not a
+            valid tenor string.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import RateBindingSpec
+        >>> RateBindingSpec("node_1", "USD-OIS", "5Y").validate() is None
+        True
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Structural equality on every field.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare; non-``RateBindingSpec`` values compare unequal.
+
+        Returns
+        -------
+        bool
+            ``True`` when both bindings serialize identically.
+
+        Raises
+        ------
+        None
+            This method does not raise.
         """
         ...
 
@@ -2162,8 +2663,8 @@ class RateBindingSpec:
         """
         ...
 
-    @classmethod
-    def from_json(cls, json: str) -> RateBindingSpec:
+    @staticmethod
+    def from_json(json: str) -> RateBindingSpec:
         """
         Deserialize a ``RateBindingSpec`` from JSON.
 
@@ -2193,13 +2694,156 @@ class RateBindingSpec:
         """
         ...
 
+class HierarchyTarget:
+    """
+    Path into the market-data hierarchy, with an optional tag filter, that a
+    hierarchy-targeted operation resolves against the execution context's
+    ``MarketDataHierarchy``.
+
+    Parameters
+    ----------
+    path : list[str]
+        Hierarchy path from the root, e.g. ``["Credit", "US", "IG"]``; every
+        curve in that subtree is targeted.
+    tag_filter : dict[str, str] | None, default None
+        ``{key: value}`` equality predicates (AND semantics) a node must
+        satisfy for its subtree to be included. Use :meth:`from_json` for
+        ``in`` / ``exists`` predicates.
+
+    Raises
+    ------
+    TypeError
+        If ``path`` is not a list of strings or ``tag_filter`` values are not
+        strings.
+
+    Examples
+    --------
+    >>> from finstack_quant.scenarios import HierarchyTarget
+    >>> target = HierarchyTarget(["Credit", "US"], {"sector": "financials"})
+    >>> target.path
+    ['Credit', 'US']
+    >>> HierarchyTarget.from_json(target.to_json()) == target
+    True
+    """
+
+    def __init__(self, path: list[str], tag_filter: Mapping[str, str] | None = None) -> None: ...
+    @property
+    def path(self) -> list[str]:
+        """
+        Hierarchy path from the root.
+
+        Returns
+        -------
+        list[str]
+            Node labels from the root to the targeted subtree.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def tag_filter(self) -> list[tuple[str, str]] | None:
+        """
+        Equality tag predicates, or ``None`` when no filter is set.
+
+        Returns
+        -------
+        list[tuple[str, str]] or None
+            ``(key, value)`` pairs for ``equals`` predicates; ``in`` /
+            ``exists`` predicates are only visible via :meth:`to_json`.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to canonical JSON (``{"path": [...], "tag_filter": {...}}``).
+
+        Returns
+        -------
+        str
+            Canonical ``HierarchyTarget`` JSON.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized.
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> HierarchyTarget:
+        """
+        Deserialize from canonical JSON, including ``in`` / ``exists`` tag
+        predicates the constructor does not express.
+
+        Parameters
+        ----------
+        json : str
+            Canonical ``HierarchyTarget`` JSON.
+
+        Returns
+        -------
+        HierarchyTarget
+            Parsed target.
+
+        Raises
+        ------
+        ValueError
+            If the JSON does not match the ``HierarchyTarget`` contract.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import HierarchyTarget
+        >>> HierarchyTarget.from_json('{"path":["Credit"]}').path
+        ['Credit']
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Structural equality on path and tag filter.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare; non-``HierarchyTarget`` values compare unequal.
+
+        Returns
+        -------
+        bool
+            ``True`` when both targets serialize identically.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
 class OperationSpec:
     """
-    Typed builder for ``finstack_quant_scenarios::OperationSpec``.
+    One shock, time roll, or binding inside a ``ScenarioSpec``.
 
-    Each classmethod corresponds to one Rust enum variant; ``to_json()``
-    produces the canonical wire form expected by ``build_scenario_spec`` and
-    the scenario engine.
+    Each classmethod corresponds to one Rust ``OperationSpec`` variant;
+    ``to_json()`` produces the canonical wire form. Units follow the
+    constructor name:
+
+    - ``*_pct`` fields are percentage points (``5.0`` = +5%).
+    - ``*_bp`` fields are additive basis points (1 bp = 1e-4) — except on
+      ``CurveKind.commodity()`` curves, where ``bp`` is **percent of the
+      forward** (a commodity price curve has no rate to shift).
+    - Vol-index ``*_pts`` are index points (``1.0`` on 18.5 → 19.5).
+    - Correlation and base-correlation ``*_pts`` are **decimal correlation**
+      (``0.02`` = +0.02, not percentage points).
+
+    Every enum-valued argument accepts the typed wrapper or its snake-case
+    label (``CurveKind.discount()`` or ``"discount"``).
 
     Examples
     --------
@@ -2207,6 +2851,8 @@ class OperationSpec:
     >>> op = OperationSpec.curve_parallel_bp(CurveKind.discount(), "USD-OIS", 10.0)
     >>> op.kind
     'curve_parallel_bp'
+    >>> op == OperationSpec.curve_parallel_bp("discount", "USD-OIS", 10.0)
+    True
     """
 
     @classmethod
@@ -2271,18 +2917,19 @@ class OperationSpec:
         ...
 
     @classmethod
-    def instrument_price_pct_by_attr(cls, attrs: list[tuple[str, str]], pct: float) -> OperationSpec:
+    def instrument_price_pct_by_attr(
+        cls, attrs: Mapping[str, str] | Sequence[tuple[str, str]], pct: float
+    ) -> OperationSpec:
         """
-        Instrument price shock by exact attribute match.
-
-        ``attrs`` is a list of ``(key, value)`` pairs preserving order.
+        Instrument price percent shock by exact attribute match.
 
         Parameters
         ----------
-        attrs : list[tuple[str, str]]
-            Attribute key-value pairs to match.
+        attrs : Mapping[str, str] | Sequence[tuple[str, str]]
+            Attribute key-value pairs that must all match; insertion order is
+            preserved. Must be non-empty (validated on apply).
         pct : float
-            Percent shock applied to matched instruments.
+            Percent shock applied to matched instruments (``-5.0`` = -5%).
 
         Returns
         -------
@@ -2296,41 +2943,49 @@ class OperationSpec:
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
-        >>> OperationSpec.instrument_price_pct_by_attr([("sector", "tech")], -5.0).kind
+        >>> OperationSpec.instrument_price_pct_by_attr({"sector": "tech"}, -5.0).kind
         'instrument_price_pct_by_attr'
         """
         ...
 
+    @overload
     @classmethod
     def curve_parallel_bp(
         cls,
-        curve_kind: CurveKind,
+        curve_kind: CurveKind | str,
         curve_id: str,
         bp: float,
         discount_curve_id: str | None = None,
     ) -> OperationSpec:
         """
-        Parallel basis-point shift on a rate-style curve.
+        Parallel basis-point shift on a single named curve.
 
         Parameters
         ----------
-        curve_kind : CurveKind
-            Type of curve to shock.
+        curve_kind : CurveKind | str
+            Curve family: ``"discount"``, ``"forward"``, ``"par_cds"``,
+            ``"inflation"`` or ``"commodity"``.
         curve_id : str
-            Curve identifier in ``MarketContext``.
+            Identifier of the one curve to shock, as registered in the
+            market context (for example ``"USD-OIS"``).
         bp : float
-            Basis-point shift applied to every node.
+            Additive shift in basis points applied to every node; for
+            ``CurveKind.commodity()`` the value is **percent of the
+            forward** rather than basis points.
         discount_curve_id : str, optional
-            Discount curve ID for forward/inflation curves that require one.
+            Discount curve used when re-bootstrapping shocked ParCDS
+            quotes. ``None`` (the default) leaves the curve's own
+            discounting unchanged.
 
         Returns
         -------
         OperationSpec
-            The ``curve_parallel_bp`` operation.
+            A single scenario operation describing the parallel shift.
 
-        Notes
-        -----
-        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+        Raises
+        ------
+        ValueError
+            If ``curve_kind`` is not an accepted label.
 
         Examples
         --------
@@ -2339,40 +2994,134 @@ class OperationSpec:
         'curve_parallel_bp'
         """
         ...
+    @overload
+    @classmethod
+    def curve_parallel_bp(
+        cls,
+        curve_kind: CurveKind | str,
+        curve_id: list[str],
+        bp: float,
+        discount_curve_id: str | None = None,
+    ) -> list[OperationSpec]:
+        """
+        Parallel basis-point shift expanded across several curves.
+
+        Parameters
+        ----------
+        curve_kind : CurveKind | str
+            Curve family: ``"discount"``, ``"forward"``, ``"par_cds"``,
+            ``"inflation"`` or ``"commodity"``.
+        curve_id : list[str]
+            Identifiers of the curves to shock; one operation is produced
+            per identifier, in the order given.
+        bp : float
+            Additive shift in basis points applied to every node of each
+            curve; for ``CurveKind.commodity()`` the value is **percent of
+            the forward** rather than basis points.
+        discount_curve_id : str, optional
+            Discount curve used when re-bootstrapping shocked ParCDS
+            quotes. ``None`` (the default) leaves discounting unchanged.
+
+        Returns
+        -------
+        list[OperationSpec]
+            One operation per entry of ``curve_id``, same length and order.
+
+        Raises
+        ------
+        ValueError
+            If ``curve_kind`` is not an accepted label or ``curve_id`` holds
+            a non-string entry.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import OperationSpec
+        >>> len(OperationSpec.curve_parallel_bp("discount", ["USD-OIS", "EUR-OIS"], 10.0))
+        2
+        """
+        ...
+    @classmethod
+    def curve_parallel_bp(
+        cls,
+        curve_kind: CurveKind | str,
+        curve_id: str | list[str],
+        bp: float,
+        discount_curve_id: str | None = None,
+    ) -> OperationSpec | list[OperationSpec]:
+        """
+        Parallel basis-point shift on a curve.
+
+        Parameters
+        ----------
+        curve_kind : CurveKind | str
+            Curve family (``"discount"``, ``"forward"``, ``"par_cds"``,
+            ``"inflation"``, ``"commodity"``).
+        curve_id : str | list[str]
+            One curve identifier, or several: a list expands to one operation
+            per identifier (``ScenarioSpec::parallel_bp_many`` in Rust).
+        bp : float
+            Additive shift in basis points applied to every node; for
+            ``CurveKind.commodity()`` this is **percent of the forward**.
+        discount_curve_id : str, optional
+            Discount curve used when re-bootstrapping shocked ParCDS quotes.
+
+        Returns
+        -------
+        OperationSpec | list[OperationSpec]
+            A single operation for a ``str`` curve id, a list for a list.
+
+        Raises
+        ------
+        ValueError
+            If ``curve_kind`` is not an accepted label or ``curve_id`` is
+            neither a string nor a list of strings.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import CurveKind, OperationSpec
+        >>> OperationSpec.curve_parallel_bp(CurveKind.discount(), "USD-OIS", 10.0).kind
+        'curve_parallel_bp'
+        >>> len(OperationSpec.curve_parallel_bp("discount", ["USD-OIS", "EUR-OIS"], 10.0))
+        2
+        """
+        ...
 
     @classmethod
     def curve_node_bp(
         cls,
-        curve_kind: CurveKind,
+        curve_kind: CurveKind | str,
         curve_id: str,
         nodes: list[tuple[str, float]],
-        match_mode: TenorMatchMode | None = None,
+        match_mode: TenorMatchMode | str | None = None,
         discount_curve_id: str | None = None,
     ) -> OperationSpec:
         """
-        Node-level basis-point shifts on a rate-style curve.
+        Node-level basis-point shifts on a curve.
 
         Parameters
         ----------
-        curve_kind : CurveKind
-            Type of curve to shock.
+        curve_kind : CurveKind | str
+            Curve family, typed or as its wire label.
         curve_id : str
             Curve identifier in ``MarketContext``.
         nodes : list[tuple[str, float]]
-            List of ``(tenor, bp)`` pairs.
-        match_mode : TenorMatchMode, optional
-            Tenor alignment strategy. Defaults to exact matching.
+            List of ``(tenor, bp)`` pairs (percent of forward for commodity
+            curves).
+        match_mode : TenorMatchMode | str, optional
+            Tenor alignment strategy (``"exact"`` or ``"interpolate"``).
+            Defaults to exact matching.
         discount_curve_id : str, optional
-            Discount curve ID for forward/inflation curves.
+            Discount curve used when re-bootstrapping shocked ParCDS quotes.
 
         Returns
         -------
         OperationSpec
             The ``curve_node_bp`` operation.
 
-        Notes
-        -----
-        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+        Raises
+        ------
+        ValueError
+            If ``curve_kind`` or ``match_mode`` is not an accepted label.
 
         Examples
         --------
@@ -2416,7 +3165,7 @@ class OperationSpec:
         cls,
         curve_id: str,
         nodes: list[tuple[str, float]],
-        match_mode: TenorMatchMode | None = None,
+        match_mode: TenorMatchMode | str | None = None,
     ) -> OperationSpec:
         """
         Node-level shocks to a volatility-index curve in absolute index points.
@@ -2427,17 +3176,18 @@ class OperationSpec:
             Volatility-index curve identifier.
         nodes : list[tuple[str, float]]
             List of ``(tenor, points)`` pairs.
-        match_mode : TenorMatchMode, optional
-            Tenor alignment strategy.
+        match_mode : TenorMatchMode | str, optional
+            Tenor alignment strategy (``"exact"`` or ``"interpolate"``).
 
         Returns
         -------
         OperationSpec
             The ``vol_index_node_pts`` operation.
 
-        Notes
-        -----
-        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+        Raises
+        ------
+        ValueError
+            If ``match_mode`` is not an accepted label.
 
         Examples
         --------
@@ -2450,14 +3200,15 @@ class OperationSpec:
     @classmethod
     def base_corr_parallel_pts(cls, surface_id: str, points: float) -> OperationSpec:
         """
-        Parallel base-correlation shift (absolute correlation points).
+        Parallel base-correlation shift in decimal correlation.
 
         Parameters
         ----------
         surface_id : str
             Base-correlation surface identifier.
         points : float
-            Absolute correlation-point shift.
+            Additive decimal correlation shift (``0.02`` = +0.02, not
+            percentage points).
 
         Returns
         -------
@@ -2491,7 +3242,7 @@ class OperationSpec:
         surface_id : str
             Base-correlation surface identifier.
         points : float
-            Absolute correlation-point shift.
+            Additive decimal correlation shift (``0.02`` = +0.02).
         detachment_bp : list[int], optional
             Detachment points (in bp) to target. ``None`` targets all.
 
@@ -2667,16 +3418,19 @@ class OperationSpec:
         ...
 
     @classmethod
-    def instrument_spread_bp_by_attr(cls, attrs: list[tuple[str, str]], bp: float) -> OperationSpec:
+    def instrument_spread_bp_by_attr(
+        cls, attrs: Mapping[str, str] | Sequence[tuple[str, str]], bp: float
+    ) -> OperationSpec:
         """
-        Instrument spread shock (basis points) by exact attribute match.
+        Instrument spread shock (additive basis points) by exact attribute match.
 
         Parameters
         ----------
-        attrs : list[tuple[str, str]]
-            Attribute key-value pairs to match.
+        attrs : Mapping[str, str] | Sequence[tuple[str, str]]
+            Attribute key-value pairs that must all match; insertion order is
+            preserved.
         bp : float
-            Basis-point shift applied to matched instruments.
+            Additive basis-point shift applied to matched instruments.
 
         Returns
         -------
@@ -2758,12 +3512,13 @@ class OperationSpec:
     @classmethod
     def asset_correlation_pts(cls, delta_pts: float) -> OperationSpec:
         """
-        Asset-correlation shock for structured credit.
+        Structured-credit asset-correlation shock in decimal correlation.
 
         Parameters
         ----------
         delta_pts : float
-            Absolute correlation-point shift.
+            Additive decimal correlation shift (``0.05`` adds 0.05 to the
+            correlation). Requires instruments in the execution context.
 
         Returns
         -------
@@ -2785,12 +3540,14 @@ class OperationSpec:
     @classmethod
     def prepay_default_correlation_pts(cls, delta_pts: float) -> OperationSpec:
         """
-        Prepay-default correlation shock for structured credit.
+        Structured-credit prepay/default correlation shock in decimal
+        correlation.
 
         Parameters
         ----------
         delta_pts : float
-            Absolute correlation-point shift.
+            Additive decimal correlation shift (``0.05`` adds 0.05). Requires
+            instruments in the execution context.
 
         Returns
         -------
@@ -2812,27 +3569,27 @@ class OperationSpec:
     @classmethod
     def hierarchy_curve_parallel_bp(
         cls,
-        curve_kind: CurveKind,
-        target_json: str,
+        curve_kind: CurveKind | str,
+        target: HierarchyTarget | str,
         bp: float,
         discount_curve_id: str | None = None,
     ) -> OperationSpec:
         """
-        Hierarchy-targeted parallel curve shift.
-
-        ``target_json`` is a JSON-serialized ``HierarchyTarget``
-        (``{"path": [...], "tag_filter": {...}}``).
+        Hierarchy-targeted parallel curve shift (basis points; percent of
+        forward for commodity curves).
 
         Parameters
         ----------
-        curve_kind : CurveKind
-            Type of curve to shock.
-        target_json : str
-            JSON-serialized ``HierarchyTarget``.
+        curve_kind : CurveKind | str
+            Curve family, typed or as its wire label.
+        target : HierarchyTarget | str
+            Typed target or its JSON string
+            (``{"path": [...], "tag_filter": {...}}``).
         bp : float
-            Basis-point shift applied to every node.
+            Additive basis-point shift applied to every node of every curve
+            in the targeted subtree.
         discount_curve_id : str, optional
-            Discount curve ID for forward/inflation curves.
+            Discount curve used when re-bootstrapping shocked ParCDS quotes.
 
         Returns
         -------
@@ -2842,25 +3599,26 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
+            If ``curve_kind`` is not an accepted label or ``target`` is not
+            valid ``HierarchyTarget`` JSON.
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import CurveKind, OperationSpec
-        >>> OperationSpec.hierarchy_curve_parallel_bp(CurveKind.discount(), '{"path":["Credit"]}', 10.0).kind
+        >>> from finstack_quant.scenarios import CurveKind, HierarchyTarget, OperationSpec
+        >>> OperationSpec.hierarchy_curve_parallel_bp(CurveKind.discount(), HierarchyTarget(["Credit"]), 10.0).kind
         'hierarchy_curve_parallel_bp'
         """
         ...
 
     @classmethod
-    def hierarchy_vol_surface_parallel_pct(cls, target_json: str, pct: float) -> OperationSpec:
+    def hierarchy_vol_surface_parallel_pct(cls, target: HierarchyTarget | str, pct: float) -> OperationSpec:
         """
         Hierarchy-targeted vol-surface percent shift.
 
         Parameters
         ----------
-        target_json : str
-            JSON-serialized ``HierarchyTarget``.
+        target : HierarchyTarget | str
+            Typed target or its JSON string.
         pct : float
             Percent shift applied to matched vol quotes.
 
@@ -2872,7 +3630,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
+            If ``target`` is not valid JSON for a ``HierarchyTarget``.
 
         Examples
         --------
@@ -2883,14 +3641,14 @@ class OperationSpec:
         ...
 
     @classmethod
-    def hierarchy_equity_price_pct(cls, target_json: str, pct: float) -> OperationSpec:
+    def hierarchy_equity_price_pct(cls, target: HierarchyTarget | str, pct: float) -> OperationSpec:
         """
-        Hierarchy-targeted equity price shift.
+        Hierarchy-targeted equity price percent shift.
 
         Parameters
         ----------
-        target_json : str
-            JSON-serialized ``HierarchyTarget``.
+        target : HierarchyTarget | str
+            Typed target or its JSON string.
         pct : float
             Percent shift applied to matched equity prices.
 
@@ -2902,7 +3660,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
+            If ``target`` is not valid JSON for a ``HierarchyTarget``.
 
         Examples
         --------
@@ -2913,16 +3671,16 @@ class OperationSpec:
         ...
 
     @classmethod
-    def hierarchy_base_corr_parallel_pts(cls, target_json: str, points: float) -> OperationSpec:
+    def hierarchy_base_corr_parallel_pts(cls, target: HierarchyTarget | str, points: float) -> OperationSpec:
         """
         Hierarchy-targeted base-correlation parallel shift.
 
         Parameters
         ----------
-        target_json : str
-            JSON-serialized ``HierarchyTarget``.
+        target : HierarchyTarget | str
+            Typed target or its JSON string.
         points : float
-            Absolute correlation-point shift.
+            Additive decimal correlation shift (``0.02`` = +0.02).
 
         Returns
         -------
@@ -2932,7 +3690,7 @@ class OperationSpec:
         Raises
         ------
         ValueError
-            If ``target_json`` is not valid JSON for a ``HierarchyTarget``.
+            If ``target`` is not valid JSON for a ``HierarchyTarget``.
 
         Examples
         --------
@@ -2947,7 +3705,7 @@ class OperationSpec:
         cls,
         period: str,
         apply_shocks: bool = True,
-        roll_mode: TimeRollMode | None = None,
+        roll_mode: TimeRollMode | str | None = None,
     ) -> OperationSpec:
         """
         Roll the valuation horizon forward (e.g. ``"1M"``).
@@ -2958,26 +3716,115 @@ class OperationSpec:
         Parameters
         ----------
         period : str
-            Tenor string for the roll period (e.g. ``"1M"``, ``"3M"``, ``"1Y"``).
+            Tenor string for the roll period (e.g. ``"1M"``, ``"3M"``,
+            ``"1Y"``); rejected by :meth:`validate` / ``ScenarioSpec`` when
+            it does not parse as a tenor.
         apply_shocks : bool, default True
             Whether to apply scenario shocks after the time roll.
-        roll_mode : TimeRollMode, optional
-            Calendar-vs-business-day roll mode.
+        roll_mode : TimeRollMode | str, optional
+            Calendar-vs-business-day roll mode (``"business_days"``,
+            ``"calendar_days"``, ``"approximate"``). Defaults to business days.
 
         Returns
         -------
         OperationSpec
             The ``time_roll_forward`` operation.
 
-        Notes
-        -----
-        This factory constructs a spec object and does not raise; validation occurs when the spec is applied.
+        Raises
+        ------
+        ValueError
+            If ``roll_mode`` is not an accepted label.
 
         Examples
         --------
         >>> from finstack_quant.scenarios import OperationSpec
         >>> OperationSpec.time_roll_forward("1M").kind
         'time_roll_forward'
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate this operation with the canonical Rust rules.
+
+        Raises
+        ------
+        ValueError
+            If an identifier is empty, a numeric field is non-finite, a
+            variant-specific floor is violated (FX ``pct <= -100``, price
+            ``pct < -100``), or a tenor / time-roll period does not parse.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import OperationSpec
+        >>> OperationSpec.time_roll_forward("3M").validate() is None
+        True
+        """
+        ...
+
+    def requires_instruments(self) -> bool:
+        """
+        Whether this operation needs instruments in the execution context.
+
+        Returns
+        -------
+        bool
+            ``True`` for instrument-scoped shocks and ``time_roll_forward``.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import OperationSpec
+        >>> OperationSpec.market_fx_pct("USD", "EUR", 1.0).requires_instruments()
+        False
+        """
+        ...
+
+    def mutates_instruments(self) -> bool:
+        """
+        Whether this operation can replace or mutate instruments.
+
+        Returns
+        -------
+        bool
+            ``True`` for instrument price, spread, and structured-credit
+            correlation shocks; ``False`` otherwise (a time roll only reads).
+
+        Raises
+        ------
+        None
+            This method does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import OperationSpec
+        >>> OperationSpec.asset_correlation_pts(0.05).mutates_instruments()
+        True
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Structural equality on the variant and every field.
+
+        Parameters
+        ----------
+        other : object
+            Value to compare; non-``OperationSpec`` values compare unequal.
+
+        Returns
+        -------
+        bool
+            ``True`` when both operations serialize identically.
+
+        Raises
+        ------
+        None
+            This method does not raise.
         """
         ...
 
@@ -2997,8 +3844,8 @@ class OperationSpec:
         """
         ...
 
-    @classmethod
-    def from_json(cls, json: str) -> OperationSpec:
+    @staticmethod
+    def from_json(json: str) -> OperationSpec:
         """
         Deserialize an ``OperationSpec`` from JSON.
 

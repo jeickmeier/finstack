@@ -18,13 +18,15 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+from finstack_quant.attribution import PnlAttribution
+from finstack_quant.core.currency import Currency
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
 from finstack_quant.models.factor.credit import CreditFactorModel
 from finstack_quant.models.factor.risk import RiskDecomposition
 from finstack_quant.portfolio import schema as schema
-from finstack_quant.scenarios import ApplicationReport
+from finstack_quant.scenarios import ApplicationReport, ScenarioSpec
 
 __all__ = [
     "BrinsonPeriodResult",
@@ -62,6 +64,7 @@ __all__ = [
     "PerPositionMetric",
     "Portfolio",
     "PortfolioAttribution",
+    "PortfolioBuilder",
     "PortfolioCashflows",
     "PortfolioError",
     "PortfolioMetrics",
@@ -71,7 +74,9 @@ __all__ = [
     "PortfolioValuation",
     "PositionAssignment",
     "PositionFilter",
+    "PositionValue",
     "PositionVolContribution",
+    "ReconciliationReport",
     "ReplayResult",
     "ScenarioPnl",
     "ScenarioPnlBatchItem",
@@ -128,8 +133,6 @@ __all__ = [
     "net_in_currency_by_date",
     "optimize_portfolio",
     "parse_portfolio_spec_json",
-    "portfolio_result_get_metric",
-    "portfolio_result_total_value",
     "position_what_if",
     "replay_portfolio",
     "replay_portfolio_json",
@@ -359,6 +362,52 @@ class MaterializationReport:
     (0, 0)
     """
 
+    @staticmethod
+    def from_json(json: str) -> MaterializationReport:
+        """
+        Deserialize materialization metadata from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        MaterializationReport
+            Reconstructed report.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import MaterializationReport
+        >>> try:
+        ...     MaterializationReport.from_json("{}")
+        ... except ValueError:
+        ...     print("missing fields")
+        missing fields
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this report to compact canonical JSON.
+
+        Returns
+        -------
+        str
+            JSON accepted by :meth:`from_json`; also backs ``pickle``.
+
+        Notes
+        -----
+        This method does not raise for a well-formed report.
+        """
+        ...
+
     @property
     def diagnostics(self) -> list[dict[str, Any]]:
         """
@@ -528,11 +577,52 @@ class Portfolio:
 
     Examples
     --------
+    >>> import datetime as dt
     >>> from finstack_quant.portfolio import Portfolio
-    >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
-    >>> (Portfolio.from_spec(spec).id, len(Portfolio.from_spec(spec)))
-    ('empty', 0)
+    >>> pf = Portfolio.builder("book", "USD", dt.date(2025, 1, 1)).build()
+    >>> (pf.id, pf.base_currency, pf.as_of, len(pf))
+    ('book', 'USD', datetime.date(2025, 1, 1), 0)
     """
+
+    @staticmethod
+    def builder(
+        id: str,
+        base_currency: Currency | str,
+        as_of: datetime.date | datetime.datetime | pd.Timestamp | str,
+    ) -> PortfolioBuilder:
+        """
+        Start a typed, fluent portfolio builder.
+
+        Parameters
+        ----------
+        id : str
+            Portfolio identifier.
+        base_currency : Currency | str
+            Reporting currency (ISO-4217 code or ``Currency``) used for every
+            base-currency rollup.
+        as_of : datetime.date | datetime.datetime | pd.Timestamp | str
+            Valuation date; ISO 8601 strings are accepted.
+
+        Returns
+        -------
+        PortfolioBuilder
+            Builder whose ``position`` / ``entity`` / ``tag`` / ``meta``
+            setters chain and whose ``build()`` returns the ``Portfolio``.
+
+        Raises
+        ------
+        ValueError
+            If ``base_currency`` is not a valid ISO-4217 code or ``as_of`` is
+            not a date.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import Portfolio
+        >>> pf = Portfolio.builder("book", "EUR", "2025-01-01").name("Desk").build()
+        >>> (pf.name, pf.base_currency)
+        ('Desk', 'EUR')
+        """
+        ...
 
     @staticmethod
     def from_spec(spec_json: str) -> Portfolio:
@@ -694,14 +784,95 @@ class Portfolio:
         ...
 
     @property
-    def as_of(self) -> str:
+    def name(self) -> str | None:
         """
-        Portfolio as-of date as an ISO 8601 string.
+        Human-readable portfolio name.
 
         Returns
         -------
-        str
-            Portfolio as-of date as an ISO 8601 string.
+        str | None
+            Display name, or ``None`` when the portfolio has no name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def as_of(self) -> datetime.date:
+        """
+        Portfolio valuation date.
+
+        Returns
+        -------
+        datetime.date
+            The as-of date every pipeline function values the book on.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def tags(self) -> dict[str, str]:
+        """
+        Portfolio-level tags in insertion order.
+
+        Returns
+        -------
+        dict[str, str]
+            Tag key/value pairs attached through ``PortfolioBuilder.tag``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def meta(self) -> dict[str, Any]:
+        """
+        Portfolio-level metadata as a JSON-shaped mapping.
+
+        Returns
+        -------
+        dict[str, Any]
+            Metadata entries attached through ``PortfolioBuilder.meta``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def entity_ids(self) -> list[str]:
+        """
+        Entity identifiers in registration order.
+
+        Returns
+        -------
+        list[str]
+            Includes the auto-created standalone entity when any position
+            omitted ``entity_id``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def position_ids(self) -> list[str]:
+        """
+        Position identifiers in portfolio order.
+
+        Returns
+        -------
+        list[str]
+            One id per position, in the order positions were added.
 
         Notes
         -----
@@ -836,25 +1007,190 @@ class PortfolioAttribution:
         """
         ...
 
-    def reconciliation_check(self, tolerance: float) -> dict[str, float | bool]:
+    def reconciliation_check(self, tolerance: float) -> ReconciliationReport:
         """
-        Reconcile aggregate factor P&L to total P&L.
+        Check that the factor buckets plus FX translation reconcile to ``total_pnl``.
 
         Parameters
         ----------
         tolerance : float
-            Absolute base-currency difference tolerated before reconciliation
-            is reported as failing.
+            Absolute tolerance in base-currency units (``0.01`` for one cent).
 
         Returns
         -------
-        dict[str, float | bool]
-            Base-currency ``total_residual``, ``is_reconciled`` flag, and ``tolerance``.
+        ReconciliationReport
+            Typed report with ``total_residual``, ``is_reconciled`` and
+            ``tolerance``; ``is_reconciled`` is forced ``False`` when
+            ``result_invalid`` is set.
 
         Notes
         -----
-        This method does not raise for a finite *tolerance*; the report is
-        always returned.
+        This method does not raise; it returns the computed report.
+        """
+        ...
+
+    @property
+    def by_position(self) -> dict[str, PnlAttribution]:
+        """
+        Per-position attributions in each instrument's native currency.
+
+        Returns
+        -------
+        dict[str, PnlAttribution]
+            Typed attributions keyed by position id in canonical order. They
+            exclude FX translation, so they do not sum to the base-currency
+            aggregates.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_position_dataframe(self) -> pd.DataFrame:
+        """
+        Export per-position native-currency attributions, one row per position.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``position_id``, ``currency``, ``total_pnl``, ``carry``,
+            ``rates_curves_pnl``, ``credit_curves_pnl``,
+            ``inflation_curves_pnl``, ``correlations_pnl``, ``fx_pnl``,
+            ``cross_factor_pnl``, ``vol_pnl``, ``model_params_pnl``,
+            ``market_scalars_pnl``, ``residual``, ``result_invalid``.
+
+        Raises
+        ------
+        ValueError
+            If the frame cannot be built.
+        """
+        ...
+
+    def explain(self) -> str:
+        """
+        Human-readable explanation tree of the portfolio-level buckets.
+
+        Returns
+        -------
+        str
+            Multi-line tree listing each bucket and its share of ``total_pnl``.
+
+        Notes
+        -----
+        This method does not raise; it formats stored values.
+        """
+        ...
+
+    @property
+    def rates_detail(self) -> dict[str, Any] | None:
+        """
+        Aggregate rates-curve detail (per-curve breakdown).
+
+        Returns
+        -------
+        dict[str, Any] | None
+            JSON-shaped detail, or ``None`` when the method did not produce it.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def credit_detail(self) -> dict[str, Any] | None:
+        """
+        Aggregate credit-curve detail.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            JSON-shaped detail, or ``None`` when absent.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def inflation_detail(self) -> dict[str, Any] | None:
+        """
+        Aggregate inflation-curve detail.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            JSON-shaped detail, or ``None`` when absent.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def correlations_detail(self) -> dict[str, Any] | None:
+        """
+        Aggregate correlation detail.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            JSON-shaped detail, or ``None`` when absent.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def fx_detail(self) -> dict[str, Any] | None:
+        """
+        Aggregate FX detail.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            JSON-shaped detail, or ``None`` when absent.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def vol_detail(self) -> dict[str, Any] | None:
+        """
+        Aggregate volatility detail.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            JSON-shaped detail, or ``None`` when absent.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def scalars_detail(self) -> dict[str, Any] | None:
+        """
+        Aggregate market-scalar detail.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            JSON-shaped detail, or ``None`` when absent.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -1221,18 +1557,143 @@ class PortfolioValuation:
         ...
 
     @property
-    def as_of(self) -> str:
+    def as_of(self) -> datetime.date:
         """
-        Valuation date as an ISO 8601 string.
+        Pricing date at which every position in this valuation was marked.
 
         Returns
         -------
-        str
-            Valuation date as an ISO 8601 string.
+        datetime.date
+            Calendar date carried through from the valued portfolio; all
+            discounting, accruals and FX conversions in the result are as of
+            this date.
 
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def position_values(self) -> dict[str, PositionValue]:
+        """
+        Per-position valuations keyed by position id, in valuation order.
+
+        Returns
+        -------
+        dict[str, PositionValue]
+            Typed per-position values.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def by_entity(self) -> dict[str, Money]:
+        """
+        Base-currency totals by entity id.
+
+        Returns
+        -------
+        dict[str, Money]
+            Entity rollups in valuation order.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def degraded_positions(self) -> list[str]:
+        """
+        Positions that fell back to PV-only valuation.
+
+        Returns
+        -------
+        list[str]
+            Position ids whose requested risk metrics could not be computed.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def fx_collapse_policy(self) -> str:
+        """
+        FX conversion policy stamped on the base-currency rollups.
+
+        Returns
+        -------
+        str
+            Serde name of the applied ``FxConversionPolicy`` (for example
+            ``"cashflow_date"``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def has_degraded_risk(self) -> bool:
+        """
+        Whether any position carries incomplete risk metrics.
+
+        Returns
+        -------
+        bool
+            ``True`` when ``degraded_positions`` is non-empty.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the derived value.
+        """
+        ...
+
+    def get_position_value(self, position_id: str) -> PositionValue:
+        """
+        Look up one position's valuation.
+
+        Parameters
+        ----------
+        position_id : str
+            Position identifier.
+
+        Returns
+        -------
+        PositionValue
+            Typed valuation for the position.
+
+        Raises
+        ------
+        KeyError
+            If ``position_id`` was not valued.
+        """
+        ...
+
+    def get_entity_value(self, entity_id: str) -> Money:
+        """
+        Look up one entity's base-currency total.
+
+        Parameters
+        ----------
+        entity_id : str
+            Entity identifier.
+
+        Returns
+        -------
+        Money
+            Base-currency rollup for the entity.
+
+        Raises
+        ------
+        KeyError
+            If ``entity_id`` has no valued positions.
         """
         ...
 
@@ -1241,7 +1702,7 @@ class PortfolioValuation:
         Export per-position values via Arrow (zero-copy for consumers).
 
         Columns: ``position_id``, ``entity_id``, ``value_native``,
-        ``value_base``, ``currency_native``, ``currency_base`` (see
+        ``value_base``, ``currency_native``, ``currency_base``, ``risk_metrics_complete``, ``risk_error`` (see
         ``finstack_quant_portfolio::positions_to_table``).
 
         Returns
@@ -1310,7 +1771,7 @@ class PortfolioCashflows:
     >>> cashflows = PortfolioCashflows.from_json(
     ...     '{"events":[],"by_position":{},"by_date":{},"position_summaries":{},"issues":[]}'
     ... )
-    >>> (cashflows.num_positions(), cashflows.num_issues())
+    >>> (cashflows.num_positions, cashflows.num_issues)
     (0, 0)
     """
 
@@ -1341,7 +1802,7 @@ class PortfolioCashflows:
         >>> cashflows = PortfolioCashflows.from_json(
         ...     '{"events":[],"by_position":{},"by_date":{},"position_summaries":{},"issues":[]}'
         ... )
-        >>> (cashflows.num_positions(), cashflows.num_issues())
+        >>> (cashflows.num_positions, cashflows.num_issues)
         (0, 0)
         """
         ...
@@ -1430,6 +1891,7 @@ class PortfolioCashflows:
         """
         ...
 
+    @property
     def num_positions(self) -> int:
         """
         Number of positions represented in the ladder.
@@ -1444,6 +1906,7 @@ class PortfolioCashflows:
         """
         ...
 
+    @property
     def num_issues(self) -> int:
         """
         Number of diagnostic issues recorded on the ladder.
@@ -1458,53 +1921,207 @@ class PortfolioCashflows:
         """
         ...
 
+    @property
+    def events(self) -> list[dict[str, Any]]:
+        """
+        Flat position-scaled events in payment-date order.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            JSON-shaped events with ``position_id``, ``instrument_id``,
+            ``instrument_type``, ``date``, ``amount`` (``{"amount",
+            "currency"}``), ``kind``, ``reset_date``, ``accrual_factor``,
+            ``rate``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def by_position(self) -> dict[str, list[dict[str, Any]]]:
+        """
+        Per-position event drill-down.
+
+        Returns
+        -------
+        dict[str, list[dict[str, Any]]]
+            Events keyed by position id.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def by_date(self) -> dict[str, dict[str, dict[str, dict[str, str]]]]:
+        """
+        Totals by payment date, then ISO currency, then cashflow kind.
+
+        Returns
+        -------
+        dict[str, dict[str, dict[str, dict[str, str]]]]
+            ``{date_iso: {currency: {kind: {"amount", "currency"}}}}``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def issues(self) -> list[dict[str, Any]]:
+        """
+        Extraction issues recorded during aggregation.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            Entries with ``position_id``, ``instrument_id``,
+            ``instrument_type``, ``kind`` and ``message``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def fx_collapse_policy(self) -> str:
+        """
+        FX policy stamped for :meth:`collapse_to_base_by_date_kind`.
+
+        Returns
+        -------
+        str
+            Serde name of the applied ``CashflowFxPolicy``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_issues_dataframe(self) -> pd.DataFrame:
+        """
+        Export the extraction issues as a ``DataFrame``.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``position_id``, ``instrument_id``, ``instrument_type``,
+            ``kind``, ``message``; zero rows when there are no issues.
+
+        Raises
+        ------
+        ValueError
+            If the frame cannot be built.
+        """
+        ...
+
+    def net_in_currency_by_date(self, currency: Currency | str) -> list[tuple[str, float]]:
+        """
+        Net same-currency amounts across kinds for each payment date.
+
+        Parameters
+        ----------
+        currency : Currency | str
+            ISO-4217 currency whose per-date kind buckets are summed.
+
+        Returns
+        -------
+        list[tuple[str, float]]
+            ``(ISO date, net amount)`` pairs in ladder order; dates with no
+            flows in ``currency`` are omitted.
+
+        Raises
+        ------
+        ValueError
+            If ``currency`` is not a valid ISO-4217 code.
+        """
+        ...
+
     def collapse_to_base_by_date_kind(
         self,
         market: MarketContext | str,
-        base_currency: str,
+        base_currency: Currency | str,
         as_of: datetime.date | str,
         discount_curves: dict[str, str] | None = None,
-    ) -> str:
+    ) -> pd.DataFrame:
         """
-        Collapse the ladder to a base-currency ``(date, kind) → Money`` JSON.
+        Collapse the ladder to a base-currency ``(date, kind)`` table.
 
         Payments on or before ``as_of`` use spot FX at ``as_of``. Later
         payments use the CIP forward ``F(T) = S × DF_from(T) / DF_base(T)``.
-        Missing discount curves or discount factors raise ``FxError``.
 
         Parameters
         ----------
         market : MarketContext or str
             Market context object or JSON providing the FX matrix and
             discount curves used for spot and CIP-forward conversion.
-        base_currency : str
-            ISO currency code into which each classified cashflow is converted.
+        base_currency : Currency | str
+            Currency into which each classified cashflow is converted.
         as_of : datetime.date | str
-            Valuation date for spot FX and as the start of each discount-factor
-            interval, either a date-like object or an ISO 8601 string.
+            Spot/forward split date, either a date-like object or an ISO
+            8601 string.
         discount_curves : dict[str, str] | None
             Optional map of ISO currency code to discount-curve id. A missing
             map or missing currency uses the ISO code as the curve id
-            (``market.get_discount("EUR")``). There is no silent fallback to
-            another curve in the same currency.
+            (``market.get_discount("EUR")``).
 
         Returns
         -------
-        str
-            Date-and-kind totals converted to ``base_currency`` using spot at
-            ``as_of`` or CIP forwards for later payment dates.
+        pd.DataFrame
+            Columns ``date`` (ISO 8601 string), ``kind``, ``amount`` (float in
+            ``base_currency``), ``currency``; one row per ``(date, kind)``.
 
         Raises
         ------
         TypeError
-            If ``market`` is neither a ``MarketContext`` nor a JSON string, or
-            if ``discount_curves`` is not a string-to-string mapping.
+            If ``market`` is neither a ``MarketContext`` nor a JSON string.
         ValueError
             If the market JSON, currency, date, or a ``discount_curves`` key is
-            invalid, or monetary aggregation cannot represent the result.
-        FxError
+            invalid.
+        PortfolioError
             If an FX rate, discount curve, or discount factor required for
             base-currency conversion is unavailable.
+        """
+        ...
+
+    def collapse_to_base_by_date_kind_json(
+        self,
+        market: MarketContext | str,
+        base_currency: Currency | str,
+        as_of: datetime.date | str,
+        discount_curves: dict[str, str] | None = None,
+    ) -> str:
+        """
+        Wire twin of :meth:`collapse_to_base_by_date_kind`.
+
+        Parameters
+        ----------
+        market : MarketContext or str
+            Market context object or JSON providing FX and discount curves.
+        base_currency : Currency | str
+            Target currency of the collapsed ladder.
+        as_of : datetime.date | str
+            Spot/forward split date.
+        discount_curves : dict[str, str] | None
+            Optional ``{currency_code: curve_id}`` overrides.
+
+        Returns
+        -------
+        str
+            Nested ``{date: {kind: {"amount", "currency"}}}`` JSON.
+
+        Raises
+        ------
+        PortfolioError
+            If an FX rate or discount factor required for conversion is
+            unavailable.
         """
         ...
 
@@ -1557,6 +2174,88 @@ class PortfolioResult:
     >>> PortfolioResult.from_json(json.dumps(doc)).total_value
     0.0
     """
+
+    def __init__(self, valuation: PortfolioValuation, metrics: PortfolioMetrics) -> None:
+        """
+        Assemble a result envelope from a valuation and its aggregated metrics.
+
+        Parameters
+        ----------
+        valuation : PortfolioValuation
+            Output of :func:`value_portfolio`.
+        metrics : PortfolioMetrics
+            Output of :func:`aggregate_metrics` for the same valuation.
+
+        Notes
+        -----
+        The ``meta`` stamp is taken from the default ``FinstackConfig``. This
+        constructor does not raise.
+
+        Examples
+        --------
+        >>> import json
+        >>> from finstack_quant.portfolio import PortfolioMetrics, PortfolioResult, PortfolioValuation
+        >>> valuation = PortfolioValuation.from_json(
+        ...     json.dumps({
+        ...         "as_of": "2025-01-01",
+        ...         "position_values": {},
+        ...         "total_base_currency": {"amount": "0", "currency": "USD"},
+        ...         "by_entity": {},
+        ...     })
+        ... )
+        >>> metrics = PortfolioMetrics.from_json('{"aggregated": {}, "by_position": {}}')
+        >>> PortfolioResult(valuation, metrics).total_value
+        0.0
+        """
+        ...
+
+    @property
+    def valuation(self) -> PortfolioValuation:
+        """
+        The valuation component.
+
+        Returns
+        -------
+        PortfolioValuation
+            Per-position values and totals.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def metrics(self) -> PortfolioMetrics:
+        """
+        The aggregated-metrics component.
+
+        Returns
+        -------
+        PortfolioMetrics
+            Portfolio-wide metric totals.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def meta(self) -> dict[str, Any]:
+        """
+        Calculation metadata stamp.
+
+        Returns
+        -------
+        dict[str, Any]
+            Numeric mode, rounding context and library version.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
 
     @staticmethod
     def from_json(result_json: str) -> PortfolioResult:
@@ -1859,6 +2558,84 @@ class PortfolioMetrics:
         -----
         This method does not raise for a documented *base* string; an unknown
         prefix returns an empty list.
+        """
+        ...
+
+    def get_metric(self, metric_id: str) -> dict[str, Any] | None:
+        """
+        One aggregated metric.
+
+        Parameters
+        ----------
+        metric_id : str
+            Fully qualified metric key (for example ``"dv01"``).
+
+        Returns
+        -------
+        dict[str, Any] | None
+            ``{"metric_id", "total", "by_entity"}`` or ``None`` when the
+            metric was not aggregated.
+
+        Notes
+        -----
+        This method does not raise; an absent key yields ``None``.
+        """
+        ...
+
+    def get_position_metrics(self, position_id: str) -> dict[str, Any] | None:
+        """
+        One position's raw metrics.
+
+        Parameters
+        ----------
+        position_id : str
+            Position identifier.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            ``{"currency", "metrics"}`` or ``None`` when absent.
+
+        Notes
+        -----
+        This method does not raise; an absent key yields ``None``.
+        """
+        ...
+
+    def get_total(self, metric_id: str) -> float | None:
+        """
+        Portfolio total of one aggregated metric.
+
+        Parameters
+        ----------
+        metric_id : str
+            Fully qualified metric key.
+
+        Returns
+        -------
+        float | None
+            Sum across positions, or ``None`` when absent.
+
+        Notes
+        -----
+        This method does not raise; an absent key yields ``None``.
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Primary ``DataFrame`` view: the aggregated metrics table.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``metric_id``, ``total`` (delegates to
+            :meth:`to_aggregated_dataframe`).
+
+        Raises
+        ------
+        ValueError
+            If the frame cannot be built.
         """
         ...
 
@@ -2288,115 +3065,9 @@ def build_portfolio_from_spec_json(spec_json: str) -> str:
     """
     ...
 
-def portfolio_result_total_value(result: PortfolioResult | str) -> float:
-    """
-    Read total portfolio value from a ``PortfolioResult`` envelope.
-
-    Accepts a typed :class:`PortfolioResult` (O(1)) or a JSON string
-    (O(size-of-envelope)).
-
-    Parameters
-    ----------
-    result : PortfolioResult or str
-        Typed result envelope or canonical result JSON containing total value.
-
-    Returns
-    -------
-    float
-        Portfolio total in the result's base currency, converted to ``float``.
-
-    Raises
-    ------
-    TypeError
-        If ``result`` is neither a ``PortfolioResult`` nor a JSON string.
-    ValueError
-        If a supplied JSON string is malformed or does not match the result schema.
-
-    Examples
-    --------
-    >>> import json
-    >>> from finstack_quant.portfolio import portfolio_result_total_value
-    >>> valuation = {
-    ...     "as_of": "2025-01-01",
-    ...     "position_values": {},
-    ...     "total_base_currency": {"amount": "0", "currency": "USD"},
-    ...     "by_entity": {},
-    ... }
-    >>> rounding = {
-    ...     "mode": "bankers",
-    ...     "ingest_scale_by_currency": {},
-    ...     "output_scale_by_currency": {},
-    ...     "tolerances": {"rate_epsilon": 1e-12, "generic_epsilon": 1e-10},
-    ...     "version": 1,
-    ... }
-    >>> result = {
-    ...     "schema_version": 1,
-    ...     "valuation": valuation,
-    ...     "metrics": {"aggregated": {}, "by_position": {}},
-    ...     "meta": {"numeric_mode": "f64", "rounding": rounding},
-    ... }
-    >>> portfolio_result_total_value(json.dumps(result))
-    0.0
-    """
-    ...
-
-def portfolio_result_get_metric(result: PortfolioResult | str, metric_id: str) -> float | None:
-    """
-    Read one metric from a ``PortfolioResult``.
-
-    Accepts a typed :class:`PortfolioResult` or a JSON string.
-
-    Parameters
-    ----------
-    result : PortfolioResult or str
-        Typed result envelope or canonical JSON containing portfolio metrics.
-    metric_id : str
-        Fully qualified metric key, such as ``"cs01::BOND_A"``.
-
-    Returns
-    -------
-    float | None
-        Aggregated metric total, or ``None`` when ``metric_id`` is absent.
-
-    Raises
-    ------
-    TypeError
-        If ``result`` is neither a ``PortfolioResult`` nor a JSON string.
-    ValueError
-        If a supplied JSON string is malformed or does not match the result schema.
-
-    Examples
-    --------
-    >>> import json
-    >>> from finstack_quant.portfolio import portfolio_result_get_metric
-    >>> valuation = {
-    ...     "as_of": "2025-01-01",
-    ...     "position_values": {},
-    ...     "total_base_currency": {"amount": "0", "currency": "USD"},
-    ...     "by_entity": {},
-    ... }
-    >>> rounding = {
-    ...     "mode": "bankers",
-    ...     "ingest_scale_by_currency": {},
-    ...     "output_scale_by_currency": {},
-    ...     "tolerances": {"rate_epsilon": 1e-12, "generic_epsilon": 1e-10},
-    ...     "version": 1,
-    ... }
-    >>> metrics = {"aggregated": {"dv01": {"metric_id": "dv01", "total": 12.5, "by_entity": {}}}, "by_position": {}}
-    >>> result = {
-    ...     "schema_version": 1,
-    ...     "valuation": valuation,
-    ...     "metrics": metrics,
-    ...     "meta": {"numeric_mode": "f64", "rounding": rounding},
-    ... }
-    >>> portfolio_result_get_metric(json.dumps(result), "dv01")
-    12.5
-    """
-    ...
-
 def aggregate_metrics(
     valuation: PortfolioValuation | str,
-    base_currency: str,
+    base_currency: Currency | str,
     market: MarketContext | str,
     as_of: datetime.date | str,
 ) -> PortfolioMetrics:
@@ -2409,7 +3080,7 @@ def aggregate_metrics(
     ----------
     valuation : PortfolioValuation or str
         Typed valuation or canonical valuation JSON to aggregate.
-    base_currency : str
+    base_currency : Currency | str
         ISO base-currency code in which aggregate values and metrics are stated.
     market : MarketContext or str
         Market context object or JSON supplying conversion and market inputs.
@@ -2450,7 +3121,7 @@ def aggregate_metrics(
 
 def aggregate_metrics_json(
     valuation: PortfolioValuation | str,
-    base_currency: str,
+    base_currency: Currency | str,
     market: MarketContext | str,
     as_of: datetime.date | str,
 ) -> str:
@@ -2464,7 +3135,7 @@ def aggregate_metrics_json(
     ----------
     valuation : PortfolioValuation or str
         Typed valuation or canonical valuation JSON to aggregate.
-    base_currency : str
+    base_currency : Currency | str
         ISO base-currency code in which aggregate values are stated.
     market : MarketContext or str
         Market context object or JSON supplying conversion inputs.
@@ -2597,22 +3268,26 @@ def aggregate_full_cashflows(
     >>> from finstack_quant.portfolio import Portfolio, aggregate_full_cashflows
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
     >>> cashflows = aggregate_full_cashflows(Portfolio.from_spec(spec), MarketContext())
-    >>> (cashflows.num_positions(), cashflows.num_issues())
+    >>> (cashflows.num_positions, cashflows.num_issues)
     (0, 0)
     """
     ...
 
-def net_in_currency_by_date(cashflows_json: str, currency: str) -> list[tuple[str, float]]:
+def net_in_currency_by_date(
+    cashflows: PortfolioCashflows | str,
+    currency: Currency | str,
+) -> list[tuple[str, float]]:
     """
     Net same-currency cashflow amounts across kinds for each payment date.
 
     Parameters
     ----------
-    cashflows_json : str
-        Full cashflow-ladder JSON or a ``{date: {ccy: {kind: money}}}`` object
-        (optionally wrapped as ``{"by_date": ...}``). Kind keys are opaque
-        strings; amounts may be JSON numbers or decimal strings.
-    currency : str
+    cashflows : PortfolioCashflows | str
+        A :class:`PortfolioCashflows` ladder (no parse), full cashflow-ladder
+        JSON, or a ``{date: {ccy: {kind: money}}}`` object (optionally wrapped
+        as ``{"by_date": ...}``). Kind keys are opaque strings; amounts may be
+        JSON numbers or decimal strings.
+    currency : Currency | str
         ISO-4217 code selecting which per-date currency bucket to net.
 
     Returns
@@ -2623,9 +3298,11 @@ def net_in_currency_by_date(cashflows_json: str, currency: str) -> list[tuple[st
 
     Raises
     ------
+    TypeError
+        If ``cashflows`` is neither a ``PortfolioCashflows`` nor a string.
     ValueError
-        If ``cashflows_json`` is not JSON, ``currency`` is unknown, or
-        ``by_date`` is not an object.
+        If ``cashflows`` is not JSON, ``currency`` is unknown, or ``by_date``
+        is not an object.
     PortfolioError
         If cashflow JSON cannot be interpreted as a classified ladder.
 
@@ -2642,7 +3319,7 @@ def net_in_currency_by_date(cashflows_json: str, currency: str) -> list[tuple[st
 
 def apply_scenario_and_revalue(
     portfolio: Portfolio | str,
-    scenario_json: str,
+    scenario: ScenarioSpec | str,
     market: MarketContext | str,
 ) -> tuple[PortfolioValuation, ApplicationReport]:
     """
@@ -2652,8 +3329,9 @@ def apply_scenario_and_revalue(
     ----------
     portfolio : Portfolio or str
         Built portfolio or canonical ``PortfolioSpec`` JSON to revalue.
-    scenario_json : str
-        Canonical scenario specification JSON describing market-data shocks.
+    scenario : ScenarioSpec | str
+        Typed :class:`~finstack_quant.scenarios.ScenarioSpec` or its canonical
+        JSON string describing market-data shocks.
     market : MarketContext or str
         Base market context object or JSON to shock before revaluation.
 
@@ -2687,7 +3365,7 @@ def apply_scenario_and_revalue(
 
 def scenario_pnl(
     portfolio: Portfolio | str,
-    scenario_json: str,
+    scenario: ScenarioSpec | str,
     market: MarketContext | str,
 ) -> tuple[ScenarioPnl, ApplicationReport]:
     """
@@ -2704,9 +3382,10 @@ def scenario_pnl(
     portfolio : Portfolio or str
         Built portfolio or canonical ``PortfolioSpec`` JSON valued on both the
         unshocked and shocked legs.
-    scenario_json : str
-        Canonical scenario specification JSON describing the market-data shocks
-        whose profit-and-loss impact is measured.
+    scenario : ScenarioSpec | str
+        Typed :class:`~finstack_quant.scenarios.ScenarioSpec` or its canonical
+        JSON string describing the market-data shocks whose profit-and-loss
+        impact is measured.
     market : MarketContext or str
         Unshocked market context object or JSON used as the base leg and as the
         source the scenario operations are applied to.
@@ -2742,7 +3421,7 @@ def scenario_pnl(
 
 def scenario_pnl_batch(
     portfolio: Portfolio | str,
-    scenarios_json: str,
+    scenarios: list[ScenarioSpec | str] | str,
     market: MarketContext | str,
 ) -> list[ScenarioPnlBatchItem]:
     """
@@ -2759,9 +3438,11 @@ def scenario_pnl_batch(
     portfolio : Portfolio or str
         Built portfolio or canonical ``PortfolioSpec`` JSON. The typed form
         avoids rebuilding the portfolio for the batch.
-    scenarios_json : str
-        Canonical JSON array of ``ScenarioSpec`` objects. Array order is
-        preserved exactly. ``"[]"`` returns an empty list without valuation.
+    scenarios : list[ScenarioSpec | str] | str
+        Ordered scenarios as a sequence of typed ``ScenarioSpec`` objects or
+        canonical JSON strings, or one canonical JSON array string. Order is
+        preserved exactly; an empty batch returns an empty list without
+        valuation.
     market : MarketContext or str
         Unshocked market context or canonical market JSON used for the shared
         base valuation and each scenario application.
@@ -2777,7 +3458,7 @@ def scenario_pnl_batch(
     Raises
     ------
     ValueError
-        If ``scenarios_json`` is malformed or cannot deserialize to an ordered
+        If ``scenarios`` is malformed or cannot deserialize to an ordered
         array of valid ``ScenarioSpec`` values.
     PortfolioError
         If scenario application, valuation, or base-currency P&L differencing
@@ -2796,7 +3477,7 @@ def scenario_pnl_batch(
 
 def scenario_pnl_batch_json(
     portfolio: Portfolio | str,
-    scenarios_json: str,
+    scenarios: list[ScenarioSpec | str] | str,
     market: MarketContext | str,
 ) -> str:
     """
@@ -2809,8 +3490,9 @@ def scenario_pnl_batch_json(
     ----------
     portfolio : Portfolio or str
         Built portfolio or canonical ``PortfolioSpec`` JSON.
-    scenarios_json : str
-        Canonical JSON array of ``ScenarioSpec`` objects; order is preserved.
+    scenarios : list[ScenarioSpec | str] | str
+        Ordered scenarios (typed objects, JSON strings, or one JSON array
+        string); order is preserved.
     market : MarketContext or str
         Unshocked market context or canonical market JSON.
 
@@ -2824,7 +3506,7 @@ def scenario_pnl_batch_json(
     Raises
     ------
     ValueError
-        If ``scenarios_json`` cannot deserialize to an ordered array of
+        If ``scenarios`` cannot deserialize to an ordered array of
         valid ``ScenarioSpec`` values.
     PortfolioError
         If scenario application, valuation, or base-currency P&L
@@ -3029,7 +3711,7 @@ class WeightAllocationResult:
         """
         ...
 
-def allocate_weights(spec_json: str) -> WeightAllocationResult:
+def allocate_weights(spec_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> WeightAllocationResult:
     """
     Allocate strategy weights from a JSON specification.
 
@@ -3041,7 +3723,7 @@ def allocate_weights(spec_json: str) -> WeightAllocationResult:
 
     Parameters
     ----------
-    spec_json : str
+    spec_json : str | dict | list | pandas.DataFrame
         JSON-serialized allocation specification.
 
     Returns
@@ -3067,7 +3749,7 @@ def allocate_weights(spec_json: str) -> WeightAllocationResult:
     """
     ...
 
-def allocate_weights_json(spec_json: str) -> str:
+def allocate_weights_json(spec_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> str:
     """
     Allocate strategy weights from a JSON specification as wire JSON.
 
@@ -3076,7 +3758,7 @@ def allocate_weights_json(spec_json: str) -> str:
 
     Parameters
     ----------
-    spec_json : str
+    spec_json : str | dict | list | pandas.DataFrame
         JSON-serialized ``WeightAllocationSpec`` selecting the scheme,
         strategy inputs, and any covariance data.
 
@@ -3101,7 +3783,7 @@ def allocate_weights_json(spec_json: str) -> str:
     """
     ...
 
-def validate_allocation_json(spec_json: str) -> str:
+def validate_allocation_json(spec_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> str:
     """
     Validate a strategy allocation JSON specification.
 
@@ -3110,7 +3792,7 @@ def validate_allocation_json(spec_json: str) -> str:
 
     Parameters
     ----------
-    spec_json : str
+    spec_json : str | dict | list | pandas.DataFrame
         JSON-serialized allocation specification.
 
     Returns
@@ -3163,6 +3845,37 @@ class ReplayResult:
     >>> ReplayResult.from_json(json.dumps(doc)).summary["num_steps"]
     0
     """
+
+    @staticmethod
+    def from_json(json: str) -> ReplayResult:
+        """
+        Deserialize a replay result from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON produced by :meth:`to_json` or :func:`replay_portfolio_json`.
+
+        Returns
+        -------
+        ReplayResult
+            Reconstructed result.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import ReplayResult
+        >>> try:
+        ...     ReplayResult.from_json("{}")
+        ... except ValueError:
+        ...     print("missing fields")
+        missing fields
+        """
+        ...
 
     @property
     def steps(self) -> list[dict[str, object]]:
@@ -3250,8 +3963,9 @@ class ReplayResult:
 
 def replay_portfolio(
     portfolio: Portfolio | str,
-    snapshots_json: str,
-    config_json: str,
+    snapshots: list[tuple[datetime.date | str, MarketContext | str]] | list[dict[str, Any]] | str,
+    config: dict[str, Any] | str | None = None,
+    mode: str | None = None,
 ) -> ReplayResult:
     """
     Replay a portfolio through dated market snapshots.
@@ -3260,11 +3974,18 @@ def replay_portfolio(
     ----------
     portfolio : Portfolio or str
         Typed :class:`Portfolio` or JSON ``PortfolioSpec``.
-    snapshots_json : str
-        JSON array or envelope of market snapshots.
-    config_json : str
-        JSON replay configuration controlling dates, valuation
-        options, and output detail.
+    snapshots : list[tuple[date, MarketContext | str]] | list[dict] | str
+        Dated market snapshots in ascending order: ``(date, market)`` pairs
+        (dates as ``datetime.date`` or ISO strings), JSON-shaped
+        ``{"date": "YYYY-MM-DD", "market": {...}}`` dicts, or the canonical
+        JSON array string.
+    config : dict | str | None
+        ``ReplayConfig`` as a dict or JSON string (``mode``,
+        ``attribution_method``, ``valuation_options``, ``on_error``).
+    mode : str | None
+        Shorthand for ``config={"mode": mode}``: ``"pv_only"``,
+        ``"pv_and_pnl"`` or ``"full_attribution"``. Ignored when ``config``
+        is given.
 
     Returns
     -------
@@ -3275,16 +3996,18 @@ def replay_portfolio(
 
     Raises
     ------
+    ValueError
+        If neither ``config`` nor ``mode`` is supplied, or the snapshots or
+        config are malformed (an empty timeline is rejected).
     PortfolioError
-        If the portfolio, snapshots, or replay config are
-        invalid, or if a snapshot valuation fails.
+        If a snapshot valuation fails under a strict error policy.
 
     Examples
     --------
     >>> from finstack_quant.portfolio import replay_portfolio
     >>> spec = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
     >>> try:
-    ...     replay_portfolio(spec, "[]", '{"mode":"pv_only"}')
+    ...     replay_portfolio(spec, [], mode="pv_only")
     ... except ValueError as exc:
     ...     print("must be non-empty" in str(exc))
     True
@@ -3293,8 +4016,9 @@ def replay_portfolio(
 
 def replay_portfolio_json(
     portfolio: Portfolio | str,
-    snapshots_json: str,
-    config_json: str,
+    snapshots: list[tuple[datetime.date | str, MarketContext | str]] | list[dict[str, Any]] | str,
+    config: dict[str, Any] | str | None = None,
+    mode: str | None = None,
 ) -> str:
     """
     Replay a portfolio through dated market snapshots and return wire JSON.
@@ -3306,11 +4030,12 @@ def replay_portfolio_json(
     ----------
     portfolio : Portfolio or str
         Typed :class:`Portfolio` or JSON ``PortfolioSpec``.
-    snapshots_json : str
-        JSON array or envelope of market snapshots.
-    config_json : str
-        JSON replay configuration controlling dates, valuation options, and
-        output detail.
+    snapshots : list[tuple[date, MarketContext | str]] | list[dict] | str
+        Dated market snapshots (see :func:`replay_portfolio`).
+    config : dict | str | None
+        ``ReplayConfig`` as a dict or JSON string.
+    mode : str | None
+        Shorthand for ``config={"mode": mode}``.
 
     Returns
     -------
@@ -3319,9 +4044,11 @@ def replay_portfolio_json(
 
     Raises
     ------
+    ValueError
+        If neither ``config`` nor ``mode`` is supplied or an input is
+        malformed.
     PortfolioError
-        If the portfolio, snapshots, or replay config are invalid, or if a
-        snapshot valuation fails.
+        If a snapshot valuation fails under a strict error policy.
 
     Examples
     --------
@@ -3743,13 +4470,13 @@ class CarinoLinkedAttribution:
         """
         ...
 
-def brinson_fachler(sectors_json: str) -> BrinsonPeriodResult:
+def brinson_fachler(sectors_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> BrinsonPeriodResult:
     """
     Compute single-period Brinson-Fachler attribution from sector JSON.
 
     Parameters
     ----------
-    sectors_json : str
+    sectors_json : str | dict | list | pandas.DataFrame
         JSON array of ``SectorPeriod`` objects with ``sector``,
         ``portfolio_weight``, ``benchmark_weight``, ``portfolio_return``, and
         ``benchmark_return`` fields. Returns are simple decimal returns for the
@@ -3791,7 +4518,7 @@ def brinson_fachler(sectors_json: str) -> BrinsonPeriodResult:
     """
     ...
 
-def brinson_fachler_json(sectors_json: str) -> str:
+def brinson_fachler_json(sectors_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> str:
     """
     Compute single-period Brinson-Fachler attribution and return wire JSON.
 
@@ -3800,7 +4527,7 @@ def brinson_fachler_json(sectors_json: str) -> str:
 
     Parameters
     ----------
-    sectors_json : str
+    sectors_json : str | dict | list | pandas.DataFrame
         JSON array of ``SectorPeriod`` objects; same schema as
         :func:`brinson_fachler`.
 
@@ -3834,13 +4561,13 @@ def brinson_fachler_json(sectors_json: str) -> str:
     """
     ...
 
-def carino_link(periods_json: str) -> CarinoLinkedAttribution:
+def carino_link(periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> CarinoLinkedAttribution:
     """
     Compute Carino-linked multi-period Brinson attribution from period JSON.
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of periods, where each period is an array of ``SectorPeriod``
         objects (same schema as :func:`brinson_fachler`).
 
@@ -4516,7 +5243,7 @@ class FiReconciliationReport:
         """
         ...
 
-def carino_link_json(periods_json: str) -> str:
+def carino_link_json(periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> str:
     """
     Compute Carino-linked multi-period Brinson attribution and return wire JSON.
 
@@ -4525,7 +5252,7 @@ def carino_link_json(periods_json: str) -> str:
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of periods of ``SectorPeriod`` objects; same schema as
         :func:`carino_link`.
 
@@ -4560,7 +5287,11 @@ def carino_link_json(periods_json: str) -> str:
     """
     ...
 
-def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: str) -> FiAttributionResult:
+def campisi_attribution(
+    portfolio_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    benchmark_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> FiAttributionResult:
     """
     Compute single-period Campisi fixed-income benchmark attribution.
 
@@ -4568,7 +5299,7 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
 
     Parameters
     ----------
-    portfolio_json : str
+    portfolio_json : str | dict | list | pandas.DataFrame
         JSON array of ``FiPositionSnapshot`` objects with ``sector``,
         ``weight``, ``total_return``, ``yield_annual``, ``modified_duration``,
         ``spread_duration``, ``spread``, ``delta_treasury_yield``, and
@@ -4579,10 +5310,10 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
         G-spread, and discount-margin values are incompatible. The direct JSON
         shape has no metric-ID provenance, so this binding cannot detect a
         mislabeled numeric spread basis.
-    benchmark_json : str
+    benchmark_json : str | dict | list | pandas.DataFrame
         JSON array of ``FiPositionSnapshot`` objects for the benchmark, subject
         to the same quote-reproducing Z-spread basis contract.
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON object whose only field is ``period_years`` (e.g. ``0.25``). It is
         required — there is no default — and unknown keys are rejected. The
         spread convention is not configurable: the Campisi spread effect
@@ -4650,7 +5381,11 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
     """
     ...
 
-def campisi_attribution_json(portfolio_json: str, benchmark_json: str, config_json: str) -> str:
+def campisi_attribution_json(
+    portfolio_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    benchmark_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> str:
     """
     Compute single-period Campisi attribution and return wire JSON.
 
@@ -4659,12 +5394,12 @@ def campisi_attribution_json(portfolio_json: str, benchmark_json: str, config_js
 
     Parameters
     ----------
-    portfolio_json : str
+    portfolio_json : str | dict | list | pandas.DataFrame
         JSON array of ``FiPositionSnapshot`` objects; same schema and
         Z-spread basis contract as :func:`campisi_attribution`.
-    benchmark_json : str
+    benchmark_json : str | dict | list | pandas.DataFrame
         JSON array of ``FiPositionSnapshot`` objects for the benchmark side.
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON ``FiAttributionConfig`` whose only field is ``period_years``.
 
     Returns
@@ -4703,7 +5438,7 @@ def campisi_attribution_json(portfolio_json: str, benchmark_json: str, config_js
     """
     ...
 
-def campisi_carino_link(periods_json: str) -> FiCarinoLinkedResult:
+def campisi_carino_link(periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> FiCarinoLinkedResult:
     """
     Carino-link already-computed single-period Campisi attribution results.
 
@@ -4718,7 +5453,7 @@ def campisi_carino_link(periods_json: str) -> FiCarinoLinkedResult:
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of ``FiAttributionResult`` objects in chronological order,
         each the parsed output of :func:`campisi_attribution_json` (or
         ``FiAttributionResult.to_json()``). Every period
@@ -4790,7 +5525,7 @@ def campisi_carino_link(periods_json: str) -> FiCarinoLinkedResult:
     """
     ...
 
-def campisi_carino_link_json(periods_json: str) -> str:
+def campisi_carino_link_json(periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> str:
     """
     Carino-link single-period Campisi results and return wire JSON.
 
@@ -4799,7 +5534,7 @@ def campisi_carino_link_json(periods_json: str) -> str:
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of ``FiAttributionResult`` objects in chronological
         order; same schema as :func:`campisi_carino_link`.
 
@@ -4841,7 +5576,10 @@ def campisi_carino_link_json(periods_json: str) -> str:
     """
     ...
 
-def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> FiCarinoLinkedResult:
+def campisi_carino_link_from_snapshots(
+    periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> FiCarinoLinkedResult:
     """
     Compute Carino-linked multi-period Campisi attribution from period JSON.
 
@@ -4855,11 +5593,11 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> F
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of period objects, each with ``portfolio`` and
         ``benchmark`` arrays of ``FiPositionSnapshot`` (same schema as
         :func:`campisi_attribution`).
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON ``FiAttributionConfig`` shared across periods; ``period_years`` is
         its only field and is required (no default).
 
@@ -4920,7 +5658,10 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> F
     """
     ...
 
-def campisi_carino_link_from_snapshots_json(periods_json: str, config_json: str) -> str:
+def campisi_carino_link_from_snapshots_json(
+    periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> str:
     """
     Compute snapshot-level Carino-linked Campisi attribution as wire JSON.
 
@@ -4930,11 +5671,11 @@ def campisi_carino_link_from_snapshots_json(periods_json: str, config_json: str)
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of period objects with ``portfolio`` and ``benchmark``
         snapshot arrays; same schema as
         :func:`campisi_carino_link_from_snapshots`.
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON ``FiAttributionConfig`` shared across periods.
 
     Returns
@@ -4973,7 +5714,9 @@ def campisi_carino_link_from_snapshots_json(periods_json: str, config_json: str)
     """
     ...
 
-def campisi_reconciliation_check(result_json: str, tolerance: float) -> FiReconciliationReport:
+def campisi_reconciliation_check(
+    result_json: str | dict[str, Any] | list[Any] | pd.DataFrame, tolerance: float
+) -> FiReconciliationReport:
     """
     Reconcile the five Campisi effect totals against the active return.
 
@@ -4989,7 +5732,7 @@ def campisi_reconciliation_check(result_json: str, tolerance: float) -> FiReconc
 
     Parameters
     ----------
-    result_json : str
+    result_json : str | dict | list | pandas.DataFrame
         JSON ``FiAttributionResult``, as returned by
         :func:`campisi_attribution_json` (or
         ``FiAttributionResult.to_json()``). Unknown fields are rejected.
@@ -5049,7 +5792,9 @@ def campisi_reconciliation_check(result_json: str, tolerance: float) -> FiReconc
     """
     ...
 
-def campisi_reconciliation_check_json(result_json: str, tolerance: float) -> str:
+def campisi_reconciliation_check_json(
+    result_json: str | dict[str, Any] | list[Any] | pd.DataFrame, tolerance: float
+) -> str:
     """
     Reconcile the five Campisi effect totals and return wire JSON.
 
@@ -5059,7 +5804,7 @@ def campisi_reconciliation_check_json(result_json: str, tolerance: float) -> str
 
     Parameters
     ----------
-    result_json : str
+    result_json : str | dict | list | pandas.DataFrame
         JSON ``FiAttributionResult``, as returned by
         :func:`campisi_attribution_json`.
     tolerance : float
@@ -5381,7 +6126,11 @@ class ExcessReturnResult:
         """
         ...
 
-def cell_returns_from_reference(reference_json: str, base_label: str, config_json: str) -> DurationCellTable:
+def cell_returns_from_reference(
+    reference_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    base_label: str,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> DurationCellTable:
     """
     Build a duration-cell base-return table from a reference universe.
 
@@ -5393,14 +6142,14 @@ def cell_returns_from_reference(reference_json: str, base_label: str, config_jso
 
     Parameters
     ----------
-    reference_json : str
+    reference_json : str | dict | list | pandas.DataFrame
         JSON array of ``ReferenceReturn`` objects (``duration``,
         ``total_return``, both decimals with duration in years); must be
         non-empty. Unknown fields are rejected.
     base_label : str
         Label identifying the resulting curve (e.g. ``"UST"``), carried
         through to the output's ``base_label`` for policy visibility.
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON ``CellConfig``; ``width`` is its only field (cell width in
         years, finite and positive) and is required — there is no default.
 
@@ -5439,7 +6188,11 @@ def cell_returns_from_reference(reference_json: str, base_label: str, config_jso
     """
     ...
 
-def cell_returns_from_reference_json(reference_json: str, base_label: str, config_json: str) -> str:
+def cell_returns_from_reference_json(
+    reference_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    base_label: str,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> str:
     """
     Build a reference-universe duration-cell table and return wire JSON.
 
@@ -5449,12 +6202,12 @@ def cell_returns_from_reference_json(reference_json: str, base_label: str, confi
 
     Parameters
     ----------
-    reference_json : str
+    reference_json : str | dict | list | pandas.DataFrame
         JSON array of ``ReferenceReturn`` objects; same schema as
         :func:`cell_returns_from_reference`.
     base_label : str
         Label identifying the resulting curve (e.g. ``"UST"``).
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON ``CellConfig``; ``width`` is its only field and is required.
 
     Returns
@@ -5487,7 +6240,7 @@ def cell_returns_from_curves(
     horizon_years: float,
     max_duration: float,
     base_label: str,
-    config_json: str,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
 ) -> DurationCellTable:
     """
     Build a duration-cell base-return table from start/end discount curves.
@@ -5514,7 +6267,7 @@ def cell_returns_from_curves(
     base_label : str
         Label identifying the base curve (e.g. ``"UST"``, ``"USD-SOFR"``),
         stamped into the result purely for policy visibility.
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON ``CellConfig``; ``width`` is its only field and is required.
 
     Returns
@@ -5563,7 +6316,7 @@ def cell_returns_from_curves_json(
     horizon_years: float,
     max_duration: float,
     base_label: str,
-    config_json: str,
+    config_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
 ) -> str:
     """
     Build a curve-snapshot duration-cell table and return wire JSON.
@@ -5585,7 +6338,7 @@ def cell_returns_from_curves_json(
         ``horizon_years``.
     base_label : str
         Label identifying the base curve, stamped for policy visibility.
-    config_json : str
+    config_json : str | dict | list | pandas.DataFrame
         JSON ``CellConfig``; ``width`` is its only field and is required.
 
     Returns
@@ -5615,7 +6368,10 @@ def cell_returns_from_curves_json(
     """
     ...
 
-def excess_returns(positions_json: str, table_json: str) -> ExcessReturnResult:
+def excess_returns(
+    positions_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    table_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> ExcessReturnResult:
     """
     Compute duration-matched credit excess returns against a base-return table.
 
@@ -5627,11 +6383,11 @@ def excess_returns(positions_json: str, table_json: str) -> ExcessReturnResult:
 
     Parameters
     ----------
-    positions_json : str
+    positions_json : str | dict | list | pandas.DataFrame
         JSON array of ``ExcessReturnPosition`` objects (``id``, ``weight``,
         ``duration``, ``total_return``); weights must sum to ``1.0`` within
         ``1e-6``.
-    table_json : str
+    table_json : str | dict | list | pandas.DataFrame
         JSON ``DurationCellTable``, as returned by
         :func:`cell_returns_from_reference_json`,
         :func:`cell_returns_from_curves_json`, or
@@ -5674,7 +6430,10 @@ def excess_returns(positions_json: str, table_json: str) -> ExcessReturnResult:
     """
     ...
 
-def excess_returns_json(positions_json: str, table_json: str) -> str:
+def excess_returns_json(
+    positions_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    table_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> str:
     """
     Compute duration-matched credit excess returns and return wire JSON.
 
@@ -5683,10 +6442,10 @@ def excess_returns_json(positions_json: str, table_json: str) -> str:
 
     Parameters
     ----------
-    positions_json : str
+    positions_json : str | dict | list | pandas.DataFrame
         JSON array of ``ExcessReturnPosition`` objects; same schema as
         :func:`excess_returns`.
-    table_json : str
+    table_json : str | dict | list | pandas.DataFrame
         JSON ``DurationCellTable`` base-return table.
 
     Returns
@@ -6168,7 +6927,10 @@ class GridCarinoLinkedResult:
         """
         ...
 
-def grid_attribution(portfolio_json: str, benchmark_json: str) -> GridAttributionResult:
+def grid_attribution(
+    portfolio_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    benchmark_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> GridAttributionResult:
     """
     Compute a single-period hierarchical duration-cell x sector grid attribution.
 
@@ -6179,11 +6941,11 @@ def grid_attribution(portfolio_json: str, benchmark_json: str) -> GridAttributio
 
     Parameters
     ----------
-    portfolio_json : str
+    portfolio_json : str | dict | list | pandas.DataFrame
         JSON array of ``GridPosition`` objects (``cell``, ``sector``,
         ``weight``, ``total_return``) for the portfolio side; weights must
         sum to ``1.0`` within ``1e-6``.
-    benchmark_json : str
+    benchmark_json : str | dict | list | pandas.DataFrame
         JSON array of ``GridPosition`` objects for the benchmark side; same
         weight-sum requirement.
 
@@ -6226,7 +6988,10 @@ def grid_attribution(portfolio_json: str, benchmark_json: str) -> GridAttributio
     """
     ...
 
-def grid_attribution_json(portfolio_json: str, benchmark_json: str) -> str:
+def grid_attribution_json(
+    portfolio_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    benchmark_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+) -> str:
     """
     Compute a single-period grid attribution and return wire JSON.
 
@@ -6235,10 +7000,10 @@ def grid_attribution_json(portfolio_json: str, benchmark_json: str) -> str:
 
     Parameters
     ----------
-    portfolio_json : str
+    portfolio_json : str | dict | list | pandas.DataFrame
         JSON array of ``GridPosition`` objects for the portfolio side; same
         schema as :func:`grid_attribution`.
-    benchmark_json : str
+    benchmark_json : str | dict | list | pandas.DataFrame
         JSON array of ``GridPosition`` objects for the benchmark side.
 
     Returns
@@ -6266,7 +7031,7 @@ def grid_attribution_json(portfolio_json: str, benchmark_json: str) -> str:
     """
     ...
 
-def grid_carino_link(periods_json: str) -> GridCarinoLinkedResult:
+def grid_carino_link(periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> GridCarinoLinkedResult:
     """
     Carino-link multi-period hierarchical grid attribution results.
 
@@ -6280,7 +7045,7 @@ def grid_carino_link(periods_json: str) -> GridCarinoLinkedResult:
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of ``GridAttributionResult`` objects, in chronological
         order, each the wire output of :func:`grid_attribution_json` (or
         ``GridAttributionResult.to_json()``).
@@ -6323,7 +7088,7 @@ def grid_carino_link(periods_json: str) -> GridCarinoLinkedResult:
     """
     ...
 
-def grid_carino_link_json(periods_json: str) -> str:
+def grid_carino_link_json(periods_json: str | dict[str, Any] | list[Any] | pd.DataFrame) -> str:
     """
     Carino-link multi-period grid attribution results and return wire JSON.
 
@@ -6332,7 +7097,7 @@ def grid_carino_link_json(periods_json: str) -> str:
 
     Parameters
     ----------
-    periods_json : str
+    periods_json : str | dict | list | pandas.DataFrame
         JSON array of ``GridAttributionResult`` objects in chronological
         order; same schema as :func:`grid_carino_link`.
 
@@ -6586,7 +7351,9 @@ class FactorBrinsonResult:
         """
         ...
 
-def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> FactorBrinsonResult:
+def factor_brinson_attribution(
+    input_json: str | dict[str, Any] | list[Any] | pd.DataFrame, factor_returns: list[float]
+) -> FactorBrinsonResult:
     """
     Compute Jeet-Partani (2023) factor-Brinson unified attribution.
 
@@ -6598,7 +7365,7 @@ def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> 
 
     Parameters
     ----------
-    input_json : str
+    input_json : str | dict | list | pandas.DataFrame
         JSON ``FactorBrinsonInput`` with ``asset_ids``, ``asset_returns``,
         ``exposures`` (row-major ``n_assets x n_factors``), ``factor_names``,
         ``portfolio_weights`` and ``benchmark_weights``. Each weight vector
@@ -6652,7 +7419,9 @@ def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> 
     """
     ...
 
-def factor_brinson_attribution_json(input_json: str, factor_returns: list[float]) -> str:
+def factor_brinson_attribution_json(
+    input_json: str | dict[str, Any] | list[Any] | pd.DataFrame, factor_returns: list[float]
+) -> str:
     """
     Compute factor-Brinson unified attribution and return wire JSON.
 
@@ -6662,7 +7431,7 @@ def factor_brinson_attribution_json(input_json: str, factor_returns: list[float]
 
     Parameters
     ----------
-    input_json : str
+    input_json : str | dict | list | pandas.DataFrame
         JSON ``FactorBrinsonInput``; same schema as
         :func:`factor_brinson_attribution`.
     factor_returns : list[float]
@@ -6830,15 +7599,31 @@ class LinkedReturn:
         """
         ...
 
-def twrr_modified_dietz(period_json: str) -> float:
+def twrr_modified_dietz(
+    period: dict[str, Any] | str | None = None,
+    *,
+    beginning_market_value: float | None = None,
+    ending_market_value: float | None = None,
+    cashflows: list[tuple[float, float]] | None = None,
+) -> float:
     """
-    Compute a Modified-Dietz TWRR sub-period return from period JSON.
+    Compute a Modified-Dietz TWRR sub-period return.
 
     Parameters
     ----------
-    period_json : str
-        JSON-encoded ``TwrrPeriod`` with beginning market value, external
-        cashflows, and ending market value for the sub-period.
+    period : dict | str | None
+        Complete ``TwrrPeriod`` (``beginning_market_value``,
+        ``ending_market_value``, ``cashflows: [{amount,
+        fraction_of_period_remaining}]``) as a dict or JSON string. Omit it
+        to build the period from the keyword arguments instead.
+    beginning_market_value : float | None
+        PV at period start (used when ``period`` is omitted).
+    ending_market_value : float | None
+        PV at period end (used when ``period`` is omitted).
+    cashflows : list[tuple[float, float]] | None
+        External flows as ``(amount, fraction_of_period_remaining)`` pairs:
+        positive amount = contribution into the portfolio; the fraction in
+        ``[0, 1]`` weights the flow by time remaining. Defaults to none.
 
     Returns
     -------
@@ -6848,27 +7633,27 @@ def twrr_modified_dietz(period_json: str) -> float:
     Raises
     ------
     ValueError
-        If ``period_json`` is malformed, a cashflow weight lies outside
-        ``[0, 1]``, or the Dietz denominator is non-positive so the return is
-        undefined.
+        If the period is malformed, a cashflow weight lies outside ``[0, 1]``,
+        the Dietz denominator is non-positive, or neither ``period`` nor both
+        market values are supplied.
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.portfolio import twrr_modified_dietz
-    >>> period = {"beginning_market_value": 100.0, "ending_market_value": 110.0, "cashflows": []}
-    >>> twrr_modified_dietz(json.dumps(period))
+    >>> twrr_modified_dietz(beginning_market_value=100.0, ending_market_value=110.0)
+    0.1
+    >>> twrr_modified_dietz({"beginning_market_value": 100.0, "ending_market_value": 110.0, "cashflows": []})
     0.1
     """
     ...
 
-def twrr_linked(returns_json: str, horizon_years: float) -> LinkedReturn:
+def twrr_linked(returns_json: str | dict[str, Any] | list[Any] | pd.DataFrame, horizon_years: float) -> LinkedReturn:
     """
     Geometrically link TWRR sub-period returns over a horizon.
 
     Parameters
     ----------
-    returns_json : str
+    returns_json : str | dict | list | pandas.DataFrame
         JSON array of sub-period decimal returns (e.g. from Modified Dietz).
     horizon_years : float
         Reporting horizon in years used to annualize the linked return.
@@ -6896,7 +7681,7 @@ def twrr_linked(returns_json: str, horizon_years: float) -> LinkedReturn:
     """
     ...
 
-def twrr_linked_json(returns_json: str, horizon_years: float) -> str:
+def twrr_linked_json(returns_json: str | dict[str, Any] | list[Any] | pd.DataFrame, horizon_years: float) -> str:
     """
     Geometrically link TWRR sub-period returns and return wire JSON.
 
@@ -6905,7 +7690,7 @@ def twrr_linked_json(returns_json: str, horizon_years: float) -> str:
 
     Parameters
     ----------
-    returns_json : str
+    returns_json : str | dict | list | pandas.DataFrame
         JSON array of sub-period decimal returns.
     horizon_years : float
         Reporting horizon in years used to annualize the linked return.
@@ -6931,15 +7716,20 @@ def twrr_linked_json(returns_json: str, horizon_years: float) -> str:
     """
     ...
 
-def mwr_xirr(cashflows_json: str) -> float:
+def mwr_xirr(
+    cashflows: list[tuple[datetime.date | str, float]] | list[dict[str, Any]] | pd.DataFrame | str,
+) -> float:
     """
-    Compute money-weighted return via XIRR from dated cashflow JSON.
+    Compute the money-weighted return (XIRR, Act/365F) from dated cashflows.
 
     Parameters
     ----------
-    cashflows_json : str
-        JSON array of ``DatedCashflow`` objects with ISO dates and signed amounts
-        (investments negative, distributions positive).
+    cashflows : list[tuple[date, float]] | list[dict] | pd.DataFrame | str
+        Dated flows from the investor's cash account: contributions negative,
+        terminal value / distributions positive. Accepts ``(date, amount)``
+        pairs (dates as ``datetime.date`` or ISO strings), dicts with
+        ``date`` and ``amount`` keys, a DataFrame with those columns, or the
+        canonical JSON array string.
 
     Returns
     -------
@@ -6948,16 +7738,17 @@ def mwr_xirr(cashflows_json: str) -> float:
 
     Raises
     ------
-    PortfolioError
-        If XIRR does not converge or cashflows lack a sign change.
     ValueError
-        If ``cashflows_json`` is malformed.
+        If the flows are malformed, lack a sign change, or XIRR does not
+        converge.
 
     Examples
     --------
+    >>> import datetime as dt
     >>> from finstack_quant.portfolio import mwr_xirr
-    >>> cashflows = '[{"date":"2025-01-01","amount":-100.0},{"date":"2026-01-01","amount":110.0}]'
-    >>> round(mwr_xirr(cashflows), 6)
+    >>> round(mwr_xirr([(dt.date(2025, 1, 1), -100.0), (dt.date(2026, 1, 1), 110.0)]), 6)
+    0.1
+    >>> round(mwr_xirr('[{"date":"2025-01-01","amount":-100.0},{"date":"2026-01-01","amount":110.0}]'), 6)
     0.1
     """
     ...
@@ -8320,6 +9111,23 @@ class WeightingScheme:
         """
         ...
 
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on the underlying Rust variant.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """Hash consistent with :meth:`__eq__` (usable as dict/set keys).
+        Returns
+        -------
+        int
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -8424,6 +9232,23 @@ class MissingMetricPolicy:
         """
         ...
 
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on the underlying Rust variant.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """Hash consistent with :meth:`__eq__` (usable as dict/set keys).
+        Returns
+        -------
+        int
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -8442,6 +9267,28 @@ class Inequality:
     >>> Inequality.le().label
     'le'
     """
+
+    def __init__(self, op: str) -> None:
+        """
+        Parse an inequality from its name or symbol.
+
+        Parameters
+        ----------
+        op : str
+            ``"le"``/``"<="``, ``"ge"``/``">="`` or ``"eq"``/``"=="``.
+
+        Raises
+        ------
+        ValueError
+            For any other text.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import Inequality
+        >>> Inequality("<=") == Inequality.le()
+        True
+        """
+        ...
 
     @classmethod
     def le(cls) -> Inequality:
@@ -8522,6 +9369,23 @@ class Inequality:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on the underlying Rust variant.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """Hash consistent with :meth:`__eq__` (usable as dict/set keys).
+        Returns
+        -------
+        int
         """
         ...
 
@@ -8626,6 +9490,23 @@ class TradeDirection:
         """
         ...
 
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on the underlying Rust variant.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """Hash consistent with :meth:`__eq__` (usable as dict/set keys).
+        Returns
+        -------
+        int
+        """
+        ...
+
     def __repr__(self) -> str:
         """Return a concise debug representation.
         Returns
@@ -8724,6 +9605,23 @@ class TradeType:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Structural equality on the underlying Rust variant.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def __hash__(self) -> int:
+        """Hash consistent with :meth:`__eq__` (usable as dict/set keys).
+        Returns
+        -------
+        int
         """
         ...
 
@@ -9932,20 +10830,132 @@ class Constraint:
 
 class CandidatePosition:
     """
-    Candidate instrument that could be added to the portfolio.
+    Candidate instrument the optimizer may add to the portfolio.
 
-    Construction from Python is not yet supported (requires the instrument
-    binding bridge). Returned by getters on :class:`TradeUniverse`.
+    Starts at weight zero and is bounded by ``min_weight`` / ``max_weight``.
+    Attach candidates to a :class:`TradeUniverse` via ``with_candidate``.
 
     Examples
     --------
     >>> from finstack_quant.portfolio import CandidatePosition
     >>> try:
-    ...     CandidatePosition()
-    ... except TypeError as exc:
-    ...     print(exc)
-    cannot create 'finstack_quant.portfolio.CandidatePosition' instances
+    ...     CandidatePosition("C1", "E1", "not-an-instrument")
+    ... except ValueError:
+    ...     print("invalid instrument payload")
+    invalid instrument payload
     """
+
+    def __init__(
+        self,
+        id: str,
+        entity_id: str,
+        instrument: Any,
+        unit: str | dict[str, Any] | None = None,
+        max_weight: float = 1.0,
+        min_weight: float = 0.0,
+        attributes: dict[str, str | float] | None = None,
+    ) -> None:
+        """
+        Create a candidate.
+
+        Parameters
+        ----------
+        id : str
+            Identifier that becomes the position id if the optimizer trades it.
+        entity_id : str
+            Owning entity for the candidate.
+        instrument : Bond | InterestRateSwap | ... | str
+            Typed instrument wrapper or canonical instrument-envelope JSON.
+        unit : str | dict | None
+            Position unit: ``"units"`` (default), ``"face_value"``,
+            ``"percentage"``, ``"notional"`` or ``{"notional": "USD"}``.
+        max_weight : float
+            Maximum weight (fraction) the candidate may receive.
+        min_weight : float
+            Minimum weight when included; ``0.0`` lets the optimizer skip it.
+        attributes : dict[str, str | float] | None
+            Attributes used by filters and exposure constraints.
+
+        Raises
+        ------
+        TypeError
+            If ``instrument`` is neither a typed instrument nor a string.
+        ValueError
+            If the instrument payload is invalid or ``unit`` is unknown.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import CandidatePosition
+        >>> try:
+        ...     CandidatePosition("C1", "E1", "{}")
+        ... except ValueError:
+        ...     print("invalid instrument payload")
+        invalid instrument payload
+        """
+        ...
+
+    @staticmethod
+    def from_json(json_str: str) -> CandidatePosition:
+        """
+        Parse from JSON (the instrument travels as its canonical tagged payload).
+
+        Parameters
+        ----------
+        json_str : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CandidatePosition
+            Reconstructed candidate.
+
+        Raises
+        ------
+        ValueError
+            If the payload or embedded instrument is invalid.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import CandidatePosition
+        >>> try:
+        ...     CandidatePosition.from_json("{}")
+        ... except ValueError:
+        ...     print("missing fields")
+        missing fields
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON.
+
+        Returns
+        -------
+        str
+            JSON accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If the instrument has no JSON representation.
+        """
+        ...
+
+    @property
+    def attributes(self) -> dict[str, str | float]:
+        """
+        Candidate attributes.
+
+        Returns
+        -------
+        dict[str, str | float]
+            Attribute values keyed by name.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
 
     @property
     def id(self) -> str:
@@ -10039,6 +11049,10 @@ class TradeUniverse:
     """
     Universe of tradeable existing positions and candidate additions.
 
+    Build with :meth:`all_positions` or :meth:`filtered`, chain
+    :meth:`with_candidate` / :meth:`allow_shorting_candidates`, and attach
+    it to a :class:`PortfolioOptimizationSpec` via ``with_trade_universe``.
+
     Examples
     --------
     >>> from finstack_quant.portfolio import TradeUniverse
@@ -10049,23 +11063,134 @@ class TradeUniverse:
     @classmethod
     def all_positions(cls) -> TradeUniverse:
         """
-        Make every existing position tradeable.
+        Universe where every existing position is tradeable and no candidates exist.
 
         Returns
         -------
         TradeUniverse
-            Universe with all existing positions tradeable, no candidates, and no candidate shorts.
+            Default universe.
 
         Notes
         -----
-        This method does not raise; it returns a fixed instance.
+        This constructor does not raise.
 
         Examples
         --------
         >>> from finstack_quant.portfolio import TradeUniverse
-        >>> universe = TradeUniverse.all_positions()
-        >>> (universe.tradeable_filter.kind, universe.candidates)
-        ('all', [])
+        >>> TradeUniverse.all_positions().allow_short_candidates
+        False
+        """
+        ...
+
+    @classmethod
+    def filtered(cls, filter: PositionFilter) -> TradeUniverse:
+        """
+        Universe where only positions matching ``filter`` may trade.
+
+        Parameters
+        ----------
+        filter : PositionFilter
+            Filter selecting the tradeable existing positions.
+
+        Returns
+        -------
+        TradeUniverse
+            Universe with the supplied tradeable filter and no candidates.
+
+        Notes
+        -----
+        This constructor does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import PositionFilter, TradeUniverse
+        >>> TradeUniverse.filtered(PositionFilter.by_entity_id("E1")).tradeable_filter.kind
+        'by_entity_id'
+        """
+        ...
+
+    def with_candidate(self, candidate: CandidatePosition) -> TradeUniverse:
+        """
+        Return a copy with ``candidate`` appended.
+
+        Parameters
+        ----------
+        candidate : CandidatePosition
+            Instrument the optimizer may add.
+
+        Returns
+        -------
+        TradeUniverse
+            New universe; the receiver is unchanged.
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    def allow_shorting_candidates(self) -> TradeUniverse:
+        """
+        Return a copy that lets candidates take negative weights.
+
+        Returns
+        -------
+        TradeUniverse
+            New universe with ``allow_short_candidates`` set.
+
+        Notes
+        -----
+        This method does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import TradeUniverse
+        >>> TradeUniverse.all_positions().allow_shorting_candidates().allow_short_candidates
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json_str: str) -> TradeUniverse:
+        """
+        Parse from JSON.
+
+        Parameters
+        ----------
+        json_str : str
+            JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        TradeUniverse
+            Reconstructed universe.
+
+        Raises
+        ------
+        ValueError
+            If the payload or an embedded candidate instrument is invalid.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import TradeUniverse
+        >>> TradeUniverse.from_json("{}").candidates
+        []
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON.
+
+        Returns
+        -------
+        str
+            JSON accepted by :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a candidate instrument has no JSON representation.
         """
         ...
 
@@ -10660,29 +11785,34 @@ class PortfolioOptimizationSpec:
     @classmethod
     def new(
         cls,
-        portfolio_spec_json: str,
+        portfolio: Portfolio | str,
         objective: Objective,
     ) -> PortfolioOptimizationSpec:
         """
-        Create an optimization specification from portfolio JSON and objective.
+        Create an optimization specification from a portfolio and an objective.
 
         Parameters
         ----------
-        portfolio_spec_json : str
-            Canonical ``PortfolioSpec`` JSON defining positions and starting weights.
+        portfolio : Portfolio | str
+            Built :class:`Portfolio` (its canonical spec is captured) or a
+            ``PortfolioSpec`` JSON string defining positions and starting
+            weights.
         objective : Objective
             Direction and metric expression the optimizer should solve for.
 
         Returns
         -------
         PortfolioOptimizationSpec
-            Spec with no constraints, value weighting, zero-fill missing metrics, and no label.
+            Spec with no constraints, value weighting, zero-fill missing
+            metrics, no label and the default trade universe.
 
         Raises
         ------
+        TypeError
+            If ``portfolio`` is neither a ``Portfolio`` nor a string.
         ValueError
-            If ``portfolio_spec_json`` is malformed or does not match the
-            ``PortfolioSpec`` schema.
+            If the JSON is malformed or does not match the ``PortfolioSpec``
+            schema.
 
         Examples
         --------
@@ -10691,6 +11821,43 @@ class PortfolioOptimizationSpec:
         >>> spec_json = '{"id":"empty","base_currency":"USD","as_of":"2025-01-01","entities":{},"positions":[]}'
         >>> PortfolioOptimizationSpec.new(spec_json, objective).weighting.label
         'value_weight'
+        """
+        ...
+
+    def with_trade_universe(self, universe: TradeUniverse) -> PortfolioOptimizationSpec:
+        """
+        Return a copy restricted to ``universe``.
+
+        Parameters
+        ----------
+        universe : TradeUniverse
+            Tradeable/held filters and candidate additions the optimizer
+            honours.
+
+        Returns
+        -------
+        PortfolioOptimizationSpec
+            New spec; the receiver is unchanged.
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    @property
+    def trade_universe(self) -> TradeUniverse | None:
+        """
+        Trade universe restricting the optimizer.
+
+        Returns
+        -------
+        TradeUniverse | None
+            ``None`` means every position is tradeable and no candidates.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -11161,6 +12328,27 @@ class PortfolioOptimizationResult:
         """
         ...
 
+    def to_rebalanced_portfolio(self) -> Portfolio:
+        """
+        Rebuild the portfolio with the implied post-trade quantities.
+
+        Existing positions take their ``implied_quantities`` entry (positions
+        outside the trade universe keep their quantity) and traded candidates
+        become new positions.
+
+        Returns
+        -------
+        Portfolio
+            Built portfolio ready for ``value_portfolio``.
+
+        Raises
+        ------
+        RuntimeError
+            If the solution is infeasible, or this result was rebuilt from
+            JSON / unpickled (the live problem is not part of the wire form).
+        """
+        ...
+
     def to_trade_list(self) -> list[TradeSpec]:
         """
         Convert weight deltas into trade specifications.
@@ -11338,6 +12526,52 @@ class SensitivityMatrix:
     (0, 0)
     """
 
+    @staticmethod
+    def from_json(json: str) -> SensitivityMatrix:
+        """
+        Parse from canonical JSON produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload.
+
+        Returns
+        -------
+        SensitivityMatrix
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import SensitivityMatrix
+        >>> try:
+        ...     SensitivityMatrix.from_json("{}")
+        ... except ValueError:
+        ...     print("missing fields")
+        missing fields
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            JSON accepted by :meth:`from_json`; also backs ``pickle``.
+
+        Notes
+        -----
+        This method does not raise for a well-formed value.
+        """
+        ...
+
     @property
     def position_ids(self) -> list[str]:
         """
@@ -11503,12 +12737,58 @@ class FactorPnlProfile:
     Examples
     --------
     >>> from finstack_quant.portfolio import FactorPnlProfile
-    >>> try:
-    ...     FactorPnlProfile()
-    ... except TypeError as exc:
-    ...     print(exc)
-    cannot create 'finstack_quant.portfolio.FactorPnlProfile' instances
+    >>> profile = FactorPnlProfile.from_json(
+    ...     '{"factor_id":"USD_10Y","position_ids":["P1"],"shifts":[-1.0,0.0,1.0],"position_pnls":[[-1.0],[0.0],[1.0]]}'
+    ... )
+    >>> profile.to_dataframe()["P1"].tolist()
+    [-1.0, 0.0, 1.0]
     """
+
+    @staticmethod
+    def from_json(json: str) -> FactorPnlProfile:
+        """
+        Parse from canonical JSON produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload.
+
+        Returns
+        -------
+        FactorPnlProfile
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import FactorPnlProfile
+        >>> try:
+        ...     FactorPnlProfile.from_json("{}")
+        ... except ValueError:
+        ...     print("missing fields")
+        missing fields
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            JSON accepted by :meth:`from_json`; also backs ``pickle``.
+
+        Notes
+        -----
+        This method does not raise for a well-formed value.
+        """
+        ...
 
     @property
     def factor_id(self) -> str:
@@ -11519,6 +12799,22 @@ class FactorPnlProfile:
         -------
         str
             Identifier of the contributing risk factor in the model.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def position_ids(self) -> list[str]:
+        """
+        Ordered position identifiers indexing the inner ``position_pnls`` axis.
+
+        Returns
+        -------
+        list[str]
+            Column labels used by :meth:`to_dataframe`.
 
         Notes
         -----
@@ -11558,25 +12854,19 @@ class FactorPnlProfile:
         """
         ...
 
-    def to_dataframe(self, position_ids: list[str]) -> pd.DataFrame:
+    def to_dataframe(self) -> pd.DataFrame:
         """
         Export as a pandas DataFrame with shifts as rows and positions as columns.
-
-        Parameters
-        ----------
-        position_ids : list[str]
-            Position identifiers to use as column names.  Must
-            match the number of positions in the profile.
 
         Returns
         -------
         pd.DataFrame
-            DataFrame indexed by shift values with position IDs as column names.
+            Indexed by shift value; one column per entry of ``position_ids``.
 
         Raises
         ------
         ValueError
-            If ``len(position_ids)`` does not match the profile width.
+            If the frame cannot be built.
         """
         ...
 
@@ -11589,11 +12879,11 @@ class FactorPnlProfile:
         ...
 
 def compute_factor_sensitivities(
-    positions_json: str,
-    factors_json: str,
+    positions_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    factors_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
     market: MarketContext | str,
     as_of: datetime.date | str,
-    bump_config_json: str | None = None,
+    bump_config_json: str | dict[str, Any] | list[Any] | pd.DataFrame | None = None,
 ) -> SensitivityMatrix:
     """
         Compute first-order factor sensitivities using central finite differences.
@@ -11639,11 +12929,11 @@ def compute_factor_sensitivities(
     ...
 
 def compute_pnl_profiles(
-    positions_json: str,
-    factors_json: str,
+    positions_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
+    factors_json: str | dict[str, Any] | list[Any] | pd.DataFrame,
     market: MarketContext | str,
     as_of: datetime.date | str,
-    bump_config_json: str | None = None,
+    bump_config_json: str | dict[str, Any] | list[Any] | pd.DataFrame | None = None,
     n_scenario_points: int = 5,
 ) -> list[FactorPnlProfile]:
     """
@@ -11651,16 +12941,16 @@ def compute_pnl_profiles(
 
     Parameters
     ----------
-    positions_json : str
+    positions_json : str | dict | list | pandas.DataFrame
         JSON array of position objects (same schema as
         :func:`compute_factor_sensitivities`).
-    factors_json : str
+    factors_json : str | dict | list | pandas.DataFrame
         JSON array of ``FactorDefinition`` objects.
     market : MarketContext or str
         ``MarketContext`` instance or JSON string.
     as_of : datetime.date | str
         Valuation date, either a date-like object or an ISO 8601 string.
-    bump_config_json : str, optional
+    bump_config_json : str | dict | list | pandas.DataFrame, optional
         Optional JSON-serialized ``BumpSizeConfig``.
     n_scenario_points : int, default 5
         Number of scenario grid points
@@ -11710,6 +13000,52 @@ class FactorRiskDecomposition:
     >>> decompose_factor_risk(matrix, '{"factor_ids":[],"n":0,"data":[]}').total_risk
     0.0
     """
+
+    @staticmethod
+    def from_json(json: str) -> FactorRiskDecomposition:
+        """
+        Parse from canonical JSON produced by :meth:`to_json`.
+
+        Parameters
+        ----------
+        json : str
+            Canonical payload.
+
+        Returns
+        -------
+        FactorRiskDecomposition
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the payload is malformed.
+
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import FactorRiskDecomposition
+        >>> try:
+        ...     FactorRiskDecomposition.from_json("{}")
+        ... except ValueError:
+        ...     print("missing fields")
+        missing fields
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to canonical JSON.
+
+        Returns
+        -------
+        str
+            JSON accepted by :meth:`from_json`; also backs ``pickle``.
+
+        Notes
+        -----
+        This method does not raise for a well-formed value.
+        """
+        ...
 
     @property
     def total_risk(self) -> float:

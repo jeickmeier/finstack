@@ -30,7 +30,50 @@ pub struct ValuationRow {
     pub measures: IndexMap<String, f64>,
 }
 
+/// One measure of a [`ValuationResult`] in tidy (long) form.
+///
+/// Composite keys are decoded into their coordinates: the first component is
+/// reported as `curve`, the second as `bucket`; any further components are
+/// joined into `bucket` with `::`. Scalar metrics carry `None` for both.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct ValuationLongRow {
+    /// Base metric name (`bucketed_dv01`, `pv01`, `dv01`).
+    pub metric: String,
+    /// First composite coordinate, usually a curve or surface id.
+    pub curve: Option<String>,
+    /// Second (and any later) composite coordinate, usually a tenor bucket.
+    pub bucket: Option<String>,
+    /// Measure value in the unit documented for `metric`.
+    pub value: f64,
+}
+
 impl ValuationResult {
+    /// Flatten every measure into one [`ValuationLongRow`] per key.
+    ///
+    /// Rows follow `measures` insertion order. This is the shape a risk desk
+    /// consumes bucketed risk in: filter on `metric`, pivot on
+    /// `curve`/`bucket`.
+    pub fn to_long_rows(&self) -> Vec<ValuationLongRow> {
+        self.measures
+            .iter()
+            .map(|(id, &value)| {
+                let base = id.base();
+                let components = id.decode_components(&base).unwrap_or_default();
+                let mut components = components.into_iter();
+                let curve = components.next();
+                let rest: Vec<String> = components.collect();
+                let bucket = (!rest.is_empty()).then(|| rest.join("::"));
+                ValuationLongRow {
+                    metric: base.to_string(),
+                    curve,
+                    bucket,
+                    value,
+                }
+            })
+            .collect()
+    }
+
     /// Convert this result to a flat row for DataFrame export.
     ///
     /// All measures are emitted as named columns; no metric is
@@ -85,6 +128,54 @@ mod tests {
         assert_eq!(row.measures.get("convexity"), Some(&125.5));
         assert_eq!(row.measures.get("ytm"), Some(&0.0425));
         assert!(row.measures.get("duration_mod").is_none());
+    }
+
+    #[test]
+    fn to_long_rows_decodes_composite_coordinates() {
+        let mut measures = IndexMap::new();
+        measures.insert(MetricId::Dv01, 1.0);
+        measures.insert(MetricId::composite(&MetricId::Pv01, &["USD-OIS"]), 2.0);
+        measures.insert(
+            MetricId::composite(&MetricId::BucketedDv01, &["USD-OIS", "10y"]),
+            3.0,
+        );
+        measures.insert(MetricId::custom("bucketed_dv01::USD_x2dOIS::5y"), 4.0);
+        let rows = ValuationResult::stamped("L", jan15(), Money::new(1.0, Currency::USD))
+            .with_measures(measures)
+            .to_long_rows();
+
+        let shape = |row: &ValuationLongRow| {
+            (
+                row.metric.clone(),
+                row.curve.clone(),
+                row.bucket.clone(),
+                row.value,
+            )
+        };
+        assert_eq!(rows.len(), 4);
+        assert_eq!(shape(&rows[0]), ("dv01".into(), None, None, 1.0));
+        assert_eq!(
+            shape(&rows[1]),
+            ("pv01".into(), Some("USD-OIS".into()), None, 2.0)
+        );
+        assert_eq!(
+            shape(&rows[2]),
+            (
+                "bucketed_dv01".into(),
+                Some("USD-OIS".into()),
+                Some("10y".into()),
+                3.0
+            )
+        );
+        assert_eq!(
+            shape(&rows[3]),
+            (
+                "bucketed_dv01".into(),
+                Some("USD-OIS".into()),
+                Some("5y".into()),
+                4.0
+            )
+        );
     }
 
     #[test]

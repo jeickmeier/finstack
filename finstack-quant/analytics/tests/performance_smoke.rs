@@ -96,9 +96,18 @@ fn performance_facade_exercises_broad_api_surface() {
         ("sortino", perf.sortino(0.0)),
         ("calmar", perf.calmar().expect("valid Calmar ratios")),
         ("max drawdown", perf.max_drawdown()),
-        ("value at risk", perf.value_at_risk(0.95)),
-        ("expected shortfall", perf.expected_shortfall(0.95)),
-        ("tail ratio", perf.tail_ratio(0.95)),
+        (
+            "value at risk",
+            perf.value_at_risk(0.95).expect("valid confidence"),
+        ),
+        (
+            "expected shortfall",
+            perf.expected_shortfall(0.95).expect("valid confidence"),
+        ),
+        (
+            "tail ratio",
+            perf.tail_ratio(0.95).expect("valid confidence"),
+        ),
         ("ulcer index", perf.ulcer_index()),
         ("skewness", perf.skewness()),
         ("kurtosis", perf.kurtosis()),
@@ -114,8 +123,15 @@ fn performance_facade_exercises_broad_api_surface() {
             "martin ratio",
             perf.martin_ratio().expect("valid Martin ratios"),
         ),
-        ("parametric var", perf.parametric_var(0.95, None)),
-        ("cornish-fisher var", perf.cornish_fisher_var(0.95, None)),
+        (
+            "parametric var",
+            perf.parametric_var(0.95, None).expect("valid confidence"),
+        ),
+        (
+            "cornish-fisher var",
+            perf.cornish_fisher_var(0.95, None)
+                .expect("valid confidence"),
+        ),
         ("recovery factor", perf.recovery_factor()),
         (
             "sterling ratio",
@@ -130,19 +146,25 @@ fn performance_facade_exercises_broad_api_surface() {
             "pain ratio",
             perf.pain_ratio(0.02).expect("valid Pain ratios"),
         ),
-        ("conditional drawdown at risk", perf.cdar(0.95)),
+        (
+            "conditional drawdown at risk",
+            perf.cdar(0.95).expect("valid confidence"),
+        ),
         ("tracking error", perf.tracking_error()),
         ("information ratio", perf.information_ratio()),
         ("r squared", perf.r_squared()),
         ("batting average", perf.batting_average()),
         ("m squared", perf.m_squared(0.02)),
-        ("modified sharpe", perf.modified_sharpe(0.02, 0.95)),
+        (
+            "modified sharpe",
+            perf.modified_sharpe(0.02, 0.95).expect("valid confidence"),
+        ),
     ] {
         assert_finite_metric(label, &values, ticker_count);
     }
 
-    let standalone_var = perf.value_at_risk(0.95);
-    let standalone_es = perf.expected_shortfall(0.95);
+    let standalone_var = perf.value_at_risk(0.95).expect("valid confidence");
+    let standalone_es = perf.expected_shortfall(0.95).expect("valid confidence");
     let (batch_var, batch_es) = perf.value_at_risk_and_es(0.95);
     assert_eq!(batch_var, standalone_var);
     assert_eq!(batch_es, standalone_es);

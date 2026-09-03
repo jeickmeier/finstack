@@ -160,7 +160,7 @@ def _revolving_credit_market(*, credit_curve: bool = False) -> MarketContext:
         )
     )
     if credit_curve:
-        market.insert(HazardCurve("USD-HZ", date(2024, 1, 1), [(1.0, 0.02), (5.0, 0.02)], 0.4))
+        market.insert(HazardCurve("USD-HZ", date(2024, 1, 1), [(1.0, 0.02), (5.0, 0.02)], recovery_rate=0.4))
     return market
 
 

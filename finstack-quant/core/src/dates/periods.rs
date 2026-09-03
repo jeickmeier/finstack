@@ -36,8 +36,11 @@ use time::{Duration, Month};
 /// calendar-day convention (365 per year). Use `Weekly` if you need
 /// calendar-week granularity.
 ///
-/// Parses the exact snake_case wire values via [`std::str::FromStr`]
-/// (for example, `"quarterly"` or `"semi_annual"`).
+/// Parses the snake_case wire values via [`std::str::FromStr`]
+/// (for example, `"quarterly"` or `"semi_annual"`). The parser also accepts
+/// the `"semiannual"` spelling and the pandas offset aliases `D`/`B`
+/// (daily), `W` (weekly), `M`/`ME` (monthly), `Q`/`QE` (quarterly) and
+/// `A`/`Y`/`YE` (annual); serde (de)serialization stays strict snake_case.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -76,13 +79,16 @@ impl FromStr for PeriodKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "daily" => Ok(PeriodKind::Daily),
-            "weekly" => Ok(PeriodKind::Weekly),
-            "monthly" => Ok(PeriodKind::Monthly),
-            "quarterly" => Ok(PeriodKind::Quarterly),
-            "semi_annual" => Ok(PeriodKind::SemiAnnual),
-            "annual" => Ok(PeriodKind::Annual),
-            _ => Err(crate::error::InputError::Invalid.into()),
+            "daily" | "D" | "B" => Ok(PeriodKind::Daily),
+            "weekly" | "W" => Ok(PeriodKind::Weekly),
+            "monthly" | "M" | "ME" => Ok(PeriodKind::Monthly),
+            "quarterly" | "Q" | "QE" => Ok(PeriodKind::Quarterly),
+            "semi_annual" | "semiannual" => Ok(PeriodKind::SemiAnnual),
+            "annual" | "A" | "Y" | "YE" => Ok(PeriodKind::Annual),
+            _ => Err(crate::Error::Validation(format!(
+                "unknown period kind '{s}'; expected one of daily, weekly, monthly, quarterly, \
+                 semi_annual, annual (or a pandas offset alias D, B, W, M, Q, A, Y)"
+            ))),
         }
     }
 }
@@ -192,9 +198,14 @@ impl PeriodKind {
     }
 
     fn parse_index_with_limit(self, raw: &str, max_index: u16) -> crate::Result<u16> {
-        let index = raw.parse().map_err(|_| crate::error::InputError::Invalid)?;
+        let index: u16 = raw
+            .parse()
+            .map_err(|_| invalid_period(raw, "index is not a positive integer"))?;
         if !(1..=max_index).contains(&index) {
-            return Err(crate::error::InputError::Invalid.into());
+            return Err(invalid_period(
+                raw,
+                &format!("{self} index must be in 1..={max_index}"),
+            ));
         }
         Ok(index)
     }
@@ -305,7 +316,7 @@ impl PeriodId {
     ///
     /// # Errors
     ///
-    /// Returns `InputError::Invalid` when `ordinal` is not valid for `year`.
+    /// Returns `Error::Validation` naming the offending value when `ordinal` is not valid for `year`.
     ///
     /// # Arguments
     ///
@@ -333,7 +344,7 @@ impl PeriodId {
     ///
     /// # Errors
     ///
-    /// Returns `InputError::Invalid` when `q` is outside `1..=4`.
+    /// Returns `Error::Validation` naming the offending value when `q` is outside `1..=4`.
     ///
     /// # Arguments
     ///
@@ -361,7 +372,7 @@ impl PeriodId {
     ///
     /// # Errors
     ///
-    /// Returns `InputError::Invalid` when `m` is outside `1..=12`.
+    /// Returns `Error::Validation` naming the offending value when `m` is outside `1..=12`.
     ///
     /// # Arguments
     ///
@@ -395,7 +406,7 @@ impl PeriodId {
     ///
     /// # Errors
     ///
-    /// Returns `InputError::Invalid` when `w` is not a valid ISO week number
+    /// Returns `Error::Validation` naming the offending value when `w` is not a valid ISO week number
     /// for `year`.
     ///
     /// # Arguments
@@ -429,7 +440,7 @@ impl PeriodId {
     ///
     /// # Errors
     ///
-    /// Returns `InputError::Invalid` when `h` is outside `1..=2`.
+    /// Returns `Error::Validation` naming the offending value when `h` is outside `1..=2`.
     ///
     /// # Arguments
     ///
@@ -450,7 +461,10 @@ impl PeriodId {
 
     fn try_new(year: i32, index: u16, kind: PeriodKind, max: u16) -> crate::Result<Self> {
         if !(1..=max).contains(&index) {
-            return Err(crate::error::InputError::Invalid.into());
+            return Err(invalid_period(
+                &format!("{kind} {year} index {index}"),
+                &format!("{kind} index must be in 1..={max} for {year}"),
+            ));
         }
         Ok(Self {
             year,
@@ -595,7 +609,7 @@ impl PeriodId {
 }
 
 /// Configuration for fiscal year periods.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct FiscalConfig {
     /// The month when the fiscal year starts (1-12).
     pub start_month: u8,
@@ -612,14 +626,18 @@ impl FiscalConfig {
     ///
     /// # Errors
     ///
-    /// Returns `InputError::Invalid` when `start_month` is outside `1..=12` or
-    /// `start_day` is outside `1..=31`.
+    /// Returns `Error::Validation` naming the offending value when
+    /// `start_month` is outside `1..=12` or `start_day` is outside `1..=31`.
     pub fn new(start_month: u8, start_day: u8) -> crate::Result<Self> {
         if !(1..=12).contains(&start_month) {
-            return Err(crate::error::InputError::Invalid.into());
+            return Err(crate::Error::Validation(format!(
+                "fiscal start_month must be in 1..=12, got {start_month}"
+            )));
         }
         if !(1..=31).contains(&start_day) {
-            return Err(crate::error::InputError::Invalid.into());
+            return Err(crate::Error::Validation(format!(
+                "fiscal start_day must be in 1..=31, got {start_day}"
+            )));
         }
         Ok(Self {
             start_month,
@@ -691,7 +709,7 @@ pub struct Period {
 /// run of model periods. Each [`Period`] uses the crate-wide `[start, end)`
 /// interval convention, so the `end` of one period naturally aligns with the
 /// `start` of the next.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PeriodPlan {
     /// Ordered periods produced by the parser.
@@ -865,8 +883,12 @@ fn make_period_with_calendar<C: PeriodCalendar>(
 
 fn daily_bounds(year: i32, ordinal: u16) -> crate::Result<(Date, Date)> {
     use time::Duration;
-    let start =
-        Date::from_ordinal_date(year, ordinal).map_err(|_| crate::error::InputError::Invalid)?;
+    let start = Date::from_ordinal_date(year, ordinal).map_err(|_| {
+        invalid_period(
+            &format!("{year}D{ordinal}"),
+            &format!("ordinal must be in 1..={}", days_in_year(year)),
+        )
+    })?;
     let end = start + Duration::days(1);
     Ok((start, end))
 }
@@ -885,14 +907,17 @@ fn quarter_bounds(year: i32, q: u8) -> crate::Result<(Date, Date)> {
 }
 
 fn month_bounds(year: i32, m: u8) -> crate::Result<(Date, Date)> {
-    let sm = Month::try_from(m).map_err(|_| crate::error::InputError::Invalid)?;
+    let sm = Month::try_from(m)
+        .map_err(|_| invalid_period(&format!("{year}M{m:02}"), "month must be in 1..=12"))?;
     let start = crate::dates::create_date(year, sm, 1)?;
     let (ey, em) = if m == 12 {
         (year + 1, Month::January)
     } else {
         (
             year,
-            Month::try_from(m + 1).map_err(|_| crate::error::InputError::Invalid)?,
+            Month::try_from(m + 1).map_err(|_| {
+                invalid_period(&format!("{year}M{m:02}"), "month must be in 1..=12")
+            })?,
         )
     };
     let end = crate::dates::create_date(ey, em, 1)?;
@@ -914,11 +939,19 @@ fn week_bounds(year: i32, w: u8) -> crate::Result<(Date, Date)> {
     use time::Duration;
     use time::Weekday;
 
-    if w == 0 || w > iso_weeks_in_year(year) {
-        return Err(crate::error::InputError::Invalid.into());
+    let weeks = iso_weeks_in_year(year);
+    if w == 0 || w > weeks {
+        return Err(invalid_period(
+            &format!("{year}W{w:02}"),
+            &format!("ISO week must be in 1..={weeks} for {year}"),
+        ));
     }
-    let start = Date::from_iso_week_date(year, w, Weekday::Monday)
-        .map_err(|_| crate::error::InputError::Invalid)?;
+    let start = Date::from_iso_week_date(year, w, Weekday::Monday).map_err(|_| {
+        invalid_period(
+            &format!("{year}W{w:02}"),
+            "ISO week-year out of the supported date range",
+        )
+    })?;
     let end = start + Duration::days(7);
     Ok((start, end))
 }
@@ -947,13 +980,22 @@ fn fiscal_daily_bounds(
     use time::Duration;
 
     if ordinal == 0 {
-        return Err(crate::error::InputError::Invalid.into());
+        return Err(invalid_period(
+            &format!("FY{fiscal_year}D{ordinal}"),
+            "fiscal day ordinal must be at least 1",
+        ));
     }
     let fy_start = fiscal_year_start(fiscal_year, config)?;
     let fy_end = fiscal_year_start(fiscal_year + 1, config)?;
     let start = fy_start + Duration::days(i64::from(ordinal - 1));
     if start >= fy_end {
-        return Err(crate::error::InputError::Invalid.into());
+        return Err(invalid_period(
+            &format!("FY{fiscal_year}D{ordinal}"),
+            &format!(
+                "fiscal day ordinal exceeds the {} days in FY{fiscal_year}",
+                (fy_end - fy_start).whole_days()
+            ),
+        ));
     }
     Ok((start, (start + Duration::days(1)).min(fy_end)))
 }
@@ -1010,7 +1052,10 @@ fn fiscal_week_bounds(
     // Calculate start and end dates for the week
     let start = fy_start + Duration::days(((w - 1) as i64) * 7);
     if start >= fy_end {
-        return Err(crate::error::InputError::Invalid.into());
+        return Err(invalid_period(
+            &format!("FY{fiscal_year}W{w:02}"),
+            &format!("fiscal week starts after the end of FY{fiscal_year}"),
+        ));
     }
     let end = (start + Duration::days(7)).min(fy_end);
 
@@ -1054,8 +1099,12 @@ fn fiscal_year_start(fiscal_year: i32, config: FiscalConfig) -> crate::Result<Da
         fiscal_year - 1
     };
 
-    let month =
-        Month::try_from(config.start_month).map_err(|_| crate::error::InputError::Invalid)?;
+    let month = Month::try_from(config.start_month).map_err(|_| {
+        crate::Error::Validation(format!(
+            "fiscal start_month must be in 1..=12, got {}",
+            config.start_month
+        ))
+    })?;
     match crate::dates::create_date(calendar_year, month, config.start_day) {
         Ok(d) => Ok(d),
         Err(_) => {
@@ -1073,7 +1122,7 @@ fn parse_range_with_calendar<C: PeriodCalendar>(
     let s = s.trim();
     let (lhs, rhs_raw) = s
         .split_once("..")
-        .ok_or(crate::error::InputError::Invalid)?;
+        .ok_or_else(|| invalid_period(s, "range is missing the '..' separator"))?;
     let start = parse_id_with_calendar(lhs, calendar)?;
     let rhs_raw = rhs_raw.trim();
     let rhs_upper = rhs_raw.to_ascii_uppercase();
@@ -1090,10 +1139,12 @@ fn parse_range_with_calendar<C: PeriodCalendar>(
         parse_id_with_calendar(rhs, calendar)?
     } else {
         // relative form like "..D100" / "..Q4" / "..M12" / "..W52" / "..H2" / "..A"
-        let designator = start
-            .kind
-            .designator()
-            .ok_or(crate::error::InputError::Invalid)?;
+        let designator = start.kind.designator().ok_or_else(|| {
+            invalid_period(
+                s,
+                "annual ranges need an absolute end year (for example 2024..2026)",
+            )
+        })?;
         let index = start.kind.parse_index_with_limit(
             rhs.trim_start_matches(designator),
             calendar.max_index(start.year, start.kind)?,
@@ -1106,10 +1157,19 @@ fn parse_range_with_calendar<C: PeriodCalendar>(
     };
     // Validate period kind consistency and non-inverted ranges
     if start.kind != end.kind {
-        return Err(crate::error::InputError::Invalid.into());
+        return Err(invalid_period(
+            s,
+            &format!(
+                "range start ({}) and end ({}) must share one period kind",
+                start.kind, end.kind
+            ),
+        ));
     }
     if start > end {
-        return Err(crate::error::InputError::InvalidDateRange.into());
+        return Err(invalid_period(
+            s,
+            &format!("range start {start} is after end {end}"),
+        ));
     }
     Ok((start, end))
 }
@@ -1127,7 +1187,7 @@ fn parse_designated_id<C: PeriodCalendar>(
         .unwrap_or(&s[..split_index]);
     let year: i32 = year_raw
         .parse()
-        .map_err(|_| crate::error::InputError::Invalid)?;
+        .map_err(|_| invalid_period(s, "year is not a valid integer"))?;
     let max_index = if explicit_fiscal {
         kind.relative_max_index()
     } else {
@@ -1167,7 +1227,9 @@ fn parse_id_with_calendar<C: PeriodCalendar>(s: &str, calendar: &C) -> crate::Re
     }
     if s.chars().all(|c| c.is_ascii_digit()) {
         // annual
-        let year: i32 = s.parse().map_err(|_| crate::error::InputError::Invalid)?;
+        let year: i32 = s
+            .parse()
+            .map_err(|_| invalid_period(s, "year is not a valid integer"))?;
         return Ok(if calendar.is_fiscal() {
             PeriodKind::Annual.build_fiscal_id(year, 1)
         } else {
@@ -1177,10 +1239,27 @@ fn parse_id_with_calendar<C: PeriodCalendar>(s: &str, calendar: &C) -> crate::Re
     if let Some(year) = s.strip_prefix("FY") {
         let year: i32 = year
             .parse()
-            .map_err(|_| crate::error::InputError::Invalid)?;
+            .map_err(|_| invalid_period(s, "fiscal year is not a valid integer"))?;
         return Ok(PeriodKind::Annual.build_fiscal_id(year, 1));
     }
-    Err(crate::error::InputError::Invalid.into())
+    Err(invalid_period(s, "unrecognized period id"))
+}
+
+/// Accepted period-id and range grammar, appended to every parse error.
+const PERIOD_GRAMMAR: &str = "accepted forms are YYYY, YYYYQn, YYYYMmm, YYYYHn, YYYYWww, \
+     YYYYDddd (e.g. 2024Q1, 2024M01), fiscal FY2024Q1, and ranges such as 2024Q1..Q4, \
+     2024M01..2025M12 or FY2024Q1..Q4";
+
+/// Build the validation error for a malformed period id or range.
+///
+/// # Arguments
+///
+/// * `value` - The offending input exactly as the caller supplied it.
+/// * `reason` - Short explanation of what was wrong with `value`.
+fn invalid_period(value: &str, reason: &str) -> crate::Error {
+    crate::Error::Validation(format!(
+        "invalid period '{value}': {reason}; {PERIOD_GRAMMAR}"
+    ))
 }
 
 fn enumerate_ids<C: PeriodCalendar>(
@@ -1362,6 +1441,44 @@ mod tests {
     }
 
     #[test]
+    fn period_errors_name_the_value_and_grammar() {
+        let err = PeriodId::from_str("2024X9").expect_err("bad designator");
+        let msg = err.to_string();
+        assert!(msg.contains("'2024X9'"), "{msg}");
+        assert!(msg.contains("2024Q1..Q4"), "{msg}");
+
+        let msg = PeriodId::try_month(2025, 13).expect_err("13").to_string();
+        assert!(msg.contains("13") && msg.contains("1..=12"), "{msg}");
+
+        let msg = build_periods("2024Q1..2024M06", None)
+            .expect_err("kind mismatch")
+            .to_string();
+        assert!(
+            msg.contains("'2024Q1..2024M06'") && msg.contains("period kind"),
+            "{msg}"
+        );
+        let msg = build_periods("2024Q1..M6", None)
+            .expect_err("relative index of the wrong kind")
+            .to_string();
+        assert!(msg.contains("'M6'"), "{msg}");
+
+        let msg = build_periods("2024Q3..Q1", None)
+            .expect_err("inverted")
+            .to_string();
+        assert!(msg.contains("after end"), "{msg}");
+
+        let msg = build_periods("2024Q1", None)
+            .expect_err("no range")
+            .to_string();
+        assert!(msg.contains("'..'"), "{msg}");
+
+        let msg = build_periods("2021W01..W53", None)
+            .expect_err("week 53")
+            .to_string();
+        assert!(msg.contains("53") && msg.contains("1..=52"), "{msg}");
+    }
+
+    #[test]
     fn next_rolls_to_next_iso_year_after_last_week() {
         let next = PeriodId::week(2021, 52).next().expect("next week");
         assert_eq!(next, PeriodId::week(2022, 1));
@@ -1430,7 +1547,14 @@ mod tests {
             Ok(PeriodKind::SemiAnnual)
         );
         assert_eq!(PeriodKind::from_str("annual"), Ok(PeriodKind::Annual));
-        for noncanonical in ["Y", "q", "semiannual", "SemiAnnual", " quarterly"] {
+        assert_eq!(
+            PeriodKind::from_str("semiannual"),
+            Ok(PeriodKind::SemiAnnual)
+        );
+        assert_eq!(PeriodKind::from_str("Y"), Ok(PeriodKind::Annual));
+        assert_eq!(PeriodKind::from_str("B"), Ok(PeriodKind::Daily));
+        assert_eq!(PeriodKind::from_str("Q"), Ok(PeriodKind::Quarterly));
+        for noncanonical in ["q", "SemiAnnual", " quarterly"] {
             assert!(PeriodKind::from_str(noncanonical).is_err());
         }
         assert!(PeriodKind::from_str("unknown").is_err());

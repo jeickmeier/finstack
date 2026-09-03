@@ -29,12 +29,12 @@ fn get_f64(value: &JsValue, key: &str) -> f64 {
 fn estimators_return_none_for_missing_estimates() {
     assert_eq!(roll_effective_spread("[0.01]").unwrap(), None);
     assert_eq!(amihud_illiquidity("[0.01]", "[0.0]").unwrap(), None);
-    assert_eq!(kyle_lambda("[0.0]", "[0.01]", 100.0).unwrap(), None);
+    assert_eq!(kyle_lambda("[0.01]", "[0.0]", 100.0).unwrap(), None);
 }
 
 #[wasm_bindgen_test]
 fn kyle_lambda_calibrates_in_price_space() {
-    let lambda = kyle_lambda("[100.0, 200.0]", "[0.01, -0.02]", 50.0)
+    let lambda = kyle_lambda("[0.01, -0.02]", "[100.0, 200.0]", 50.0)
         .unwrap()
         .expect("valid price-space inputs");
     assert!((lambda - 0.005).abs() < 1e-15);

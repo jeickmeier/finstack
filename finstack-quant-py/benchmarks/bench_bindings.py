@@ -51,6 +51,7 @@ from finstack_quant.margin import (
     NettingSetId,
     VmCalculator,
 )
+from finstack_quant.models import bs_price
 from finstack_quant.models.correlation import (
     CopulaSpec,
     CorrelatedBernoulli,
@@ -64,8 +65,6 @@ from finstack_quant.models.monte_carlo import (
     EuropeanPricer,
     LsmcPricer,
     PathDependentPricer,
-    black_scholes_call,
-    black_scholes_put,
 )
 from finstack_quant.portfolio import (
     InstrumentArtifactCache,
@@ -100,8 +99,8 @@ from finstack_quant.statements import (
     ModelBuilder,
     NormalizationConfig,
     normalize,
-    parse_formula_text,
-    validate_formula,
+    parse_and_compile,
+    parse_formula,
 )
 from finstack_quant.statements_analytics import (
     DependencyTracer,
@@ -647,7 +646,7 @@ class TestMonteCarloBenchmarks:
     """Option pricing: analytical and simulation."""
 
     def test_black_scholes_call(self, benchmark) -> None:
-        benchmark(black_scholes_call, 100.0, 100.0, 0.05, 0.0, 0.2, 1.0)
+        benchmark(bs_price, 100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True)
 
     def test_lsmc_american_put(self, benchmark) -> None:
         pricer = LsmcPricer(num_paths=5_000, seed=42, num_steps=50)
@@ -697,7 +696,7 @@ class TestMonteCarloBenchmarks:
         benchmark.pedantic(_price, rounds=5, warmup_rounds=1)
 
     def test_black_scholes_put(self, benchmark) -> None:
-        benchmark(black_scholes_put, 100.0, 100.0, 0.05, 0.0, 0.2, 1.0)
+        benchmark(bs_price, 100.0, 100.0, 0.05, 0.0, 0.2, 1.0, False)
 
 
 # Margin domain
@@ -713,7 +712,7 @@ class TestMarginBenchmarks:
     def test_vm_calculate(self, benchmark) -> None:
         csa = CsaSpec.usd_regulatory()
         calc = VmCalculator(csa)
-        benchmark(calc.calculate, 1_000_000.0, 0.0, "USD", 2024, 6, 15)
+        benchmark(calc.calculate, 1_000_000.0, 0.0, "USD", "2024-06-15")
 
     def test_netting_set_id(self, benchmark) -> None:
         def _create_ids():
@@ -755,11 +754,11 @@ class TestStatementsBenchmarks:
         ev = Evaluator()
         benchmark.pedantic(ev.evaluate, args=(_MODEL_SPEC,), rounds=20, warmup_rounds=2)
 
-    def test_parse_formula_text(self, benchmark) -> None:
-        benchmark(parse_formula_text, "revenue * 1.05 + cogs")
+    def test_parse_formula(self, benchmark) -> None:
+        benchmark(parse_formula, "revenue * 1.05 + cogs")
 
-    def test_validate_formula(self, benchmark) -> None:
-        benchmark(validate_formula, "revenue + cogs")
+    def test_parse_and_compile(self, benchmark) -> None:
+        benchmark(parse_and_compile, "revenue + cogs")
 
     def test_normalization(self, benchmark) -> None:
         config = NormalizationConfig("gross_profit")

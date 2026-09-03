@@ -10,7 +10,7 @@ use thiserror::Error;
 /// discriminant or regression output, `zone` classifies credit risk,
 /// and `implied_pd` contains a probability only when the model has a native
 /// probability transform or an explicit calibration was requested.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScoringResult {
     /// The raw score value (Z, Z', Z'', O, or Zmijewski Y).
     pub score: f64,
@@ -23,7 +23,7 @@ pub struct ScoringResult {
     /// retain their native logistic and probit probabilities.
     pub implied_pd: Option<f64>,
     /// Name of the model that produced this result.
-    pub model: &'static str,
+    pub model: String,
 }
 
 /// Zone classification across all scoring models.

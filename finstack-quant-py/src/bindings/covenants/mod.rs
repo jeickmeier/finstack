@@ -1,12 +1,25 @@
 //! Python bindings for the `finstack-quant-covenants` crate.
+//!
+//! Typed covenant definitions (`Covenant`, `CovenantType`, `CovenantSpec`,
+//! `ThresholdSchedule`, `CovenantWaiver`, ...), the `CovenantEngine`
+//! evaluator, template packages, DataFrame-backed breach forecasting, and the
+//! JSON validators / `_json` template twins shared with WASM.
 
+mod engine;
+mod forecast;
 mod report;
+mod spec;
 
+pub(crate) use engine::{PyCovenantBreach, PyCovenantEngine};
+pub(crate) use forecast::{PyCovenantForecast, PyCovenantForecastConfig, PyFutureBreach};
 pub(crate) use report::PyCovenantReport;
+pub(crate) use spec::{
+    PyCovenant, PyCovenantConsequence, PyCovenantSpec, PyCovenantType, PyCovenantWaiver,
+    PySpringingCondition, PyThresholdSchedule,
+};
 
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule};
-use std::collections::BTreeMap;
+use pyo3::types::{PyDict, PyList, PyModule};
 
 /// Validate and canonicalize a covenant spec JSON string.
 ///
@@ -16,7 +29,7 @@ use std::collections::BTreeMap;
 ///
 /// # Returns
 ///
-/// Canonical JSON string after validation.
+/// Canonical JSON string (object keys sorted recursively) after validation.
 ///
 /// # Errors
 ///
@@ -31,6 +44,9 @@ fn validate_covenant_spec_json(py: Python<'_>, spec_json: &str) -> PyResult<Stri
 }
 
 /// Validate and canonicalize a covenant report JSON string.
+///
+/// Returns canonical JSON with object keys sorted recursively. Raises
+/// `ValueError` when the report JSON is malformed.
 #[pyfunction]
 #[pyo3(text_signature = "(report_json)")]
 fn validate_covenant_report_json(py: Python<'_>, report_json: &str) -> PyResult<String> {
@@ -41,6 +57,11 @@ fn validate_covenant_report_json(py: Python<'_>, report_json: &str) -> PyResult<
 }
 
 /// Validate and canonicalize a covenant engine JSON string.
+///
+/// Only `specs` is required in the document; `breach_history`, `windows` and
+/// `waivers` default to empty. Returns canonical JSON with object keys sorted
+/// recursively. Raises `ValueError` when the engine fails schema or semantic
+/// validation.
 #[pyfunction]
 #[pyo3(text_signature = "(engine_json)")]
 fn validate_covenant_engine_json(py: Python<'_>, engine_json: &str) -> PyResult<String> {
@@ -50,46 +71,53 @@ fn validate_covenant_engine_json(py: Python<'_>, engine_json: &str) -> PyResult<
     })
 }
 
-/// Evaluate a covenant engine JSON string against a JSON metric map.
+/// Evaluate a covenant engine JSON document against a metric mapping.
 ///
 /// # Arguments
 ///
-/// * `engine_json` - Serialized covenant engine configuration
-/// * `metrics_json` - JSON map of metric name to numeric value
+/// * `engine_json` - Serialized covenant engine (`CovenantEngine.to_json()`
+///   or a hand-written document; only `specs` is required)
+/// * `metrics` - `dict[str, float]` or JSON-object string mapping metric id to
+///   value; ratios in turns, amounts in the engine's reporting currency
 /// * `as_of` - Evaluation date, either a date-like object (`datetime.date`,
 ///   `pandas.Timestamp`) or an ISO 8601 string
 ///
 /// # Returns
 ///
-/// A dict mapping the stable covenant instance key to a typed
-/// [`CovenantReport`] carrying pass/fail state, the tested value against its
-/// threshold, and headroom.
+/// A dict mapping the covenant instance key (label) to a typed
+/// `CovenantReport`, in spec order.
 ///
 /// # Errors
 ///
-/// Raises `ValueError` when engine/metrics JSON is invalid or required metrics are missing.
+/// Raises `KeyError` when a required metric is missing and `ValueError` when
+/// the engine document or a metric value is invalid.
 #[pyfunction]
-#[pyo3(text_signature = "(engine_json, metrics_json, as_of)")]
-fn evaluate_engine(
-    py: Python<'_>,
+#[pyo3(text_signature = "(engine_json, metrics, as_of)")]
+fn evaluate_engine<'py>(
+    py: Python<'py>,
     engine_json: &str,
-    metrics_json: &str,
-    as_of: &Bound<'_, PyAny>,
-) -> PyResult<BTreeMap<String, PyCovenantReport>> {
+    metrics: &Bound<'py, PyAny>,
+    as_of: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyDict>> {
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
-    py.detach(|| {
-        finstack_quant_covenants::evaluate_engine_map(engine_json, metrics_json, &as_of)
+    let metrics: serde_json::Map<String, serde_json::Value> = engine::extract_metrics(metrics)?
+        .into_iter()
+        .map(|(key, value)| (key, serde_json::Value::from(value)))
+        .collect();
+    let metrics_json = serde_json::to_string(&metrics).map_err(crate::errors::display_to_py)?;
+    let reports = py.detach(|| {
+        finstack_quant_covenants::evaluate_engine_map(engine_json, &metrics_json, &as_of)
             .map_err(crate::errors::core_to_py)
-            .map(|reports| {
-                reports
-                    .into_iter()
-                    .map(|(key, inner)| (key, PyCovenantReport { inner }))
-                    .collect()
-            })
-    })
+    })?;
+    engine::reports_to_pydict(py, reports)
 }
 
-/// Standard leveraged-buyout covenant package as JSON.
+/// Standard leveraged-buyout covenant package as a JSON array of specs.
+///
+/// Typed twin: `lbo_standard`. `initial_leverage` is the maximum gross
+/// Debt/EBITDA in turns, `interest_coverage` / `fixed_charge_coverage` are
+/// minimum coverage ratios in turns, `max_capex` is a reporting-currency
+/// amount. Raises `ValueError` when any input is NaN, infinite or negative.
 #[pyfunction]
 #[pyo3(text_signature = "(initial_leverage, interest_coverage, fixed_charge_coverage, max_capex)")]
 fn lbo_standard_json(
@@ -110,7 +138,9 @@ fn lbo_standard_json(
     })
 }
 
-/// Covenant-lite package as JSON.
+/// Covenant-lite package as a JSON array of specs (typed twin: `cov_lite`).
+///
+/// Raises `ValueError` when any input is NaN, infinite or negative.
 #[pyfunction]
 #[pyo3(text_signature = "(max_leverage, max_senior_leverage)")]
 fn cov_lite_json(py: Python<'_>, max_leverage: f64, max_senior_leverage: f64) -> PyResult<String> {
@@ -120,7 +150,10 @@ fn cov_lite_json(py: Python<'_>, max_leverage: f64, max_senior_leverage: f64) ->
     })
 }
 
-/// Real-estate covenant package as JSON.
+/// Real-estate package as a JSON array of specs (typed twin: `real_estate`).
+///
+/// `min_debt_yield` and `max_ltv` are decimal fractions (`0.08` = 8%).
+/// Raises `ValueError` when any input is NaN, infinite or negative.
 #[pyfunction]
 #[pyo3(text_signature = "(min_dscr, min_debt_yield, max_ltv)")]
 fn real_estate_json(
@@ -135,7 +168,10 @@ fn real_estate_json(
     })
 }
 
-/// Project-finance covenant package as JSON.
+/// Project-finance package as a JSON array of specs (typed twin:
+/// `project_finance`).
+///
+/// Raises `ValueError` when any input is NaN, infinite or negative.
 #[pyfunction]
 #[pyo3(text_signature = "(min_dscr, distribution_lockup_dscr, min_liquidity, max_net_leverage)")]
 fn project_finance_json(
@@ -161,28 +197,69 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "covenants")?;
     m.setattr(
         "__doc__",
-        "Covenant package JSON validation, templates, and map-backed evaluation.",
+        "Typed covenant definitions, the CovenantEngine evaluator, template packages, \
+         DataFrame-backed breach forecasting, and the JSON validators / `_json` template twins.",
     )?;
 
+    m.add_class::<PyCovenant>()?;
+    m.add_class::<PyCovenantBreach>()?;
+    m.add_class::<PyCovenantConsequence>()?;
+    m.add_class::<PyCovenantEngine>()?;
+    m.add_class::<PyCovenantForecast>()?;
+    m.add_class::<PyCovenantForecastConfig>()?;
     m.add_class::<PyCovenantReport>()?;
-    m.add_function(wrap_pyfunction!(validate_covenant_spec_json, &m)?)?;
-    m.add_function(wrap_pyfunction!(validate_covenant_report_json, &m)?)?;
-    m.add_function(wrap_pyfunction!(validate_covenant_engine_json, &m)?)?;
-    m.add_function(wrap_pyfunction!(evaluate_engine, &m)?)?;
-    m.add_function(wrap_pyfunction!(lbo_standard_json, &m)?)?;
+    m.add_class::<PyCovenantSpec>()?;
+    m.add_class::<PyCovenantType>()?;
+    m.add_class::<PyCovenantWaiver>()?;
+    m.add_class::<PyFutureBreach>()?;
+    m.add_class::<PySpringingCondition>()?;
+    m.add_class::<PyThresholdSchedule>()?;
+    m.add_function(wrap_pyfunction!(forecast::breaches_to_dataframe, &m)?)?;
+    m.add_function(wrap_pyfunction!(engine::cov_lite, &m)?)?;
     m.add_function(wrap_pyfunction!(cov_lite_json, &m)?)?;
-    m.add_function(wrap_pyfunction!(real_estate_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_engine, &m)?)?;
+    m.add_function(wrap_pyfunction!(forecast::forecast_breaches, &m)?)?;
+    m.add_function(wrap_pyfunction!(forecast::forecast_covenant, &m)?)?;
+    m.add_function(wrap_pyfunction!(engine::lbo_standard, &m)?)?;
+    m.add_function(wrap_pyfunction!(lbo_standard_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(engine::project_finance, &m)?)?;
     m.add_function(wrap_pyfunction!(project_finance_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(engine::real_estate, &m)?)?;
+    m.add_function(wrap_pyfunction!(real_estate_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(engine::reports_to_dataframe, &m)?)?;
+    m.add_function(wrap_pyfunction!(validate_covenant_engine_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(validate_covenant_report_json, &m)?)?;
+    m.add_function(wrap_pyfunction!(validate_covenant_spec_json, &m)?)?;
 
     let all = PyList::new(
         py,
         [
+            "Covenant",
+            "CovenantBreach",
+            "CovenantConsequence",
+            "CovenantEngine",
+            "CovenantForecast",
+            "CovenantForecastConfig",
             "CovenantReport",
+            "CovenantSpec",
+            "CovenantType",
+            "CovenantWaiver",
+            "FutureBreach",
+            "SpringingCondition",
+            "ThresholdSchedule",
+            "breaches_to_dataframe",
+            "cov_lite",
             "cov_lite_json",
             "evaluate_engine",
+            "forecast_breaches",
+            "forecast_covenant",
+            "lbo_standard",
             "lbo_standard_json",
+            "project_finance",
             "project_finance_json",
+            "real_estate",
             "real_estate_json",
+            "reports_to_dataframe",
             "validate_covenant_engine_json",
             "validate_covenant_report_json",
             "validate_covenant_spec_json",

@@ -31,6 +31,75 @@ use finstack_quant_core::money::Money;
 use crate::primitives::is_cash_settlement_kind;
 use indexmap::IndexMap;
 
+/// Per-period, per-currency totals produced by [`aggregate_by_period`] and
+/// [`crate::builder::CashFlowSchedule::pv_by_period`].
+///
+/// Wraps the ordered `period -> currency -> amount` map (insertion order
+/// follows the supplied reporting periods; empty periods are omitted) and
+/// dereferences to it, so map-style access keeps working. [`Self::rows`]
+/// flattens the map into `(period, currency, amount)` rows for tabular
+/// export. Serializes as the nested map with `PeriodId` labels as keys.
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_cashflows::aggregation::{aggregate_by_period, PeriodAggregation};
+/// use finstack_quant_core::{currency::Currency, dates::{Date, Period, PeriodId}, money::Money};
+/// use time::Month;
+///
+/// # fn main() -> finstack_quant_core::Result<()> {
+/// let flows = vec![(Date::from_calendar_date(2025, Month::March, 15).expect("date"), Money::new(100.0, Currency::USD))];
+/// let periods = vec![Period {
+///     id: PeriodId::quarter(2025, 1),
+///     start: Date::from_calendar_date(2025, Month::January, 1).expect("date"),
+///     end: Date::from_calendar_date(2025, Month::April, 1).expect("date"),
+///     is_actual: true,
+/// }];
+/// let agg: PeriodAggregation = aggregate_by_period(&flows, &periods)?;
+/// assert_eq!(agg.rows().len(), 1);
+/// assert!(agg.contains_key(&PeriodId::quarter(2025, 1)));
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct PeriodAggregation(IndexMap<PeriodId, IndexMap<Currency, Money>>);
+
+impl PeriodAggregation {
+    /// Flatten into `(period, currency, amount)` rows in map order.
+    #[must_use]
+    pub fn rows(&self) -> Vec<(PeriodId, Currency, Money)> {
+        self.0
+            .iter()
+            .flat_map(|(period, per_currency)| {
+                per_currency
+                    .iter()
+                    .map(move |(currency, amount)| (*period, *currency, *amount))
+            })
+            .collect()
+    }
+
+    /// Consume the wrapper and return the underlying nested map.
+    #[must_use]
+    pub fn into_inner(self) -> IndexMap<PeriodId, IndexMap<Currency, Money>> {
+        self.0
+    }
+}
+
+impl From<IndexMap<PeriodId, IndexMap<Currency, Money>>> for PeriodAggregation {
+    fn from(map: IndexMap<PeriodId, IndexMap<Currency, Money>>) -> Self {
+        Self(map)
+    }
+}
+
+impl std::ops::Deref for PeriodAggregation {
+    type Target = IndexMap<PeriodId, IndexMap<Currency, Money>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Trait for types that have an associated date.
 ///
 /// This allows generic iteration over different flow types (DatedFlow, CashFlow)
@@ -238,18 +307,18 @@ fn aggregate_by_period_sorted(
 pub fn aggregate_by_period(
     flows: &[crate::DatedFlow],
     periods: &[Period],
-) -> finstack_quant_core::Result<IndexMap<PeriodId, IndexMap<Currency, Money>>> {
+) -> finstack_quant_core::Result<PeriodAggregation> {
     validate_periods(periods)?;
     if flows.is_empty() || periods.is_empty() {
-        return Ok(IndexMap::new());
+        return Ok(PeriodAggregation::default());
     }
     let is_sorted = flows.windows(2).all(|w| w[0].0 <= w[1].0);
     if is_sorted {
-        return aggregate_by_period_sorted(flows, periods);
+        return aggregate_by_period_sorted(flows, periods).map(PeriodAggregation::from);
     }
     let mut sorted: Vec<crate::DatedFlow> = flows.to_vec();
     sorted.sort_unstable_by_key(|(d, _)| *d);
-    aggregate_by_period_sorted(&sorted, periods)
+    aggregate_by_period_sorted(&sorted, periods).map(PeriodAggregation::from)
 }
 
 use finstack_quant_core::market_data::traits::{Discounting, Survival};
@@ -821,7 +890,7 @@ fn time_discount_survival(
 
 /// Currency-preserving aggregation of cashflow present values by period with credit adjustment and recovery support.
 ///
-/// Like [`crate::builder::CashFlowSchedule::pv_by_period`], but works on full
+/// Like [`crate::builder::CashFlowSchedule::pv_by_period_with_discounting`], but works on full
 /// `CashFlow` objects (preserving `CFKind`) and supports credit adjustment + recovery.
 /// This allows applying recovery rates to principal flows while assuming zero recovery for interest flows.
 ///

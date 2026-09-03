@@ -45,8 +45,14 @@ MISSING_MODULES = _module_entries("missing")
 
 
 def test_contract_lives_with_python_bindings() -> None:
-    """The Python parity contract should be stored in the Python package tree."""
-    assert Path("finstack-quant-py/parity_contract.toml").resolve() == CONTRACT_PATH
+    """The Python parity contract should be stored in the Python package tree.
+
+    Anchored on the test file rather than the process working directory, so the
+    suite passes whether pytest runs from the repository root or from
+    ``finstack-quant-py/``.
+    """
+    assert CONTRACT_PATH.is_file()
+    assert CONTRACT_PATH.parent.name == "finstack-quant-py"
 
 
 def test_contract_uses_known_module_statuses() -> None:
@@ -551,7 +557,8 @@ def test_python_cashflows_surface_matches_contract() -> None:
     module = importlib.import_module("finstack_quant.cashflows")
     json_names = set(block["python_js_map"])
     typed_submodules = set(block.get("python_only", []))
-    expected = json_names | typed_submodules
+    typed_symbols = set(block.get("python_only_symbols", []))
+    expected = json_names | typed_submodules | typed_symbols
     actual = set(module.__all__)
     assert actual == expected, (
         f"finstack_quant.cashflows __all__ diverged from contract.\n"
@@ -562,6 +569,8 @@ def test_python_cashflows_surface_matches_contract() -> None:
     assert not missing, f"finstack_quant.cashflows symbols not callable: {missing}"
     not_modules = [name for name in typed_submodules if not inspect.ismodule(getattr(module, name, None))]
     assert not not_modules, f"finstack_quant.cashflows entries not modules: {not_modules}"
+    missing_typed = [name for name in typed_symbols if not hasattr(module, name)]
+    assert not missing_typed, f"finstack_quant.cashflows typed symbols missing: {missing_typed}"
 
 
 def test_cashflows_has_no_cross_crate_symbols() -> None:

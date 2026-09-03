@@ -233,7 +233,10 @@ class TestDateArguments:
         with pytest.raises(TypeError, match="expected a date-like object") as excinfo:
             price_instrument(bond.to_json(), market, 20240101)
         # The message has to say what to do next, not merely that it failed.
-        assert "datetime.date.fromisoformat" in str(excinfo.value)
+        message = str(excinfo.value)
+        assert "datetime.date" in message
+        assert "ISO-8601" in message
+        assert "got int" in message
 
     def test_as_of_rejects_malformed_iso_string(self) -> None:
         from finstack_quant.valuations.instruments import price_instrument
@@ -379,7 +382,10 @@ class TestDateAcceptanceIsUniform:
         )
         with pytest.raises(TypeError, match="expected a date-like object") as excinfo:
             covenants.evaluate_engine(engine, json.dumps({"debt_to_ebitda": 4.0}), 20260331)
-        assert "datetime.date.fromisoformat" in str(excinfo.value)
+        message = str(excinfo.value)
+        assert "datetime.date" in message
+        assert "ISO-8601" in message
+        assert "got int" in message
 
     def test_period_taking_functions_still_require_a_string(self) -> None:
         """`credit_assessment` takes a fiscal PERIOD (``"2025Q4"``), not a date.
@@ -392,4 +398,5 @@ class TestDateAcceptanceIsUniform:
 
         from finstack_quant.statements_analytics import credit_assessment
 
-        assert "as_of" in inspect.signature(credit_assessment).parameters
+        assert "period" in inspect.signature(credit_assessment).parameters
+        assert "as_of" not in inspect.signature(credit_assessment).parameters

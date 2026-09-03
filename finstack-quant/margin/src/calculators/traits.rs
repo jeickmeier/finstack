@@ -26,13 +26,18 @@ pub struct ImResult {
     #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub as_of: Date,
 
-    /// Margin Period of Risk (days) used in calculation
+    /// Margin Period of Risk in business days used in calculation
     pub mpor_days: u32,
 
     /// Breakdown by risk class (if available)
     ///
-    /// Keys are risk class names (e.g., "interest_rate", "credit", "equity")
-    /// Values are IM amounts for that risk class
+    /// Keys are methodology-specific component labels. SIMM publishes
+    /// `IR_Delta`, `IR_Vega`, `Credit_Qualifying_Delta`,
+    /// `Credit_Qualifying_Vega`, `Credit_NonQualifying_Delta`,
+    /// `Credit_NonQualifying_Vega`, `Equity_Delta`, `Equity_Vega`, `FX_Delta`,
+    /// `FX_Vega`, `Commodity_Delta`, `Commodity_Vega` and `Curvature`; the
+    /// schedule calculator publishes the normalised asset class (for example
+    /// `interest_rate`). Values are IM amounts for that component.
     pub breakdown: std::collections::BTreeMap<String, Money>,
 
     /// Whether the amount is a conservative approximation (proxy) rather than

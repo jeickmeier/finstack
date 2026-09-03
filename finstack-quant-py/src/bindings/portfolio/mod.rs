@@ -1,9 +1,9 @@
 //! Python bindings for the `finstack-quant-portfolio` crate.
 //!
-//! Portfolio contains `Arc<dyn Instrument>` which cannot be directly wrapped,
-//! so this module exposes JSON-based construction via [`PortfolioSpec`],
-//! result extraction via serde round-trips, and end-to-end pipeline functions
-//! that build the runtime portfolio internally.
+//! Portfolios are built either through the typed `Portfolio.builder(...)`
+//! (wrapping the Rust `PortfolioBuilder`) or from canonical `PortfolioSpec`
+//! JSON; results are typed wrappers with `to_json` / `from_json` twins, and
+//! end-to-end pipeline functions accept the typed handles directly.
 
 mod allocation;
 mod attribution;
@@ -101,6 +101,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "MalformedContractSchemaError",
         "ContractLimitExceededError",
         "Portfolio",
+        "PortfolioBuilder",
+        "PositionValue",
+        "ReconciliationReport",
         "InstrumentArtifactCache",
         "MaterializationReport",
         "PortfolioValuation",
@@ -125,8 +128,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "WeightAllocationResult",
         "parse_portfolio_spec_json",
         "build_portfolio_from_spec_json",
-        "portfolio_result_total_value",
-        "portfolio_result_get_metric",
         "aggregate_metrics",
         "aggregate_metrics_json",
         "value_portfolio",

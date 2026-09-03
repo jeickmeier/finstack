@@ -13,7 +13,7 @@
 use pyo3::prelude::*;
 
 use crate::bindings::core::market_data::context::PyMarketContext;
-use crate::bindings::portfolio::types::{PyPortfolio, PyPortfolioResult, PyPortfolioValuation};
+use crate::bindings::portfolio::types::{PyPortfolio, PyPortfolioValuation};
 use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::bindings::valuations::composite::PyCompositeInstrument;
@@ -333,36 +333,212 @@ pub fn extract_valuation_ref<'py>(
     Ok(ValuationAccess::Owned(Box::new(inner)))
 }
 
-// PortfolioResult — borrow-preferring access
+// Rate / spread — typed-or-float unit extraction
 
-/// Access to a [`PortfolioResult`] without re-parsing JSON when a typed
-/// Python object is passed.
-pub enum PortfolioResultAccess<'py> {
-    Borrowed(PyRef<'py, PyPortfolioResult>),
-    Owned(Box<finstack_quant_portfolio::results::PortfolioResult>),
+/// Extract a decimal rate from a `float | int | Rate | Bps | Percentage`.
+///
+/// A `Rate` wrapper contributes `Rate::as_decimal()`; `Bps` and `Percentage`
+/// are converted through their Rust `as_decimal()`. A bare number is taken as
+/// an already-decimal rate (`0.05` for 5%). No percent/bp coercion is applied
+/// to bare numbers — a caller holding basis points should pass a `Bps`.
+///
+/// # Errors
+///
+/// Returns `TypeError` when `obj` is neither numeric nor a `Rate`/`Bps`/`Percentage`.
+pub fn extract_rate_decimal(obj: &Bound<'_, PyAny>) -> PyResult<f64> {
+    if let Ok(rate) = obj.cast::<crate::bindings::core::types::PyRate>() {
+        return Ok(rate.borrow().inner.as_decimal());
+    }
+    if let Ok(bps) = obj.cast::<crate::bindings::core::types::PyBps>() {
+        return Ok(bps.borrow().inner.as_decimal());
+    }
+    if let Ok(pct) = obj.cast::<crate::bindings::core::types::PyPercentage>() {
+        return Ok(pct.borrow().inner.as_decimal());
+    }
+    obj.extract::<f64>().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(format!(
+            "expected a decimal rate (float, e.g. 0.05 for 5%) or a Rate/Bps/Percentage \
+             instance, got {}",
+            obj.get_type()
+                .name()
+                .map(|n| n.to_string())
+                .unwrap_or_default()
+        ))
+    })
 }
 
-impl std::ops::Deref for PortfolioResultAccess<'_> {
-    type Target = finstack_quant_portfolio::results::PortfolioResult;
+/// Extract a basis-point spread from a `float | int | Bps | Rate | Percentage`.
+///
+/// A `Bps` wrapper contributes its integer basis points as `f64`; a bare
+/// number is taken as already in basis points (`25.0` for 25 bp). A `Rate` or
+/// `Percentage` is converted from its decimal value (`x 10 000`) so a caller
+/// holding a decimal rate never has to rescale by hand.
+///
+/// # Errors
+///
+/// Returns `TypeError` when `obj` is neither numeric nor a `Bps`/`Rate`/`Percentage`.
+pub fn extract_bps(obj: &Bound<'_, PyAny>) -> PyResult<f64> {
+    if let Ok(bps) = obj.cast::<crate::bindings::core::types::PyBps>() {
+        return Ok(f64::from(bps.borrow().inner.as_bp()));
+    }
+    if let Ok(rate) = obj.cast::<crate::bindings::core::types::PyRate>() {
+        return Ok(rate.borrow().inner.as_decimal() * 10_000.0);
+    }
+    if let Ok(pct) = obj.cast::<crate::bindings::core::types::PyPercentage>() {
+        return Ok(pct.borrow().inner.as_decimal() * 10_000.0);
+    }
+    obj.extract::<f64>().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(format!(
+            "expected a spread in basis points (float, e.g. 25.0) or a Bps/Rate/Percentage \
+             instance, got {}",
+            obj.get_type()
+                .name()
+                .map(|n| n.to_string())
+                .unwrap_or_default()
+        ))
+    })
+}
+
+/// Extract a canonical `CreditRating` from a `CreditRating` wrapper or a
+/// rating string (`"BBB-"`, `"Baa3"`, `"bbb-"`; agency notation is normalised
+/// by the core parser).
+///
+/// # Errors
+///
+/// Returns `ValueError` when the string is not a recognised rating and
+/// `TypeError` when `obj` is neither a string nor a `CreditRating`.
+pub fn extract_credit_rating(
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<finstack_quant_core::types::CreditRating> {
+    if let Ok(rating) = obj.cast::<crate::bindings::core::types::PyCreditRating>() {
+        return Ok(rating.borrow().inner);
+    }
+    if let Ok(text) = obj.extract::<String>() {
+        return text
+            .parse::<finstack_quant_core::types::CreditRating>()
+            .map_err(crate::errors::core_to_py);
+    }
+    Err(pyo3::exceptions::PyTypeError::new_err(format!(
+        "expected a rating string (e.g. 'BBB-') or a core.types.CreditRating instance, got {}",
+        obj.get_type()
+            .name()
+            .map(|n| n.to_string())
+            .unwrap_or_default()
+    )))
+}
+
+// ScenarioSpec — typed-or-JSON extraction
+
+/// Extract a [`finstack_quant_scenarios::ScenarioSpec`] from a typed
+/// `ScenarioSpec` Python object (fast path, clone) or a canonical
+/// `ScenarioSpec` JSON string (parsed while the GIL is released).
+///
+/// # Errors
+///
+/// Returns `TypeError` when `obj` is neither, and `ValueError` when the
+/// JSON string does not deserialize as a `ScenarioSpec`.
+pub fn extract_scenario_spec(
+    py: Python<'_>,
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<finstack_quant_scenarios::ScenarioSpec> {
+    if let Ok(spec) = obj.cast::<crate::bindings::scenarios::spec::PyScenarioSpec>() {
+        return Ok(spec.borrow().inner.clone());
+    }
+    let json: String = obj.extract().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(
+            "expected a ScenarioSpec instance or a canonical ScenarioSpec JSON string",
+        )
+    })?;
+    py.detach(move || serde_json::from_str(&json))
+        .map_err(to_py)
+}
+
+/// Extract an ordered batch of scenario specs from either a JSON array string
+/// or a Python sequence whose items are each `ScenarioSpec | str` (see
+/// [`extract_scenario_spec`]).
+///
+/// # Errors
+///
+/// Returns `TypeError` for an item that is neither form and `ValueError` for
+/// malformed JSON.
+pub fn extract_scenario_specs(
+    py: Python<'_>,
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<Vec<finstack_quant_scenarios::ScenarioSpec>> {
+    if let Ok(json) = obj.extract::<String>() {
+        return py
+            .detach(move || serde_json::from_str(&json))
+            .map_err(to_py);
+    }
+    let mut specs = Vec::new();
+    for item in obj.try_iter()? {
+        specs.push(extract_scenario_spec(py, &item?)?);
+    }
+    Ok(specs)
+}
+
+// PortfolioCashflows — borrow-preferring access
+
+/// Access to a [`finstack_quant_portfolio::cashflows::PortfolioCashflows`]
+/// ladder without re-parsing JSON when a typed Python object is passed.
+pub enum CashflowsAccess<'py> {
+    Borrowed(PyRef<'py, crate::bindings::portfolio::types::PyPortfolioCashflows>),
+    Owned(Box<finstack_quant_portfolio::cashflows::PortfolioCashflows>),
+}
+
+impl std::ops::Deref for CashflowsAccess<'_> {
+    type Target = finstack_quant_portfolio::cashflows::PortfolioCashflows;
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Borrowed(r) => &r.inner,
-            Self::Owned(r) => r.as_ref(),
+            Self::Owned(c) => c.as_ref(),
         }
     }
 }
 
-/// Extract a [`PortfolioResult`] from a typed Python object or a JSON string.
-pub fn extract_portfolio_result_ref<'py>(
+/// Extract a `PortfolioCashflows` ladder from a typed Python object or a
+/// full cashflow-ladder JSON string.
+pub fn extract_cashflows_ref<'py>(
     py: Python<'py>,
     obj: &Bound<'py, PyAny>,
-) -> PyResult<PortfolioResultAccess<'py>> {
-    if let Ok(r) = obj.cast::<PyPortfolioResult>() {
-        return Ok(PortfolioResultAccess::Borrowed(r.borrow()));
+) -> PyResult<CashflowsAccess<'py>> {
+    if let Ok(c) = obj.cast::<crate::bindings::portfolio::types::PyPortfolioCashflows>() {
+        return Ok(CashflowsAccess::Borrowed(c.borrow()));
     }
-    let json: String = obj.extract()?;
-    let inner: finstack_quant_portfolio::results::PortfolioResult = py
+    let json: String = obj.extract().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(
+            "expected a PortfolioCashflows instance or a cashflow-ladder JSON string",
+        )
+    })?;
+    let inner: finstack_quant_portfolio::cashflows::PortfolioCashflows = py
         .detach(move || serde_json::from_str(&json))
         .map_err(to_py)?;
-    Ok(PortfolioResultAccess::Owned(Box::new(inner)))
+    Ok(CashflowsAccess::Owned(Box::new(inner)))
+}
+
+// Records — JSON string | dict | list | pandas.DataFrame → JSON string
+
+/// Turn a JSON-shaped Python input into its compact JSON string.
+///
+/// Accepts a pre-serialized JSON `str` (passed through unchanged), any
+/// `json.dumps`-able object (`dict`, `list`, tuples of scalars), or a
+/// `pandas.DataFrame`, which is converted through `to_dict("records")` so
+/// each row becomes one JSON object.
+///
+/// # Errors
+///
+/// Returns `ValueError` when the object cannot be JSON-encoded.
+pub fn extract_records_json(
+    py: Python<'_>,
+    obj: &Bound<'_, PyAny>,
+    label: &str,
+) -> PyResult<String> {
+    if let Ok(json) = obj.extract::<String>() {
+        return Ok(json);
+    }
+    if obj.hasattr("to_dict")? && obj.hasattr("columns")? {
+        let records = obj.call_method1("to_dict", ("records",))?;
+        return crate::bindings::module_utils::py_to_json_string(py, &records, label);
+    }
+    crate::bindings::module_utils::py_to_json_string(py, obj, label)
 }

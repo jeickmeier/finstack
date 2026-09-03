@@ -693,6 +693,241 @@ impl FrtbSensitivities {
         entry.0 += cvr_up;
         entry.1 += cvr_down;
     }
+
+    /// Add a GIRR inflation delta sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `ccy` - Currency of the inflation curve.
+    /// * `delta` - Base-currency P&L per 1 percentage-point shift in
+    ///   inflation (same `100 x DV01` convention as [`Self::add_girr_delta`]).
+    pub fn add_girr_inflation_delta(&mut self, ccy: Currency, delta: f64) {
+        *self.girr_inflation_delta.entry(ccy).or_insert(0.0) += delta;
+    }
+
+    /// Add a GIRR cross-currency basis delta sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `ccy` - Currency whose basis against the reporting currency moves.
+    /// * `delta` - Base-currency P&L per 1 percentage-point shift in the
+    ///   cross-currency basis (same convention as [`Self::add_girr_delta`]).
+    pub fn add_girr_xccy_basis_delta(&mut self, ccy: Currency, delta: f64) {
+        *self.girr_xccy_basis_delta.entry(ccy).or_insert(0.0) += delta;
+    }
+
+    /// Add a CSR non-sec vega sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `issuer` - Issuer or reference-entity identifier.
+    /// * `bucket` - CSR non-securitisation bucket (1-based, MAR21.51).
+    /// * `maturity` - Option maturity label such as `"1Y"`.
+    /// * `vega` - Base-currency vega per unit implied-volatility move.
+    pub fn add_csr_nonsec_vega(&mut self, issuer: &str, bucket: u8, maturity: &str, vega: f64) {
+        *self
+            .csr_nonsec_vega
+            .entry((issuer.to_string(), bucket, maturity.to_string()))
+            .or_insert(0.0) += vega;
+    }
+
+    /// Add a CSR non-sec curvature sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `issuer` - Issuer or reference-entity identifier.
+    /// * `bucket` - CSR non-securitisation bucket (1-based, MAR21.51).
+    /// * `cvr_up` - Curvature risk position under the upward spread shock.
+    /// * `cvr_down` - Curvature risk position under the downward spread shock.
+    pub fn add_csr_nonsec_curvature(
+        &mut self,
+        issuer: &str,
+        bucket: u8,
+        cvr_up: f64,
+        cvr_down: f64,
+    ) {
+        let entry = self
+            .csr_nonsec_curvature
+            .entry((issuer.to_string(), bucket))
+            .or_insert((0.0, 0.0));
+        entry.0 += cvr_up;
+        entry.1 += cvr_down;
+    }
+
+    /// Add a CSR securitisation (correlation trading portfolio) delta sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `tranche` - Tranche or index identifier.
+    /// * `bucket` - CSR sec-CTP bucket (1-based, MAR21.59).
+    /// * `tenor` - Credit-spread tenor label such as `"5Y"`.
+    /// * `delta` - Base-currency P&L per 1 basis-point spread move.
+    pub fn add_csr_sec_ctp_delta(&mut self, tranche: &str, bucket: u8, tenor: &str, delta: f64) {
+        *self
+            .csr_sec_ctp_delta
+            .entry((tranche.to_string(), bucket, tenor.to_string()))
+            .or_insert(0.0) += delta;
+    }
+
+    /// Add a CSR sec-CTP vega sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `tranche` - Tranche or index identifier.
+    /// * `bucket` - CSR sec-CTP bucket (1-based, MAR21.59).
+    /// * `maturity` - Option maturity label such as `"1Y"`.
+    /// * `vega` - Base-currency vega per unit implied-volatility move.
+    pub fn add_csr_sec_ctp_vega(&mut self, tranche: &str, bucket: u8, maturity: &str, vega: f64) {
+        *self
+            .csr_sec_ctp_vega
+            .entry((tranche.to_string(), bucket, maturity.to_string()))
+            .or_insert(0.0) += vega;
+    }
+
+    /// Add a CSR sec-CTP curvature sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `tranche` - Tranche or index identifier.
+    /// * `bucket` - CSR sec-CTP bucket (1-based, MAR21.59).
+    /// * `cvr_up` - Curvature risk position under the upward spread shock.
+    /// * `cvr_down` - Curvature risk position under the downward spread shock.
+    pub fn add_csr_sec_ctp_curvature(
+        &mut self,
+        tranche: &str,
+        bucket: u8,
+        cvr_up: f64,
+        cvr_down: f64,
+    ) {
+        let entry = self
+            .csr_sec_ctp_curvature
+            .entry((tranche.to_string(), bucket))
+            .or_insert((0.0, 0.0));
+        entry.0 += cvr_up;
+        entry.1 += cvr_down;
+    }
+
+    /// Add a CSR securitisation (non-CTP) delta sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `tranche` - Tranche identifier.
+    /// * `bucket` - CSR sec non-CTP bucket (1-based, MAR21.64).
+    /// * `tenor` - Credit-spread tenor label such as `"5Y"`.
+    /// * `delta` - Base-currency P&L per 1 basis-point spread move.
+    pub fn add_csr_sec_nonctp_delta(&mut self, tranche: &str, bucket: u8, tenor: &str, delta: f64) {
+        *self
+            .csr_sec_nonctp_delta
+            .entry((tranche.to_string(), bucket, tenor.to_string()))
+            .or_insert(0.0) += delta;
+    }
+
+    /// Add a CSR sec non-CTP vega sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `tranche` - Tranche identifier.
+    /// * `bucket` - CSR sec non-CTP bucket (1-based, MAR21.64).
+    /// * `maturity` - Option maturity label such as `"1Y"`.
+    /// * `vega` - Base-currency vega per unit implied-volatility move.
+    pub fn add_csr_sec_nonctp_vega(
+        &mut self,
+        tranche: &str,
+        bucket: u8,
+        maturity: &str,
+        vega: f64,
+    ) {
+        *self
+            .csr_sec_nonctp_vega
+            .entry((tranche.to_string(), bucket, maturity.to_string()))
+            .or_insert(0.0) += vega;
+    }
+
+    /// Add a CSR sec non-CTP curvature sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `tranche` - Tranche identifier.
+    /// * `bucket` - CSR sec non-CTP bucket (1-based, MAR21.64).
+    /// * `cvr_up` - Curvature risk position under the upward spread shock.
+    /// * `cvr_down` - Curvature risk position under the downward spread shock.
+    pub fn add_csr_sec_nonctp_curvature(
+        &mut self,
+        tranche: &str,
+        bucket: u8,
+        cvr_up: f64,
+        cvr_down: f64,
+    ) {
+        let entry = self
+            .csr_sec_nonctp_curvature
+            .entry((tranche.to_string(), bucket))
+            .or_insert((0.0, 0.0));
+        entry.0 += cvr_up;
+        entry.1 += cvr_down;
+    }
+
+    /// Add a commodity vega sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Commodity identifier.
+    /// * `bucket` - Commodity bucket (1-based, MAR21.82).
+    /// * `maturity` - Option maturity label such as `"1Y"`.
+    /// * `vega` - Base-currency vega per unit implied-volatility move.
+    pub fn add_commodity_vega(&mut self, name: &str, bucket: u8, maturity: &str, vega: f64) {
+        *self
+            .commodity_vega
+            .entry((name.to_string(), bucket, maturity.to_string()))
+            .or_insert(0.0) += vega;
+    }
+
+    /// Add a commodity curvature sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Commodity identifier.
+    /// * `bucket` - Commodity bucket (1-based, MAR21.82).
+    /// * `cvr_up` - Curvature risk position under the upward price shock.
+    /// * `cvr_down` - Curvature risk position under the downward price shock.
+    pub fn add_commodity_curvature(&mut self, name: &str, bucket: u8, cvr_up: f64, cvr_down: f64) {
+        let entry = self
+            .commodity_curvature
+            .entry((name.to_string(), bucket))
+            .or_insert((0.0, 0.0));
+        entry.0 += cvr_up;
+        entry.1 += cvr_down;
+    }
+
+    /// Add a Default Risk Charge position.
+    ///
+    /// Positions are appended, not netted: [`super::drc::drc_charge`] nets
+    /// long and short JTD per issuer at charge time.
+    ///
+    /// # Arguments
+    ///
+    /// * `position` - Signed JTD notional plus rating, sector, seniority and
+    ///   asset-type classification; see [`DrcPosition`] for the sign and
+    ///   LGD conventions.
+    pub fn add_drc_position(&mut self, position: DrcPosition) {
+        self.drc_positions.push(position);
+    }
+
+    /// Add a Residual Risk Add-On position.
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument_id` - Instrument identifier.
+    /// * `notional` - Gross notional in the base currency.
+    /// * `is_exotic` - `true` for an exotic underlying (1.0% weight), `false`
+    ///   for other residual risk such as gap, correlation or behavioural
+    ///   risk (0.1% weight).
+    pub fn add_rrao_position(&mut self, instrument_id: &str, notional: f64, is_exotic: bool) {
+        self.rrao_exotic_notionals.push(RraoPosition {
+            instrument_id: instrument_id.to_string(),
+            notional,
+            is_exotic,
+        });
+    }
 }
 
 /// Complete FRTB SBA capital charge result.

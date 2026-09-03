@@ -1,11 +1,12 @@
 use pyo3::prelude::*;
 
-use crate::bindings::core::currency::PyCurrency;
+use crate::bindings::core::money::PyMoney;
+use crate::bindings::valuations::convert::{currency_from_py, enum_to_py_string, money_to_py};
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     AssetPool, DealType, PoolAsset,
 };
 
-use super::super::instruments::{enum_from_str, json_field};
+use super::super::instruments::enum_from_str;
 use super::PyRepLine;
 
 /// Typed wrapper for the Rust `AssetPool` (structured-credit collateral pool).
@@ -31,14 +32,14 @@ impl PyAssetPool {
     ///     Pool identifier.
     /// deal_type : {"clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"}
     ///     Deal classification for pool-level assumptions.
-    /// base_currency : Currency
+    /// base_currency : Currency | str
     ///     Base currency for every asset and pool-level account.
     ///
     /// Returns
     /// -------
     /// AssetPool
     ///     A new, empty asset pool. Use :meth:`with_rep_lines` and/or
-    ///     :meth:`assets_json` to attach collateral.
+    ///     :meth:`assets` to attach collateral.
     ///
     /// Raises
     /// ------
@@ -54,9 +55,10 @@ impl PyAssetPool {
     /// True
     #[new]
     #[pyo3(text_signature = "(id, deal_type, base_currency)")]
-    fn new(id: &str, deal_type: &str, base_currency: PyRef<'_, PyCurrency>) -> PyResult<Self> {
+    fn new(id: &str, deal_type: &str, base_currency: &Bound<'_, PyAny>) -> PyResult<Self> {
         let deal_type: DealType = enum_from_str(deal_type, "deal_type")?;
-        let inner = AssetPool::new(id, deal_type, base_currency.inner);
+        let base_currency = currency_from_py(base_currency, "base_currency")?;
+        let inner = AssetPool::new(id, deal_type, base_currency);
         Ok(Self { inner })
     }
 
@@ -100,16 +102,16 @@ impl PyAssetPool {
         Self { inner }
     }
 
-    /// Attach loan-level assets from a JSON array, returning a new pool.
+    /// Attach loan-level assets, returning a new pool.
     ///
-    /// Loan-level ``PoolAsset`` records carry ~30 fields and stay JSON per
-    /// the nested-spec rule; use :meth:`with_rep_lines` for the typed,
+    /// Loan-level ``PoolAsset`` records carry ~30 fields and stay in their
+    /// serde dict shape; use :meth:`with_rep_lines` for the typed,
     /// aggregated path.
     ///
     /// Parameters
     /// ----------
-    /// value : str
-    ///     JSON array of ``PoolAsset`` objects.
+    /// value : list[dict] | str
+    ///     ``PoolAsset`` objects as a list of dicts or a JSON array string.
     ///
     /// Returns
     /// -------
@@ -119,21 +121,145 @@ impl PyAssetPool {
     /// Raises
     /// ------
     /// ValueError
-    ///     If ``value`` is not valid JSON for the ``PoolAsset`` list shape.
+    ///     If ``value`` does not match the ``PoolAsset`` list shape.
     #[pyo3(text_signature = "($self, value)")]
-    fn assets_json(&self, value: &str) -> PyResult<Self> {
-        let assets: Vec<PoolAsset> = json_field(value, "assets")?;
+    fn assets(&self, py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let assets: Vec<PoolAsset> =
+            crate::bindings::module_utils::py_to_serde(py, value, "assets")?;
         let mut inner = self.inner.clone();
         inner.assets = assets;
         Ok(Self { inner })
     }
 
+    /// Deserialize from the JSON produced by ``to_json``.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict JSON object with exactly the fields ``to_json`` writes.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed or has the wrong shape.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json)
+            .map_err(|err| crate::errors::serde_json_to_py(err, "invalid AssetPool JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to the canonical JSON wire form.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(crate::errors::display_to_py)
+    }
+
+    /// Return every field as a plain ``dict`` (canonical serde shape).
+    #[pyo3(text_signature = "($self)")]
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner)
+    }
+
+    /// Support ``pickle`` through the ``to_json`` / ``from_json`` round-trip.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Pool identifier.
+    #[getter]
+    fn id(&self) -> String {
+        self.inner.id.to_string()
+    }
+
+    /// Deal classification (serde name).
+    #[getter]
+    fn deal_type(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.deal_type)
+    }
+
+    /// Base ISO-4217 currency code.
+    #[getter]
+    fn base_currency(&self) -> String {
+        self.inner.base_currency.to_string()
+    }
+
+    /// Loan-level assets as a list of dicts (``PoolAsset`` serde shape).
+    #[getter]
+    fn asset_records<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner.assets)
+    }
+
+    /// Representative lines, or ``None`` when the pool is modelled loan-level.
+    #[getter]
+    fn rep_lines(&self) -> Option<Vec<PyRepLine>> {
+        self.inner.rep_lines.as_ref().map(|lines| {
+            lines
+                .iter()
+                .map(|line| PyRepLine {
+                    inner: line.clone(),
+                })
+                .collect()
+        })
+    }
+
+    /// Cumulative defaults to date.
+    #[getter]
+    fn cumulative_defaults(&self) -> PyMoney {
+        money_to_py(self.inner.cumulative_defaults)
+    }
+
+    /// Cumulative recoveries to date.
+    #[getter]
+    fn cumulative_recoveries(&self) -> PyMoney {
+        money_to_py(self.inner.cumulative_recoveries)
+    }
+
+    /// Cumulative prepayments to date.
+    #[getter]
+    fn cumulative_prepayments(&self) -> PyMoney {
+        money_to_py(self.inner.cumulative_prepayments)
+    }
+
+    /// Cumulative scheduled amortization to date.
+    #[getter]
+    fn cumulative_scheduled_amortization(&self) -> PyMoney {
+        money_to_py(self.inner.cumulative_scheduled_amortization)
+    }
+
+    /// Collection account balance.
+    #[getter]
+    fn collection_account(&self) -> PyMoney {
+        money_to_py(self.inner.collection_account)
+    }
+
+    /// Reserve account balance.
+    #[getter]
+    fn reserve_account(&self) -> PyMoney {
+        money_to_py(self.inner.reserve_account)
+    }
+
+    /// Excess-spread account balance.
+    #[getter]
+    fn excess_spread_account(&self) -> PyMoney {
+        money_to_py(self.inner.excess_spread_account)
+    }
+
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
-            "AssetPool(id={:?}, deal_type={:?})",
+            "AssetPool(id='{}', deal_type='{}', base_currency='{}', assets={}, rep_lines={})",
             self.inner.id.as_str(),
-            self.inner.deal_type
+            enum_to_py_string(&self.inner.deal_type).unwrap_or_default(),
+            self.inner.base_currency,
+            self.inner.assets.len(),
+            self.inner
+                .rep_lines
+                .as_ref()
+                .map(|lines| lines.len().to_string())
+                .unwrap_or_else(|| "None".to_string()),
         )
     }
 }

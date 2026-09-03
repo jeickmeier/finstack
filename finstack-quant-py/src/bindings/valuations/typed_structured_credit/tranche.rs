@@ -3,13 +3,16 @@ use pyo3::prelude::*;
 use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::tenor::PyTenor;
 use crate::bindings::core::money::PyMoney;
-use crate::bindings::date_utils::py_to_date;
+use crate::bindings::date_utils::{date_to_py, extract_date};
+use crate::bindings::valuations::convert::{
+    attributes_to_py, bool_repr, enum_to_py_string, money_to_py, opt_repr, rate_decimal_from_py,
+};
 use crate::errors::{core_to_py, value_error};
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     Tranche, TrancheCoupon, TrancheSeniority,
 };
 
-use super::super::instruments::{enum_from_str, json_field};
+use super::super::instruments::enum_from_str;
 
 type TrancheBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::structured_credit::TrancheBuilder;
@@ -52,14 +55,181 @@ impl PyTranche {
         }
     }
 
+    /// Deserialize from the JSON produced by ``to_json``.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict JSON object with exactly the fields ``to_json`` writes.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed or has the wrong shape.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json)
+            .map_err(|err| crate::errors::serde_json_to_py(err, "invalid Tranche JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to the canonical JSON wire form.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(crate::errors::display_to_py)
+    }
+
+    /// Return every field as a plain ``dict`` (canonical serde shape).
+    #[pyo3(text_signature = "($self)")]
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner)
+    }
+
+    /// Support ``pickle`` through the ``to_json`` / ``from_json`` round-trip.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Tranche identifier.
+    #[getter]
+    fn id(&self) -> String {
+        self.inner.id.to_string()
+    }
+
+    /// Attachment point in percent of the capital structure (0-100 scale).
+    #[getter]
+    fn attachment_point(&self) -> f64 {
+        self.inner.attachment_point
+    }
+
+    /// Detachment point in percent of the capital structure (0-100 scale).
+    #[getter]
+    fn detachment_point(&self) -> f64 {
+        self.inner.detachment_point
+    }
+
+    /// Seniority (serde name, e.g. ``"Senior"``, ``"Mezzanine"``, ``"Equity"``).
+    #[getter]
+    fn seniority(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.seniority)
+    }
+
+    /// Behavior type (serde name).
+    #[getter]
+    fn behavior_type(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.behavior_type)
+    }
+
+    /// Credit rating (serde name) or ``None``.
+    #[getter]
+    fn rating(&self) -> PyResult<Option<String>> {
+        self.inner
+            .rating
+            .as_ref()
+            .map(enum_to_py_string)
+            .transpose()
+    }
+
+    /// Original (issuance) balance.
+    #[getter]
+    fn original_balance(&self) -> PyMoney {
+        money_to_py(self.inner.original_balance)
+    }
+
+    /// Current outstanding balance.
+    #[getter]
+    fn current_balance(&self) -> PyMoney {
+        money_to_py(self.inner.current_balance)
+    }
+
+    /// Target balance for revolving structures, or ``None``.
+    #[getter]
+    fn target_balance(&self) -> Option<PyMoney> {
+        self.inner.target_balance.map(money_to_py)
+    }
+
+    /// Coupon definition as a plain ``dict`` (``TrancheCoupon`` serde shape).
+    #[getter]
+    fn coupon<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner.coupon)
+    }
+
+    /// Payment frequency (tenor string such as ``"3M"``).
+    #[getter]
+    fn frequency(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.frequency)
+    }
+
+    /// Accrual day count (serde name).
+    #[getter]
+    fn day_count(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.day_count)
+    }
+
+    /// Accumulated deferred (PIK) interest.
+    #[getter]
+    fn deferred_interest(&self) -> PyMoney {
+        money_to_py(self.inner.deferred_interest)
+    }
+
+    /// Whether interest may be deferred (PIK).
+    #[getter]
+    fn pik_enabled(&self) -> bool {
+        self.inner.pik_enabled
+    }
+
+    /// Whether the tranche balance revolves.
+    #[getter]
+    fn is_revolving(&self) -> bool {
+        self.inner.is_revolving
+    }
+
+    /// Whether principal collections may be reinvested.
+    #[getter]
+    fn can_reinvest(&self) -> bool {
+        self.inner.can_reinvest
+    }
+
+    /// Legal final maturity as ``datetime.date``.
+    #[getter]
+    fn maturity<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.maturity)
+    }
+
+    /// Expected maturity as ``datetime.date``, or ``None``.
+    #[getter]
+    fn expected_maturity<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .expected_maturity
+            .map(|d| date_to_py(py, d))
+            .transpose()
+    }
+
+    /// Payment priority rank (1 = most senior).
+    #[getter]
+    fn payment_priority(&self) -> u32 {
+        self.inner.payment_priority
+    }
+
+    /// User attributes (tags and metadata).
+    #[getter]
+    fn attributes(&self) -> crate::bindings::core::types::PyAttributes {
+        attributes_to_py(&self.inner.attributes)
+    }
+
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!(
-            "Tranche(id={:?}, seniority={:?}, attachment_point={}, detachment_point={})",
+            "Tranche(id='{}', seniority='{}', attachment_point={}, detachment_point={}, original_balance={}, maturity='{}', pik_enabled={})",
             self.inner.id.as_str(),
-            self.inner.seniority,
+            enum_to_py_string(&self.inner.seniority).unwrap_or_default(),
             self.inner.attachment_point,
-            self.inner.detachment_point
+            self.inner.detachment_point,
+            self.inner.original_balance.amount(),
+            self.inner.maturity,
+            bool_repr(self.inner.pik_enabled),
         )
     }
 }
@@ -248,7 +418,11 @@ impl PyTrancheBuilder {
     ///     If this builder was already consumed by a prior call to
     ///     :meth:`TrancheBuilder.build`.
     #[pyo3(text_signature = "($self, rate)")]
-    fn coupon_fixed<'py>(mut slf: PyRefMut<'py, Self>, rate: f64) -> PyResult<PyRefMut<'py, Self>> {
+    fn coupon_fixed<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        rate: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let rate = rate_decimal_from_py(rate, "rate")?;
         let b = take_tranche(&mut slf)?;
         slf.inner = Some(b.coupon(TrancheCoupon::Fixed { rate }));
         Ok(slf)
@@ -276,11 +450,13 @@ impl PyTrancheBuilder {
     /// ValueError
     ///     If ``value`` is not valid JSON for the ``TrancheCoupon`` shape.
     #[pyo3(text_signature = "($self, value)")]
-    fn coupon_floating_json<'py>(
+    fn coupon_floating<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: &str,
+        py: Python<'_>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let coupon: TrancheCoupon = json_field(value, "coupon")?;
+        let coupon: TrancheCoupon =
+            crate::bindings::module_utils::py_to_serde(py, value, "coupon")?;
         let b = take_tranche(&mut slf)?;
         slf.inner = Some(b.coupon(coupon));
         Ok(slf)
@@ -290,8 +466,8 @@ impl PyTrancheBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : datetime.date
-    ///     Legal final maturity date.
+    /// value : datetime.date | datetime.datetime | pandas.Timestamp | str
+    ///     Legal final maturity date (date-like or ISO-8601 string).
     ///
     /// Returns
     /// -------
@@ -308,7 +484,7 @@ impl PyTrancheBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let maturity = py_to_date(value)?;
+        let maturity = extract_date(value)?;
         let b = take_tranche(&mut slf)?;
         slf.inner = Some(b.maturity(maturity));
         Ok(slf)
@@ -389,5 +565,15 @@ impl PyTrancheBuilder {
         }
         let inner = b.build().map_err(core_to_py)?;
         Ok(PyTranche { inner })
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "TrancheBuilder(attachment_point={}, detachment_point={}, consumed={})",
+            opt_repr(self.attachment_point),
+            opt_repr(self.detachment_point),
+            bool_repr(self.inner.is_none()),
+        )
     }
 }

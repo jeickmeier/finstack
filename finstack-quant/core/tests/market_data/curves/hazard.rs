@@ -15,6 +15,58 @@ fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
 }
 
+// Convenience constructors
+
+#[test]
+fn flat_hazard_curve_has_constant_intensity() {
+    let curve = HazardCurve::flat("FLAT", base_date(), 0.02, 0.4).expect("valid flat curve");
+    assert!((curve.sp(3.0) - (-0.06_f64).exp()).abs() < 1e-12);
+    assert!((curve.hazard_rate(0.5) - 0.02).abs() < 1e-12);
+    assert!((curve.hazard_rate(7.0) - 0.02).abs() < 1e-12);
+    assert!((curve.recovery_rate() - 0.4).abs() < 1e-12);
+    assert!(HazardCurve::flat("NAN", base_date(), f64::NAN, 0.4).is_err());
+    assert!(HazardCurve::flat("NEG", base_date(), -0.01, 0.4).is_err());
+    let err = HazardCurve::flat("RR", base_date(), 0.02, 1.5).expect_err("recovery > 1");
+    assert!(err.to_string().contains("recovery_rate"), "{err}");
+}
+
+#[test]
+fn from_survival_probs_reproduces_pillars() {
+    let pillars = [(0.0, 1.0), (1.0, 0.98), (3.0, 0.93), (5.0, 0.85)];
+    let curve = HazardCurve::from_survival_probs("SP", base_date(), &pillars, 0.4)
+        .expect("valid survival pillars");
+    for &(t, sp) in &pillars {
+        assert!((curve.sp(t) - sp).abs() < 1e-12, "S({t}) = {}", curve.sp(t));
+    }
+    assert_eq!(curve.knot_points().count(), 3);
+
+    // Unsorted input is accepted; increasing survival is not.
+    assert!(HazardCurve::from_survival_probs(
+        "UNSORTED",
+        base_date(),
+        &[(3.0, 0.93), (1.0, 0.98)],
+        0.4
+    )
+    .is_ok());
+    assert!(
+        HazardCurve::from_survival_probs("UP", base_date(), &[(1.0, 0.9), (2.0, 0.95)], 0.4)
+            .is_err()
+    );
+    assert!(HazardCurve::from_survival_probs("ZERO", base_date(), &[(0.0, 0.9)], 0.4).is_err());
+    assert!(HazardCurve::from_survival_probs("EMPTY", base_date(), &[], 0.4).is_err());
+}
+
+#[test]
+fn nan_knots_carry_context() {
+    let err = HazardCurve::builder("NAN")
+        .base_date(base_date())
+        .recovery_rate(0.4)
+        .knots([(1.0, f64::NAN)])
+        .build()
+        .expect_err("NaN hazard rate must be rejected");
+    assert!(err.to_string().contains("finite"), "{err}");
+}
+
 // Builder Validation Tests
 
 #[test]

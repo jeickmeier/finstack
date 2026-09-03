@@ -71,6 +71,18 @@ impl FrtbSbaEngine {
         })
     }
 
+    /// Correlation scenarios evaluated by this engine, in configured order.
+    #[must_use]
+    pub fn scenarios(&self) -> &[CorrelationScenario] {
+        &self.scenarios
+    }
+
+    /// Risk classes whose delta, vega and curvature charges are included.
+    #[must_use]
+    pub fn risk_classes(&self) -> &[FrtbRiskClass] {
+        &self.risk_classes
+    }
+
     /// Compute the full FRTB SBA capital charge.
     ///
     /// Evaluates delta, vega, and curvature charges under each configured

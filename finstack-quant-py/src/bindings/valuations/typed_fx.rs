@@ -1,16 +1,18 @@
 //! Typed FX instruments: `FxForward` and `FxOption`.
 //! Mirrors the `PyInterestRateSwap` pattern in `typed_rates.rs`.
 //!
-//! Both classes also carry the pricing methods their WASM twins expose
-//! (`price`, and — for `FxOption` — the standard Greek
-//! accessors), delegating to the same canonical Rust pricer entry points.
+//! This module also hosts the pricing helpers shared by every typed
+//! instrument wrapper (`price_envelope`, `envelope_metric_value`,
+//! `envelope_option_greeks`) and the `instrument_pricing_methods!` macro that
+//! stamps the common `price` / `metric` / `market_dependencies` /
+//! `default_model` / `attributes` / `to_dict` surface onto a wrapper.
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use crate::bindings::core::currency::PyCurrency;
 use crate::bindings::core::money::PyMoney;
-use crate::bindings::date_utils::py_to_date;
+use crate::bindings::date_utils::{date_to_py, extract_date};
 use crate::bindings::extract::extract_market;
 use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -19,15 +21,28 @@ use finstack_quant_valuations::instruments::fx::fx_option::{
 };
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::{
-    enum_from_str, parse_typed_instrument_json, serialize_typed_instrument_json,
+use super::convert::{
+    attributes_from_py, bdc_from_py, builder_repr, currency_from_py, date_repr, day_count_from_py,
+    enum_to_py_string, float_repr, money_repr, money_to_py, opt_repr, tenor_from_py,
 };
+use super::instruments::{enum_from_str, serialize_typed_instrument_json};
 use super::pricing::binding_pricing_options;
 use super::PyValuationResult;
 
 /// Price a typed instrument envelope through the canonical Rust pricer.
+///
+/// # Arguments
+///
+/// * `py` - GIL token; the pricer runs with the GIL released.
+/// * `envelope_json` - Canonical `finstack_quant.instrument/1` envelope.
+/// * `market` - `MarketContext` object or market-context JSON string.
+/// * `as_of` - Valuation date (date-like or ISO string).
+/// * `model` - Model key (`"default"` selects the instrument-native model).
+/// * `metrics` - Metric identifiers to compute alongside the valuation.
+/// * `pricing_options` - Optional `MetricPricingOverrides` JSON.
+/// * `market_history` - Optional `MarketHistory` JSON for historical metrics.
 #[allow(clippy::too_many_arguments)]
-fn price_envelope(
+pub(crate) fn price_envelope(
     py: Python<'_>,
     envelope_json: String,
     market: &Bound<'_, PyAny>,
@@ -66,17 +81,27 @@ fn price_envelope(
 }
 
 /// Compute one scalar metric for a typed instrument envelope.
-fn envelope_metric_value(
+///
+/// # Arguments
+///
+/// * `py` - GIL token; the pricer runs with the GIL released.
+/// * `envelope_json` - Canonical `finstack_quant.instrument/1` envelope.
+/// * `market` - `MarketContext` object or market-context JSON string.
+/// * `as_of` - Valuation date (date-like or ISO string).
+/// * `model` - Model key (`"default"` selects the instrument-native model).
+/// * `metric` - Fully qualified metric identifier (`"dv01"`, `"cs01_hazard"`, …).
+pub(crate) fn envelope_metric_value(
     py: Python<'_>,
     envelope_json: String,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
     model: &str,
-    metric: &'static str,
+    metric: &str,
 ) -> PyResult<f64> {
     let market = extract_market(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
+    let metric = metric.to_owned();
     py.detach(move || {
         let instrument = finstack_quant_valuations::pricer::parse_boxed_instrument_from_json(
             &envelope_json,
@@ -87,7 +112,7 @@ fn envelope_metric_value(
             &market,
             &as_of,
             &model,
-            metric,
+            &metric,
             binding_pricing_options(),
         )
     })
@@ -99,7 +124,15 @@ fn envelope_metric_value(
 /// Mirrors the WASM `greeks` method: non-finite Greeks are rejected rather
 /// than returned, so both hosts fail identically instead of one silently
 /// yielding `NaN`.
-fn envelope_option_greeks<'py>(
+///
+/// # Arguments
+///
+/// * `py` - GIL token; the pricer runs with the GIL released.
+/// * `envelope_json` - Canonical `finstack_quant.instrument/1` envelope.
+/// * `market` - `MarketContext` object or market-context JSON string.
+/// * `as_of` - Valuation date (date-like or ISO string).
+/// * `model` - Model key (`"default"` selects the instrument-native model).
+pub(crate) fn envelope_option_greeks<'py>(
     py: Python<'py>,
     envelope_json: String,
     market: &Bound<'py, PyAny>,
@@ -131,11 +164,362 @@ fn envelope_option_greeks<'py>(
     Ok(out)
 }
 
+/// Coerce an optional `dict | str` of `MetricPricingOverrides` to JSON.
+///
+/// # Arguments
+///
+/// * `py` - GIL token used for `json.dumps` on dict inputs.
+/// * `obj` - `None`, a JSON string, or a dict of override fields.
+pub(crate) fn pricing_options_json(
+    py: Python<'_>,
+    obj: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Option<String>> {
+    match obj {
+        None => Ok(None),
+        Some(value) if value.is_none() => Ok(None),
+        Some(value) => Ok(Some(crate::bindings::module_utils::py_to_json_string(
+            py,
+            value,
+            "pricing_options",
+        )?)),
+    }
+}
+
+/// Stamp the pricing surface shared by every typed instrument wrapper.
+///
+/// Expands to a `#[pymethods]` block (the crate enables
+/// `multiple-pymethods`) with `price`, `metric`, `market_dependencies`,
+/// `default_model`, `attributes` and `to_dict`. The wrapper must expose
+/// `pub(crate) inner` (the Rust instrument) and `envelope_json()`.
+macro_rules! instrument_pricing_methods {
+    ($ty:ident) => {
+        #[pymethods]
+        impl $ty {
+            /// Price this instrument and return a typed ``ValuationResult``.
+            ///
+            /// Delegates to the same canonical Rust pricer entry point as
+            /// ``price_instrument(self, market, as_of, model)``.
+            ///
+            /// Parameters
+            /// ----------
+            /// market : MarketContext | str
+            ///     A ``MarketContext`` object or serialized market-context JSON.
+            /// as_of : datetime.date | str
+            ///     Valuation date, either a date-like object or an ISO 8601 string.
+            /// model : str, optional
+            ///     Model key (default ``"default"`` — the instrument-native model).
+            /// metrics : list[str], optional
+            ///     Metric identifiers to compute (e.g. ``["dv01", "theta"]``).
+            ///     Empty or omitted means valuation only.
+            /// pricing_options : dict | str | None
+            ///     Optional ``MetricPricingOverrides`` (dict or JSON string) merged
+            ///     into the instrument's ``pricing_overrides`` before pricing.
+            /// market_history : str | None
+            ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
+            ///     ``expected_shortfall`` metrics.
+            ///
+            /// Returns
+            /// -------
+            /// ValuationResult
+            ///     Typed valuation envelope carrying value, currency, and metrics.
+            ///
+            /// Raises
+            /// ------
+            /// ValueError
+            ///     If the market JSON, ``as_of``, or ``model`` is invalid, or the
+            ///     selected pricer rejects the instrument.
+            /// KeyError
+            ///     If a curve, surface, or price the instrument depends on is
+            ///     missing from ``market``.
+            /// RuntimeError
+            ///     If the pricer or a requested metric fails numerically.
+            #[pyo3(signature = (market, as_of, model="default", metrics=None, pricing_options=None, market_history=None))]
+            #[pyo3(text_signature = "($self, market, as_of, model='default', metrics=None, pricing_options=None, market_history=None)")]
+            #[allow(clippy::too_many_arguments)]
+            fn price(
+                &self,
+                py: Python<'_>,
+                market: &Bound<'_, PyAny>,
+                as_of: &Bound<'_, PyAny>,
+                model: &str,
+                metrics: Option<Vec<String>>,
+                pricing_options: Option<&Bound<'_, PyAny>>,
+                market_history: Option<&str>,
+            ) -> PyResult<$crate::bindings::valuations::PyValuationResult> {
+                let pricing_options =
+                    $crate::bindings::valuations::typed_fx::pricing_options_json(py, pricing_options)?;
+                $crate::bindings::valuations::typed_fx::price_envelope(
+                    py,
+                    self.envelope_json()?,
+                    market,
+                    as_of,
+                    model,
+                    metrics.unwrap_or_default(),
+                    pricing_options.as_deref(),
+                    market_history,
+                )
+            }
+
+            /// Compute one scalar metric for this instrument.
+            ///
+            /// Mirrors Rust ``pricer::metric_value``: the instrument is priced
+            /// under ``model`` and the single metric ``metric_id`` is returned as
+            /// a float.
+            ///
+            /// Parameters
+            /// ----------
+            /// market : MarketContext | str
+            ///     A ``MarketContext`` object or serialized market-context JSON.
+            /// as_of : datetime.date | str
+            ///     Valuation date, either a date-like object or an ISO 8601 string.
+            /// metric_id : str
+            ///     Fully qualified metric identifier, e.g. ``"dv01"``,
+            ///     ``"cs01_hazard"``, ``"delta"``.
+            /// model : str, optional
+            ///     Model key (default ``"default"`` — the instrument-native model).
+            ///
+            /// Returns
+            /// -------
+            /// float
+            ///     The metric value in the metric's documented unit.
+            ///
+            /// Raises
+            /// ------
+            /// ValueError
+            ///     If ``metric_id`` is unknown, ``as_of`` or ``model`` is invalid,
+            ///     or the metric is not defined for this instrument.
+            /// KeyError
+            ///     If required market data is missing from ``market``.
+            /// RuntimeError
+            ///     If the metric computation fails numerically.
+            #[pyo3(signature = (market, as_of, metric_id, model="default"))]
+            #[pyo3(text_signature = "($self, market, as_of, metric_id, model='default')")]
+            fn metric(
+                &self,
+                py: Python<'_>,
+                market: &Bound<'_, PyAny>,
+                as_of: &Bound<'_, PyAny>,
+                metric_id: &str,
+                model: &str,
+            ) -> PyResult<f64> {
+                $crate::bindings::valuations::typed_fx::envelope_metric_value(
+                    py,
+                    self.envelope_json()?,
+                    market,
+                    as_of,
+                    model,
+                    metric_id,
+                )
+            }
+
+            /// Market objects this instrument needs for pricing.
+            ///
+            /// Mirrors Rust ``Instrument::market_dependencies``.
+            ///
+            /// Returns
+            /// -------
+            /// dict[str, object]
+            ///     Serde view of ``MarketDependencies``: ``curves`` (discount /
+            ///     forward / credit / inflation curve ids), ``credit_index_ids``,
+            ///     ``market_scalar_ids``, ``volatility_dependencies``,
+            ///     ``fx_pairs`` and ``series_ids``.
+            ///
+            /// Raises
+            /// ------
+            /// ValueError
+            ///     If the instrument cannot enumerate its dependencies.
+            #[pyo3(text_signature = "($self)")]
+            fn market_dependencies<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+                let deps = finstack_quant_valuations::instruments::Instrument::market_dependencies(
+                    &self.inner,
+                )
+                .map_err($crate::errors::core_to_py)?;
+                $crate::bindings::pandas_utils::serde_to_py(py, &deps)
+            }
+
+            /// Model key the pricer uses when ``model="default"``.
+            ///
+            /// Returns
+            /// -------
+            /// str
+            ///     Canonical model key, e.g. ``"hazard_rate"`` or ``"black76"``.
+            #[getter]
+            fn default_model(&self) -> String {
+                finstack_quant_valuations::instruments::Instrument::default_model(&self.inner)
+                    .to_string()
+            }
+
+            /// Free-form instrument attributes (tags and metadata).
+            ///
+            /// Returns
+            /// -------
+            /// Attributes
+            ///     Copy of the instrument's attribute bag.
+            #[getter]
+            fn attributes(&self) -> $crate::bindings::core::types::PyAttributes {
+                $crate::bindings::valuations::convert::attributes_to_py(
+                    finstack_quant_valuations::instruments::Instrument::attributes(&self.inner),
+                )
+            }
+
+            /// Instrument specification as a plain dict.
+            ///
+            /// Returns
+            /// -------
+            /// dict[str, object]
+            ///     The canonical ``spec`` payload (the same fields ``to_json``
+            ///     wraps in the ``finstack_quant.instrument/1`` envelope).
+            ///
+            /// Raises
+            /// ------
+            /// ValueError
+            ///     If the instrument cannot be serialized.
+            #[pyo3(text_signature = "($self)")]
+            fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+                $crate::bindings::pandas_utils::serde_to_py(py, &self.inner)
+            }
+        }
+    };
+}
+pub(crate) use instrument_pricing_methods;
+
+/// Stamp `__reduce__` / `from_json` / `to_json` / `id` / `builder` on a typed
+/// instrument wrapper.
+///
+/// `$variant` is the `InstrumentJson` variant, `$type_tag` the serde type tag
+/// (`"fx_forward"`), `$builder` the Python builder wrapper and `$seed` an
+/// expression producing the seeded Rust builder.
+macro_rules! instrument_envelope_methods {
+    ($ty:ident, $variant:ident, $type_tag:literal, $builder:ident, $seed:expr) => {
+        #[pymethods]
+        impl $ty {
+            /// Create a fluent builder (mirrors the Rust ``builder()``).
+            ///
+            /// Builders are consumed by ``build()``; create a new builder per
+            /// instrument.
+            ///
+            /// Returns
+            /// -------
+            /// builder
+            ///     A builder with fluent, consuming setter methods.
+            #[staticmethod]
+            #[pyo3(text_signature = "()")]
+            fn builder() -> $builder {
+                $builder {
+                    inner: Some($seed),
+                    fields: Vec::new(),
+                }
+            }
+
+            /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+            ///
+            /// Reconstruction goes through the same strict serde round-trip as
+            /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+            /// format defines — there is no second state format that can drift.
+            fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+                let from_json = py.get_type::<Self>().getattr("from_json")?;
+                $crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+            }
+
+            /// Deserialize a validated instrument from its canonical v1 envelope.
+            ///
+            /// Parameters
+            /// ----------
+            /// json : str
+            #[doc = concat!(
+                        "    A ``finstack_quant.instrument/1`` envelope carrying an exact \"",
+                        $type_tag,
+                        "\" payload. The UTF-8 input must not exceed 16 MiB. Bare payloads \
+                 and cross-type coercion are rejected."
+                    )]
+            ///
+            /// Returns
+            /// -------
+            /// instrument
+            ///     The validated instrument.
+            ///
+            /// Raises
+            /// ------
+            /// ValueError
+            #[doc = concat!(
+                        "    If the input exceeds 16 MiB, is malformed, has an unsupported \
+                 envelope schema, carries a type other than \"",
+                        $type_tag,
+                        "\", or fails validation."
+                    )]
+            #[staticmethod]
+            #[pyo3(text_signature = "(json)")]
+            fn from_json(json: &str) -> PyResult<Self> {
+                match $crate::bindings::valuations::instruments::parse_typed_instrument_json(json)?
+                {
+                    InstrumentJson::$variant(inner) => Ok(Self { inner }),
+                    _ => Err($crate::errors::value_error(concat!(
+                        "expected instrument type \"",
+                        $type_tag,
+                        "\", got a different instrument type"
+                    ))),
+                }
+            }
+
+            /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
+            ///
+            /// Returns
+            /// -------
+            /// str
+            ///     Canonical instrument envelope accepted by ``price_instrument`` and
+            ///     ``from_json``.
+            ///
+            /// Raises
+            /// ------
+            /// ValueError
+            ///     If the value cannot be serialized to JSON.
+            #[pyo3(text_signature = "($self)")]
+            fn to_json(&self) -> PyResult<String> {
+                self.envelope_json()
+            }
+
+            /// Instrument identifier.
+            #[getter]
+            fn id(&self) -> String {
+                self.inner.id.to_string()
+            }
+        }
+    };
+}
+pub(crate) use instrument_envelope_methods;
+
+/// Shared `build()` body: take the Rust builder, run the single Rust
+/// validation (`build()`), wrap.
+///
+/// # Arguments
+///
+/// * `inner` - Slot holding the consuming Rust builder (`None` once consumed).
+pub(crate) fn take_builder<B>(inner: &mut Option<B>) -> PyResult<B> {
+    inner
+        .take()
+        .ok_or_else(|| value_error("builder already consumed by build()"))
+}
+
 type FxForwardBuilderInner =
     finstack_quant_valuations::instruments::fx::fx_forward::FxForwardBuilder;
 type FxOptionBuilderInner = finstack_quant_valuations::instruments::fx::fx_option::FxOptionBuilder;
 
-/// Typed wrapper for the Rust `FxForward` instrument.
+/// Outright FX forward on a currency pair (typed wrapper for Rust ``FxForward``).
+///
+/// The notional is denominated in ``base_currency``; PV is reported in
+/// ``quote_currency`` via covered interest parity (CIRP). A missing
+/// ``contract_rate`` values the forward at-market (zero PV at inception).
+///
+/// Build with ``FxForward.builder()``, ``FxForward.from_trade_date(...)`` or
+/// start from ``FxForward.example()``; instances are accepted directly by
+/// ``price_instrument`` and expose ``price`` / ``metric`` themselves.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.valuations.instruments import FxForward
+/// >>> fwd = FxForward.example()
+/// >>> (fwd.base_currency.code, fwd.quote_currency.code, fwd.contract_rate)
+/// ('EUR', 'USD', 1.12)
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "FxForward",
@@ -155,161 +539,368 @@ impl PyFxForward {
     }
 }
 
+instrument_envelope_methods!(
+    PyFxForward,
+    FxForward,
+    "fx_forward",
+    PyFxForwardBuilder,
+    finstack_quant_valuations::instruments::FxForward::builder()
+);
+instrument_pricing_methods!(PyFxForward);
+
 #[pymethods]
 impl PyFxForward {
-    /// Create a fluent builder (mirrors Rust ``FxForward::builder()``).
+    /// Canonical example: 6-month EUR/USD forward, EUR 1,000,000 at 1.12.
     ///
-    /// Returns
-    /// -------
-    /// FxForwardBuilder
-    ///     A builder with fluent, consuming setter methods.
-    ///
-    /// Examples
-    /// --------
-    /// >>> from finstack_quant.valuations.instruments import FxForward
-    /// >>> builder = FxForward.builder()
-    /// >>> builder.id("EXAMPLE") is builder
-    /// True
-    #[staticmethod]
-    #[pyo3(text_signature = "()")]
-    fn builder() -> PyFxForwardBuilder {
-        PyFxForwardBuilder {
-            inner: Some(finstack_quant_valuations::instruments::FxForward::builder()),
-        }
-    }
-
-    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
-    ///
-    /// Reconstruction goes through the same strict serde round-trip as
-    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
-    /// format defines — there is no second state format that can drift.
-    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
-    }
-
-    /// Deserialize a validated FX forward from its canonical v1 envelope.
-    ///
-    /// Parameters
-    /// ----------
-    /// json : str
-    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
-    ///     ``"fx_forward"`` payload. The UTF-8 input must not exceed 16 MiB.
-    ///     Bare payloads and cross-type coercion are rejected.
+    /// Mirrors Rust ``FxForward::example()`` (curves ``USD-OIS`` /
+    /// ``EUR-OIS``, maturity 2025-06-15).
     ///
     /// Returns
     /// -------
     /// FxForward
-    ///     The validated FX forward represented by the exact ``"fx_forward"`` payload.
+    ///     The validated example forward.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
-    ///     envelope schema, carries another type, or fails FX-forward validation.
-    ///
-    /// Examples
-    /// --------
-    /// >>> from finstack_quant.valuations.instruments import FxForward
-    /// >>> try:
-    /// ...     FxForward.from_json("{}")
-    /// ... except ValueError as exc:
-    /// ...     print("schema" in str(exc))
-    /// True
+    ///     If the canonical example fails validation (never for a released build).
     #[staticmethod]
-    #[pyo3(text_signature = "(json)")]
-    fn from_json(json: &str) -> PyResult<Self> {
-        match parse_typed_instrument_json(json)? {
-            InstrumentJson::FxForward(inner) => Ok(Self { inner }),
-            _ => Err(value_error(
-                "expected instrument type \"fx_forward\", got a different instrument type",
-            )),
-        }
+    #[pyo3(text_signature = "()")]
+    fn example() -> PyResult<Self> {
+        finstack_quant_valuations::instruments::FxForward::example()
+            .map(|inner| Self { inner })
+            .map_err(core_to_py)
     }
 
-    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
+    /// Build a forward from a trade date and a standard FX tenor.
+    ///
+    /// Mirrors Rust ``FxForward::from_trade_date``: the spot date is rolled
+    /// from ``trade_date`` by ``spot_lag_days`` business days (CLS-consistent
+    /// pair roll), then ``tenor`` is added with the FX end-of-month rule and
+    /// ``business_day_convention``.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Unique instrument identifier.
+    /// base_currency : Currency | str
+    ///     Base (foreign) currency; notional currency.
+    /// quote_currency : Currency | str
+    ///     Quote (domestic) currency; PV currency.
+    /// trade_date : datetime.date | str
+    ///     Trade date from which spot is rolled.
+    /// tenor : Tenor | str
+    ///     Standard FX tenor from spot, e.g. ``"3M"`` or ``Tenor.parse("6M")``.
+    /// notional : Money | float
+    ///     Notional in ``base_currency``; a bare float is tagged with that currency.
+    /// domestic_discount_curve_id : str
+    ///     Quote-currency discount curve identifier.
+    /// foreign_discount_curve_id : str
+    ///     Base-currency discount curve identifier.
+    /// base_calendar_id : str | None
+    ///     Base-currency holiday calendar; ``None`` uses weekends only.
+    /// quote_calendar_id : str | None
+    ///     Quote-currency holiday calendar; ``None`` uses weekends only.
+    /// spot_lag_days : int | None
+    ///     Spot lag in business days; ``None`` uses the market standard for
+    ///     the pair (``FxForward.standard_spot_days``): T+1 for USD/CAD,
+    ///     USD/TRY, USD/RUB and T+2 otherwise.
+    /// business_day_convention : BusinessDayConvention | str | None
+    ///     Roll rule applied to the maturity; ``None`` means ``"modified_following"``.
+    /// end_of_month : bool
+    ///     Apply the FX end-of-month rule when spot falls on month end.
     ///
     /// Returns
     /// -------
-    /// str
-    ///     Canonical instrument envelope accepted by ``price_instrument`` and
-    ///     ``FxForward.from_json``.
-    #[pyo3(text_signature = "($self)")]
-    fn to_json(&self) -> PyResult<String> {
-        self.envelope_json()
-    }
-
-    /// Instrument identifier.
-    #[getter]
-    fn id(&self) -> String {
-        self.inner.id.to_string()
-    }
-
-    /// Price this FX forward and return a typed ``ValuationResult``.
+    /// FxForward
+    ///     Validated at-market forward (no ``contract_rate``); chain
+    ///     ``with_forward_points`` / ``with_forward_pips`` to fix the rate.
     ///
-    /// Delegates to the same canonical Rust pricer entry point as
-    /// ``price_instrument(self, market, as_of, model)``.
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the currencies coincide, the tenor/date is invalid, or the
+    ///     notional currency differs from ``base_currency``.
+    /// KeyError
+    ///     If a calendar identifier is unknown.
+    #[staticmethod]
+    #[pyo3(signature = (id, base_currency, quote_currency, trade_date, tenor, notional,
+                        domestic_discount_curve_id, foreign_discount_curve_id, *,
+                        base_calendar_id=None, quote_calendar_id=None, spot_lag_days=None,
+                        business_day_convention=None, end_of_month=false))]
+    #[pyo3(
+        text_signature = "(id, base_currency, quote_currency, trade_date, tenor, notional, \
+domestic_discount_curve_id, foreign_discount_curve_id, *, base_calendar_id=None, \
+quote_calendar_id=None, spot_lag_days=None, business_day_convention=None, \
+end_of_month=False)"
+    )]
+    // PyO3 binding: the argument list mirrors the Python keyword-argument API.
+    #[allow(clippy::too_many_arguments)]
+    fn from_trade_date(
+        id: &str,
+        base_currency: &Bound<'_, PyAny>,
+        quote_currency: &Bound<'_, PyAny>,
+        trade_date: &Bound<'_, PyAny>,
+        tenor: &Bound<'_, PyAny>,
+        notional: &Bound<'_, PyAny>,
+        domestic_discount_curve_id: &str,
+        foreign_discount_curve_id: &str,
+        base_calendar_id: Option<String>,
+        quote_calendar_id: Option<String>,
+        spot_lag_days: Option<i32>,
+        business_day_convention: Option<&Bound<'_, PyAny>>,
+        end_of_month: bool,
+    ) -> PyResult<Self> {
+        let base = currency_from_py(base_currency, "base_currency")?;
+        let quote = currency_from_py(quote_currency, "quote_currency")?;
+        let bdc = match business_day_convention {
+            Some(value) if !value.is_none() => bdc_from_py(value, "business_day_convention")?,
+            _ => finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        };
+        let spot_lag_days = match spot_lag_days {
+            Some(days) => days,
+            None => i32::try_from(
+                finstack_quant_valuations::instruments::FxForward::standard_spot_days(base, quote),
+            )
+            .map_err(|_| value_error("standard spot lag does not fit in i32"))?,
+        };
+        let inner = finstack_quant_valuations::instruments::FxForward::from_trade_date(
+            InstrumentId::new(id.to_string()),
+            base,
+            quote,
+            extract_date(trade_date)?,
+            tenor_from_py(tenor, "tenor")?,
+            super::convert::money_from_py(notional, Some(&base.to_string()), "notional")?,
+            CurveId::new(domestic_discount_curve_id.to_string()),
+            CurveId::new(foreign_discount_curve_id.to_string()),
+            base_calendar_id,
+            quote_calendar_id,
+            spot_lag_days,
+            bdc,
+            end_of_month,
+        )
+        .map_err(core_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Market-standard spot lag (business days) for a currency pair.
+    ///
+    /// Mirrors Rust ``FxForward::standard_spot_days``.
+    ///
+    /// Parameters
+    /// ----------
+    /// base : Currency | str
+    ///     Base currency of the pair.
+    /// quote : Currency | str
+    ///     Quote currency of the pair.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     ``1`` for USD/CAD, USD/TRY, USD/RUB (either order); ``2`` otherwise.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a currency code is not ISO-4217.
+    #[staticmethod]
+    #[pyo3(text_signature = "(base, quote)")]
+    fn standard_spot_days(base: &Bound<'_, PyAny>, quote: &Bound<'_, PyAny>) -> PyResult<u32> {
+        Ok(
+            finstack_quant_valuations::instruments::FxForward::standard_spot_days(
+                currency_from_py(base, "base")?,
+                currency_from_py(quote, "quote")?,
+            ),
+        )
+    }
+
+    /// Return a copy whose contract rate is ``spot_rate + forward_points``.
+    ///
+    /// Mirrors Rust ``FxForward::with_forward_points``. Forward points are
+    /// in rate units (e.g. ``0.0025`` for 25 pips on EUR/USD); use
+    /// ``with_forward_pips`` to pass pips directly.
+    ///
+    /// Parameters
+    /// ----------
+    /// spot_rate : float
+    ///     Spot rate, quote currency per unit of base currency; must be positive.
+    /// forward_points : float
+    ///     Forward points in rate units, added to ``spot_rate``.
+    ///
+    /// Returns
+    /// -------
+    /// FxForward
+    ///     New forward with ``contract_rate`` set.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``spot_rate`` is not positive/finite, or the resulting contract
+    ///     rate is not positive.
+    #[pyo3(text_signature = "($self, spot_rate, forward_points)")]
+    fn with_forward_points(&self, spot_rate: f64, forward_points: f64) -> PyResult<Self> {
+        self.inner
+            .clone()
+            .with_forward_points(spot_rate, forward_points)
+            .map(|inner| Self { inner })
+            .map_err(core_to_py)
+    }
+
+    /// Return a copy whose contract rate is ``spot_rate + pips * pip_size``.
+    ///
+    /// Mirrors Rust ``FxForward::with_forward_pips``; the pip size follows
+    /// market convention (``0.01`` for JPY/KRW/HUF pairs, ``0.0001`` otherwise).
+    ///
+    /// Parameters
+    /// ----------
+    /// spot_rate : float
+    ///     Spot rate, quote currency per unit of base currency; must be positive.
+    /// pips : float
+    ///     Forward points quoted in pips.
+    ///
+    /// Returns
+    /// -------
+    /// FxForward
+    ///     New forward with ``contract_rate`` set.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``pips`` or ``spot_rate`` is not finite, or the resulting
+    ///     contract rate is not positive.
+    #[pyo3(text_signature = "($self, spot_rate, pips)")]
+    fn with_forward_pips(&self, spot_rate: f64, pips: f64) -> PyResult<Self> {
+        self.inner
+            .clone()
+            .with_forward_pips(spot_rate, pips)
+            .map(|inner| Self { inner })
+            .map_err(core_to_py)
+    }
+
+    /// Covered-interest-parity forward rate implied by the market.
+    ///
+    /// Mirrors Rust ``FxForward::market_forward_rate``:
+    /// ``F = S * DF_foreign(T) / DF_domestic(T)``.
     ///
     /// Parameters
     /// ----------
     /// market : MarketContext | str
-    ///     A ``MarketContext`` object or serialized market-context JSON.
+    ///     Market carrying both discount curves and the FX matrix (or an
+    ///     explicit ``spot_rate_override`` on the instrument).
     /// as_of : datetime.date | str
-    ///     Valuation date, either a date-like object or an ISO 8601 string.
-    /// model : str, optional
-    ///     Model key (default ``"default"`` — the instrument-native model).
-    /// metrics : list[str], optional
-    ///     Metric identifiers to compute (e.g. ``["dv01", "theta"]``).
-    ///     Empty or omitted means valuation only.
-    /// pricing_options : str | None
-    ///     Optional JSON ``MetricPricingOverrides`` merged into the
-    ///     instrument's ``pricing_overrides`` before pricing.
-    /// market_history : str | None
-    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
-    ///     ``expected_shortfall`` metrics.
+    ///     Valuation date.
     ///
     /// Returns
     /// -------
-    /// ValuationResult
-    ///     Typed valuation envelope carrying value, currency, and metrics.
+    /// float
+    ///     Forward rate, quote currency per unit of base currency.
     ///
     /// Raises
     /// ------
+    /// KeyError
+    ///     If a discount curve or the FX spot is missing from ``market``.
     /// ValueError
-    ///     If the market JSON, ``as_of``, or ``model`` is invalid, required
-    ///     market data is missing, or the selected pricer fails.
-    #[pyo3(signature = (market, as_of, model="default", metrics=None, pricing_options=None, market_history=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn price(
+    ///     If the market JSON or ``as_of`` is invalid.
+    #[pyo3(text_signature = "($self, market, as_of)")]
+    fn market_forward_rate(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         as_of: &Bound<'_, PyAny>,
-        model: &str,
-        metrics: Option<Vec<String>>,
-        pricing_options: Option<&str>,
-        market_history: Option<&str>,
-    ) -> PyResult<PyValuationResult> {
-        price_envelope(
-            py,
-            self.envelope_json()?,
-            market,
-            as_of,
-            model,
-            metrics.unwrap_or_default(),
-            pricing_options,
-            market_history,
-        )
+    ) -> PyResult<f64> {
+        let market = extract_market(py, market)?;
+        let as_of = extract_date(as_of)?;
+        self.inner
+            .market_forward_rate(&market, as_of)
+            .map_err(core_to_py)
+    }
+
+    /// Base (foreign) currency; the notional currency.
+    #[getter]
+    fn base_currency(&self) -> PyCurrency {
+        PyCurrency::from_inner(self.inner.base_currency)
+    }
+
+    /// Quote (domestic) currency; the PV currency.
+    #[getter]
+    fn quote_currency(&self) -> PyCurrency {
+        PyCurrency::from_inner(self.inner.quote_currency)
+    }
+
+    /// Maturity / settlement date.
+    #[getter]
+    fn maturity<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.maturity)
+    }
+
+    /// Notional amount in the base currency.
+    #[getter]
+    fn notional(&self) -> PyMoney {
+        money_to_py(self.inner.notional)
+    }
+
+    /// Contract forward rate (quote per base), or ``None`` when at-market.
+    #[getter]
+    fn contract_rate(&self) -> Option<f64> {
+        self.inner.contract_rate
+    }
+
+    /// Domestic (quote-currency) discount curve identifier.
+    #[getter]
+    fn domestic_discount_curve_id(&self) -> String {
+        self.inner.domestic_discount_curve_id.to_string()
+    }
+
+    /// Foreign (base-currency) discount curve identifier.
+    #[getter]
+    fn foreign_discount_curve_id(&self) -> String {
+        self.inner.foreign_discount_curve_id.to_string()
+    }
+
+    /// Explicit spot override (quote per base), or ``None`` to use the FX matrix.
+    #[getter]
+    fn spot_rate_override(&self) -> Option<f64> {
+        self.inner.spot_rate_override
+    }
+
+    /// Base-currency holiday calendar identifier, if any.
+    #[getter]
+    fn base_calendar_id(&self) -> Option<String> {
+        self.inner.base_calendar_id.clone()
+    }
+
+    /// Quote-currency holiday calendar identifier, if any.
+    #[getter]
+    fn quote_calendar_id(&self) -> Option<String> {
+        self.inner.quote_calendar_id.clone()
+    }
+
+    /// Expiry as seen by the pricer (``None``: FX forwards carry no option expiry).
+    #[getter]
+    fn expiry<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        Instrument::expiry(&self.inner)
+            .map(|d| date_to_py(py, d))
+            .transpose()
     }
 
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
-        format!("FxForward(id={:?})", self.inner.id.as_str())
+        format!(
+            "FxForward(id={:?}, pair='{}{}', notional={}, maturity={}, contract_rate={})",
+            self.inner.id.as_str(),
+            self.inner.base_currency,
+            self.inner.quote_currency,
+            money_repr(self.inner.notional),
+            date_repr(self.inner.maturity),
+            opt_repr(self.inner.contract_rate.map(float_repr)),
+        )
     }
 }
 
-/// Fluent builder for [`PyFxForward`]; wraps the Rust
-/// `FinancialBuilder`-generated builder (consuming setters).
+/// Fluent builder for ``FxForward``; wraps the Rust
+/// ``FinancialBuilder``-generated builder (consuming setters).
+///
+/// Builders are consumed by ``build()``; create a new builder per instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "FxForwardBuilder",
@@ -317,13 +908,17 @@ impl PyFxForward {
 )]
 pub struct PyFxForwardBuilder {
     inner: Option<FxForwardBuilderInner>,
+    fields: Vec<(&'static str, String)>,
 }
 
-/// Take the wrapped Rust builder or fail if `build()` already consumed it.
-fn take_fx_forward(b: &mut PyFxForwardBuilder) -> PyResult<FxForwardBuilderInner> {
-    b.inner
-        .take()
-        .ok_or_else(|| value_error("builder already consumed by build()"))
+/// Apply one consuming Rust setter and record the field for ``__repr__``.
+macro_rules! fx_forward_set {
+    ($slf:ident, $field:ident, $repr:expr, $apply:expr) => {{
+        let b = take_builder(&mut $slf.inner)?;
+        $slf.inner = Some($apply(b));
+        $slf.fields.push((stringify!($field), $repr));
+        Ok($slf)
+    }};
 }
 
 #[pymethods]
@@ -341,59 +936,76 @@ impl PyFxForwardBuilder {
     ///     ``self``, for chaining.
     #[pyo3(text_signature = "($self, value)")]
     fn id<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.id(InstrumentId::new(value.to_string())));
-        Ok(slf)
+        fx_forward_set!(slf, id, format!("{value:?}"), |b: FxForwardBuilderInner| b
+            .id(InstrumentId::new(value.to_string())))
     }
 
     /// Set the base currency (foreign currency, numerator of the pair).
     ///
     /// Parameters
     /// ----------
-    /// value : Currency
-    ///     Base (foreign) currency.
+    /// value : Currency | str
+    ///     Base (foreign) currency, as a ``Currency`` or ISO-4217 code.
     ///
     /// Returns
     /// -------
     /// FxForwardBuilder
     ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a string code is not ISO-4217.
     #[pyo3(text_signature = "($self, value)")]
     fn base_currency<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: PyRef<'_, PyCurrency>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.base_currency(value.inner));
-        Ok(slf)
+        let ccy = currency_from_py(value, "base_currency")?;
+        fx_forward_set!(
+            slf,
+            base_currency,
+            format!("Currency('{ccy}')"),
+            |b: FxForwardBuilderInner| b.base_currency(ccy)
+        )
     }
 
     /// Set the quote currency (domestic currency, denominator of the pair).
     ///
     /// Parameters
     /// ----------
-    /// value : Currency
+    /// value : Currency | str
     ///     Quote (domestic) currency; also the PV currency.
     ///
     /// Returns
     /// -------
     /// FxForwardBuilder
     ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a string code is not ISO-4217.
     #[pyo3(text_signature = "($self, value)")]
     fn quote_currency<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: PyRef<'_, PyCurrency>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.quote_currency(value.inner));
-        Ok(slf)
+        let ccy = currency_from_py(value, "quote_currency")?;
+        fx_forward_set!(
+            slf,
+            quote_currency,
+            format!("Currency('{ccy}')"),
+            |b: FxForwardBuilderInner| b.quote_currency(ccy)
+        )
     }
 
     /// Set the maturity/settlement date.
     ///
     /// Parameters
     /// ----------
-    /// value : datetime.date
-    ///     Maturity/settlement date.
+    /// value : datetime.date | str
+    ///     Maturity/settlement date (date-like or ISO 8601 string).
     ///
     /// Returns
     /// -------
@@ -404,10 +1016,13 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let maturity = py_to_date(value)?;
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.maturity(maturity));
-        Ok(slf)
+        let maturity = extract_date(value)?;
+        fx_forward_set!(
+            slf,
+            maturity,
+            date_repr(maturity),
+            |b: FxForwardBuilderInner| b.maturity(maturity)
+        )
     }
 
     /// Set the notional amount in base currency.
@@ -426,9 +1041,13 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: PyRef<'_, PyMoney>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.notional(value.inner));
-        Ok(slf)
+        let money = value.inner;
+        fx_forward_set!(
+            slf,
+            notional,
+            money_repr(money),
+            |b: FxForwardBuilderInner| b.notional(money)
+        )
     }
 
     /// Set the contract forward rate (quote per base).
@@ -449,9 +1068,12 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: f64,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.contract_rate(value));
-        Ok(slf)
+        fx_forward_set!(
+            slf,
+            contract_rate,
+            float_repr(value),
+            |b: FxForwardBuilderInner| b.contract_rate(value)
+        )
     }
 
     /// Set the domestic (quote currency) discount curve identifier.
@@ -470,9 +1092,13 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.domestic_discount_curve_id(CurveId::new(value.to_string())));
-        Ok(slf)
+        fx_forward_set!(
+            slf,
+            domestic_discount_curve_id,
+            format!("{value:?}"),
+            |b: FxForwardBuilderInner| b
+                .domestic_discount_curve_id(CurveId::new(value.to_string()))
+        )
     }
 
     /// Set the foreign (base currency) discount curve identifier.
@@ -491,9 +1117,12 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.foreign_discount_curve_id(CurveId::new(value.to_string())));
-        Ok(slf)
+        fx_forward_set!(
+            slf,
+            foreign_discount_curve_id,
+            format!("{value:?}"),
+            |b: FxForwardBuilderInner| b.foreign_discount_curve_id(CurveId::new(value.to_string()))
+        )
     }
 
     /// Set an explicit spot rate override (quote per base).
@@ -514,9 +1143,12 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: f64,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.spot_rate_override(value));
-        Ok(slf)
+        fx_forward_set!(
+            slf,
+            spot_rate_override,
+            float_repr(value),
+            |b: FxForwardBuilderInner| b.spot_rate_override(value)
+        )
     }
 
     /// Set the base currency calendar identifier for business day adjustment.
@@ -535,9 +1167,12 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.base_calendar_id(value.to_string()));
-        Ok(slf)
+        fx_forward_set!(
+            slf,
+            base_calendar_id,
+            format!("{value:?}"),
+            |b: FxForwardBuilderInner| b.base_calendar_id(value.to_string())
+        )
     }
 
     /// Set the quote currency calendar identifier for business day adjustment.
@@ -556,12 +1191,46 @@ impl PyFxForwardBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_forward(&mut slf)?;
-        slf.inner = Some(b.quote_calendar_id(value.to_string()));
-        Ok(slf)
+        fx_forward_set!(
+            slf,
+            quote_calendar_id,
+            format!("{value:?}"),
+            |b: FxForwardBuilderInner| b.quote_calendar_id(value.to_string())
+        )
+    }
+
+    /// Set free-form instrument attributes (tags and metadata).
+    ///
+    /// Parameters
+    /// ----------
+    /// value : Attributes | dict[str, str] | None
+    ///     Attribute bag; a dict populates metadata, with an optional
+    ///     ``"tags"`` list entry populating tags.
+    ///
+    /// Returns
+    /// -------
+    /// FxForwardBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// TypeError
+    ///     If ``value`` is neither ``Attributes``, a dict, nor ``None``.
+    #[pyo3(text_signature = "($self, value)")]
+    fn attributes<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let attrs = attributes_from_py(value)?;
+        let shown = value.repr()?.to_string();
+        fx_forward_set!(slf, attributes, shown, |b: FxForwardBuilderInner| b
+            .attributes(attrs))
     }
 
     /// Build the validated FX forward.
+    ///
+    /// Validation is the Rust ``FxForward::builder().build()`` invariants
+    /// only; there is no additional binding-side check.
     ///
     /// Returns
     /// -------
@@ -572,18 +1241,38 @@ impl PyFxForwardBuilder {
     /// ------
     /// ValueError
     ///     If the builder was already consumed, a required field is missing,
-    ///     or the completed FX forward fails pricing validation (for example,
+    ///     or the completed FX forward fails validation (for example,
     ///     ``base_currency`` equals ``quote_currency``).
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyFxForward> {
-        let b = take_fx_forward(&mut slf)?;
+        let b = take_builder(&mut slf.inner)?;
         let inner = b.build().map_err(core_to_py)?;
-        inner.validate_for_pricing().map_err(core_to_py)?;
         Ok(PyFxForward { inner })
+    }
+
+    /// Return ``repr(self)`` listing the fields set so far.
+    fn __repr__(&self) -> String {
+        builder_repr("FxForwardBuilder", &self.fields)
     }
 }
 
-/// Typed wrapper for the Rust `FxOption` instrument.
+/// Vanilla FX option priced with Garman–Kohlhagen (typed wrapper for Rust ``FxOption``).
+///
+/// ``strike`` is quoted as quote currency per unit of base currency; the
+/// notional is in ``base_currency``. The option carries its pair/venue delta
+/// convention so Greeks are reported the way the desk quotes them.
+///
+/// Build with ``FxOption.builder()`` or ``FxOption.european(...)``; start
+/// from ``FxOption.example()`` for a ready-made EUR/USD call. Instances are
+/// accepted directly by ``price_instrument`` and expose ``price`` /
+/// ``metric`` / ``greeks`` themselves.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.valuations.instruments import FxOption
+/// >>> opt = FxOption.example()
+/// >>> (opt.option_type, opt.strike, opt.delta_convention["kind"])
+/// ('call', 1.12, 'forward')
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "FxOption",
@@ -603,151 +1292,171 @@ impl PyFxOption {
     }
 }
 
+instrument_envelope_methods!(
+    PyFxOption,
+    FxOption,
+    "fx_option",
+    PyFxOptionBuilder,
+    finstack_quant_valuations::instruments::FxOption::builder()
+);
+instrument_pricing_methods!(PyFxOption);
+
+/// Build an `FxDeltaConvention` from the loose Python inputs.
+fn delta_convention_from_parts(
+    kind: &str,
+    premium_currency: &Bound<'_, PyAny>,
+    venue: &str,
+) -> PyResult<FxDeltaConvention> {
+    let kind: FxDeltaConventionKind = enum_from_str(kind, "delta convention kind")?;
+    FxDeltaConvention::new(
+        kind,
+        currency_from_py(premium_currency, "premium_currency")?,
+        venue,
+    )
+    .map_err(core_to_py)
+}
+
 #[pymethods]
 impl PyFxOption {
-    /// Create a fluent builder (mirrors Rust ``FxOption::builder()``).
+    /// Canonical example: EUR/USD call, strike 1.12, EUR 1,000,000.
     ///
-    /// Returns
-    /// -------
-    /// FxOptionBuilder
-    ///     A builder with fluent, consuming setter methods.
-    ///
-    /// Examples
-    /// --------
-    /// >>> from finstack_quant.valuations.instruments import FxOption
-    /// >>> builder = FxOption.builder()
-    /// >>> builder.id("EXAMPLE") is builder
-    /// True
-    #[staticmethod]
-    #[pyo3(text_signature = "()")]
-    fn builder() -> PyFxOptionBuilder {
-        PyFxOptionBuilder {
-            inner: Some(finstack_quant_valuations::instruments::FxOption::builder()),
-        }
-    }
-
-    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
-    ///
-    /// Reconstruction goes through the same strict serde round-trip as
-    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
-    /// format defines — there is no second state format that can drift.
-    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
-    }
-
-    /// Deserialize a validated FX option from its canonical v1 envelope.
-    ///
-    /// Parameters
-    /// ----------
-    /// json : str
-    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
-    ///     ``"fx_option"`` payload. The UTF-8 input must not exceed 16 MiB.
-    ///     Bare payloads and cross-type coercion are rejected.
+    /// Mirrors Rust ``FxOption::example()`` (forward-delta convention,
+    /// premium in USD, curves ``USD-OIS`` / ``EUR-OIS``, surface ``EURUSD-VOL``).
     ///
     /// Returns
     /// -------
     /// FxOption
-    ///     The validated FX option represented by the exact ``"fx_option"`` payload.
+    ///     The validated example option.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
-    ///     envelope schema, carries another type, or fails FX-option validation.
-    ///
-    /// Examples
-    /// --------
-    /// >>> from finstack_quant.valuations.instruments import FxOption
-    /// >>> try:
-    /// ...     FxOption.from_json("{}")
-    /// ... except ValueError as exc:
-    /// ...     print("schema" in str(exc))
-    /// True
+    ///     If the canonical example fails validation (never for a released build).
     #[staticmethod]
-    #[pyo3(text_signature = "(json)")]
-    fn from_json(json: &str) -> PyResult<Self> {
-        match parse_typed_instrument_json(json)? {
-            InstrumentJson::FxOption(inner) => Ok(Self { inner }),
-            _ => Err(value_error(
-                "expected instrument type \"fx_option\", got a different instrument type",
-            )),
-        }
+    #[pyo3(text_signature = "()")]
+    fn example() -> PyResult<Self> {
+        finstack_quant_valuations::instruments::FxOption::example()
+            .map(|inner| Self { inner })
+            .map_err(core_to_py)
     }
 
-    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
+    /// Build a European FX option with currency-derived OIS curves.
+    ///
+    /// Mirrors Rust ``FxOption::european``: discount curves default to
+    /// ``"<QUOTE>-OIS"`` (domestic) and ``"<BASE>-OIS"`` (foreign), with the
+    /// pre-configured EUR/USD and GBP/USD underlying presets when applicable.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Unique instrument identifier.
+    /// base_currency : Currency | str
+    ///     Base (foreign) currency; notional currency.
+    /// quote_currency : Currency | str
+    ///     Quote (domestic) currency.
+    /// strike : float
+    ///     Strike, quote currency per unit of base currency.
+    /// expiry : datetime.date | str
+    ///     Expiry date.
+    /// notional : Money | float
+    ///     Notional in ``base_currency``; a bare float is tagged with that currency.
+    /// vol_surface_id : str
+    ///     FX volatility surface identifier.
+    /// option_type : {"call", "put"}
+    ///     Call or put on the base currency.
+    /// delta_convention_kind : {"spot", "forward", "premium_adjusted_spot", "premium_adjusted_forward"}
+    ///     Delta convention quoted by the venue.
+    /// premium_currency : Currency | str
+    ///     Currency in which the premium is paid (base or quote).
+    /// venue : str
+    ///     Non-empty market venue / quoting-source identifier.
     ///
     /// Returns
     /// -------
-    /// str
-    ///     Canonical instrument envelope accepted by ``price_instrument`` and
-    ///     ``FxOption.from_json``.
-    #[pyo3(text_signature = "($self)")]
-    fn to_json(&self) -> PyResult<String> {
-        self.envelope_json()
-    }
-
-    /// Instrument identifier.
-    #[getter]
-    fn id(&self) -> String {
-        self.inner.id.to_string()
-    }
-
-    /// Price this FX option and return a typed ``ValuationResult``.
+    /// FxOption
+    ///     The validated option.
     ///
-    /// Delegates to the same canonical Rust pricer entry point as
-    /// ``price_instrument(self, market, as_of, model)``.
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the currencies coincide, ``premium_currency`` is neither leg,
+    ///     ``venue`` is blank, or the notional is not positive.
+    #[staticmethod]
+    #[pyo3(signature = (id, base_currency, quote_currency, strike, expiry, notional, vol_surface_id,
+                        option_type, delta_convention_kind, premium_currency, venue))]
+    #[pyo3(
+        text_signature = "(id, base_currency, quote_currency, strike, expiry, notional, \
+vol_surface_id, option_type, delta_convention_kind, premium_currency, venue)"
+    )]
+    // PyO3 binding: the argument list mirrors the Python keyword-argument API.
+    #[allow(clippy::too_many_arguments)]
+    fn european(
+        id: &str,
+        base_currency: &Bound<'_, PyAny>,
+        quote_currency: &Bound<'_, PyAny>,
+        strike: f64,
+        expiry: &Bound<'_, PyAny>,
+        notional: &Bound<'_, PyAny>,
+        vol_surface_id: &str,
+        option_type: &str,
+        delta_convention_kind: &str,
+        premium_currency: &Bound<'_, PyAny>,
+        venue: &str,
+    ) -> PyResult<Self> {
+        let base = currency_from_py(base_currency, "base_currency")?;
+        let quote = currency_from_py(quote_currency, "quote_currency")?;
+        let inner = finstack_quant_valuations::instruments::FxOption::european(
+            InstrumentId::new(id.to_string()),
+            base,
+            quote,
+            strike,
+            extract_date(expiry)?,
+            super::convert::money_from_py(notional, Some(&base.to_string()), "notional")?,
+            CurveId::new(vol_surface_id.to_string()),
+            enum_from_str(option_type, "option_type")?,
+            delta_convention_from_parts(delta_convention_kind, premium_currency, venue)?,
+        )
+        .map_err(core_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Implied volatility that reproduces ``target_price``.
+    ///
+    /// Mirrors Rust ``FxOption::implied_vol`` (Garman–Kohlhagen inversion).
     ///
     /// Parameters
     /// ----------
     /// market : MarketContext | str
-    ///     A ``MarketContext`` object or serialized market-context JSON.
+    ///     Market carrying both discount curves and the FX spot.
     /// as_of : datetime.date | str
-    ///     Valuation date, either a date-like object or an ISO 8601 string.
-    /// model : str, optional
-    ///     Model key (default ``"default"`` — the instrument-native model).
-    /// metrics : list[str], optional
-    ///     Metric identifiers to compute (e.g. ``["delta", "vega"]``).
-    ///     Empty or omitted means valuation only.
-    /// pricing_options : str | None
-    ///     Optional JSON ``MetricPricingOverrides`` merged into the
-    ///     instrument's ``pricing_overrides`` before pricing.
-    /// market_history : str | None
-    ///     Optional JSON ``MarketHistory`` scenarios required by ``hvar`` and
-    ///     ``expected_shortfall`` metrics.
+    ///     Valuation date.
+    /// target_price : float
+    ///     Observed option PV in quote currency (same scaling as ``price``).
     ///
     /// Returns
     /// -------
-    /// ValuationResult
-    ///     Typed valuation envelope carrying value, currency, and metrics.
+    /// float
+    ///     Annualized lognormal volatility as a decimal (``0.10`` = 10%).
     ///
     /// Raises
     /// ------
-    /// ValueError
-    ///     If the market JSON, ``as_of``, or ``model`` is invalid, required
-    ///     market data is missing, or the selected pricer fails.
-    #[pyo3(signature = (market, as_of, model="default", metrics=None, pricing_options=None, market_history=None))]
-    #[allow(clippy::too_many_arguments)]
-    fn price(
+    /// KeyError
+    ///     If a curve or the spot is missing from ``market``.
+    /// RuntimeError
+    ///     If the root search does not converge (price outside no-arbitrage bounds).
+    #[pyo3(text_signature = "($self, market, as_of, target_price)")]
+    fn implied_vol(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         as_of: &Bound<'_, PyAny>,
-        model: &str,
-        metrics: Option<Vec<String>>,
-        pricing_options: Option<&str>,
-        market_history: Option<&str>,
-    ) -> PyResult<PyValuationResult> {
-        price_envelope(
-            py,
-            self.envelope_json()?,
-            market,
-            as_of,
-            model,
-            metrics.unwrap_or_default(),
-            pricing_options,
-            market_history,
-        )
+        target_price: f64,
+    ) -> PyResult<f64> {
+        let market = extract_market(py, market)?;
+        let as_of = extract_date(as_of)?;
+        self.inner
+            .implied_vol(&market, as_of, target_price)
+            .map_err(core_to_py)
     }
 
     /// Spot delta of the option.
@@ -968,14 +1677,98 @@ impl PyFxOption {
         envelope_option_greeks(py, self.envelope_json()?, market, as_of, model)
     }
 
+    /// Base (foreign) currency; the notional currency.
+    #[getter]
+    fn base_currency(&self) -> PyCurrency {
+        PyCurrency::from_inner(self.inner.base_currency)
+    }
+
+    /// Quote (domestic) currency.
+    #[getter]
+    fn quote_currency(&self) -> PyCurrency {
+        PyCurrency::from_inner(self.inner.quote_currency)
+    }
+
+    /// Strike, quote currency per unit of base currency.
+    #[getter]
+    fn strike(&self) -> f64 {
+        self.inner.strike
+    }
+
+    /// Option type: ``"call"`` or ``"put"`` on the base currency.
+    #[getter]
+    fn option_type(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.option_type)
+    }
+
+    /// Delta convention as ``{"kind", "premium_currency", "venue"}``.
+    #[getter]
+    fn delta_convention<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        out.set_item("kind", self.inner.delta_convention.kind.to_string())?;
+        out.set_item(
+            "premium_currency",
+            self.inner.delta_convention.premium_currency.to_string(),
+        )?;
+        out.set_item("venue", self.inner.delta_convention.venue.clone())?;
+        Ok(out)
+    }
+
+    /// Expiry date.
+    #[getter]
+    fn expiry<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.expiry)
+    }
+
+    /// Day count used for the time-to-expiry year fraction (serde name).
+    #[getter]
+    fn day_count(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.day_count)
+    }
+
+    /// Notional amount in the base currency.
+    #[getter]
+    fn notional(&self) -> PyMoney {
+        money_to_py(self.inner.notional)
+    }
+
+    /// Domestic (quote-currency) discount curve identifier.
+    #[getter]
+    fn domestic_discount_curve_id(&self) -> String {
+        self.inner.domestic_discount_curve_id.to_string()
+    }
+
+    /// Foreign (base-currency) discount curve identifier.
+    #[getter]
+    fn foreign_discount_curve_id(&self) -> String {
+        self.inner.foreign_discount_curve_id.to_string()
+    }
+
+    /// FX volatility surface identifier.
+    #[getter]
+    fn vol_surface_id(&self) -> String {
+        self.inner.vol_surface_id.to_string()
+    }
+
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
-        format!("FxOption(id={:?})", self.inner.id.as_str())
+        format!(
+            "FxOption(id={:?}, pair='{}{}', option_type={:?}, strike={}, expiry={}, notional={})",
+            self.inner.id.as_str(),
+            self.inner.base_currency,
+            self.inner.quote_currency,
+            enum_to_py_string(&self.inner.option_type).unwrap_or_default(),
+            float_repr(self.inner.strike),
+            date_repr(self.inner.expiry),
+            money_repr(self.inner.notional),
+        )
     }
 }
 
-/// Fluent builder for [`PyFxOption`]; wraps the Rust
-/// `FinancialBuilder`-generated builder (consuming setters).
+/// Fluent builder for ``FxOption``; wraps the Rust
+/// ``FinancialBuilder``-generated builder (consuming setters).
+///
+/// Builders are consumed by ``build()``; create a new builder per instrument.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "FxOptionBuilder",
@@ -983,13 +1776,17 @@ impl PyFxOption {
 )]
 pub struct PyFxOptionBuilder {
     inner: Option<FxOptionBuilderInner>,
+    fields: Vec<(&'static str, String)>,
 }
 
-/// Take the wrapped Rust builder or fail if `build()` already consumed it.
-fn take_fx_option(b: &mut PyFxOptionBuilder) -> PyResult<FxOptionBuilderInner> {
-    b.inner
-        .take()
-        .ok_or_else(|| value_error("builder already consumed by build()"))
+/// Apply one consuming Rust setter and record the field for ``__repr__``.
+macro_rules! fx_option_set {
+    ($slf:ident, $field:ident, $repr:expr, $apply:expr) => {{
+        let b = take_builder(&mut $slf.inner)?;
+        $slf.inner = Some($apply(b));
+        $slf.fields.push((stringify!($field), $repr));
+        Ok($slf)
+    }};
 }
 
 #[pymethods]
@@ -1007,51 +1804,68 @@ impl PyFxOptionBuilder {
     ///     ``self``, for chaining.
     #[pyo3(text_signature = "($self, value)")]
     fn id<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.id(InstrumentId::new(value.to_string())));
-        Ok(slf)
+        fx_option_set!(slf, id, format!("{value:?}"), |b: FxOptionBuilderInner| b
+            .id(InstrumentId::new(value.to_string())))
     }
 
     /// Set the base currency (foreign currency).
     ///
     /// Parameters
     /// ----------
-    /// value : Currency
-    ///     Base (foreign) currency.
+    /// value : Currency | str
+    ///     Base (foreign) currency, as a ``Currency`` or ISO-4217 code.
     ///
     /// Returns
     /// -------
     /// FxOptionBuilder
     ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a string code is not ISO-4217.
     #[pyo3(text_signature = "($self, value)")]
     fn base_currency<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: PyRef<'_, PyCurrency>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.base_currency(value.inner));
-        Ok(slf)
+        let ccy = currency_from_py(value, "base_currency")?;
+        fx_option_set!(
+            slf,
+            base_currency,
+            format!("Currency('{ccy}')"),
+            |b: FxOptionBuilderInner| b.base_currency(ccy)
+        )
     }
 
     /// Set the quote currency (domestic currency).
     ///
     /// Parameters
     /// ----------
-    /// value : Currency
-    ///     Quote (domestic) currency.
+    /// value : Currency | str
+    ///     Quote (domestic) currency, as a ``Currency`` or ISO-4217 code.
     ///
     /// Returns
     /// -------
     /// FxOptionBuilder
     ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a string code is not ISO-4217.
     #[pyo3(text_signature = "($self, value)")]
     fn quote_currency<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: PyRef<'_, PyCurrency>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.quote_currency(value.inner));
-        Ok(slf)
+        let ccy = currency_from_py(value, "quote_currency")?;
+        fx_option_set!(
+            slf,
+            quote_currency,
+            format!("Currency('{ccy}')"),
+            |b: FxOptionBuilderInner| b.quote_currency(ccy)
+        )
     }
 
     /// Set the strike exchange rate (quote per base).
@@ -1067,9 +1881,8 @@ impl PyFxOptionBuilder {
     ///     ``self``, for chaining.
     #[pyo3(text_signature = "($self, value)")]
     fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.strike(value));
-        Ok(slf)
+        fx_option_set!(slf, strike, float_repr(value), |b: FxOptionBuilderInner| b
+            .strike(value))
     }
 
     /// Set the option type: ``"call"`` or ``"put"`` on base currency.
@@ -1094,9 +1907,12 @@ impl PyFxOptionBuilder {
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let option_type = enum_from_str(value, "option_type")?;
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.option_type(option_type));
-        Ok(slf)
+        fx_option_set!(
+            slf,
+            option_type,
+            format!("{value:?}"),
+            |b: FxOptionBuilderInner| b.option_type(option_type)
+        )
     }
 
     /// Set the pair/venue delta convention and premium currency.
@@ -1105,7 +1921,7 @@ impl PyFxOptionBuilder {
     /// ----------
     /// kind : {"spot", "forward", "premium_adjusted_spot", "premium_adjusted_forward"}
     ///     Delta convention quoted by the venue.
-    /// premium_currency : Currency
+    /// premium_currency : Currency | str
     ///     Currency in which the FX option premium is paid.
     /// venue : str
     ///     Non-empty market venue or quoting-source identifier.
@@ -1123,23 +1939,24 @@ impl PyFxOptionBuilder {
     fn delta_convention<'py>(
         mut slf: PyRefMut<'py, Self>,
         kind: &str,
-        premium_currency: PyRef<'_, PyCurrency>,
+        premium_currency: &Bound<'_, PyAny>,
         venue: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let kind: FxDeltaConventionKind = enum_from_str(kind, "delta convention kind")?;
-        let convention =
-            FxDeltaConvention::new(kind, premium_currency.inner, venue).map_err(core_to_py)?;
-        let builder = take_fx_option(&mut slf)?;
-        slf.inner = Some(builder.delta_convention(convention));
-        Ok(slf)
+        let convention = delta_convention_from_parts(kind, premium_currency, venue)?;
+        let shown = format!(
+            "({kind:?}, Currency('{}'), {venue:?})",
+            convention.premium_currency
+        );
+        fx_option_set!(slf, delta_convention, shown, |b: FxOptionBuilderInner| b
+            .delta_convention(convention))
     }
 
     /// Set the option expiry date.
     ///
     /// Parameters
     /// ----------
-    /// value : datetime.date
-    ///     Option expiry date.
+    /// value : datetime.date | str
+    ///     Option expiry date (date-like or ISO 8601 string).
     ///
     /// Returns
     /// -------
@@ -1150,10 +1967,39 @@ impl PyFxOptionBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let expiry = py_to_date(value)?;
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.expiry(expiry));
-        Ok(slf)
+        let expiry = extract_date(value)?;
+        fx_option_set!(slf, expiry, date_repr(expiry), |b: FxOptionBuilderInner| b
+            .expiry(expiry))
+    }
+
+    /// Set the day count for the time-to-expiry year fraction.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : DayCount | str
+    ///     Day count convention; defaults to ``ACT/365F`` when never set.
+    ///
+    /// Returns
+    /// -------
+    /// FxOptionBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a string name is not a recognized day count.
+    #[pyo3(text_signature = "($self, value)")]
+    fn day_count<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let day_count = day_count_from_py(value, "day_count")?;
+        fx_option_set!(
+            slf,
+            day_count,
+            format!("DayCount('{day_count}')"),
+            |b: FxOptionBuilderInner| b.day_count(day_count)
+        )
     }
 
     /// Set the notional amount in base currency.
@@ -1172,9 +2018,13 @@ impl PyFxOptionBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: PyRef<'_, PyMoney>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.notional(value.inner));
-        Ok(slf)
+        let money = value.inner;
+        fx_option_set!(
+            slf,
+            notional,
+            money_repr(money),
+            |b: FxOptionBuilderInner| b.notional(money)
+        )
     }
 
     /// Set the domestic currency discount curve identifier.
@@ -1193,9 +2043,12 @@ impl PyFxOptionBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.domestic_discount_curve_id(CurveId::new(value.to_string())));
-        Ok(slf)
+        fx_option_set!(
+            slf,
+            domestic_discount_curve_id,
+            format!("{value:?}"),
+            |b: FxOptionBuilderInner| b.domestic_discount_curve_id(CurveId::new(value.to_string()))
+        )
     }
 
     /// Set the foreign currency discount curve identifier.
@@ -1214,9 +2067,12 @@ impl PyFxOptionBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.foreign_discount_curve_id(CurveId::new(value.to_string())));
-        Ok(slf)
+        fx_option_set!(
+            slf,
+            foreign_discount_curve_id,
+            format!("{value:?}"),
+            |b: FxOptionBuilderInner| b.foreign_discount_curve_id(CurveId::new(value.to_string()))
+        )
     }
 
     /// Set the FX volatility surface identifier.
@@ -1235,12 +2091,46 @@ impl PyFxOptionBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.vol_surface_id(CurveId::new(value.to_string())));
-        Ok(slf)
+        fx_option_set!(
+            slf,
+            vol_surface_id,
+            format!("{value:?}"),
+            |b: FxOptionBuilderInner| b.vol_surface_id(CurveId::new(value.to_string()))
+        )
+    }
+
+    /// Set free-form instrument attributes (tags and metadata).
+    ///
+    /// Parameters
+    /// ----------
+    /// value : Attributes | dict[str, str] | None
+    ///     Attribute bag; a dict populates metadata, with an optional
+    ///     ``"tags"`` list entry populating tags.
+    ///
+    /// Returns
+    /// -------
+    /// FxOptionBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// TypeError
+    ///     If ``value`` is neither ``Attributes``, a dict, nor ``None``.
+    #[pyo3(text_signature = "($self, value)")]
+    fn attributes<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let attrs = attributes_from_py(value)?;
+        let shown = value.repr()?.to_string();
+        fx_option_set!(slf, attributes, shown, |b: FxOptionBuilderInner| b
+            .attributes(attrs))
     }
 
     /// Build the validated FX option.
+    ///
+    /// Validation is the Rust ``FxOption::builder().build()`` invariants
+    /// only; there is no additional binding-side check.
     ///
     /// Returns
     /// -------
@@ -1251,14 +2141,18 @@ impl PyFxOptionBuilder {
     /// ------
     /// ValueError
     ///     If the builder was already consumed, a required field is missing,
-    ///     or the completed FX option fails pricing validation (for example,
+    ///     or the completed FX option fails validation (for example,
     ///     ``base_currency`` equals ``quote_currency``).
     #[pyo3(text_signature = "($self)")]
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyFxOption> {
-        let b = take_fx_option(&mut slf)?;
+        let b = take_builder(&mut slf.inner)?;
         let inner = b.build().map_err(core_to_py)?;
-        inner.validate_for_pricing().map_err(core_to_py)?;
         Ok(PyFxOption { inner })
+    }
+
+    /// Return ``repr(self)`` listing the fields set so far.
+    fn __repr__(&self) -> String {
+        builder_repr("FxOptionBuilder", &self.fields)
     }
 }
 
@@ -1270,3 +2164,9 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFxOptionBuilder>()?;
     Ok(())
 }
+
+/// Names this module contributes to `finstack_quant.valuations.instruments.__all__`.
+///
+/// Extend this list (sorted) when adding a class or function here; `mod.rs`
+/// merges every submodule list so registration stays in one place per file.
+pub(crate) const EXPORTS: &[&str] = &[];

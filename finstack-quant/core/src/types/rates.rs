@@ -221,6 +221,46 @@ impl fmt::Display for Rate {
     }
 }
 
+impl std::str::FromStr for Rate {
+    type Err = Error;
+
+    /// Parse a rate quote with an optional unit suffix.
+    ///
+    /// Accepted forms (surrounding whitespace and the space before the unit
+    /// are ignored; units are case-insensitive):
+    ///
+    /// - `"0.05"` — plain decimal fraction (5%)
+    /// - `"5%"` — percent
+    /// - `"25bp"` / `"25bps"` — basis points (fractional bp such as `"62.5bp"`
+    ///   are accepted, since `Rate` is decimal-backed)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when the text is empty, the numeric part
+    /// does not parse, or the value is non-finite.
+    fn from_str(s: &str) -> Result<Self> {
+        let trimmed = s.trim();
+        let invalid = || {
+            Error::Validation(format!("invalid rate {s:?}: expected a decimal (\"0.05\"), percent (\"5%\") or basis-point (\"25bp\") quote"))
+        };
+        if trimmed.is_empty() {
+            return Err(invalid());
+        }
+        let lower = trimmed.to_ascii_lowercase();
+        let (number, divisor) = if let Some(num) = lower.strip_suffix("bps") {
+            (num, 10_000.0)
+        } else if let Some(num) = lower.strip_suffix("bp") {
+            (num, 10_000.0)
+        } else if let Some(num) = lower.strip_suffix('%') {
+            (num, 100.0)
+        } else {
+            (lower.as_str(), 1.0)
+        };
+        let value: f64 = number.trim().parse().map_err(|_| invalid())?;
+        Self::try_from_decimal(value / divisor)
+    }
+}
+
 impl TryFrom<f64> for Rate {
     type Error = Error;
 
@@ -722,6 +762,28 @@ impl From<Percentage> for Bps {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rate_from_str_accepts_decimal_percent_and_bp() {
+        assert_eq!("0.05".parse::<Rate>().unwrap(), Rate::from_decimal(0.05));
+        assert_eq!("5%".parse::<Rate>().unwrap(), Rate::from_percent(5.0));
+        assert_eq!(" 5 % ".parse::<Rate>().unwrap(), Rate::from_percent(5.0));
+        assert_eq!("25bp".parse::<Rate>().unwrap(), Rate::from_bp(25));
+        assert_eq!("25BPS".parse::<Rate>().unwrap(), Rate::from_bp(25));
+        assert_eq!("25 bps".parse::<Rate>().unwrap(), Rate::from_bp(25));
+        assert!(("62.5bp".parse::<Rate>().unwrap().as_decimal() - 0.00625).abs() < 1e-15);
+        assert_eq!("-1%".parse::<Rate>().unwrap(), Rate::from_percent(-1.0));
+    }
+
+    #[test]
+    fn rate_from_str_rejects_garbage() {
+        assert!("".parse::<Rate>().is_err());
+        assert!("abc".parse::<Rate>().is_err());
+        assert!("5%%".parse::<Rate>().is_err());
+        assert!("inf".parse::<Rate>().is_err());
+        assert!("nan%".parse::<Rate>().is_err());
+        assert!("bp".parse::<Rate>().is_err());
+    }
 
     #[test]
     fn rate_creation_and_conversion() {

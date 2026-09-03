@@ -9,18 +9,26 @@ use pyo3::types::PyModule;
 
 use crate::errors::{display_to_py, value_error};
 
-/// Convert a Python `datetime.date` to a Rust [`time::Date`].
+/// Convert a Python date-like object or ISO-8601 string to a Rust [`time::Date`].
 ///
 /// Accepts any object exposing integer `year`/`month`/`day` attributes
-/// (`datetime.date`, `datetime.datetime`, `pandas.Timestamp`, …). Timezone
-/// information is ignored: a tz-aware timestamp contributes its wall-clock
-/// calendar date with no conversion.
+/// (`datetime.date`, `datetime.datetime`, `pandas.Timestamp`, …) as well as an
+/// ISO-8601 `YYYY-MM-DD` string. Timezone information is ignored: a tz-aware
+/// timestamp contributes its wall-clock calendar date with no conversion.
+///
+/// # Errors
+///
+/// Returns `TypeError` when `obj` is neither a string nor date-like, and
+/// `ValueError` when a string is not valid ISO 8601.
 pub(crate) fn py_to_date(obj: &Bound<'_, PyAny>) -> PyResult<time::Date> {
+    if let Ok(s) = obj.extract::<std::borrow::Cow<'_, str>>() {
+        return finstack_quant_core::dates::parse_iso_date(&s).map_err(display_to_py);
+    }
     if !(obj.hasattr("year")? && obj.hasattr("month")? && obj.hasattr("day")?) {
         return Err(pyo3::exceptions::PyTypeError::new_err(format!(
             "expected a date-like object with year/month/day attributes \
-             (datetime.date, datetime.datetime, or pandas.Timestamp), \
-             got {}; parse strings with datetime.date.fromisoformat() first",
+             (datetime.date, datetime.datetime, or pandas.Timestamp) or an \
+             ISO-8601 'YYYY-MM-DD' string, got {}",
             obj.get_type().name()?
         )));
     }
@@ -65,9 +73,6 @@ pub(crate) fn date_from_ymd(year: i32, month: u8, day: u8) -> PyResult<time::Dat
 /// Returns `TypeError` when `obj` is neither a string nor date-like, and
 /// `ValueError` when a string is not valid ISO 8601.
 pub(crate) fn extract_date(obj: &Bound<'_, PyAny>) -> PyResult<time::Date> {
-    if let Ok(s) = obj.extract::<std::borrow::Cow<'_, str>>() {
-        return finstack_quant_core::dates::parse_iso_date(&s).map_err(display_to_py);
-    }
     py_to_date(obj)
 }
 

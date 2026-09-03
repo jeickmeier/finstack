@@ -75,3 +75,69 @@ pub enum Error {
         value: f64,
     },
 }
+
+impl From<Error> for finstack_quant_core::Error {
+    /// Fold a correlation error into the canonical core error taxonomy.
+    ///
+    /// Iterative failures (`DidNotConverge`, `EigenDecompositionFailed`) map
+    /// to [`finstack_quant_core::InputError::SolverConvergenceFailed`] so
+    /// hosts classify them as computation errors; every other variant is an
+    /// input-validation failure and maps to
+    /// [`finstack_quant_core::Error::Validation`] with the full message.
+    fn from(error: Error) -> Self {
+        match error {
+            Error::Matrix(
+                matrix @ (MatrixError::DidNotConverge { .. }
+                | MatrixError::EigenDecompositionFailed),
+            ) => {
+                let (iterations, residual) = match matrix {
+                    MatrixError::DidNotConverge { max_iter, tol } => (max_iter, tol),
+                    _ => (0, f64::NAN),
+                };
+                finstack_quant_core::Error::Input(
+                    finstack_quant_core::InputError::SolverConvergenceFailed {
+                        iterations,
+                        residual,
+                        last_x: f64::NAN,
+                        reason: matrix.to_string(),
+                    },
+                )
+            }
+            other => finstack_quant_core::Error::Validation(other.to_string()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use finstack_quant_core::error::ErrorKind;
+
+    #[test]
+    fn convergence_failures_fold_to_computation_kind() {
+        let err: finstack_quant_core::Error = Error::Matrix(MatrixError::DidNotConverge {
+            max_iter: 10,
+            tol: 1e-8,
+        })
+        .into();
+        assert_eq!(err.kind(), ErrorKind::Computation);
+        assert!(err.to_string().contains("10 iterations"));
+        let err: finstack_quant_core::Error =
+            Error::Matrix(MatrixError::EigenDecompositionFailed).into();
+        assert_eq!(err.kind(), ErrorKind::Computation);
+    }
+
+    #[test]
+    fn validation_failures_fold_to_validation_kind() {
+        let err: finstack_quant_core::Error =
+            Error::InvalidStudentTDegreesOfFreedom { value: 1.0 }.into();
+        assert_eq!(err.kind(), ErrorKind::Validation);
+        assert!(err.to_string().contains("degrees of freedom"));
+        let err: finstack_quant_core::Error = Error::Matrix(MatrixError::DiagonalNotOne {
+            index: 0,
+            value: 2.0,
+        })
+        .into();
+        assert_eq!(err.kind(), ErrorKind::Validation);
+    }
+}

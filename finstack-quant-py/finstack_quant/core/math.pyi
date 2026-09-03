@@ -14,6 +14,8 @@ Examples
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import numpy.typing as npt
 
@@ -21,7 +23,7 @@ from finstack_quant.core import FinstackError
 
 __all__ = ["linalg", "longest_positive_run", "special_functions", "stats", "summation"]
 
-def longest_positive_run(values: list[float]) -> int:
+def longest_positive_run(values: Sequence[float] | npt.NDArray[np.float64]) -> int:
     """
     Length of the longest run of strictly positive values.
 
@@ -95,7 +97,9 @@ class linalg:
         ...
 
     @staticmethod
-    def apply_lower_triangular(l: list[list[float]] | npt.NDArray[np.float64], z: list[float]) -> list[float]:
+    def apply_lower_triangular(
+        l: list[list[float]] | npt.NDArray[np.float64], z: Sequence[float] | npt.NDArray[np.float64]
+    ) -> list[float]:
         """
         Apply a lower-triangular factor L to a vector z, returning ``L z``.
 
@@ -120,10 +124,10 @@ class linalg:
 
         Raises
         ------
-        CholeskyError
-            If ``z``'s length does not match L's dimension.
         ValueError
-            If the input is not a square matrix.
+            If ``l`` is not a square nested list / 2-D array, or ``z``'s
+            length does not match L's dimension (core dimension-mismatch
+            errors map to plain ``ValueError``, not ``CholeskyError``).
 
         Examples
         --------
@@ -170,7 +174,9 @@ class linalg:
         ...
 
     @staticmethod
-    def cholesky_solve(chol: list[list[float]] | npt.NDArray[np.float64], b: list[float]) -> list[float]:
+    def cholesky_solve(
+        chol: list[list[float]] | npt.NDArray[np.float64], b: Sequence[float] | npt.NDArray[np.float64]
+    ) -> list[float]:
         """
         Solve a symmetric positive-definite linear system A x = b given
         the Cholesky factor L of A (where A = L L^T).
@@ -189,10 +195,10 @@ class linalg:
 
         Raises
         ------
-        CholeskyError
-            On dimension mismatch or singular factor.
         ValueError
-            If dimensions are inconsistent.
+            On dimension mismatch, a non-square factor, or a singular
+            (near-zero diagonal) factor. ``CholeskyError`` is reserved for
+            ``cholesky_decomposition``.
 
         Examples
         --------
@@ -203,9 +209,86 @@ class linalg:
         """
         ...
 
+    @staticmethod
+    def symmetric_eigen(
+        matrix: list[list[float]] | npt.NDArray[np.float64],
+    ) -> tuple[list[float], list[list[float]]]:
+        """
+        Symmetric eigendecomposition of a square matrix.
+
+        Parameters
+        ----------
+        matrix : list[list[float]] or numpy.ndarray
+            Symmetric square matrix (only symmetric input is meaningful; no
+            symmetry check is performed).
+
+        Returns
+        -------
+        tuple[list[float], list[list[float]]]
+            ``(eigenvalues, eigenvectors)`` where ``eigenvectors[i][k]`` is
+            the ``i``-th component of the ``k``-th eigenvector (eigenvectors
+            are the columns). Eigenvalues are not sorted.
+
+        Raises
+        ------
+        CholeskyError
+            If the matrix contains non-finite entries.
+        ValueError
+            If the input is not a square nested list / 2-D array.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import linalg
+        >>> values, _ = linalg.symmetric_eigen([[2.0, 0.0], [0.0, 5.0]])
+        >>> sorted(round(v, 10) for v in values)
+        [2.0, 5.0]
+
+        """
+        ...
+
+    @staticmethod
+    def ledoit_wolf_shrinkage(
+        observations: list[list[float]] | npt.NDArray[np.float64],
+    ) -> tuple[list[list[float]], float]:
+        """
+        Ledoit-Wolf (2004) shrinkage of a sample covariance toward a scaled identity.
+
+        Parameters
+        ----------
+        observations : list[list[float]] or numpy.ndarray
+            ``t x n`` matrix: ``t`` observations (rows) of ``n`` variables
+            (columns), ``t >= 2``, ``n >= 1``.
+
+        Returns
+        -------
+        tuple[list[list[float]], float]
+            ``(covariance, shrinkage)``: the ``n x n`` shrunk covariance
+            ``delta * mu * I + (1 - delta) * S`` and the optimal intensity
+            ``delta`` in ``[0, 1]``.
+
+        Raises
+        ------
+        ValueError
+            If ``t < 2``, ``n == 0``, rows are ragged, or any entry is
+            non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import linalg
+        >>> cov, delta = linalg.ledoit_wolf_shrinkage([[1.0, 1.0], [-1.0, -1.0], [2.0, -2.0], [-2.0, 2.0]])
+        >>> round(delta, 10)
+        0.9444444444
+
+        """
+        ...
+
 class stats:
     """
-    Statistical functions: mean, variance, correlation, covariance, quantile.
+    Statistical functions: mean, variance, correlation, covariance, quantiles,
+    NaN-sentinel summaries, log returns and realized variance.
+
+    Vector parameters accept any ``Sequence[float]`` or a 1-D ``float64``
+    NumPy array.
 
     Examples
     --------
@@ -216,7 +299,393 @@ class stats:
     """
 
     @staticmethod
-    def mean(data: list[float]) -> float:
+    def mean_var(data: Sequence[float] | npt.NDArray[np.float64]) -> tuple[float, float]:
+        """
+        ``(mean, sample_variance)`` in a single Welford pass.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations; the variance uses the n-1 denominator.
+
+        Returns
+        -------
+        tuple[float, float]
+            ``(mean, variance)``; ``(0.0, 0.0)`` for empty input.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.mean_var([1.0, 2.0, 3.0])
+        (2.0, 1.0)
+
+        """
+        ...
+
+    @staticmethod
+    def mean_or_nan(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
+        """
+        Arithmetic mean, or ``nan`` for empty input.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations.
+
+        Returns
+        -------
+        float
+            Mean, or ``nan`` when *data* is empty.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.mean_or_nan([1.0, 3.0])
+        2.0
+
+        """
+        ...
+
+    @staticmethod
+    def sample_variance_or_nan(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
+        """
+        Sample variance (n-1 denominator), or ``nan`` for fewer than 2 observations.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations.
+
+        Returns
+        -------
+        float
+            Unbiased variance, or ``nan``.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.sample_variance_or_nan([1.0, 2.0, 3.0])
+        1.0
+
+        """
+        ...
+
+    @staticmethod
+    def sample_std_or_nan(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
+        """
+        Sample standard deviation (n-1 denominator), or ``nan`` for fewer than 2 observations.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations.
+
+        Returns
+        -------
+        float
+            Square root of the unbiased variance, or ``nan``.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.sample_std_or_nan([1.0, 2.0, 3.0])
+        1.0
+
+        """
+        ...
+
+    @staticmethod
+    def median_or_nan(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
+        """
+        Median (mean of the two middle values for even counts), or ``nan`` for empty input.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations (sorted internally).
+
+        Returns
+        -------
+        float
+            Median, or ``nan``.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.median_or_nan([3.0, 1.0, 2.0, 4.0])
+        2.5
+
+        """
+        ...
+
+    @staticmethod
+    def quantile_linear_or_nan(data: Sequence[float] | npt.NDArray[np.float64], q: float) -> float:
+        """
+        Linearly interpolated quantile (R-7), or ``nan`` when undefined.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations (sorted internally).
+        q : float
+            Quantile in ``[0, 1]``.
+
+        Returns
+        -------
+        float
+            Quantile value, or ``nan`` for empty data or ``q`` outside ``[0, 1]``.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.quantile_linear_or_nan([1.0, 2.0, 3.0, 4.0], 0.5)
+        2.5
+
+        """
+        ...
+
+    @staticmethod
+    def finite_min_or_nan(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
+        """
+        Minimum over finite values, or ``nan`` when there are none.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations; NaN and infinities are ignored.
+
+        Returns
+        -------
+        float
+            Smallest finite value, or ``nan``.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.finite_min_or_nan([3.0, float("nan"), 1.0])
+        1.0
+
+        """
+        ...
+
+    @staticmethod
+    def finite_max_or_nan(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
+        """
+        Maximum over finite values, or ``nan`` when there are none.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations; NaN and infinities are ignored.
+
+        Returns
+        -------
+        float
+            Largest finite value, or ``nan``.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.finite_max_or_nan([3.0, float("inf"), 1.0])
+        3.0
+
+        """
+        ...
+
+    @staticmethod
+    def finite_count(data: Sequence[float] | npt.NDArray[np.float64]) -> int:
+        """
+        Number of finite (non-NaN, non-infinite) values.
+
+        Parameters
+        ----------
+        data : Sequence[float] or numpy.ndarray
+            Observations.
+
+        Returns
+        -------
+        int
+            Count of finite entries.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> stats.finite_count([1.0, float("nan"), 2.0])
+        2
+
+        """
+        ...
+
+    @staticmethod
+    def log_returns(prices: Sequence[float] | npt.NDArray[np.float64]) -> list[float]:
+        """
+        Log returns ``ln(p_t / p_{t-1})`` of a chronological price series.
+
+        Parameters
+        ----------
+        prices : Sequence[float] or numpy.ndarray
+            Price levels in time order; adjacent prices must be finite and
+            strictly positive to produce a finite return.
+
+        Returns
+        -------
+        list[float]
+            ``len(prices) - 1`` returns; invalid windows yield ``nan``, and
+            fewer than two prices yield an empty list.
+
+        Notes
+        -----
+        This function does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> [round(r, 6) for r in stats.log_returns([100.0, 110.0, 99.0])]
+        [0.09531, -0.105361]
+
+        """
+        ...
+
+    @staticmethod
+    def realized_variance(
+        prices: Sequence[float] | npt.NDArray[np.float64],
+        method: str = "close_to_close",
+        annualization_factor: float = 252.0,
+    ) -> float:
+        """
+        Annualized realized variance of a close price series.
+
+        Sums squared log returns without mean subtraction (market
+        convention) and scales by *annualization_factor*.
+
+        Parameters
+        ----------
+        prices : Sequence[float] or numpy.ndarray
+            Finite, strictly positive close prices in time order.
+        method : str
+            Must be ``"close_to_close"``; OHLC estimators require
+            :func:`realized_variance_ohlc`.
+        annualization_factor : float
+            Positive scaling factor (``252`` for daily bars).
+
+        Returns
+        -------
+        float
+            Annualized variance (not volatility).
+
+        Raises
+        ------
+        ValueError
+            If *method* is unknown or needs OHLC data, a price is non-positive
+            or non-finite, or *annualization_factor* is not positive.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> round(stats.realized_variance([100.0, 101.0, 100.0], annualization_factor=1.0), 8)
+        9.901e-05
+
+        """
+        ...
+
+    @staticmethod
+    def realized_variance_ohlc(
+        open: Sequence[float] | npt.NDArray[np.float64],
+        high: Sequence[float] | npt.NDArray[np.float64],
+        low: Sequence[float] | npt.NDArray[np.float64],
+        close: Sequence[float] | npt.NDArray[np.float64],
+        method: str = "yang_zhang",
+        annualization_factor: float = 252.0,
+    ) -> float:
+        """
+        Annualized realized variance from OHLC bars.
+
+        Parameters
+        ----------
+        open : Sequence[float] or numpy.ndarray
+            Bar opening prices in time order, strictly positive and finite,
+            in the same price units as the other three series.
+        high : Sequence[float] or numpy.ndarray
+            Bar high prices, same length and ordering as *open*; each value
+            must be at least the corresponding low.
+        low : Sequence[float] or numpy.ndarray
+            Bar low prices, same length and ordering as *open*, strictly
+            positive.
+        close : Sequence[float] or numpy.ndarray
+            Bar closing prices, same length and ordering as *open*; the
+            close-to-close estimator uses only this series.
+        method : str
+            ``"close_to_close"``, ``"parkinson"``, ``"garman_klass"``,
+            ``"rogers_satchell"`` or ``"yang_zhang"``.
+        annualization_factor : float
+            Positive scaling factor (``252`` for daily bars).
+
+        Returns
+        -------
+        float
+            Annualized variance under the chosen estimator.
+
+        Raises
+        ------
+        ValueError
+            If the four series differ in length, *method* is unknown, prices
+            are invalid, or *annualization_factor* is not positive.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import stats
+        >>> v = stats.realized_variance_ohlc(
+        ...     [100.0, 101.0],
+        ...     [102.0, 103.0],
+        ...     [99.0, 100.0],
+        ...     [101.0, 102.0],
+        ...     method="parkinson",
+        ...     annualization_factor=1.0,
+        ... )
+        >>> v > 0.0
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def mean(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
         """
         Arithmetic mean of a data series.
 
@@ -245,7 +714,7 @@ class stats:
         ...
 
     @staticmethod
-    def variance(data: list[float]) -> float:
+    def variance(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
         """
         Sample variance (unbiased, n-1 denominator).
 
@@ -274,7 +743,7 @@ class stats:
         ...
 
     @staticmethod
-    def population_variance(data: list[float]) -> float:
+    def population_variance(data: Sequence[float] | npt.NDArray[np.float64]) -> float:
         """
         Population variance (n denominator).
 
@@ -303,7 +772,9 @@ class stats:
         ...
 
     @staticmethod
-    def correlation(x: list[float], y: list[float]) -> float:
+    def correlation(
+        x: Sequence[float] | npt.NDArray[np.float64], y: Sequence[float] | npt.NDArray[np.float64]
+    ) -> float:
         """
         Pearson correlation coefficient between two equal-length series.
 
@@ -334,7 +805,7 @@ class stats:
         ...
 
     @staticmethod
-    def covariance(x: list[float], y: list[float]) -> float:
+    def covariance(x: Sequence[float] | npt.NDArray[np.float64], y: Sequence[float] | npt.NDArray[np.float64]) -> float:
         """
         Sample covariance (unbiased, n-1 denominator).
 
@@ -365,7 +836,7 @@ class stats:
         ...
 
     @staticmethod
-    def quantile(data: list[float], q: float) -> float:
+    def quantile(data: Sequence[float] | npt.NDArray[np.float64], q: float) -> float:
         """
         Empirical quantile (R-7 / NumPy default) with linear interpolation.
 
@@ -407,8 +878,77 @@ class special_functions:
     """
 
     @staticmethod
+    def norm_cdf_with_params(x: float, mean: float, std_dev: float) -> float:
+        """
+        Normal CDF with explicit mean and standard deviation.
+
+        Parameters
+        ----------
+        x : float
+            Evaluation point.
+        mean : float
+            Distribution mean.
+        std_dev : float
+            Distribution standard deviation; must be strictly positive.
+
+        Returns
+        -------
+        float
+            ``P(X <= x)`` for ``X ~ N(mean, std_dev**2)``.
+
+        Raises
+        ------
+        ValueError
+            If *std_dev* is not strictly positive or any input is non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import special_functions
+        >>> round(special_functions.norm_cdf_with_params(1.0, 1.0, 2.0), 10)
+        0.5
+
+        """
+        ...
+
+    @staticmethod
+    def norm_pdf_with_params(x: float, mean: float, std_dev: float) -> float:
+        """
+        Normal PDF with explicit mean and standard deviation.
+
+        Parameters
+        ----------
+        x : float
+            Evaluation point.
+        mean : float
+            Distribution mean.
+        std_dev : float
+            Distribution standard deviation; must be strictly positive.
+
+        Returns
+        -------
+        float
+            Density of ``N(mean, std_dev**2)`` at *x*.
+
+        Raises
+        ------
+        ValueError
+            If *std_dev* is not strictly positive or any input is non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.math import special_functions
+        >>> round(special_functions.norm_pdf_with_params(0.0, 0.0, 1.0), 10)
+        0.3989422804
+
+        """
+        ...
+
+    @staticmethod
     def norm_cdf(x: float) -> float:
         r"""Standard normal cumulative distribution function :math:`\Phi(x)`.
+
+        Scalar only: for a vector of inputs use ``[norm_cdf(v) for v in xs]``
+        or ``numpy.vectorize(norm_cdf)(xs)``; there is no array overload.
 
         Returns :math:`P(Z \le x)` where :math:`Z \sim N(0, 1)`.
 
@@ -625,7 +1165,7 @@ class summation:
     """
 
     @staticmethod
-    def kahan_sum(values: list[float]) -> float:
+    def kahan_sum(values: Sequence[float] | npt.NDArray[np.float64]) -> float:
         """
         Kahan compensated summation -- reduces floating-point rounding errors.
 
@@ -655,7 +1195,7 @@ class summation:
         ...
 
     @staticmethod
-    def neumaier_sum(values: list[float]) -> float:
+    def neumaier_sum(values: Sequence[float] | npt.NDArray[np.float64]) -> float:
         """
         Neumaier compensated summation -- handles mixed-sign values
         better than Kahan.

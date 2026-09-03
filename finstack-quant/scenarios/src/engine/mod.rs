@@ -158,6 +158,13 @@ impl ScenarioEngine {
         self
     }
 
+    /// The recalibration provider attached with
+    /// [`with_recalibration_provider`](Self::with_recalibration_provider), if any.
+    #[must_use]
+    pub fn recalibration_provider(&self) -> Option<&Arc<dyn RecalibrationProvider>> {
+        self.recalibration_provider.as_ref()
+    }
+
     /// Strict composition: returns an error at compose time when the
     /// concatenated operations would be rejected at apply time.
     ///

@@ -45,8 +45,6 @@ from finstack_quant.portfolio import (
     PortfolioResult,
     UnsupportedContractVersionError,
     ValuationError,
-    portfolio_result_get_metric,
-    portfolio_result_total_value,
     value_portfolio,
 )
 
@@ -377,55 +375,29 @@ class TestErrorsOutsideTheTree:
         assert issubclass(linalg.CholeskyError, ValueError)
 
 
-class TestResultAccessorEquivalence:
-    """The free result accessors and the ``PortfolioResult`` members agree.
+class TestResultAccessors:
+    """Scalar accessors live on ``PortfolioResult`` itself.
 
-    These pin the equivalence a future deprecation of the free functions would
-    rely on, and the one capability the members do not offer (JSON input), which
-    is why the free functions were not deprecated in this change.
-
-    Every value below is asserted against a distinctive literal as well as
-    against its counterpart: an equality between two accessors that both return
-    a defaulted zero would otherwise agree for the wrong reason.
+    The free ``portfolio_result_*`` functions were removed as duplicates.
     """
 
-    def test_total_value_matches_property(self) -> None:
-        """``portfolio_result_total_value`` equals the ``total_value`` property."""
+    def test_total_value_property(self) -> None:
         result = PortfolioResult.from_json(_result_json())
         assert result.total_value == pytest.approx(TOTAL_BASE_AMOUNT)
-        assert portfolio_result_total_value(result) == pytest.approx(TOTAL_BASE_AMOUNT)
-        assert portfolio_result_total_value(result) == result.total_value
 
-    def test_get_metric_matches_method(self) -> None:
-        """``portfolio_result_get_metric`` equals ``PortfolioResult.get_metric``."""
+    def test_get_metric_method(self) -> None:
         metrics = {"dv01": {"metric_id": "dv01", "total": 12.5, "by_entity": {}}}
         result = PortfolioResult.from_json(_result_json(metrics))
         assert result.get_metric("dv01") == pytest.approx(12.5)
-        assert portfolio_result_get_metric(result, "dv01") == pytest.approx(12.5)
-        assert portfolio_result_get_metric(result, "dv01") == result.get_metric("dv01")
-
-    def test_missing_metric_returns_none_on_both_paths(self) -> None:
-        """Both spellings return ``None`` for an absent metric; neither raises."""
-        result = PortfolioResult.from_json(_result_json())
-        assert portfolio_result_get_metric(result, "absent") is None
         assert result.get_metric("absent") is None
 
-    def test_require_metric_is_not_equivalent_to_get_metric(self) -> None:
-        """``require_metric`` raises where ``get_metric`` returns ``None``."""
+    def test_require_metric_raises_key_error(self) -> None:
         result = PortfolioResult.from_json(_result_json())
         with pytest.raises(KeyError):
             result.require_metric("absent")
 
-    def test_free_functions_additionally_accept_json(self) -> None:
-        """Only the free functions take a JSON string; the members need an object.
-
-        This is the behavioural gap that blocks a like-for-like deprecation: the
-        member replacement for the JSON path is two calls, not one.
-        """
-        payload = _result_json({"dv01": {"metric_id": "dv01", "total": 12.5, "by_entity": {}}})
-        assert portfolio_result_total_value(payload) == pytest.approx(TOTAL_BASE_AMOUNT)
-        assert portfolio_result_get_metric(payload, "dv01") == pytest.approx(12.5)
-        # The JSON path agrees with the object path on the same envelope.
-        result = PortfolioResult.from_json(payload)
-        assert portfolio_result_total_value(payload) == result.total_value
-        assert portfolio_result_get_metric(payload, "dv01") == result.get_metric("dv01")
+    def test_typed_components_round_trip(self) -> None:
+        result = PortfolioResult.from_json(_result_json())
+        rebuilt = PortfolioResult(result.valuation, result.metrics)
+        assert rebuilt.total_value == pytest.approx(result.total_value)
+        assert "rounding" in rebuilt.meta

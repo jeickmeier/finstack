@@ -7,7 +7,7 @@
 use crate::bindings::pandas_utils::{
     dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
 };
-use crate::errors::{core_to_py, display_to_py, value_error};
+use crate::errors::{core_to_py, correlation_to_py, serde_json_to_py, value_error};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule, PyType};
 
@@ -25,9 +25,10 @@ use finstack_quant_models::correlation::{
     name = "CopulaSpec",
     module = "finstack_quant.models.correlation",
     frozen,
+    eq,
     from_py_object
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PyCopulaSpec {
     /// Inner Rust spec.
     pub(crate) inner: CopulaSpec,
@@ -50,14 +51,17 @@ impl PyCopulaSpec {
 
     /// Student-t copula with specified degrees of freedom.
     ///
-    /// The ``df`` parameter must be greater than 2 (required for finite
-    /// variance).  Typical calibration range for CDX tranches is 4–10.
+    /// ``degrees_of_freedom`` must be finite and greater than 2 (required for
+    /// finite variance). Typical calibration range for CDX tranches is 4-10.
+    ///
+    /// Raises ``ValueError`` when ``degrees_of_freedom`` is not finite or
+    /// ``<= 2``.
     #[classmethod]
-    #[pyo3(text_signature = "(cls, df)")]
-    fn student_t(_cls: &Bound<'_, PyType>, df: f64) -> PyResult<Self> {
-        CopulaSpec::student_t(df)
+    #[pyo3(text_signature = "(cls, degrees_of_freedom)")]
+    fn student_t(_cls: &Bound<'_, PyType>, degrees_of_freedom: f64) -> PyResult<Self> {
+        CopulaSpec::student_t(degrees_of_freedom)
             .map(Self::from_inner)
-            .map_err(display_to_py)
+            .map_err(correlation_to_py)
     }
 
     /// Random Factor Loading copula with stochastic correlation.
@@ -82,7 +86,7 @@ impl PyCopulaSpec {
         self.inner
             .build()
             .map(|inner| PyCopula { inner })
-            .map_err(display_to_py)
+            .map_err(correlation_to_py)
     }
 
     /// ``True`` if this is a Gaussian spec.
@@ -109,8 +113,30 @@ impl PyCopulaSpec {
         self.inner.is_multi_factor()
     }
 
+    /// Serialize to the canonical JSON wire format (``{"type": ...}``).
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "CopulaSpec serialization failed"))
+    }
+
+    /// Deserialize from JSON produced by ``to_json``.
+    ///
+    /// Raises ``ValueError`` when the payload is malformed.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        serde_json::from_str(json)
+            .map(Self::from_inner)
+            .map_err(|err| serde_json_to_py(err, "invalid CopulaSpec JSON"))
+    }
+
+    /// Support ``pickle``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     fn __repr__(&self) -> String {
-        format!("CopulaSpec({:?})", self.inner)
+        crate::bindings::repr_support::repr_from_serde("CopulaSpec", &self.inner)
     }
 }
 
@@ -137,7 +163,7 @@ impl PyCopula {
     ) -> PyResult<f64> {
         self.inner
             .conditional_default_prob_checked(default_threshold, &factor_realization, correlation)
-            .map_err(display_to_py)
+            .map_err(core_to_py)
     }
 
     /// Number of systematic factors in the model.
@@ -178,7 +204,7 @@ impl PyCopula {
     fn stress_correlation_proxy(&self, correlation: f64) -> PyResult<f64> {
         self.inner
             .stress_correlation_proxy(correlation)
-            .map_err(display_to_py)
+            .map_err(core_to_py)
     }
 
     fn __repr__(&self) -> String {
@@ -191,9 +217,10 @@ impl PyCopula {
     name = "RecoverySpec",
     module = "finstack_quant.models.correlation",
     frozen,
+    eq,
     from_py_object
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PyRecoverySpec {
     /// Inner Rust spec.
     pub(crate) inner: RecoverySpec,
@@ -217,7 +244,7 @@ impl PyRecoverySpec {
     fn constant(_cls: &Bound<'_, PyType>, rate: f64) -> PyResult<Self> {
         RecoverySpec::constant(rate)
             .map(Self::from_inner)
-            .map_err(display_to_py)
+            .map_err(correlation_to_py)
     }
 
     /// Market-correlated (Andersen-Sidenius) stochastic recovery.
@@ -234,7 +261,7 @@ impl PyRecoverySpec {
     ) -> PyResult<Self> {
         RecoverySpec::market_correlated(mean, vol, correlation)
             .map(Self::from_inner)
-            .map_err(display_to_py)
+            .map_err(correlation_to_py)
     }
 
     /// Market-standard stochastic recovery (40% mean, 25% vol, +40% corr —
@@ -265,8 +292,30 @@ impl PyRecoverySpec {
         }
     }
 
+    /// Serialize to the canonical JSON wire format (``{"type": ...}``).
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|err| serde_json_to_py(err, "RecoverySpec serialization failed"))
+    }
+
+    /// Deserialize from JSON produced by ``to_json``.
+    ///
+    /// Raises ``ValueError`` when the payload is malformed.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        serde_json::from_str(json)
+            .map(Self::from_inner)
+            .map_err(|err| serde_json_to_py(err, "invalid RecoverySpec JSON"))
+    }
+
+    /// Support ``pickle``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
     fn __repr__(&self) -> String {
-        format!("RecoverySpec({:?})", self.inner)
+        crate::bindings::repr_support::repr_from_serde("RecoverySpec", &self.inner)
     }
 }
 
@@ -395,11 +444,11 @@ impl PyLatentFactorSpec {
         self.inner
             .build()
             .map(|inner| PyLatentFactorKind { inner })
-            .map_err(display_to_py)
+            .map_err(correlation_to_py)
     }
 
     fn __repr__(&self) -> String {
-        format!("LatentFactorSpec({:?})", self.inner)
+        crate::bindings::repr_support::repr_from_serde("LatentFactorSpec", &self.inner)
     }
 }
 
@@ -628,7 +677,7 @@ impl PyLatentMultiFactor {
     ) -> PyResult<Self> {
         py.detach(|| LatentMultiFactor::new(num_factors, volatilities, correlations))
             .map(|m| Self { inner: m })
-            .map_err(display_to_py)
+            .map_err(correlation_to_py)
     }
 
     /// Create an uncorrelated (identity) multi-factor model.
@@ -863,8 +912,8 @@ impl PyCreditExposure {
     /// picklable (see `__reduce__`).
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: finstack_quant_models::correlation::CreditExposure =
-            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+        let inner: finstack_quant_models::correlation::CreditExposure = serde_json::from_str(json)
+            .map_err(|err| serde_json_to_py(err, "invalid CreditExposure JSON"))?;
         Ok(Self { inner })
     }
 
@@ -950,7 +999,8 @@ impl PyPortfolioLossConfig {
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: finstack_quant_models::correlation::PortfolioLossConfig =
-            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+            serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid PortfolioLossConfig JSON"))?;
         Ok(Self { inner })
     }
 
@@ -1034,7 +1084,7 @@ impl PyPortfolioLossResult {
                 .tranche_loss_statistics(attachment, detachment, pool_notional)
         })
         .map(|inner| PyTrancheLossStatistics { inner })
-        .map_err(display_to_py)
+        .map_err(core_to_py)
     }
 
     /// Primary table: the simulated loss distribution.
@@ -1110,7 +1160,8 @@ impl PyPortfolioLossResult {
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: finstack_quant_models::correlation::PortfolioLossResult =
-            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+            serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid PortfolioLossResult JSON"))?;
         Ok(Self { inner })
     }
 
@@ -1288,7 +1339,8 @@ impl PyTrancheLossStatistics {
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: finstack_quant_models::correlation::TrancheLossStatistics =
-            serde_json::from_str(json).map_err(crate::errors::display_to_py)?;
+            serde_json::from_str(json)
+                .map_err(|err| serde_json_to_py(err, "invalid TrancheLossStatistics JSON"))?;
         Ok(Self { inner })
     }
 
@@ -1308,19 +1360,104 @@ impl PyTrancheLossStatistics {
     }
 }
 
+fn record_item<'py>(record: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound<'py, PyAny>> {
+    record
+        .get_item(key)?
+        .ok_or_else(|| value_error(format!("exposure record is missing `{key}`")))
+}
+
+/// Read exposures from a ``list[CreditExposure]`` or a ``pandas.DataFrame``.
+///
+/// DataFrame records need ``id``, ``notional``, ``lgd``, a PD column named
+/// ``pd`` or ``default_probability``, and loadings as either
+/// ``factor_loading`` (one scalar per name) or ``factor_loadings`` (a list
+/// per name).
+fn extract_exposures(exposures: &Bound<'_, PyAny>) -> PyResult<Vec<CreditExposure>> {
+    if let Ok(typed) = exposures.extract::<Vec<PyCreditExposure>>() {
+        return Ok(typed.into_iter().map(|exposure| exposure.inner).collect());
+    }
+    let py = exposures.py();
+    let df_type = py.import("pandas")?.getattr("DataFrame")?;
+    if !exposures.is_instance(&df_type)? {
+        return Err(pyo3::exceptions::PyTypeError::new_err(
+            "exposures must be a list of CreditExposure or a pandas DataFrame with columns \
+             id, notional, pd (or default_probability), lgd and factor_loading(s)",
+        ));
+    }
+    let columns: Vec<String> = exposures
+        .getattr("columns")?
+        .call_method0("tolist")?
+        .extract()?;
+    let has = |name: &str| columns.iter().any(|column| column == name);
+    let pd_column = if has("pd") {
+        "pd"
+    } else if has("default_probability") {
+        "default_probability"
+    } else {
+        return Err(value_error(
+            "exposures DataFrame needs a `pd` or `default_probability` column",
+        ));
+    };
+    for required in ["id", "notional", "lgd"] {
+        if !has(required) {
+            return Err(value_error(format!(
+                "exposures DataFrame is missing the `{required}` column"
+            )));
+        }
+    }
+    let loadings_column = if has("factor_loadings") {
+        "factor_loadings"
+    } else if has("factor_loading") {
+        "factor_loading"
+    } else {
+        return Err(value_error(
+            "exposures DataFrame needs a `factor_loading` (scalar) or `factor_loadings` (list) column",
+        ));
+    };
+    let records: Vec<Bound<'_, PyDict>> =
+        exposures.call_method1("to_dict", ("records",))?.extract()?;
+    records
+        .iter()
+        .map(|record| {
+            let get = |key: &str| record_item(record, key);
+            let loadings_value = get(loadings_column)?;
+            let factor_loadings = match loadings_value.extract::<f64>() {
+                Ok(scalar) => vec![scalar],
+                Err(_) => loadings_value.extract::<Vec<f64>>().map_err(|_| {
+                    value_error(format!(
+                        "`{loadings_column}` must hold a float or a list of floats per exposure"
+                    ))
+                })?,
+            };
+            Ok(CreditExposure {
+                id: get("id")?.str()?.to_string(),
+                notional: get("notional")?.extract()?,
+                default_probability: get(pd_column)?.extract()?,
+                lgd: get("lgd")?.extract()?,
+                factor_loadings,
+            })
+        })
+        .collect()
+}
+
 /// Simulate a finite portfolio's loss-positive credit-loss distribution.
+///
+/// ``exposures`` is a ``list[CreditExposure]`` or a ``pandas.DataFrame`` with
+/// columns ``id``, ``notional``, ``pd`` (or ``default_probability``), ``lgd``
+/// and ``factor_loading`` (scalar) or ``factor_loadings`` (list).
+///
+/// Raises ``TypeError`` for other exposure containers, ``ValueError`` for
+/// missing columns or invalid simulation inputs.
 #[pyfunction]
 #[pyo3(signature = (exposures, config, recovery=None))]
+#[pyo3(text_signature = "(exposures, config, recovery=None)")]
 fn simulate_portfolio_loss(
     py: Python<'_>,
-    exposures: Vec<PyCreditExposure>,
+    exposures: &Bound<'_, PyAny>,
     config: PyPortfolioLossConfig,
     recovery: Option<PyRecoverySpec>,
 ) -> PyResult<PyPortfolioLossResult> {
-    let exposures = exposures
-        .into_iter()
-        .map(|exposure| exposure.inner)
-        .collect::<Vec<_>>();
+    let exposures = extract_exposures(exposures)?;
     py.detach(|| match recovery {
         Some(recovery) => {
             corr::simulate_portfolio_loss_with_recovery(&exposures, &config.inner, &recovery.inner)
@@ -1328,7 +1465,33 @@ fn simulate_portfolio_loss(
         None => corr::simulate_portfolio_loss(&exposures, &config.inner),
     })
     .map(|inner| PyPortfolioLossResult { inner })
-    .map_err(display_to_py)
+    .map_err(core_to_py)
+}
+
+/// Read a correlation matrix given either flat row-major or as nested rows /
+/// a 2-D array, validating the shape against ``n``.
+fn extract_square_matrix(matrix: &Bound<'_, PyAny>, n: usize) -> PyResult<Vec<f64>> {
+    if let Ok(flat) = matrix.extract::<Vec<f64>>() {
+        if flat.len() != n * n {
+            return Err(value_error(format!(
+                "matrix has {} entries but n={n} requires {} (flat row-major n*n)",
+                flat.len(),
+                n * n
+            )));
+        }
+        return Ok(flat);
+    }
+    let rows: Vec<Vec<f64>> = matrix.extract().map_err(|_| {
+        value_error("matrix must be a flat row-major list of floats or a 2-D list/array of rows")
+    })?;
+    if rows.len() != n || rows.iter().any(|row| row.len() != n) {
+        let widths: Vec<usize> = rows.iter().map(Vec::len).collect();
+        return Err(value_error(format!(
+            "matrix must be {n}x{n} for n={n}; got {} rows with widths {widths:?}",
+            rows.len()
+        )));
+    }
+    Ok(rows.into_iter().flatten().collect())
 }
 
 /// Fréchet-Hoeffding correlation bounds for two Bernoulli marginals.
@@ -1350,14 +1513,23 @@ fn joint_probabilities(p1: f64, p2: f64, correlation: f64) -> PyResult<(f64, f64
     corr::joint_probabilities(p1, p2, correlation).map_err(core_to_py)
 }
 
-/// Validate a correlation matrix (flattened row-major).
+/// Validate a correlation matrix.
 ///
-/// Raises ``ValueError`` if the matrix is invalid.
+/// ``matrix`` is either flat row-major (length ``n * n``) or a 2-D
+/// ``n x n`` list/array of rows.
+///
+/// Raises ``ValueError`` if the shape does not match ``n`` or the matrix is
+/// not a valid correlation matrix (diagonal, bounds, symmetry, PSD).
 #[pyfunction]
 #[pyo3(text_signature = "(matrix, n)")]
-fn validate_correlation_matrix(py: Python<'_>, matrix: Vec<f64>, n: usize) -> PyResult<()> {
+fn validate_correlation_matrix(
+    py: Python<'_>,
+    matrix: &Bound<'_, PyAny>,
+    n: usize,
+) -> PyResult<()> {
+    let matrix = extract_square_matrix(matrix, n)?;
     py.detach(|| corr::validate_correlation_matrix(&matrix, n))
-        .map_err(display_to_py)
+        .map_err(|err| correlation_to_py(corr::Error::from(err)))
 }
 
 /// Nearest correlation matrix (Higham 2002) for a near-PSD input.
@@ -1375,8 +1547,8 @@ fn validate_correlation_matrix(py: Python<'_>, matrix: Vec<f64>, n: usize) -> Py
 ///
 /// Parameters
 /// ----------
-/// matrix : list[float]
-///     Flattened row-major ``n x n`` input matrix.
+/// matrix : list[float] | list[list[float]]
+///     Flat row-major ``n x n`` input matrix, or a 2-D ``n x n`` list/array.
 /// n : int
 ///     Matrix dimension.
 /// max_iter : int, optional
@@ -1396,17 +1568,20 @@ fn validate_correlation_matrix(py: Python<'_>, matrix: Vec<f64>, n: usize) -> Py
 /// Raises
 /// ------
 /// ValueError
-///     If the input is not square, is grossly asymmetric, the diagonal is
-///     far from 1, or the projection does not converge.
+///     If the input shape does not match ``n``, is grossly asymmetric, or
+///     the diagonal is far from 1.
+/// RuntimeError
+///     If the projection does not converge within ``max_iter`` iterations.
 #[pyfunction]
 #[pyo3(signature = (matrix, n, max_iter=None, tol=None))]
 fn nearest_correlation(
     py: Python<'_>,
-    matrix: Vec<f64>,
+    matrix: &Bound<'_, PyAny>,
     n: usize,
     max_iter: Option<usize>,
     tol: Option<f64>,
 ) -> PyResult<Vec<f64>> {
+    let matrix = extract_square_matrix(matrix, n)?;
     // Single source of truth for the defaults: the Rust
     // `NearestCorrelationOpts::default()` (max_iter = 200, tol = 1e-10).
     let defaults = corr::NearestCorrelationOpts::default();
@@ -1415,7 +1590,7 @@ fn nearest_correlation(
         tol: tol.unwrap_or(defaults.tol),
     };
     py.detach(|| corr::nearest_correlation_matrix(&matrix, n, opts))
-        .map_err(display_to_py)
+        .map_err(|err| correlation_to_py(corr::Error::from(err)))
 }
 
 /// Pivoted Cholesky decomposition of a correlation matrix (flattened
@@ -1428,14 +1603,18 @@ fn nearest_correlation(
 /// triangular — it may contain non-zero entries above the diagonal. The
 /// effective numerical rank is not surfaced through this function.
 ///
+/// ``matrix`` is either flat row-major (length ``n * n``) or a 2-D
+/// ``n x n`` list/array of rows.
+///
 /// Raises ``ValueError`` if the matrix shape is wrong, an entry is non-finite,
 /// or the matrix is indefinite. The message preserves the core Cholesky
 /// diagnostic, including dimensions or the offending position and value.
 #[pyfunction]
 #[pyo3(text_signature = "(matrix, n)")]
-fn cholesky_decompose(py: Python<'_>, matrix: Vec<f64>, n: usize) -> PyResult<Vec<f64>> {
+fn cholesky_decompose(py: Python<'_>, matrix: &Bound<'_, PyAny>, n: usize) -> PyResult<Vec<f64>> {
+    let matrix = extract_square_matrix(matrix, n)?;
     py.detach(|| corr::cholesky_decompose(&matrix, n).map(|f| f.factor_matrix().to_vec()))
-        .map_err(display_to_py)
+        .map_err(correlation_to_py)
 }
 
 /// Register the `correlation` submodule on the parent module.

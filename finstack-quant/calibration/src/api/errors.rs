@@ -20,6 +20,113 @@ fn format_worst_quote(id: &Option<String>, residual: &Option<f64>) -> String {
     }
 }
 
+/// One structured finding from the bounded strict loader.
+///
+/// Mirrors the host-independent fields of
+/// [`finstack_quant_core::contract::Diagnostic`] so the Python and WASM
+/// bindings can attach the findings as plain records.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct StrictLoadDiagnostic {
+    /// Stable machine-readable code (e.g. `parse/invalid-json`,
+    /// `calibration/undefined-quote-set`).
+    pub code: String,
+    /// Load phase that produced the finding (`parse`, `version`, `structure`,
+    /// `semantic`, ...).
+    pub phase: String,
+    /// Severity label (`error` or `warning`).
+    pub severity: String,
+    /// RFC 6901 JSON pointer into the request document, when known.
+    pub pointer: Option<String>,
+    /// Human-readable description of the finding.
+    pub message: String,
+    /// Contract identifier the finding was evaluated against, when known.
+    pub contract: Option<String>,
+    /// Expected contract version, when the finding is version-related.
+    pub expected_version: Option<u32>,
+    /// Version actually found, when the finding is version-related.
+    pub actual_version: Option<u32>,
+}
+
+impl StrictLoadDiagnostic {
+    /// Project a core contract diagnostic onto the host-facing record.
+    ///
+    /// # Arguments
+    ///
+    /// * `diagnostic` - Bounded-loader finding to flatten; phase and severity
+    ///   are rendered as their snake-case labels.
+    pub fn from_contract(diagnostic: &finstack_quant_core::contract::Diagnostic) -> Self {
+        use finstack_quant_core::contract::{LoadPhase, Severity};
+        let phase = match diagnostic.phase {
+            LoadPhase::Parse => "parse",
+            LoadPhase::Version => "version",
+            LoadPhase::Structure => "structure",
+            LoadPhase::Semantic => "semantic",
+            #[allow(unreachable_patterns)]
+            _ => "unknown",
+        };
+        let severity = match diagnostic.severity {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            #[allow(unreachable_patterns)]
+            _ => "unknown",
+        };
+        Self {
+            code: diagnostic.code.clone(),
+            phase: phase.to_string(),
+            severity: severity.to_string(),
+            pointer: diagnostic.pointer.clone(),
+            message: diagnostic.message.clone(),
+            contract: diagnostic.contract.clone(),
+            expected_version: diagnostic.expected_version,
+            actual_version: diagnostic.actual_version,
+        }
+    }
+}
+
+impl EnvelopeError {
+    /// Build a [`EnvelopeError::StrictLoad`] from a contract failure.
+    ///
+    /// Report failures expand every retained diagnostic into the message
+    /// (`pointer: message` per line) and into the structured
+    /// `diagnostics` list; every other contract error keeps its display
+    /// string and an empty diagnostics list.
+    ///
+    /// # Arguments
+    ///
+    /// * `error` - Contract failure returned by the bounded strict loader.
+    pub fn strict_load(error: &finstack_quant_core::contract::ContractError) -> Self {
+        use finstack_quant_core::contract::ContractError;
+        match error {
+            ContractError::Report(report) => {
+                let diagnostics: Vec<StrictLoadDiagnostic> = report
+                    .diagnostics
+                    .iter()
+                    .map(StrictLoadDiagnostic::from_contract)
+                    .collect();
+                let mut message = format!(
+                    "validation failed with {} structured diagnostic(s)",
+                    diagnostics.len()
+                );
+                for diagnostic in &diagnostics {
+                    let pointer = diagnostic.pointer.as_deref().unwrap_or("/");
+                    message.push_str(&format!("\n  {pointer}: {}", diagnostic.message));
+                }
+                if report.truncated {
+                    message.push_str("\n  (further diagnostics truncated by load limits)");
+                }
+                Self::StrictLoad {
+                    message,
+                    diagnostics,
+                }
+            }
+            other => Self::StrictLoad {
+                message: other.to_string(),
+                diagnostics: Vec::new(),
+            },
+        }
+    }
+}
+
 /// Errors surfaced when an envelope is invalid or calibration fails.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
@@ -115,10 +222,19 @@ pub enum EnvelopeError {
         id: String,
     },
     /// Strict bounded contract loading rejected the request or result.
+    ///
+    /// `message` already lists every retained diagnostic (JSON pointer and
+    /// message); `diagnostics` carries the same findings structurally so hosts
+    /// can surface them as records without parsing the message.
     #[error("strict calibration contract load failed: {message}")]
     StrictLoad {
-        /// Bounded parser or semantic-validation diagnostic.
+        /// Bounded parser or semantic-validation summary, including each
+        /// retained diagnostic's pointer and message.
         message: String,
+        /// Structured contract diagnostics retained by the bounded loader;
+        /// empty when the failure carried no per-pointer findings.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        diagnostics: Vec<StrictLoadDiagnostic>,
     },
     /// A JSON response payload could not be serialized.
     #[error("failed to serialize {target} as JSON: {message}")]

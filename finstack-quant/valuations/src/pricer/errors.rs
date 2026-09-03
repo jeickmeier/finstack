@@ -309,7 +309,7 @@ impl PricingError {
     /// | `Input(other)`                   | `InvalidInput`      |
     /// | `Validation(msg)`                | `InvalidInput`      |
     /// | `Calibration { message, .. }`    | `ModelFailure`      |
-    /// | all other variants               | `ModelFailure`      |
+    /// | all other variants               | by [`finstack_quant_core::error::ErrorKind`]: `NotFound` → `MissingMarketData`, `Validation` → `InvalidInput`, `Computation` → `ModelFailure` |
     ///
     /// # Example
     ///
@@ -370,9 +370,26 @@ impl PricingError {
             finstack_quant_core::Error::Calibration { message, .. } => {
                 PricingError::ModelFailure { message, context }
             }
-            other => PricingError::ModelFailure {
-                message: other.to_string(),
-                context,
+            // Everything else is classified by the canonical `ErrorKind` split
+            // so a lookup miss reaching this arm (for example a
+            // `MetricCalculationFailed` wrapping a missing curve) still
+            // surfaces as `MissingMarketData` and therefore as a host
+            // `KeyError`, not an opaque model failure.
+            other => match other.kind() {
+                finstack_quant_core::error::ErrorKind::NotFound => {
+                    PricingError::MissingMarketData {
+                        missing_id: other.to_string(),
+                        context,
+                    }
+                }
+                finstack_quant_core::error::ErrorKind::Validation => PricingError::InvalidInput {
+                    message: other.to_string(),
+                    context,
+                },
+                finstack_quant_core::error::ErrorKind::Computation => PricingError::ModelFailure {
+                    message: other.to_string(),
+                    context,
+                },
             },
         }
     }
@@ -673,6 +690,54 @@ mod tests {
                 assert!(message.contains("Invalid input data"));
             }
             other => panic!("expected InvalidInput, got {other:?}"),
+        }
+    }
+
+    /// The host bindings classify on `finstack_quant_core::Error::kind()`, so
+    /// the kind must survive core → `PricingError` → core.
+    #[test]
+    fn from_core_round_trip_preserves_error_kind() {
+        use finstack_quant_core::error::ErrorKind;
+        let ctx = PricingErrorContext::new().instrument_id("RT-1");
+        let cases: Vec<(finstack_quant_core::Error, ErrorKind)> = vec![
+            (
+                finstack_quant_core::InputError::MissingCurve {
+                    requested: "USD-OIS".into(),
+                    suggestions: vec![],
+                }
+                .into(),
+                ErrorKind::NotFound,
+            ),
+            (
+                finstack_quant_core::InputError::NotFound {
+                    id: "FIXING:USD-SOFR-3M".into(),
+                }
+                .into(),
+                ErrorKind::NotFound,
+            ),
+            (
+                finstack_quant_core::Error::Validation(
+                    "Seasoned instrument requires fixings".into(),
+                ),
+                ErrorKind::Validation,
+            ),
+            (
+                finstack_quant_core::InputError::Invalid.into(),
+                ErrorKind::Validation,
+            ),
+            (
+                finstack_quant_core::Error::Calibration {
+                    message: "solver did not converge".into(),
+                    category: "solver".into(),
+                },
+                ErrorKind::Computation,
+            ),
+        ];
+        for (core, expected) in cases {
+            let display = core.to_string();
+            let back: finstack_quant_core::Error =
+                PricingError::from_core(core, ctx.clone()).into();
+            assert_eq!(back.kind(), expected, "kind lost for {display}");
         }
     }
 

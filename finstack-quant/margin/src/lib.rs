@@ -102,7 +102,7 @@ pub use types::{
     EligibleCollateralSchedule, ImMethodology, ImParameters, MarginCall, MarginCallTiming,
     MarginCallType, MarginTenor, MaturityConstraints, NettingSetId, OtcMarginSpec, RepoMarginSpec,
     RepoMarginType, SimmCreditClassification, SimmCreditSector, SimmRiskClass, SimmSensitivities,
-    VmParameters,
+    VmParameters, SIMM_TENORS,
 };
 
 /// Compiles the crate `README.md` Rust samples as doctests.

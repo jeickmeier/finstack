@@ -132,11 +132,7 @@ class TestAnalyticsNamespace:
 
         for name in (
             "cagr",
-            "sharpe",
-            "sortino",
-            "volatility",
             "simple_returns",
-            "max_drawdown",
             "to_drawdown_series",
             "comp_sum",
             "comp_total",
@@ -155,6 +151,12 @@ class TestAnalyticsNamespace:
         ):
             assert not hasattr(analytics, name)
             assert name not in analytics.__all__
+
+        # These four remain as freestanding convenience wrappers alongside
+        # the equivalent `Performance` methods.
+        for name in ("sharpe", "sortino", "volatility", "max_drawdown"):
+            assert hasattr(analytics, name)
+            assert name in analytics.__all__
 
     def test_analytics_does_not_export_statement_comps(self) -> None:
         """Comparable-company helpers belong on statements_analytics, not analytics."""
@@ -324,8 +326,6 @@ class TestPortfolioNamespace:
             decompose_factor_risk,
             factor_stress,
             parse_portfolio_spec_json,
-            portfolio_result_get_metric,
-            portfolio_result_total_value,
             position_what_if,
         )
 
@@ -388,8 +388,8 @@ class TestPortfolioNamespace:
         })
         cashflows = aggregate_full_cashflows(spec_json, MarketContext())
         assert len(cashflows) == 0
-        assert cashflows.num_positions() == 0
-        assert cashflows.num_issues() == 0
+        assert cashflows.num_positions == 0
+        assert cashflows.num_issues == 0
 
         result = json.loads(cashflows.to_json())
         assert result["events"] == []
@@ -405,16 +405,15 @@ class TestScenariosNamespace:
     def test_scenarios_exports(self) -> None:
         """Scenarios should export spec builders and template functions."""
         from finstack_quant.scenarios import (  # noqa: F401
+            HierarchyTarget,
             ScenarioSpec,
             TemplateMetadata,
             build_from_template,
-            build_scenario_spec,
             build_template_component,
             compose_scenarios,
             list_builtin_template_metadata,
             list_builtin_templates,
             list_template_components,
-            parse_scenario_spec,
             validate_scenario_spec,
         )
 
@@ -497,13 +496,29 @@ class TestCalibrationNamespace:
         from finstack_quant import calibration
 
         expected = {
+            "CalibrationConfig",
+            "CalibrationDiagnostics",
             "CalibrationEnvelope",
             "CalibrationEnvelopeError",
+            "CalibrationPlan",
+            "CalibrationReport",
             "CalibrationResult",
+            "CalibrationStep",
+            "CalibrationValidationReport",
+            "CdsQuote",
+            "QuoteQuality",
+            "RateBounds",
+            "RateQuote",
+            "SolverConfig",
+            "ValidationConfig",
+            "VolQuote",
             "calibrate",
             "calibrate_bermudan_lmm_base_vol",
             "dry_run",
+            "dry_run_json",
+            "hull_white",
             "schema",
+            "validate_calibration",
             "validate_calibration_json",
         }
         assert set(calibration.__all__) == expected

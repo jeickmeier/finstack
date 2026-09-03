@@ -349,9 +349,14 @@ impl Tenor {
     /// assert!(Tenor::parse("1D").is_ok());
     /// assert!(Tenor::parse("3m").is_ok()); // Case-insensitive
     /// assert!(Tenor::parse("10Y").is_ok());
+    /// assert_eq!(Tenor::parse("ON")?, Tenor::daily()); // money-market alias
     /// assert!(Tenor::parse("").is_err());
     /// assert!(Tenor::parse("XY").is_err());
+    /// # Ok::<(), finstack_quant_core::Error>(())
     /// ```
+    ///
+    /// The money-market aliases `ON`, `TN` and `SN` (also `O/N`, `T/N`,
+    /// `S/N`) parse as the one-day tenor.
     ///
     /// # Errors
     ///
@@ -371,6 +376,12 @@ impl Tenor {
 
         // Find where the unit character starts (last character)
         let s_upper = s.to_uppercase();
+
+        // Money-market aliases: overnight, tom-next and spot-next are all a
+        // one-day tenor once the settlement lag has been applied.
+        if matches!(s_upper.as_str(), "ON" | "TN" | "SN" | "O/N" | "T/N" | "S/N") {
+            return Ok(Self::daily());
+        }
 
         // Find position of first alphabetic character
         let unit_pos =
@@ -821,6 +832,13 @@ mod tests {
             let tenor = Tenor::parse(input).expect(input);
             assert_eq!(tenor.count, expected_count, "count mismatch for {}", input);
             assert_eq!(tenor.unit, expected_unit, "unit mismatch for {}", input);
+        }
+    }
+
+    #[test]
+    fn test_parse_money_market_aliases_are_one_day() {
+        for alias in ["ON", "on", "TN", "SN", "O/N", "t/n", "S/N", " ON "] {
+            assert_eq!(Tenor::parse(alias).expect(alias), Tenor::daily(), "{alias}");
         }
     }
 

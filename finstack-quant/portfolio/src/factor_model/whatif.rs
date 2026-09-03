@@ -5,7 +5,7 @@ use crate::error::{Error, Result};
 use crate::evaluation::{
     evaluate_raw_portfolio, PositionExecution, RawEvaluationInput, RawSelectiveSeed,
 };
-use crate::position::Position;
+use crate::position::PositionSpec;
 use crate::sensitivity::SensitivityMatrix;
 use crate::types::PositionId;
 use crate::Portfolio;
@@ -62,12 +62,19 @@ pub struct StressResult {
 }
 
 /// Position edits supported by `WhatIfEngine::position_what_if`.
-#[derive(Debug, Clone)]
+///
+/// Serialized as an internally tagged object: `{"kind": "remove",
+/// "position_id": ...}`, `{"kind": "resize", "position_id": ...,
+/// "new_quantity": ...}` or `{"kind": "add", "position": <PositionSpec>}`.
+/// This is the wire shape every host binding accepts for what-if requests.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PositionChange {
     /// Add a new position. This currently requires recomputing sensitivities from scratch.
     Add {
-        /// Position to add to the scenario portfolio.
-        position: Box<Position>,
+        /// Serializable specification of the position to add to the scenario
+        /// portfolio (instrument payload included).
+        position: Box<PositionSpec>,
     },
     /// Remove an existing position by identifier.
     Remove {
@@ -510,7 +517,7 @@ mod tests {
                 date!(2024 - 01 - 01),
             )
             .position_what_if(&[PositionChange::Add {
-                position: Box::new(added_position),
+                position: Box::new(added_position.to_spec()),
             }]);
         assert!(result.is_err());
     }

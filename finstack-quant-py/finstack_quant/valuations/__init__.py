@@ -1,6 +1,22 @@
 """Instrument pricing and risk metrics.
 
-Bindings for the ``finstack-quant-valuations`` Rust crate.
+Bindings for the ``finstack-quant-valuations`` Rust crate. Where things live:
+
+- Market data (``DiscountCurve``, ``ForwardCurve``, ``HazardCurve``,
+  ``MarketContext``, ``FxMatrix``): :mod:`finstack_quant.core.market_data`;
+  curve bootstrapping and quote ingestion: :mod:`finstack_quant.calibration`.
+- Instruments, builders and :func:`~finstack_quant.valuations.instruments.price_instrument`:
+  :mod:`finstack_quant.valuations.instruments`.
+- Results: :class:`ValuationResult` (here) and :func:`instrument_cashflows`
+  for per-flow tables.
+- Composite instruments, credit-derivative examples, the listed-market
+  catalog and JSON schemas: :mod:`~finstack_quant.valuations.composite`,
+  :mod:`~finstack_quant.valuations.credit_derivatives`,
+  :mod:`~finstack_quant.valuations.market`, :mod:`~finstack_quant.valuations.schema`.
+
+The module-level ``*_coupon_profile``, ``cms_spread_option_intrinsic`` and
+``callable_range_accrual_accrued`` functions are deterministic exotic-rates
+helpers that need no market data.
 
 Examples:
 --------
@@ -38,9 +54,9 @@ _sys.modules.setdefault("finstack_quant.valuations.schema", schema)
 
 
 def instrument_cashflows(
-    instrument_json: str,
+    instrument: _Any,
     market: _Any,
-    as_of: str,
+    as_of: _Any,
     *,
     model: str,
 ) -> tuple[dict, "pd.DataFrame"]:
@@ -51,9 +67,11 @@ def instrument_cashflows(
     for the supported model-instrument pairs.
 
     Args:
-        instrument_json: Canonical ``finstack_quant.instrument/1`` envelope.
+        instrument: Typed instrument (``Bond``, ``InterestRateSwap``, ...) or a
+            canonical ``finstack_quant.instrument/1`` JSON envelope.
         market: ``MarketContext`` instance or JSON string.
-        as_of: ISO 8601 valuation date.
+        as_of: Valuation date (``datetime.date``, ``datetime.datetime``,
+            ``pandas.Timestamp`` or ISO 8601 string).
         model: ``"discounting"`` (DF only) or ``"hazard_rate"`` (adds survival
             probability, conditional default probability, and recovery-adjusted
             principal PV). ``"default"`` is not accepted.
@@ -64,8 +82,11 @@ def instrument_cashflows(
         / ``reset_date`` parsed as ``datetime64``.
 
     Raises:
+        KeyError: If a curve or fixing series the instrument depends on is
+            missing from ``market``.
         ValueError: If ``model`` is unsupported or the instrument type isn't
             priced under that model.
+        RuntimeError: If the pricer fails numerically.
 
     Examples:
     --------
@@ -82,14 +103,14 @@ def instrument_cashflows(
     ... )
     >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
     >>> from finstack_quant.valuations import instrument_cashflows
-    >>> header, frame = instrument_cashflows(bond.to_json(), market, "2024-01-01", model="discounting")
+    >>> header, frame = instrument_cashflows(bond, market, as_of, model="discounting")
     >>> (header["instrument_id"], len(frame))
     ('B', 6)
 
     """
     import pandas as pd
 
-    payload = instruments.instrument_cashflows_json(instrument_json, market, as_of, model)
+    payload = instruments.instrument_cashflows_json(instrument, market, as_of, model)
     envelope = _json.loads(payload)
     df = pd.DataFrame(envelope["flows"])
     if not df.empty:

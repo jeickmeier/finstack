@@ -242,8 +242,14 @@ impl Performance {
     /// # Returns
     ///
     /// One VaR value per ticker (non-positive).
-    pub fn value_at_risk(&self, confidence: f64) -> Vec<f64> {
-        self.map_tickers(|i| risk_metrics::value_at_risk(self.active_returns(i), confidence))
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `confidence` is not
+    /// strictly inside `(0, 1)`.
+    pub fn value_at_risk(&self, confidence: f64) -> crate::Result<Vec<f64>> {
+        Self::ensure_confidence(confidence)?;
+        Ok(self.map_tickers(|i| risk_metrics::value_at_risk(self.active_returns(i), confidence)))
     }
 
     /// Expected Shortfall (CVaR) for each ticker (not annualized).
@@ -255,8 +261,15 @@ impl Performance {
     /// # Returns
     ///
     /// One ES value per ticker (non-positive, always ≤ corresponding VaR).
-    pub fn expected_shortfall(&self, confidence: f64) -> Vec<f64> {
-        self.map_tickers(|i| risk_metrics::expected_shortfall(self.active_returns(i), confidence))
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `confidence` is not
+    /// strictly inside `(0, 1)`.
+    pub fn expected_shortfall(&self, confidence: f64) -> crate::Result<Vec<f64>> {
+        Self::ensure_confidence(confidence)?;
+        Ok(self
+            .map_tickers(|i| risk_metrics::expected_shortfall(self.active_returns(i), confidence)))
     }
 
     /// Tail ratio for each ticker.
@@ -268,8 +281,14 @@ impl Performance {
     /// # Returns
     ///
     /// One tail ratio per ticker.
-    pub fn tail_ratio(&self, confidence: f64) -> Vec<f64> {
-        self.map_tickers(|i| risk_metrics::tail_ratio(self.active_returns(i), confidence))
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `confidence` is not
+    /// strictly inside `(0, 1)`.
+    pub fn tail_ratio(&self, confidence: f64) -> crate::Result<Vec<f64>> {
+        Self::ensure_confidence(confidence)?;
+        Ok(self.map_tickers(|i| risk_metrics::tail_ratio(self.active_returns(i), confidence)))
     }
 
     /// Ulcer Index for each ticker.
@@ -439,10 +458,20 @@ impl Performance {
     ///
     /// One parametric VaR per ticker in column order. Empty or invalid
     /// windows return [`f64::NAN`].
-    pub fn parametric_var(&self, confidence: f64, horizon_periods: Option<f64>) -> Vec<f64> {
-        self.map_tickers(|i| {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `confidence` is not
+    /// strictly inside `(0, 1)`.
+    pub fn parametric_var(
+        &self,
+        confidence: f64,
+        horizon_periods: Option<f64>,
+    ) -> crate::Result<Vec<f64>> {
+        Self::ensure_confidence(confidence)?;
+        Ok(self.map_tickers(|i| {
             risk_metrics::parametric_var(self.active_returns(i), confidence, horizon_periods)
-        })
+        }))
     }
 
     /// Cornish-Fisher adjusted VaR for each ticker.
@@ -459,10 +488,20 @@ impl Performance {
     ///
     /// One Cornish-Fisher VaR per ticker in column order. Empty or
     /// invalid windows return [`f64::NAN`].
-    pub fn cornish_fisher_var(&self, confidence: f64, horizon_periods: Option<f64>) -> Vec<f64> {
-        self.map_tickers(|i| {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `confidence` is not
+    /// strictly inside `(0, 1)`.
+    pub fn cornish_fisher_var(
+        &self,
+        confidence: f64,
+        horizon_periods: Option<f64>,
+    ) -> crate::Result<Vec<f64>> {
+        Self::ensure_confidence(confidence)?;
+        Ok(self.map_tickers(|i| {
             risk_metrics::cornish_fisher_var(self.active_returns(i), confidence, horizon_periods)
-        })
+        }))
     }
 
     /// Recovery factor for each ticker.
@@ -573,8 +612,14 @@ impl Performance {
     /// sign convention of [`Self::max_drawdown`] / [`Self::mean_drawdown`].
     /// A 95% CDaR of `-0.25` means the average drawdown in the worst 5% tail
     /// is 25%.
-    pub fn cdar(&self, confidence: f64) -> Vec<f64> {
-        self.map_tickers(|i| cdar(self.active_drawdown_values(i), confidence))
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `confidence` is not
+    /// strictly inside `(0, 1)`.
+    pub fn cdar(&self, confidence: f64) -> crate::Result<Vec<f64>> {
+        Self::ensure_confidence(confidence)?;
+        Ok(self.map_tickers(|i| cdar(self.active_drawdown_values(i), confidence)))
     }
 
     /// Modified Sharpe ratio for each ticker.
@@ -596,15 +641,21 @@ impl Performance {
     /// # Returns
     ///
     /// One modified Sharpe ratio per ticker in column order.
-    pub fn modified_sharpe(&self, risk_free_rate: f64, confidence: f64) -> Vec<f64> {
-        self.map_tickers(|i| {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `confidence` is not
+    /// strictly inside `(0, 1)`.
+    pub fn modified_sharpe(&self, risk_free_rate: f64, confidence: f64) -> crate::Result<Vec<f64>> {
+        Self::ensure_confidence(confidence)?;
+        Ok(self.map_tickers(|i| {
             risk_metrics::modified_sharpe(
                 self.active_returns(i),
                 risk_free_rate,
                 confidence,
                 self.ann(),
             )
-        })
+        }))
     }
 }
 

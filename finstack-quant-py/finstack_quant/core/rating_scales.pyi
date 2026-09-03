@@ -17,6 +17,10 @@ Examples
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
+import pandas as pd
+
 from finstack_quant.core.config import FinstackConfig
 
 class UnknownScalePolicy:
@@ -43,13 +47,13 @@ class UnknownScalePolicy:
     @classmethod
     def from_name(cls, name: str) -> UnknownScalePolicy:
         """
-        Parse a snake_case policy name (case-insensitive).
+        Parse a policy from its exact lowercase snake_case name (case-sensitive).
 
         Parameters
         ----------
         name : str
-            One of ``"error"``, ``"fallback_to_default"``, or
-            ``"warn_and_fallback"``.
+            Exactly one of ``"error"``, ``"fallback_to_default"``, or
+            ``"warn_and_fallback"``; ``"ERROR"`` is rejected.
 
         Returns
         -------
@@ -186,9 +190,20 @@ class RatingLevel:
         min_score : float
             Minimum score threshold required to qualify for this rating.
 
-        Notes
-        -----
-        Construction does not raise; arguments are stored as supplied.
+        Raises
+        ------
+        ValueError
+            If *name* is blank or either score is non-finite or outside the
+            inclusive 0-100 range.
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether two levels have the same name, score and min_score.
+
+        Returns
+        -------
+        bool
         """
         ...
     @property
@@ -325,9 +340,68 @@ class ScorecardScale:
         description : str, optional
             Human-readable description of the scale.
 
-        Notes
-        -----
-        Construction does not raise; arguments are stored as supplied.
+        Raises
+        ------
+        ValueError
+            If *ratings* is empty, contains duplicate names, or is not
+            strictly ordered best-to-worst (both ``score`` and ``min_score``
+            must strictly descend).
+        """
+        ...
+
+    def __getitem__(self, index: int) -> RatingLevel:
+        """Return the ``index``-th rating level (negative indices supported).
+
+        Raises
+        ------
+        IndexError
+            If *index* is out of range.
+
+        Returns
+        -------
+        RatingLevel
+        """
+        ...
+
+    def __iter__(self) -> Iterator[RatingLevel]:
+        """Iterate over rating levels best-to-worst.
+
+        Returns
+        -------
+        Iterator[RatingLevel]
+        """
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether two scales are structurally equal.
+
+        Returns
+        -------
+        bool
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Rating levels as a pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per level, best first, with columns ``name`` (str),
+            ``score`` (float64) and ``min_score`` (float64).
+
+        Raises
+        ------
+        ImportError
+            If pandas is not installed.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.rating_scales import RatingLevel, ScorecardScale
+        >>> scale = ScorecardScale("custom", [RatingLevel("A", 90.0, 85.0), RatingLevel("B", 70.0, 65.0)])
+        >>> list(scale.to_dataframe()["name"])
+        ['A', 'B']
         """
         ...
     @property
@@ -483,6 +557,30 @@ class RatingScaleRegistry:
         This method does not raise; it returns the stored or derived value.
         """
 
+    def scale_ids(self) -> list[str]:
+        """
+        Primary id of every registered scale, in registry order.
+
+        Aliases (e.g. ``"Fitch"``) are not included; resolve them through
+        :meth:`rating_scale` or :meth:`is_known_rating_scale`.
+
+        Returns
+        -------
+        list[str]
+            Primary scale ids such as ``["sp", "moodys"]``.
+
+        Notes
+        -----
+        This method does not raise.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.rating_scales import embedded_registry
+        >>> "sp" in embedded_registry().scale_ids()
+        True
+        """
+        ...
+
     def unknown_scale_policy(self) -> UnknownScalePolicy:
         """
         Return the configured policy for unknown scale names.
@@ -593,6 +691,14 @@ class RatingScaleRegistry:
         Returns
         -------
         str
+        """
+        ...
+    def __eq__(self, other: object) -> bool:
+        """Return whether two registries are structurally equal (JSON wire form).
+
+        Returns
+        -------
+        bool
         """
         ...
 

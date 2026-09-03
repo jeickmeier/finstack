@@ -375,7 +375,7 @@ def test_vector_liquidity_estimators_release_gil() -> None:
 
     roll = _assert_releases_gil(lambda: roll_effective_spread(returns))
     amihud = _assert_releases_gil(lambda: amihud_illiquidity(returns, volumes))
-    kyle = _assert_releases_gil(lambda: kyle_lambda(volumes, returns, 100.0))
+    kyle = _assert_releases_gil(lambda: kyle_lambda(returns, volumes, 100.0))
 
     assert roll is not None
     assert roll > 0.0

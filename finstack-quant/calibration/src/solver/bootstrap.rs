@@ -385,7 +385,7 @@ impl SequentialBootstrapper {
 
             total_iterations += eval_count;
             last_time = time;
-            residuals.insert(format!("quote_{sorted_idx:06}"), residual);
+            residuals.insert(target.residual_key(quote, sorted_idx), residual);
         }
 
         let final_curve = target.build_curve_final(&knots)?;
@@ -399,7 +399,12 @@ impl SequentialBootstrapper {
             .collect::<Result<Vec<_>>>()?
             .into_iter()
             .enumerate()
-            .map(|(index, residual)| (format!("quote_{index:06}"), residual))
+            .map(|(index, residual)| {
+                (
+                    target.residual_key(&quotes[sorted_quotes[index].original_idx], index),
+                    residual,
+                )
+            })
             .collect();
         let mut report = CalibrationReport::for_type_with_tolerance(
             "generic_bootstrap",
@@ -627,7 +632,7 @@ where
         };
 
         per_quote.push(QuoteQuality {
-            quote_label: format!("quote_{sorted_idx:06}"),
+            quote_label: target.residual_key(&quotes[sq.original_idx], sorted_idx),
             target_value: 0.0,
             fitted_value: resid,
             residual: resid,

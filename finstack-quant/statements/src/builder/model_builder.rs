@@ -143,6 +143,19 @@ impl<State> ModelBuilder<State> {
     pub fn periods_slice(&self) -> &[Period] {
         &self.periods
     }
+
+    /// Model identifier this builder will stamp on the built specification.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Nodes accumulated so far, in declaration order.
+    ///
+    /// Read-only view for introspection (for example a host `repr`); mutate
+    /// through the builder methods so their validation still applies.
+    pub fn nodes(&self) -> &IndexMap<NodeId, NodeSpec> {
+        &self.nodes
+    }
 }
 
 impl ModelBuilder<NeedPeriods> {
@@ -182,11 +195,46 @@ impl ModelBuilder<NeedPeriods> {
     /// uses incompatible period kinds, is reversed, or resolves to no periods.
     /// The type-state transition succeeds only with a non-empty period plan.
     pub fn periods(self, range: &str, actuals_until: Option<&str>) -> Result<ModelBuilder<Ready>> {
-        let period_plan = build_periods(range, actuals_until)?;
+        self.try_periods(range, actuals_until)
+            .map_err(|(_, error)| error)
+    }
+
+    /// Define periods from a range expression, handing the builder back on
+    /// failure.
+    ///
+    /// Identical to [`periods`](Self::periods) except that a rejected range
+    /// returns the untouched `NeedPeriods` builder alongside the error, so a
+    /// host wrapper that cannot express Rust's move semantics (Python, JS) can
+    /// keep the instruments, metadata, and capital structure accumulated so
+    /// far instead of forcing the caller to start over after a typo.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - Period range expression in the crate's period grammar
+    ///   (`"2025Q1..Q4"`, `"2024M10..2025M03"`, `"2025..2030"`); start and end
+    ///   must share one frequency family
+    /// * `actuals_until` - Optional inclusive cutoff (same family as `range`)
+    ///   through which periods are labelled actuals
+    ///
+    /// # Errors
+    ///
+    /// Returns `(self, error)` (the builder boxed, to keep the error variant
+    /// small) when the range or cutoff cannot be parsed, the families are
+    /// incompatible, the range is reversed, or it resolves to no periods.
+    pub fn try_periods(
+        self,
+        range: &str,
+        actuals_until: Option<&str>,
+    ) -> std::result::Result<ModelBuilder<Ready>, (Box<Self>, Error)> {
+        let period_plan = match build_periods(range, actuals_until) {
+            Ok(plan) => plan,
+            Err(error) => return Err((Box::new(self), error.into())),
+        };
 
         if period_plan.periods.is_empty() {
-            return Err(Error::period(
-                "Period range must contain at least one period",
+            return Err((
+                Box::new(self),
+                Error::period("Period range must contain at least one period"),
             ));
         }
 
@@ -460,6 +508,32 @@ impl ModelBuilder<Ready> {
         node_id: &str,
         availability_dates: &[(PeriodId, finstack_quant_core::dates::Date)],
     ) -> Result<Self> {
+        self.try_availability_dates(node_id, availability_dates)?;
+        Ok(self)
+    }
+
+    /// Set availability dates in place, leaving the builder usable on error.
+    ///
+    /// The non-consuming twin of
+    /// [`availability_dates`](Self::availability_dates) for host wrappers
+    /// that hold the builder behind a mutable reference: an unknown node
+    /// returns an error without discarding the accumulated model.
+    ///
+    /// # Arguments
+    ///
+    /// * `node_id` - Existing value or mixed node whose explicit observations
+    ///   are dated
+    /// * `availability_dates` - `(period, available_on)` pairs; observations
+    ///   without an entry default to the period's exclusive end date
+    ///
+    /// # Errors
+    ///
+    /// Returns a build error when `node_id` does not exist in the builder.
+    pub fn try_availability_dates(
+        &mut self,
+        node_id: &str,
+        availability_dates: &[(PeriodId, finstack_quant_core::dates::Date)],
+    ) -> Result<&mut Self> {
         let node = self.nodes.get_mut(node_id).ok_or_else(|| {
             Error::build(format!(
                 "Cannot set availability dates for unknown node '{node_id}'"
@@ -506,6 +580,33 @@ impl ModelBuilder<Ready> {
         node_id: impl Into<NodeId>,
         formula: impl Into<String>,
     ) -> Result<Self> {
+        self.try_compute(node_id, formula)?;
+        Ok(self)
+    }
+
+    /// Add a calculated node in place, leaving the builder usable on error.
+    ///
+    /// The non-consuming twin of [`compute`](Self::compute): the same
+    /// node-id and formula validation runs *before* any state changes, so a
+    /// host wrapper holding the builder behind a mutable reference keeps its
+    /// accumulated nodes when a formula has a typo.
+    ///
+    /// # Arguments
+    ///
+    /// * `node_id` - Identifier for the node to create; must not use a
+    ///   reserved prefix or shadow a DSL keyword
+    /// * `formula` - Statements DSL expression (e.g. `"revenue - cogs"`);
+    ///   syntax-checked immediately, references checked at `build`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `node_id` uses an internal prefix or DSL keyword,
+    /// `formula` is blank, or the formula cannot be parsed and compiled.
+    pub fn try_compute(
+        &mut self,
+        node_id: impl Into<NodeId>,
+        formula: impl Into<String>,
+    ) -> Result<&mut Self> {
         let node_id = node_id.into();
         let formula = formula.into();
 
@@ -690,35 +791,6 @@ impl ModelBuilder<Ready> {
         self
     }
 
-    /// Add all metrics from a loaded registry to the model.
-    ///
-    /// Common internal implementation behind [`with_builtin_metrics`].
-    ///
-    /// [`with_builtin_metrics`]: ModelBuilder::with_builtin_metrics
-    fn add_all_metrics_from_registry_internal(
-        mut self,
-        registry: &crate::registry::Registry,
-    ) -> Result<Self> {
-        let mut namespace_cache: IndexMap<String, IndexSet<String>> = IndexMap::new();
-        for (qualified_id, stored_metric) in registry.all_metrics() {
-            let namespace = qualified_id.split('.').next().unwrap_or("");
-            let formula = if namespace.is_empty() {
-                stored_metric.definition.formula.clone()
-            } else {
-                let metrics_in_namespace = namespace_cache
-                    .entry(namespace.to_string())
-                    .or_insert_with(|| Self::metric_ids_in_namespace(registry, namespace));
-                Self::qualify_metric_references_with_namespace_set(
-                    &stored_metric.definition.formula,
-                    namespace,
-                    metrics_in_namespace,
-                )
-            };
-            self.insert_metric_node(qualified_id, stored_metric, formula);
-        }
-        Ok(self)
-    }
-
     /// Load built-in metrics (fin.* namespace) and add them to the model.
     ///
     /// Convenience wrapper over
@@ -755,9 +827,52 @@ impl ModelBuilder<Ready> {
     /// overwritten when their identifiers match a built-in metric or one of
     /// its dependencies.
     #[must_use = "builder methods must be chained"]
-    pub fn with_builtin_metrics(self) -> Result<Self> {
+    pub fn with_builtin_metrics(mut self) -> Result<Self> {
+        self.try_with_builtin_metrics()?;
+        Ok(self)
+    }
+
+    /// Add the built-in metric catalog in place, leaving the builder usable
+    /// on error.
+    ///
+    /// The non-consuming twin of
+    /// [`with_builtin_metrics`](Self::with_builtin_metrics) for host wrappers.
+    /// Nothing is inserted unless the whole catalog loads and resolves.
+    ///
+    /// # Errors
+    ///
+    /// Returns registry or formula errors if the built-in catalog cannot be
+    /// loaded or a built-in metric has an unresolved dependency.
+    pub fn try_with_builtin_metrics(&mut self) -> Result<&mut Self> {
         let registry = crate::registry::Registry::with_builtins()?;
-        self.add_all_metrics_from_registry_internal(&registry)
+        self.add_all_metrics_from_registry_in_place(&registry)?;
+        Ok(self)
+    }
+
+    /// Add every metric from a loaded registry to the model, qualifying
+    /// same-namespace references in the generated formulas.
+    fn add_all_metrics_from_registry_in_place(
+        &mut self,
+        registry: &crate::registry::Registry,
+    ) -> Result<()> {
+        let mut namespace_cache: IndexMap<String, IndexSet<String>> = IndexMap::new();
+        for (qualified_id, stored_metric) in registry.all_metrics() {
+            let namespace = qualified_id.split('.').next().unwrap_or("");
+            let formula = if namespace.is_empty() {
+                stored_metric.definition.formula.clone()
+            } else {
+                let metrics_in_namespace = namespace_cache
+                    .entry(namespace.to_string())
+                    .or_insert_with(|| Self::metric_ids_in_namespace(registry, namespace));
+                Self::qualify_metric_references_with_namespace_set(
+                    &stored_metric.definition.formula,
+                    namespace,
+                    metrics_in_namespace,
+                )
+            };
+            self.insert_metric_node(qualified_id, stored_metric, formula);
+        }
+        Ok(())
     }
 
     /// Add a specific metric from a registry.
@@ -807,6 +922,34 @@ impl ModelBuilder<Ready> {
         qualified_id: &str,
         registry: &crate::registry::Registry,
     ) -> Result<Self> {
+        self.try_add_metric_from_registry(qualified_id, registry)?;
+        Ok(self)
+    }
+
+    /// Add one registry metric in place, leaving the builder usable on error.
+    ///
+    /// The non-consuming twin of
+    /// [`add_metric_from_registry`](Self::add_metric_from_registry): the
+    /// metric and its dependency order are resolved before any node is
+    /// inserted, so an unknown `qualified_id` (a routine typo) leaves the
+    /// builder exactly as it was.
+    ///
+    /// # Arguments
+    ///
+    /// * `qualified_id` - Fully qualified metric identifier in
+    ///   `namespace.metric_id` form (e.g. `"fin.gross_margin"`)
+    /// * `registry` - Registry the metric and its dependencies are read from
+    ///
+    /// # Errors
+    ///
+    /// Returns a registry-not-found error if `qualified_id` is unknown to
+    /// `registry`, or a registry error if it is malformed or a dependency
+    /// cannot be resolved.
+    pub fn try_add_metric_from_registry(
+        &mut self,
+        qualified_id: &str,
+        registry: &crate::registry::Registry,
+    ) -> Result<&mut Self> {
         // Get dependencies (in dependency order)
         let dependencies = registry.get_metric_dependencies(qualified_id)?;
 
@@ -1016,6 +1159,27 @@ impl MixedNodeBuilder {
     /// exist or that their units are compatible.
     #[must_use = "builder methods must be chained"]
     pub fn formula(mut self, formula: impl Into<String>) -> Result<Self> {
+        self.try_formula(formula)?;
+        Ok(self)
+    }
+
+    /// Set the fallback formula in place, leaving the builder usable on error.
+    ///
+    /// The non-consuming twin of [`formula`](Self::formula): the formula is
+    /// syntax-checked before it is stored, so a host wrapper holding this
+    /// builder behind a mutable reference keeps its values, forecast, and
+    /// parent model when the formula has a typo.
+    ///
+    /// # Arguments
+    ///
+    /// * `formula` - DSL expression evaluated when neither an explicit value
+    ///   nor a forecast resolves for a period
+    ///
+    /// # Errors
+    ///
+    /// Returns a formula parse or compilation error if `formula` is blank or
+    /// invalid Statements DSL.
+    pub fn try_formula(&mut self, formula: impl Into<String>) -> Result<&mut Self> {
         let formula = formula.into();
 
         // Validate formula syntax
@@ -1026,6 +1190,11 @@ impl MixedNodeBuilder {
 
         self.formula = Some(formula);
         Ok(self)
+    }
+
+    /// Identifier of the mixed node being configured.
+    pub fn node_id(&self) -> &NodeId {
+        &self.node_id
     }
 
     /// Set the human-readable name.

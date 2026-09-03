@@ -524,15 +524,15 @@ pub fn pl_summary_report_text(
 ///
 /// # Errors
 ///
-/// Rejects malformed `results_json` or an `as_of` value that is not a valid
+/// Rejects malformed `results_json` or an `period` value that is not a valid
 /// statement period identifier.
 /// @param results_json - Evaluated statement-result JSON.
-/// @param as_of - Statement period identifier, such as `2025Q4` or `2025A`.
+/// @param period - Statement period identifier, such as `2025Q4` or `2025A`.
 #[wasm_bindgen(js_name = creditAssessmentReportText)]
-pub fn credit_assessment_report_text(results_json: &str, as_of: &str) -> Result<String, JsValue> {
+pub fn credit_assessment_report_text(results_json: &str, period: &str) -> Result<String, JsValue> {
     let results: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(results_json).map_err(to_js_err)?;
-    let period: finstack_quant_core::dates::PeriodId = as_of.parse().map_err(to_js_err)?;
+    let period: finstack_quant_core::dates::PeriodId = period.parse().map_err(to_js_err)?;
     let report = finstack_quant_statements_analytics::analysis::CreditAssessmentReport::new(
         &results, period,
     );
@@ -545,16 +545,16 @@ pub fn credit_assessment_report_text(results_json: &str, as_of: &str) -> Result<
 ///
 /// # Errors
 ///
-/// Rejects malformed `results_json`, an `as_of` value that is not a valid
+/// Rejects malformed `results_json`, an `period` value that is not a valid
 /// statement period identifier, or failure to serialize the assessment to
 /// JavaScript.
 /// @param results_json - Evaluated statement-result JSON.
-/// @param as_of - Statement period identifier, such as `2025Q4` or `2025A`.
+/// @param period - Statement period identifier, such as `2025Q4` or `2025A`.
 #[wasm_bindgen(js_name = creditAssessment)]
-pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<JsValue, JsValue> {
+pub fn credit_assessment(results_json: &str, period: &str) -> Result<JsValue, JsValue> {
     let results: finstack_quant_statements::evaluator::StatementResult =
         serde_json::from_str(results_json).map_err(to_js_err)?;
-    let period: finstack_quant_core::dates::PeriodId = as_of.parse().map_err(to_js_err)?;
+    let period: finstack_quant_core::dates::PeriodId = period.parse().map_err(to_js_err)?;
     let assessment =
         finstack_quant_statements_analytics::analysis::CreditAssessment::compute(&results, period);
     to_js_value(&assessment)
@@ -778,7 +778,7 @@ mod tests {
             "2024Q1".parse().expect("period"),
         );
         let parsed = serde_json::to_value(&assessment).expect("serialize");
-        assert!(parsed.get("as_of").is_some());
+        assert!(parsed.get("period").is_some());
         assert!(parsed.get("series").map(|s| s.is_array()).unwrap_or(false));
     }
 
@@ -873,6 +873,7 @@ mod tests {
                 "upside".to_string() => finstack_quant_statements_analytics::analysis::ScenarioDefinition {
                     parent: None,
                     overrides,
+                    period_overrides: indexmap::IndexMap::new(),
                 },
             },
         };

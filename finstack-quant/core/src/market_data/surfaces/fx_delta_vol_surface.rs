@@ -45,6 +45,7 @@ use crate::{error::InputError, types::CurveId};
 ///     vec![0.08, 0.085, 0.09],
 ///     vec![0.01, 0.012, 0.015],
 ///     vec![0.005, 0.006, 0.007],
+///     None,
 /// ).expect("surface should build");
 ///
 /// assert_eq!(surface.num_expiries(), 3);
@@ -120,49 +121,25 @@ impl TryFrom<FxDeltaVolSurfaceWire> for FxDeltaVolSurface {
 }
 
 impl FxDeltaVolSurface {
-    /// Create a new delta-quoted surface with mandatory 25-delta wings.
+    /// Create a delta-quoted surface with mandatory 25-delta wings and
+    /// optional 10-delta wings.
+    ///
+    /// All vectors are indexed by `expiries`. Risk reversals are
+    /// call-volatility minus put-volatility; each butterfly is the average
+    /// wing volatility minus ATM. Volatilities are decimal annual standard
+    /// deviations (for example, `0.12` for 12%), not percentages.
     ///
     /// # Arguments
     ///
-    /// * `id`       - Unique surface identifier
-    /// * `expiries` - Strictly increasing positive expiry times (years)
-    /// * `atm_vols` - ATM DNS volatilities per expiry (must be positive)
-    /// * `rr_25d`   - 25-delta risk reversal per expiry
-    /// * `bf_25d`   - 25-delta butterfly per expiry
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Any vector is empty
-    /// - Vector lengths are inconsistent
-    /// - Expiries are non-positive, non-finite, or not strictly increasing
-    /// - ATM vols are non-positive or non-finite
-    /// - RR or BF values are non-finite
-    pub fn new(
-        id: impl Into<CurveId>,
-        expiries: Vec<f64>,
-        atm_vols: Vec<f64>,
-        rr_25d: Vec<f64>,
-        bf_25d: Vec<f64>,
-    ) -> crate::Result<Self> {
-        Self::validate(&expiries, &atm_vols, &rr_25d, &bf_25d, None, None)?;
-        Ok(Self {
-            id: id.into(),
-            expiries,
-            atm_vols,
-            rr_25d,
-            bf_25d,
-            rr_10d: None,
-            bf_10d: None,
-        })
-    }
-
-    /// Create a surface with both 25-delta and 10-delta wings.
-    ///
-    /// All vectors are indexed by `expiries`. The 25-delta and 10-delta risk
-    /// reversals are call-volatility minus put-volatility; each butterfly is
-    /// the average wing volatility minus ATM. Volatilities are decimal annual
-    /// standard deviations (for example, `0.12` for 12%), not percentages.
+    /// * `id` - Unique surface identifier used for lookup in a market context.
+    /// * `expiries` - Strictly increasing, positive expiry times in years.
+    /// * `atm_vols` - ATM delta-neutral-straddle volatilities per expiry
+    ///   (decimal, strictly positive).
+    /// * `rr_25d` - 25-delta risk reversal per expiry (decimal vol difference).
+    /// * `bf_25d` - 25-delta butterfly per expiry (decimal vol difference).
+    /// * `wings_10d` - Optional `(rr_10d, bf_10d)` pair adding 10-delta risk
+    ///   reversal and butterfly quotes per expiry; `None` builds a
+    ///   three-point (ATM/25d) smile.
     ///
     /// # Errors
     ///
@@ -170,22 +147,25 @@ impl FxDeltaVolSurface {
     /// from `expiries`, expiries are non-positive, non-finite, or not strictly
     /// increasing, ATM volatilities are non-positive or non-finite, or any
     /// risk-reversal or butterfly quote is non-finite.
-    pub fn with_10d(
+    pub fn new(
         id: impl Into<CurveId>,
         expiries: Vec<f64>,
         atm_vols: Vec<f64>,
         rr_25d: Vec<f64>,
         bf_25d: Vec<f64>,
-        rr_10d: Vec<f64>,
-        bf_10d: Vec<f64>,
+        wings_10d: Option<(Vec<f64>, Vec<f64>)>,
     ) -> crate::Result<Self> {
+        let (rr_10d, bf_10d) = match wings_10d {
+            Some((rr, bf)) => (Some(rr), Some(bf)),
+            None => (None, None),
+        };
         Self::validate(
             &expiries,
             &atm_vols,
             &rr_25d,
             &bf_25d,
-            Some(&rr_10d),
-            Some(&bf_10d),
+            rr_10d.as_deref(),
+            bf_10d.as_deref(),
         )?;
         Ok(Self {
             id: id.into(),
@@ -193,8 +173,8 @@ impl FxDeltaVolSurface {
             atm_vols,
             rr_25d,
             bf_25d,
-            rr_10d: Some(rr_10d),
-            bf_10d: Some(bf_10d),
+            rr_10d,
+            bf_10d,
         })
     }
 

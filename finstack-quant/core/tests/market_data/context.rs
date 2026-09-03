@@ -638,6 +638,7 @@ fn market_context_snapshot_restore_mutators_drop_and_replace_owned_families() {
         vec![0.08, 0.09],
         vec![0.01, 0.015],
         vec![0.005, 0.007],
+        None,
     )
     .unwrap();
 
@@ -688,6 +689,7 @@ fn market_context_snapshot_restore_mutators_drop_and_replace_owned_families() {
                     vec![0.07, 0.08],
                     vec![0.01, 0.012],
                     vec![0.004, 0.006],
+                    None,
                 )
                 .unwrap(),
             ),

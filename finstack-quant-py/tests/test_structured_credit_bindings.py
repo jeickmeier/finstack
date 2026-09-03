@@ -200,9 +200,12 @@ def test_tranche_scenario_table_returns_typed_wrapper() -> None:
         assert got == _approx(want)
 
 
-def test_unknown_tranche_raises_value_error_not_panic() -> None:
-    """A bad tranche id surfaces as a typed, tranche-specific error."""
-    with pytest.raises(ValueError, match="NO_SUCH_TRANCHE"):
+def test_unknown_tranche_raises_key_error_not_panic() -> None:
+    """A bad tranche id surfaces as a typed, tranche-specific lookup error.
+
+    Missing identifiers map to ``KeyError`` per the binding error contract.
+    """
+    with pytest.raises(KeyError, match="NO_SUCH_TRANCHE"):
         instruments.structured_credit_tranche_breakeven_cdr(
             _valid_deal_json(), "NO_SUCH_TRANCHE", _market(), "2024-01-01"
         )
@@ -219,7 +222,7 @@ def test_invalid_deal_reports_an_actionable_error() -> None:
     surfaced first, which is the better failure. Naming a real tranche keeps
     this test on the deal-validation behaviour it is actually about.
     """
-    with pytest.raises(ValueError, match=r"(?i)calendar") as excinfo:
+    with pytest.raises(KeyError, match=r"(?i)calendar") as excinfo:
         instruments.structured_credit_tranche_breakeven_cdr(_deal_json(), "CLONOTES-A", MarketContext(), "2024-01-01")
     message = str(excinfo.value)
     assert message.strip(), "the error message must not be empty"

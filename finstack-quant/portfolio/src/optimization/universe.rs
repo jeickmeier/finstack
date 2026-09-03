@@ -2,7 +2,7 @@
 //!
 use crate::position::PositionUnit;
 use crate::types::{AttributeTest, AttributeValue, EntityId, PositionId};
-use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -176,6 +176,70 @@ impl CandidatePosition {
     }
 }
 
+/// Wire form of [`CandidatePosition`]: the instrument travels as its
+/// canonical tagged JSON payload instead of a trait object.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CandidatePositionSpec {
+    id: PositionId,
+    entity_id: EntityId,
+    instrument_spec: InstrumentJson,
+    unit: PositionUnit,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    attributes: IndexMap<String, AttributeValue>,
+    max_weight: f64,
+    min_weight: f64,
+}
+
+impl TryFrom<CandidatePositionSpec> for CandidatePosition {
+    type Error = crate::error::Error;
+
+    fn try_from(spec: CandidatePositionSpec) -> Result<Self, Self::Error> {
+        let instrument = spec.instrument_spec.into_boxed().map_err(|e| {
+            crate::error::Error::invalid_input(format!(
+                "Failed to convert candidate instrument JSON: {e}"
+            ))
+        })?;
+        Ok(Self {
+            id: spec.id,
+            entity_id: spec.entity_id,
+            instrument: Arc::from(instrument),
+            unit: spec.unit,
+            attributes: spec.attributes,
+            max_weight: spec.max_weight,
+            min_weight: spec.min_weight,
+        })
+    }
+}
+
+impl Serialize for CandidatePosition {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let instrument_spec = self.instrument.to_instrument_json().ok_or_else(|| {
+            serde::ser::Error::custom(format!(
+                "candidate '{}' holds an instrument with no JSON representation",
+                self.id
+            ))
+        })?;
+        CandidatePositionSpec {
+            id: self.id.clone(),
+            entity_id: self.entity_id.clone(),
+            instrument_spec,
+            unit: self.unit,
+            attributes: self.attributes.clone(),
+            max_weight: self.max_weight,
+            min_weight: self.min_weight,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for CandidatePosition {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let spec = CandidatePositionSpec::deserialize(deserializer)?;
+        Self::try_from(spec).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Defines which instruments the optimizer can trade.
 ///
 /// The trade universe consists of:
@@ -183,7 +247,11 @@ impl CandidatePosition {
 /// 1. **Tradeable positions**: existing portfolio positions that can be adjusted
 /// 2. **Held positions**: existing positions locked at current weight
 /// 3. **Candidate positions**: new instruments that could be added
-#[derive(Clone, Debug)]
+///
+/// Serializes with serde; candidate instruments travel as their canonical
+/// tagged JSON payload (see [`CandidatePosition`]).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct TradeUniverse {
     /// Filter for existing positions that can be traded.
     /// Positions matching this filter have their weights optimized.

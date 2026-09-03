@@ -175,20 +175,27 @@ impl PyCashFlow {
 impl PyCashFlow {
     /// Construct a dated cashflow.
     ///
+    /// The Python positional order is ``(date, amount, kind, reset_date,
+    /// accrual_factor, rate)`` so the three required inputs come first; the
+    /// Rust constructor ``CashFlow::new`` orders them ``(date, reset_date,
+    /// amount, kind, accrual_factor, rate)``. Prefer keyword arguments for
+    /// the optional fields.
+    ///
     /// Parameters
     /// ----------
-    /// date : datetime.date
+    /// date : datetime.date or str
     ///     Payment date.
     /// amount : Money
     ///     Monetary amount including its currency.
     /// kind : CFKind or str
     ///     Cashflow classification.
-    /// reset_date : datetime.date, optional
+    /// reset_date : datetime.date or str, optional
     ///     Index reset date for floating coupons.
     /// accrual_factor : float, default 0.0
     ///     Accrual year fraction used for the coupon amount.
     /// rate : float, optional
-    ///     Effective annual rate used to compute this cashflow.
+    ///     Effective annual rate (decimal, ``0.05`` = 5%) used to compute
+    ///     this cashflow.
     #[new]
     #[pyo3(
         signature = (date, amount, kind, reset_date=None, accrual_factor=0.0, rate=None),
@@ -261,14 +268,51 @@ impl PyCashFlow {
         self.inner.validate().map_err(core_to_py)
     }
 
-    /// Debug-style representation.
+    /// Serialize to the canonical JSON row format.
+    #[allow(clippy::wrong_self_convention)]
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|e| crate::errors::serde_json_to_py(e, "failed to serialize CashFlow"))
+    }
+
+    /// Deserialize from the canonical JSON row format.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed or carries unknown fields.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        serde_json::from_str::<CashFlow>(json)
+            .map(Self::from_inner)
+            .map_err(|e| crate::errors::serde_json_to_py(e, "invalid CashFlow JSON"))
+    }
+
+    /// Support ``pickle`` through the JSON wire form.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Python-style representation.
     fn __repr__(&self) -> String {
+        let reset = self
+            .inner
+            .reset_date
+            .map_or_else(|| "None".to_string(), |d| format!("'{d}'"));
+        let rate = self
+            .inner
+            .rate
+            .map_or_else(|| "None".to_string(), |r| r.to_string());
         format!(
-            "CashFlow(date={}, kind='{}', amount={} {})",
+            "CashFlow(date='{}', amount={} {}, kind='{}', reset_date={reset}, accrual_factor={}, rate={rate})",
             self.inner.date,
-            self.inner.kind,
             self.inner.amount.amount(),
             self.inner.amount.currency(),
+            self.inner.kind,
+            self.inner.accrual_factor,
         )
     }
 }

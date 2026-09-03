@@ -1,7 +1,8 @@
 use pyo3::prelude::*;
 
 use crate::bindings::core::dates::tenor::PyTenor;
-use crate::bindings::date_utils::py_to_date;
+use crate::bindings::date_utils::{date_to_py, extract_date};
+use crate::bindings::valuations::convert::{bool_repr, enum_to_py_string};
 use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::dates::BusinessDayConvention;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -12,7 +13,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
 use super::super::instruments::{
-    enum_from_str, json_field, parse_typed_instrument_json, serialize_typed_instrument_json,
+    enum_from_str, parse_typed_instrument_json, serialize_typed_instrument_json,
 };
 use super::{PyAssetPool, PyTrancheStructure};
 
@@ -49,8 +50,10 @@ impl PyStructuredCredit {
     /// The builder pre-seeds ``market_conditions``, ``credit_factors``,
     /// ``deal_metadata``, ``behavior_overrides``, ``default_assumptions``,
     /// and ``hedge_swaps`` with their Rust ``Default`` values (the Rust
-    /// builder fields have no default), which the corresponding ``*_json``
-    /// setters can override. Prefer :meth:`new_abs` / :meth:`new_clo` /
+    /// builder fields have no default), which the corresponding setters
+    /// (``market_conditions``, ``credit_factors``, ``waterfall_rules``,
+    /// ``fees``) can override with a dict or JSON string. Builders are
+    /// consumed by ``build()``; create a new builder per instrument. Prefer :meth:`new_abs` / :meth:`new_clo` /
     /// :meth:`new_cmbs` / :meth:`new_rmbs` for registry-calibrated deal-type
     /// defaults; use this builder for full manual control.
     ///
@@ -153,8 +156,8 @@ impl PyStructuredCredit {
             id,
             pool.inner.clone(),
             tranches.inner.clone(),
-            py_to_date(closing_date)?,
-            py_to_date(maturity)?,
+            extract_date(closing_date)?,
+            extract_date(maturity)?,
             discount_curve_id,
         );
         inner.validate_for_pricing().map_err(core_to_py)?;
@@ -179,8 +182,8 @@ impl PyStructuredCredit {
             id,
             pool.inner.clone(),
             tranches.inner.clone(),
-            py_to_date(closing_date)?,
-            py_to_date(maturity)?,
+            extract_date(closing_date)?,
+            extract_date(maturity)?,
             discount_curve_id,
         );
         inner.validate_for_pricing().map_err(core_to_py)?;
@@ -205,8 +208,8 @@ impl PyStructuredCredit {
             id,
             pool.inner.clone(),
             tranches.inner.clone(),
-            py_to_date(closing_date)?,
-            py_to_date(maturity)?,
+            extract_date(closing_date)?,
+            extract_date(maturity)?,
             discount_curve_id,
         );
         inner.validate_for_pricing().map_err(core_to_py)?;
@@ -231,8 +234,8 @@ impl PyStructuredCredit {
             id,
             pool.inner.clone(),
             tranches.inner.clone(),
-            py_to_date(closing_date)?,
-            py_to_date(maturity)?,
+            extract_date(closing_date)?,
+            extract_date(maturity)?,
             discount_curve_id,
         );
         inner.validate_for_pricing().map_err(core_to_py)?;
@@ -308,6 +311,67 @@ impl PyStructuredCredit {
     #[getter]
     fn id(&self) -> String {
         self.inner.id.to_string()
+    }
+
+    /// Deal classification (serde name: ``"abs"``, ``"clo"``, ``"cmbs"``, ``"rmbs"`` ...).
+    #[getter]
+    fn deal_type(&self) -> PyResult<String> {
+        enum_to_py_string(&self.inner.deal_type)
+    }
+
+    /// Collateral pool.
+    #[getter]
+    fn pool(&self) -> PyAssetPool {
+        PyAssetPool {
+            inner: self.inner.pool.clone(),
+        }
+    }
+
+    /// Capital structure.
+    #[getter]
+    fn tranches(&self) -> PyTrancheStructure {
+        PyTrancheStructure {
+            inner: self.inner.tranches.clone(),
+        }
+    }
+
+    /// Deal closing date as ``datetime.date``.
+    #[getter]
+    fn closing_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.closing_date)
+    }
+
+    /// First tranche payment date as ``datetime.date``.
+    #[getter]
+    fn first_payment_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.first_payment_date)
+    }
+
+    /// Reinvestment period end as ``datetime.date``, or ``None``.
+    #[getter]
+    fn reinvestment_end_date<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .reinvestment_end_date
+            .map(|d| date_to_py(py, d))
+            .transpose()
+    }
+
+    /// Legal final maturity as ``datetime.date``.
+    #[getter]
+    fn maturity<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        date_to_py(py, self.inner.maturity)
+    }
+
+    /// Discount curve identifier.
+    #[getter]
+    fn discount_curve_id(&self) -> String {
+        self.inner.discount_curve_id.to_string()
+    }
+
+    /// Return the full deal as a plain ``dict`` (canonical serde shape).
+    #[pyo3(text_signature = "($self)")]
+    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner)
     }
 
     /// Return ``repr(self)``.
@@ -464,7 +528,7 @@ impl PyStructuredCreditBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let date = py_to_date(value)?;
+        let date = extract_date(value)?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.closing_date(date));
         Ok(slf)
@@ -492,7 +556,7 @@ impl PyStructuredCreditBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let date = py_to_date(value)?;
+        let date = extract_date(value)?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.first_payment_date(date));
         Ok(slf)
@@ -521,7 +585,7 @@ impl PyStructuredCreditBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let date = py_to_date(value)?;
+        let date = extract_date(value)?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.reinvestment_end_date(date));
         Ok(slf)
@@ -549,7 +613,7 @@ impl PyStructuredCreditBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let date = py_to_date(value)?;
+        let date = extract_date(value)?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.maturity(date));
         Ok(slf)
@@ -671,8 +735,8 @@ impl PyStructuredCreditBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : str
-    ///     JSON-encoded ``MarketConditions`` object (refinancing rate, home
+    /// value : dict | str
+    ///     ``MarketConditions`` object as a dict or JSON string (refinancing rate, home
     ///     price appreciation, unemployment, seasonal factor, custom
     ///     factors). :meth:`StructuredCredit.builder` pre-seeds the registry
     ///     default, which this overrides.
@@ -685,13 +749,15 @@ impl PyStructuredCreditBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If ``value`` is not valid JSON for the ``MarketConditions`` shape.
+    ///     If ``value`` does not match the ``MarketConditions`` shape.
     #[pyo3(text_signature = "($self, value)")]
-    fn market_conditions_json<'py>(
+    fn market_conditions<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: &str,
+        py: Python<'_>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let market_conditions: MarketConditions = json_field(value, "market_conditions")?;
+        let market_conditions: MarketConditions =
+            crate::bindings::module_utils::py_to_serde(py, value, "market_conditions")?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.market_conditions(market_conditions));
         Ok(slf)
@@ -701,8 +767,8 @@ impl PyStructuredCreditBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : str
-    ///     JSON-encoded ``CreditFactors`` object (credit score, DTI, LTV,
+    /// value : dict | str
+    ///     ``CreditFactors`` object as a dict or JSON string (credit score, DTI, LTV,
     ///     delinquency, unemployment, CMBS NOI/debt-service, custom
     ///     factors). :meth:`StructuredCredit.builder` pre-seeds
     ///     ``CreditFactors::default()``, which this overrides.
@@ -715,13 +781,15 @@ impl PyStructuredCreditBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If ``value`` is not valid JSON for the ``CreditFactors`` shape.
+    ///     If ``value`` does not match the ``CreditFactors`` shape.
     #[pyo3(text_signature = "($self, value)")]
-    fn credit_factors_json<'py>(
+    fn credit_factors<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: &str,
+        py: Python<'_>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let credit_factors: CreditFactors = json_field(value, "credit_factors")?;
+        let credit_factors: CreditFactors =
+            crate::bindings::module_utils::py_to_serde(py, value, "credit_factors")?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.credit_factors(credit_factors));
         Ok(slf)
@@ -731,8 +799,8 @@ impl PyStructuredCreditBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : str
-    ///     JSON-encoded ``WaterfallRules`` object (available-funds caps,
+    /// value : dict | str
+    ///     ``WaterfallRules`` object as a dict or JSON string (available-funds caps,
     ///     step-down, shifting interest, controlled accumulation), layered
     ///     onto the base waterfall.
     ///
@@ -744,13 +812,15 @@ impl PyStructuredCreditBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If ``value`` is not valid JSON for the ``WaterfallRules`` shape.
+    ///     If ``value`` does not match the ``WaterfallRules`` shape.
     #[pyo3(text_signature = "($self, value)")]
-    fn waterfall_rules_json<'py>(
+    fn waterfall_rules<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: &str,
+        py: Python<'_>,
+        value: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let waterfall_rules: WaterfallRules = json_field(value, "waterfall_rules")?;
+        let waterfall_rules: WaterfallRules =
+            crate::bindings::module_utils::py_to_serde(py, value, "waterfall_rules")?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.waterfall_rules(waterfall_rules));
         Ok(slf)
@@ -760,8 +830,8 @@ impl PyStructuredCreditBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : str
-    ///     JSON-encoded ``DealFees`` object (trustee, senior management,
+    /// value : dict | str
+    ///     ``DealFees`` object as a dict or JSON string (trustee, senior management,
     ///     servicing, and optional master/special servicer fees), paid
     ///     ahead of every note. Skipped (``None``) by default.
     ///
@@ -773,10 +843,14 @@ impl PyStructuredCreditBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If ``value`` is not valid JSON for the ``DealFees`` shape.
+    ///     If ``value`` does not match the ``DealFees`` shape.
     #[pyo3(text_signature = "($self, value)")]
-    fn fees_json<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
-        let fees: DealFees = json_field(value, "fees")?;
+    fn fees<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'_>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let fees: DealFees = crate::bindings::module_utils::py_to_serde(py, value, "fees")?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.fees(fees));
         Ok(slf)
@@ -798,7 +872,14 @@ impl PyStructuredCreditBuilder {
     fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyStructuredCredit> {
         let b = take_sc(&mut slf)?;
         let inner = b.build().map_err(core_to_py)?;
-        inner.validate_for_pricing().map_err(core_to_py)?;
         Ok(PyStructuredCredit { inner })
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "StructuredCreditBuilder(consumed={})",
+            bool_repr(self.inner.is_none())
+        )
     }
 }

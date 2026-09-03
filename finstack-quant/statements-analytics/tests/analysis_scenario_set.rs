@@ -42,6 +42,7 @@ fn evaluate_all_applies_overrides_and_evaluates() {
         "base".to_string(),
         ScenarioDefinition {
             parent: None,
+            period_overrides: IndexMap::new(),
             overrides: IndexMap::new(),
         },
     );
@@ -52,6 +53,7 @@ fn evaluate_all_applies_overrides_and_evaluates() {
         "downside".to_string(),
         ScenarioDefinition {
             parent: Some("base".to_string()),
+            period_overrides: IndexMap::new(),
             overrides: downside_overrides,
         },
     );
@@ -103,6 +105,7 @@ fn diff_uses_variance_analyzer() {
         "base".to_string(),
         ScenarioDefinition {
             parent: None,
+            period_overrides: IndexMap::new(),
             overrides: IndexMap::new(),
         },
     );
@@ -113,6 +116,7 @@ fn diff_uses_variance_analyzer() {
         "downside".to_string(),
         ScenarioDefinition {
             parent: Some("base".to_string()),
+            period_overrides: IndexMap::new(),
             overrides: downside_overrides,
         },
     );
@@ -188,6 +192,7 @@ fn evaluate_all_preserves_actual_history_when_applying_overrides() {
         "base".to_string(),
         ScenarioDefinition {
             parent: None,
+            period_overrides: IndexMap::new(),
             overrides: IndexMap::new(),
         },
     );
@@ -198,6 +203,7 @@ fn evaluate_all_preserves_actual_history_when_applying_overrides() {
         "downside".to_string(),
         ScenarioDefinition {
             parent: Some("base".to_string()),
+            period_overrides: IndexMap::new(),
             overrides: downside_overrides,
         },
     );
@@ -231,7 +237,7 @@ fn evaluate_all_preserves_actual_history_when_applying_overrides() {
 }
 
 #[test]
-fn comparison_table_emits_null_pct_on_zero_baseline() {
+fn comparison_table_emits_null_frac_on_zero_baseline() {
     use finstack_quant_core::table::TableColumnData;
 
     let period_q1 = PeriodId::quarter(2025, 1);
@@ -256,6 +262,7 @@ fn comparison_table_emits_null_pct_on_zero_baseline() {
         "base".to_string(),
         ScenarioDefinition {
             parent: None,
+            period_overrides: IndexMap::new(),
             overrides: IndexMap::new(),
         },
     );
@@ -265,6 +272,7 @@ fn comparison_table_emits_null_pct_on_zero_baseline() {
         "upside".to_string(),
         ScenarioDefinition {
             parent: Some("base".to_string()),
+            period_overrides: IndexMap::new(),
             overrides: upside_overrides,
         },
     );
@@ -278,7 +286,7 @@ fn comparison_table_emits_null_pct_on_zero_baseline() {
     let pct_col = table
         .columns
         .iter()
-        .find(|c| c.name.contains("_pct"))
+        .find(|c| c.name.contains("_frac"))
         .expect("pct column present");
     match &pct_col.data {
         TableColumnData::NullableFloat64(values) => {
@@ -306,6 +314,7 @@ fn monetary_scenario_overrides_preserve_and_validate_currency() {
             "upside".to_string(),
             ScenarioDefinition {
                 parent: None,
+                period_overrides: IndexMap::new(),
                 overrides: IndexMap::from([(
                     "revenue".to_string(),
                     AmountOrScalar::amount(110_000.0, Currency::USD),
@@ -327,6 +336,7 @@ fn monetary_scenario_overrides_preserve_and_validate_currency() {
             "invalid".to_string(),
             ScenarioDefinition {
                 parent: None,
+                period_overrides: IndexMap::new(),
                 overrides: IndexMap::from([(
                     "revenue".to_string(),
                     AmountOrScalar::amount(110_000.0, Currency::EUR),
@@ -338,4 +348,72 @@ fn monetary_scenario_overrides_preserve_and_validate_currency() {
         .evaluate_all(&model)
         .expect_err("cross-currency override must fail");
     assert!(error.to_string().contains("incompatible"));
+}
+
+#[test]
+fn per_period_overrides_apply_to_one_forecast_period_and_win_over_model_wide() {
+    let model = build_simple_model();
+    let q1 = PeriodId::quarter(2025, 1);
+    let q2 = PeriodId::quarter(2025, 2);
+
+    let mut scenarios = IndexMap::new();
+    scenarios.insert(
+        "base".to_string(),
+        ScenarioDefinition {
+            parent: None,
+            overrides: IndexMap::new(),
+            period_overrides: IndexMap::new(),
+        },
+    );
+    let mut q2_only = IndexMap::new();
+    q2_only.insert(q2, AmountOrScalar::scalar(80_000.0));
+    let mut period_overrides = IndexMap::new();
+    period_overrides.insert("revenue".to_string(), q2_only);
+    let mut overrides = IndexMap::new();
+    overrides.insert("revenue".to_string(), AmountOrScalar::scalar(90_000.0));
+    scenarios.insert(
+        "downside".to_string(),
+        ScenarioDefinition {
+            parent: Some("base".to_string()),
+            overrides,
+            period_overrides,
+        },
+    );
+
+    let set = ScenarioSet { scenarios };
+    let results = set.evaluate_all(&model).expect("evaluation succeeds");
+    let downside = results.scenarios.get("downside").expect("downside present");
+    assert_eq!(downside.get("revenue", &q1), Some(90_000.0));
+    assert_eq!(downside.get("revenue", &q2), Some(80_000.0));
+
+    // The legacy wire form (no `period_overrides`) still deserializes.
+    let json = serde_json::to_string(&set).expect("serialize");
+    let restored: ScenarioSet = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(
+        restored.scenarios["downside"].period_overrides["revenue"].len(),
+        1
+    );
+    let legacy: ScenarioSet =
+        serde_json::from_str(r#"{"scenarios":{"base":{"overrides":{"revenue":90.0}}}}"#)
+            .expect("legacy wire form");
+    assert!(legacy.scenarios["base"].period_overrides.is_empty());
+
+    // A per-period override on a non-forecast period is rejected.
+    let mut bad_period = IndexMap::new();
+    bad_period.insert(PeriodId::quarter(2030, 1), AmountOrScalar::scalar(1.0));
+    let mut bad = IndexMap::new();
+    bad.insert("revenue".to_string(), bad_period);
+    let mut scenarios = IndexMap::new();
+    scenarios.insert(
+        "bad".to_string(),
+        ScenarioDefinition {
+            parent: None,
+            overrides: IndexMap::new(),
+            period_overrides: bad,
+        },
+    );
+    let err = ScenarioSet { scenarios }
+        .evaluate_all(&model)
+        .expect_err("non-forecast period is rejected");
+    assert!(err.to_string().contains("not a forecast period"));
 }

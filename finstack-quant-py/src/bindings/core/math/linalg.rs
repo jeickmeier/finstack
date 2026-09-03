@@ -5,6 +5,8 @@ use numpy::{PyReadonlyArray2, PyUntypedArrayMethods};
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
+use crate::errors::core_to_py;
+
 pyo3::create_exception!(
     finstack_quant.core.math.linalg,
     CholeskyError,
@@ -17,46 +19,45 @@ fn cholesky_err(e: impl std::fmt::Display) -> PyErr {
     CholeskyError::new_err(e.to_string())
 }
 
-/// Flatten a `list[list[float]]` into a row-major `Vec<f64>` and return `(flat, n)`.
-///
-/// Returns a `PyResult::Err` when the input is not a square matrix.
-fn flatten_matrix(rows: Vec<Vec<f64>>) -> PyResult<(Vec<f64>, usize)> {
-    let n = rows.len();
-    for (i, row) in rows.iter().enumerate() {
-        if row.len() != n {
-            return Err(crate::errors::value_error(format!(
-                "Row {i} has length {} but expected {n} for a square matrix",
-                row.len()
-            )));
-        }
-    }
-    let flat: Vec<f64> = rows.into_iter().flatten().collect();
-    Ok((flat, n))
-}
-
-/// Extract an n×n matrix from a C-contiguous NumPy array or a nested list.
-///
-/// NumPy input is copied from the backing buffer in bulk instead of
-/// per-element extraction; nested lists take the canonical
-/// `list[list[float]]` path.
-fn extract_square_matrix(matrix: &Bound<'_, PyAny>) -> PyResult<(Vec<f64>, usize)> {
+/// Extract a `rows × cols` matrix (row-major flat buffer) from a C-contiguous
+/// NumPy array or a nested list.
+fn extract_matrix(matrix: &Bound<'_, PyAny>) -> PyResult<(Vec<f64>, usize, usize)> {
     if let Ok(array) = matrix.extract::<PyReadonlyArray2<'_, f64>>() {
         let shape = array.shape();
         let (rows, cols) = (shape[0], shape[1]);
-        if rows != cols {
-            return Err(crate::errors::value_error(format!(
-                "Matrix must be square, got {rows}x{cols}"
-            )));
-        }
         let flat = match array.as_slice() {
             Ok(slice) => slice.to_vec(),
             // Strided views cannot borrow as a contiguous slice; fall back to
             // logical-order iteration.
             Err(_) => array.as_array().iter().copied().collect(),
         };
-        return Ok((flat, rows));
+        return Ok((flat, rows, cols));
     }
-    flatten_matrix(matrix.extract()?)
+    let rows: Vec<Vec<f64>> = matrix
+        .extract()
+        .map_err(|_| crate::errors::value_error("expected a square nested list or 2-D array"))?;
+    let nrows = rows.len();
+    let ncols = rows.first().map_or(0, Vec::len);
+    for (i, row) in rows.iter().enumerate() {
+        if row.len() != ncols {
+            return Err(crate::errors::value_error(format!(
+                "Row {i} has length {} but expected {ncols} (ragged matrix)",
+                row.len()
+            )));
+        }
+    }
+    Ok((rows.into_iter().flatten().collect(), nrows, ncols))
+}
+
+/// Extract an n×n matrix from a C-contiguous NumPy array or a nested list.
+fn extract_square_matrix(matrix: &Bound<'_, PyAny>) -> PyResult<(Vec<f64>, usize)> {
+    let (flat, rows, cols) = extract_matrix(matrix)?;
+    if rows != cols {
+        return Err(crate::errors::value_error(format!(
+            "Matrix must be square, got {rows}x{cols}; expected a square nested list or 2-D array"
+        )));
+    }
+    Ok((flat, rows))
 }
 
 /// Compute the Cholesky decomposition L of a symmetric positive-definite matrix
@@ -84,7 +85,7 @@ fn cholesky_decomposition(py: Python<'_>, matrix: &Bound<'_, PyAny>) -> PyResult
 /// Accepts L as a ``numpy.ndarray`` (``float64``) or ``list[list[float]]`` and b
 /// as ``list[float]``. Returns x as ``list[float]``.
 ///
-/// Raises ``CholeskyError`` on dimension mismatch or singular factor.
+/// Raises ``ValueError`` on dimension mismatch or a singular factor.
 #[pyfunction]
 #[pyo3(text_signature = "(chol, b)")]
 fn cholesky_solve(py: Python<'_>, chol: &Bound<'_, PyAny>, b: Vec<f64>) -> PyResult<Vec<f64>> {
@@ -97,7 +98,7 @@ fn cholesky_solve(py: Python<'_>, chol: &Bound<'_, PyAny>, b: Vec<f64>) -> PyRes
     }
     let mut x = vec![0.0; n];
     py.detach(|| linalg::cholesky_solve(&flat, &b, &mut x))
-        .map_err(cholesky_err)?;
+        .map_err(core_to_py)?;
     Ok(x)
 }
 
@@ -110,14 +111,60 @@ fn cholesky_solve(py: Python<'_>, chol: &Bound<'_, PyAny>, b: Vec<f64>) -> PyRes
 /// (only the lower triangle is read; the upper triangle is assumed zero) and z
 /// as ``list[float]``. Returns L z as ``list[float]``.
 ///
-/// Raises ``ValueError`` when L is not square, and ``CholeskyError`` when z's length
-/// does not match L's dimension.
+/// Raises ``ValueError`` when L is not square or z's length does not match L's
+/// dimension.
 #[pyfunction]
 #[pyo3(text_signature = "(l, z)")]
 fn apply_lower_triangular(py: Python<'_>, l: &Bound<'_, PyAny>, z: Vec<f64>) -> PyResult<Vec<f64>> {
     let (flat, n) = extract_square_matrix(l)?;
     py.detach(|| linalg::apply_lower_triangular(&flat, n, &z))
-        .map_err(cholesky_err)
+        .map_err(core_to_py)
+}
+
+/// Symmetric eigendecomposition of a square matrix.
+///
+/// Returns ``(eigenvalues, eigenvectors)`` where ``eigenvectors[i][k]`` is the
+/// ``i``-th component of the ``k``-th eigenvector (eigenvectors are the
+/// columns). Eigenvalues are not sorted. Accepts ``list[list[float]]`` or a
+/// ``numpy.ndarray``.
+///
+/// Raises ``CholeskyError`` on a dimension mismatch or non-finite entries.
+#[pyfunction]
+#[pyo3(text_signature = "(matrix)")]
+fn symmetric_eigen(
+    py: Python<'_>,
+    matrix: &Bound<'_, PyAny>,
+) -> PyResult<(Vec<f64>, Vec<Vec<f64>>)> {
+    let (flat, n) = extract_square_matrix(matrix)?;
+    let (values, vectors) = py
+        .detach(|| linalg::symmetric_eigen(&flat, n))
+        .map_err(cholesky_err)?;
+    Ok((values, linalg::unflatten_square(&vectors, n)))
+}
+
+/// Ledoit-Wolf (2004) shrinkage of a sample covariance matrix toward a scaled
+/// identity target with the analytic optimal shrinkage intensity.
+///
+/// ``observations`` is a ``t × n`` matrix (``t`` observations of ``n``
+/// variables, one observation per row) as ``list[list[float]]`` or a
+/// ``numpy.ndarray``. Returns ``(covariance, shrinkage)``: the ``n × n``
+/// shrunk covariance as nested lists and the intensity ``δ* ∈ [0, 1]``.
+///
+/// Raises ``ValueError`` when ``t < 2``, ``n == 0``, or any entry is non-finite.
+#[pyfunction]
+#[pyo3(text_signature = "(observations)")]
+fn ledoit_wolf_shrinkage(
+    py: Python<'_>,
+    observations: &Bound<'_, PyAny>,
+) -> PyResult<(Vec<Vec<f64>>, f64)> {
+    let (flat, t, n) = extract_matrix(observations)?;
+    let result = py
+        .detach(|| linalg::ledoit_wolf_shrinkage(&flat, t, n))
+        .map_err(core_to_py)?;
+    Ok((
+        linalg::unflatten_square(&result.covariance, n),
+        result.shrinkage,
+    ))
 }
 
 /// Build the `finstack_quant.core.math.linalg` submodule.
@@ -125,12 +172,14 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "linalg")?;
     m.setattr(
         "__doc__",
-        "Linear algebra utilities: Cholesky decomposition and triangular solves.",
+        "Linear algebra utilities: Cholesky decomposition, triangular solves, symmetric eigendecomposition, Ledoit-Wolf shrinkage.",
     )?;
 
     m.add_function(wrap_pyfunction!(apply_lower_triangular, &m)?)?;
     m.add_function(wrap_pyfunction!(cholesky_decomposition, &m)?)?;
     m.add_function(wrap_pyfunction!(cholesky_solve, &m)?)?;
+    m.add_function(wrap_pyfunction!(ledoit_wolf_shrinkage, &m)?)?;
+    m.add_function(wrap_pyfunction!(symmetric_eigen, &m)?)?;
 
     m.add("CholeskyError", py.get_type::<CholeskyError>())?;
 
@@ -148,6 +197,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "apply_lower_triangular",
             "cholesky_decomposition",
             "cholesky_solve",
+            "ledoit_wolf_shrinkage",
+            "symmetric_eigen",
         ],
     )?;
     m.setattr("__all__", all)?;

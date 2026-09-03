@@ -235,10 +235,21 @@ pub struct CalibrationReport {
     pub iterations: usize,
     /// Final objective function value (usually RMSE).
     pub objective_value: f64,
-    /// Maximum absolute residual across all instruments.
+    /// Maximum absolute residual across all instruments, in the residual
+    /// units of the calibrator that produced this report (raw units for a
+    /// step report; the largest step `max_residual` for a plan report).
     pub max_residual: f64,
-    /// Root mean square error of all residuals.
+    /// Root mean square error of all residuals, in the same units as
+    /// [`Self::max_residual`].
     pub rmse: f64,
+    /// Plan-level only: maximum `|residual| / step_tolerance` ratio across
+    /// every quote of every step. `None` on per-step reports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_residual_ratio: Option<f64>,
+    /// Plan-level only: root mean square of `|residual| / step_tolerance`
+    /// across every quote of every step. `None` on per-step reports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rmse_ratio: Option<f64>,
     /// Whether the calibrated market object passed all validation checks.
     #[serde(default = "default_true")]
     pub validation_passed: bool,
@@ -329,6 +340,8 @@ impl CalibrationReport {
             objective_value: diag.rmse,
             max_residual: diag.max_residual,
             rmse: diag.rmse,
+            max_residual_ratio: None,
+            rmse_ratio: None,
             validation_passed: true,
             validation_error: None,
             convergence_reason: convergence_reason.into(),
@@ -342,6 +355,45 @@ impl CalibrationReport {
             worst_quote_residual,
             success_tolerance: None,
         }
+    }
+
+    /// Mark this report as a plan-level aggregation over `step_reports`.
+    ///
+    /// The residual map of a plan report is expressed as
+    /// `|residual| / step_tolerance`, so the max/RMSE computed by
+    /// [`Self::new`] are ratios. This method moves them to
+    /// [`Self::max_residual_ratio`] / [`Self::rmse_ratio`] and recomputes
+    /// [`Self::max_residual`] / [`Self::rmse`] from the raw per-step
+    /// reports: the maximum step `max_residual` and the residual-count
+    /// weighted RMSE of the step RMSEs.
+    ///
+    /// # Arguments
+    ///
+    /// * `step_reports` - Per-step reports (raw residual units) whose raw
+    ///   statistics replace the ratio statistics on this report.
+    #[must_use]
+    pub fn with_plan_aggregation(
+        mut self,
+        step_reports: &BTreeMap<String, CalibrationReport>,
+    ) -> Self {
+        self.max_residual_ratio = Some(self.max_residual);
+        self.rmse_ratio = Some(self.rmse);
+        let mut max_raw = 0.0_f64;
+        let mut sum_sq = 0.0_f64;
+        let mut n_total = 0usize;
+        for step in step_reports.values() {
+            max_raw = max_raw.max(step.max_residual);
+            let n = step.residuals.len();
+            sum_sq += step.rmse * step.rmse * n as f64;
+            n_total += n;
+        }
+        self.max_residual = max_raw;
+        self.rmse = if n_total == 0 {
+            0.0
+        } else {
+            (sum_sq / n_total as f64).sqrt()
+        };
+        self
     }
 
     /// Attach an explanation trace to this report.

@@ -31,6 +31,9 @@
 //! `Performance` returns them.
 //!
 //! Freestanding public exceptions are intentionally narrow:
+//! - [`scalar`] exposes [`sharpe`], [`sortino`], [`volatility`] and
+//!   [`max_drawdown`] over a single return slice for callers that do not
+//!   need a panel.
 //! - [`beta`] is kept public for cross-crate regression use.
 //! - [`correlation`] owns shared row-major correlation-matrix validation and
 //!   repair infrastructure used by valuations and factor-model crates.
@@ -88,12 +91,14 @@ pub(crate) mod performance;
 pub mod regression;
 pub(crate) mod returns;
 pub(crate) mod risk_metrics;
+pub mod scalar;
 
 pub use aggregation::PeriodStats;
 pub use benchmark::{beta, BetaResult, GreeksResult, MultiFactorResult, ReturnKind, RollingGreeks};
 pub use drawdown::DrawdownEpisode;
 pub use performance::{LookbackReturns, Performance};
 pub use risk_metrics::{CagrDayCount, DatedSeries};
+pub use scalar::{max_drawdown, sharpe, sortino, volatility};
 
 /// Compiles the crate `README.md` Rust samples as doctests.
 ///

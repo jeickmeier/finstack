@@ -323,7 +323,10 @@ use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
 use finstack_quant_models::monte_carlo::pricer::european::EuropeanPricer;
 use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
 
-let pricer = EuropeanPricer::new(25_000).with_seed(19).with_parallel(false);
+let pricer = EuropeanPricer::new(25_000)
+    .expect("positive path count")
+    .with_seed(19)
+    .with_parallel(false);
 let process = GbmProcess::with_params(0.03, 0.01, 0.20).expect("valid GBM parameters");
 let payoff = EuropeanCall::new(100.0, 1.0, 252);
 

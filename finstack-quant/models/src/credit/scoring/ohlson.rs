@@ -211,7 +211,7 @@ pub fn ohlson_o_score(input: &OhlsonOScoreInput) -> Result<ScoringResult, Credit
         score: o,
         zone,
         implied_pd: Some(implied_pd),
-        model: "Ohlson O-Score (1980)",
+        model: "Ohlson O-Score (1980)".to_string(),
     })
 }
 

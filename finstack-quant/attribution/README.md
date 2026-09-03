@@ -14,7 +14,7 @@ repricing cost and operational moving parts.
 
 | Tier         | Entry point                                                | Behavior                                                                                       |
 |--------------|------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| Minimal      | [`simple_pnl_bridge`](src/lib.rs)                          | Scalar `value(T₁) − value(T₀)` in target currency. No decomposition.                          |
+| Minimal      | [`pnl_bridge`](src/lib.rs)                          | Scalar `value(T₁) − value(T₀)` in target currency. No decomposition.                          |
 | Linear       | [`attribute_pnl_metrics_based`](src/metrics_based/)      | Linear (and optional second-order) approximation from precomputed metrics. No extra repricing. |
 | Parallel     | [`attribute_pnl`](src/lib.rs) + `AttributionMethod::Parallel` | Isolate one factor at a time (T₀ for that factor, T₁ elsewhere). Residual carries cross-effects. |
 | Waterfall    | [`attribute_pnl`](src/lib.rs) + `AttributionMethod::Waterfall` | Apply factors in order; per-factor P&Ls sum to total P&L up to tolerance. Order matters.       |
@@ -64,7 +64,7 @@ finer breakdowns:
 
 ```text
 attribution/src/
-├── lib.rs                  # Module docs, AttributionRequest, attribute_pnl, simple_pnl_bridge
+├── lib.rs                  # Module docs, AttributionRequest, attribute_pnl, pnl_bridge
 ├── types.rs                # types module declaration
 ├── types/result.rs         # AttributionFactor, AttributionMethod, ExecutionPolicy,
 │                           #   PnlAttribution, AttributionMeta
@@ -154,7 +154,7 @@ Two schema artifacts are checked in under
 
 | Item                                                                              | Module           | Notes                                       |
 |-----------------------------------------------------------------------------------|------------------|---------------------------------------------|
-| `simple_pnl_bridge`                                                               | `lib`            | Total P&L, no decomposition                 |
+| `pnl_bridge`                                                               | `lib`            | Total P&L, no decomposition                 |
 | `attribute_pnl` + `AttributionMethod::Parallel`                                   | `parallel`       | Factor isolation, residual reports cross-effects |
 | `attribute_pnl` + `AttributionMethod::Waterfall`, `default_waterfall_order`       | `waterfall`      | Sum-preserving ordered decomposition        |
 | `attribute_pnl_metrics_based`                                                     | `metrics_based`  | Linear approximation from precomputed metrics |
@@ -253,7 +253,7 @@ The authoritative contract, including the full Rust-only inventory, is
 | [`tests/market_restore.rs`](tests/market_restore.rs) | `MarketSnapshot` / `MarketRestoreFlags` round-trip behavior |
 | [`tests/cross_factor_attribution_tests.rs`](tests/cross_factor_attribution_tests.rs) | Cross-factor / interaction residual behavior |
 | [`tests/credit_carry_split.rs`](tests/credit_carry_split.rs) | Credit carry decomposition split |
-| [`benches/attribution.rs`](benches/attribution.rs) | Per-method cost against the `simple_pnl_bridge` baseline |
+| [`benches/attribution.rs`](benches/attribution.rs) | Per-method cost against the `pnl_bridge` baseline |
 | [`benches/attribution_scale.rs`](benches/attribution_scale.rs) | Scaling with factor and tenor count |
 
 ## References

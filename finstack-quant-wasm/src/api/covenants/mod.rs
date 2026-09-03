@@ -78,8 +78,9 @@ pub fn evaluate_engine(
 ///
 /// # Errors
 ///
-/// Throws a JavaScript exception if the generated covenant package cannot be
-/// serialized to JSON.
+/// Throws a JavaScript exception if any threshold is `NaN`, infinite or
+/// negative, or if the generated covenant package cannot be serialized to
+/// JSON.
 #[wasm_bindgen(js_name = lboStandardJson)]
 pub fn lbo_standard_json(
     initial_leverage: f64,
@@ -102,8 +103,9 @@ pub fn lbo_standard_json(
 ///
 /// # Errors
 ///
-/// Throws a JavaScript exception if the generated covenant package cannot be
-/// serialized to JSON.
+/// Throws a JavaScript exception if any threshold is `NaN`, infinite or
+/// negative, or if the generated covenant package cannot be serialized to
+/// JSON.
 #[wasm_bindgen(js_name = covLiteJson)]
 pub fn cov_lite_json(max_leverage: f64, max_senior_leverage: f64) -> Result<String, JsValue> {
     finstack_quant_covenants::cov_lite_json(max_leverage, max_senior_leverage).map_err(to_js_err)
@@ -116,8 +118,9 @@ pub fn cov_lite_json(max_leverage: f64, max_senior_leverage: f64) -> Result<Stri
 ///
 /// # Errors
 ///
-/// Throws a JavaScript exception if the generated covenant package cannot be
-/// serialized to JSON.
+/// Throws a JavaScript exception if any threshold is `NaN`, infinite or
+/// negative, or if the generated covenant package cannot be serialized to
+/// JSON.
 #[wasm_bindgen(js_name = realEstateJson)]
 pub fn real_estate_json(
     min_dscr: f64,
@@ -135,8 +138,9 @@ pub fn real_estate_json(
 ///
 /// # Errors
 ///
-/// Throws a JavaScript exception if the generated covenant package cannot be
-/// serialized to JSON.
+/// Throws a JavaScript exception if any threshold is `NaN`, infinite or
+/// negative, or if the generated covenant package cannot be serialized to
+/// JSON.
 #[wasm_bindgen(js_name = projectFinanceJson)]
 pub fn project_finance_json(
     min_dscr: f64,

@@ -55,7 +55,7 @@ class TestBuilderSurvivesBadInput:
 
     def test_bad_periods_does_not_brick_the_builder(self) -> None:
         b = statements.ModelBuilder("periods-brick")
-        with pytest.raises(ValueError, match="Invalid input"):
+        with pytest.raises(ValueError, match="invalid period range"):
             b.periods("not-a-range", None)
         # Retry with a valid range must succeed.
         b.periods("2025Q1..Q1", None)

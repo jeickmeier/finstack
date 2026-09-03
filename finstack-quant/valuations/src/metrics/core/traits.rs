@@ -685,7 +685,7 @@ mod tests {
         let underscore = MetricId::composite(&MetricId::BucketedDv01, &["USD_OIS"]);
 
         assert_ne!(hyphen, underscore);
-        assert_eq!(hyphen.as_str(), "bucketed_dv01::USD_x2dOIS");
-        assert_eq!(underscore.as_str(), "bucketed_dv01::USD_x5fOIS");
+        assert_eq!(hyphen.as_str(), "bucketed_dv01::USD-OIS");
+        assert_eq!(underscore.as_str(), "bucketed_dv01::USD_OIS");
     }
 }

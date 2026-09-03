@@ -388,19 +388,20 @@ impl CopulaSpec {
     /// Create a Student-t copula specification.
     ///
     /// # Arguments
-    /// * `df` - Degrees of freedom (typically 4-10 for CDX)
+    /// * `degrees_of_freedom` - Student-t degrees of freedom; must be finite
+    ///   and strictly greater than 2 (finite variance). Typical CDX tranche
+    ///   calibrations land in 4-10.
     ///
     /// # Returns
     ///
     /// A [`CopulaSpec::StudentT`] configuration.
     ///
     /// # Errors
-    /// Returns [`crate::correlation::Error`] if `df` is not finite or `<= 2`.
-    pub fn student_t(df: f64) -> Result<Self> {
-        validate_student_t_degrees_of_freedom(df)?;
-        Ok(CopulaSpec::StudentT {
-            degrees_of_freedom: df,
-        })
+    /// Returns [`crate::correlation::Error`] if `degrees_of_freedom` is not
+    /// finite or `<= 2`.
+    pub fn student_t(degrees_of_freedom: f64) -> Result<Self> {
+        validate_student_t_degrees_of_freedom(degrees_of_freedom)?;
+        Ok(CopulaSpec::StudentT { degrees_of_freedom })
     }
 
     /// Create a Random Factor Loading specification.

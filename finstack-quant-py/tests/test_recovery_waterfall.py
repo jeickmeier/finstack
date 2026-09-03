@@ -19,7 +19,8 @@ def test_recovery_waterfall_delegates_collateral_and_priority_allocation() -> No
             "first_lien",
             1,
             100.0,
-            collateral=(60.0, 0.25),
+            collateral_value=60.0,
+            collateral_haircut=0.25,
         ),
         RecoveryClaim("peer", "first_lien", 1, 100.0),
         RecoveryClaim("junior", "subordinated", 2, 50.0),
@@ -51,8 +52,8 @@ def test_recovery_waterfall_maps_rust_validation_errors() -> None:
 
 def test_recovery_waterfall_accepts_decimal_collateral_rounding() -> None:
     claims = [
-        RecoveryClaim("first", "first_lien", 1, 0.1, collateral=(0.1, 0.0)),
-        RecoveryClaim("second", "first_lien", 1, 0.2, collateral=(0.2, 0.0)),
+        RecoveryClaim("first", "first_lien", 1, 0.1, collateral_value=0.1),
+        RecoveryClaim("second", "first_lien", 1, 0.2, collateral_value=0.2),
     ]
 
     result = allocate_recovery(0.3, claims)
@@ -60,6 +61,22 @@ def test_recovery_waterfall_accepts_decimal_collateral_rounding() -> None:
     recovered = sum(allocation.total_recovery for allocation in result.allocations)
     assert recovered + result.undistributed_estate == pytest.approx(0.3, abs=1.0e-15)
     assert all(allocation.total_recovery <= allocation.total_claim for allocation in result.allocations)
+
+
+def test_recovery_claim_and_allocation_round_trip() -> None:
+    import pickle
+
+    claim = RecoveryClaim("SEN", "secured", 1, 100.0, collateral_value=60.0, collateral_haircut=0.25)
+    assert RecoveryClaim.from_json(claim.to_json()) == claim
+    assert pickle.loads(pickle.dumps(claim))  # noqa: S301 - trusted in-process round trip == claim
+    assert repr(claim) == 'RecoveryClaim(id="SEN", seniority="secured", priority=1, total_claim=100)'
+
+    allocation = allocate_recovery(100.0, [claim]).allocations[0]
+    assert RecoveryAllocation.from_json(allocation.to_json()) == allocation
+    frame = allocation.to_dataframe()
+    assert len(frame) == 1
+    assert frame["id"].iloc[0] == "SEN"
+    assert frame["collateral_recovery"].iloc[0] == pytest.approx(45.0)
 
 
 def test_recovery_waterfall_rejects_duplicate_trimmed_ids() -> None:

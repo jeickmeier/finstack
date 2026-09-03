@@ -25,7 +25,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// against per-bp sensitivities — mis-scales portfolio variance by `1e8`.
 /// The credit calibrator produces matrices in this convention from the spread
 /// panel's native units; hand-built matrices must match it.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FactorCovarianceMatrix {

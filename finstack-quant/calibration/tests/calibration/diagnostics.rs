@@ -108,6 +108,7 @@ fn envelope_error_step_id_returns_some_for_step_bound_variants() {
 
     let load = EnvelopeError::StrictLoad {
         message: "x".to_string(),
+        diagnostics: Vec::new(),
     };
     assert!(load.step_id().is_none());
 }

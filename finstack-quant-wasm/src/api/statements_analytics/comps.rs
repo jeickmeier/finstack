@@ -7,7 +7,7 @@ use crate::utils::to_js_err;
 use finstack_quant_statements_analytics::analysis as fc;
 use wasm_bindgen::prelude::*;
 
-/// Percentile rank of `value` within `data` on a 0-1 scale.
+/// Percentile rank of `value` within `data` on a 0-1 scale (Rust `percentile_rank(values, value)` argument order).
 ///
 /// Returns `undefined` when `data` is empty rather than a synthetic 0.5.
 ///
@@ -16,10 +16,10 @@ use wasm_bindgen::prelude::*;
 /// Rejects when `data` is not a numeric JavaScript array or the finite rank
 /// cannot be serialized. Empty/non-finite peer data or a non-finite `value`
 /// return `undefined` rather than rejecting.
-/// @param value - Subject-company metric value to rank against the peer sample.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
+/// @param value - Subject-company metric value to rank against the peer sample.
 #[wasm_bindgen(js_name = percentileRank)]
-pub fn percentile_rank(value: f64, data: JsValue) -> Result<Option<JsValue>, JsValue> {
+pub fn percentile_rank(data: JsValue, value: f64) -> Result<Option<JsValue>, JsValue> {
     let d: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
     match fc::percentile_rank(&d, value) {
         Some(rank) => crate::utils::to_js_value(&rank).map(Some),
@@ -27,7 +27,7 @@ pub fn percentile_rank(value: f64, data: JsValue) -> Result<Option<JsValue>, JsV
     }
 }
 
-/// Z-score of `value` within `data`.
+/// Z-score of `value` within `data` (Rust `z_score(values, value)` argument order).
 ///
 /// Returns `undefined` when fewer than two observations are provided or the
 /// peer variance is zero, instead of a synthetic zero.
@@ -37,10 +37,10 @@ pub fn percentile_rank(value: f64, data: JsValue) -> Result<Option<JsValue>, JsV
 /// Rejects when `data` is not a numeric JavaScript array or the computed score
 /// cannot be serialized. Insufficient data, zero variance, or a non-finite
 /// `value` return `undefined` rather than rejecting.
-/// @param value - Subject-company metric value to standardize against the peer sample.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
+/// @param value - Subject-company metric value to standardize against the peer sample.
 #[wasm_bindgen(js_name = zScore)]
-pub fn z_score(value: f64, data: JsValue) -> Result<Option<JsValue>, JsValue> {
+pub fn z_score(data: JsValue, value: f64) -> Result<Option<JsValue>, JsValue> {
     let d: Vec<f64> = serde_wasm_bindgen::from_value(data).map_err(to_js_err)?;
     match fc::z_score(&d, value) {
         Some(z) => crate::utils::to_js_value(&z).map(Some),

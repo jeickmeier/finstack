@@ -17,18 +17,30 @@ use fixtures::{perf_from_returns, perf_panel, synthetic_dates, synthetic_returns
 fn bench_tail_risk(c: &mut Criterion) {
     let perf_small = perf_from_returns(2_500, 42);
     c.bench_function("Performance::value_at_risk 2.5k", |b| {
-        b.iter(|| black_box(perf_small.value_at_risk(0.95)));
+        b.iter(|| black_box(perf_small.value_at_risk(0.95).expect("valid confidence")));
     });
     c.bench_function("Performance::expected_shortfall 2.5k", |b| {
-        b.iter(|| black_box(perf_small.expected_shortfall(0.95)));
+        b.iter(|| {
+            black_box(
+                perf_small
+                    .expected_shortfall(0.95)
+                    .expect("valid confidence"),
+            )
+        });
     });
 
     let perf_large = perf_from_returns(100_000, 43);
     c.bench_function("Performance::value_at_risk 100k", |b| {
-        b.iter(|| black_box(perf_large.value_at_risk(0.95)));
+        b.iter(|| black_box(perf_large.value_at_risk(0.95).expect("valid confidence")));
     });
     c.bench_function("Performance::expected_shortfall 100k", |b| {
-        b.iter(|| black_box(perf_large.expected_shortfall(0.95)));
+        b.iter(|| {
+            black_box(
+                perf_large
+                    .expected_shortfall(0.95)
+                    .expect("valid confidence"),
+            )
+        });
     });
 }
 
@@ -82,7 +94,7 @@ fn bench_performance(c: &mut Criterion) {
         b.iter(|| black_box(perf.sharpe(0.02)));
     });
     c.bench_function("Performance::value_at_risk 750x2", |b| {
-        b.iter(|| black_box(perf.value_at_risk(0.95)));
+        b.iter(|| black_box(perf.value_at_risk(0.95).expect("valid confidence")));
     });
 }
 

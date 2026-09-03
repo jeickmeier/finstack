@@ -50,21 +50,21 @@ const MIN_VEGA: f64 = 1e-15;
 
 /// Solve for Black–Scholes / Garman–Kohlhagen implied volatility.
 ///
-/// Finds \(\sigma\) such that `bs_price(spot, strike, r, q, sigma, t, option_type) == target_price`.
+/// Finds \(\sigma\) such that `bs_price(spot, strike, rate, div_yield, vol, expiry, option_type) == target_price`.
 ///
 /// - `target_price` is the **per-unit** option price (not contract-scaled).
-/// - Returns `Ok(0.0)` when `t <= 0` (expired; volatility is moot).
-/// - Returns `Err` for non-finite inputs, non-positive `spot`/`strike`/`target_price`,
+/// - Returns `Err` for non-finite inputs, non-positive `expiry` (an expired
+///   option has no implied volatility), non-positive `spot`/`strike`/`target_price`,
 ///   or when the target cannot be bracketed.
 ///
 /// # Arguments
 ///
 /// * `spot` - Current underlying spot price in the option's price units.
 /// * `strike` - Exercise price in the same units as `spot`.
-/// * `r` - Continuously compounded domestic risk-free rate as a decimal.
-/// * `q` - Continuously compounded dividend yield or foreign-rate carry as a
+/// * `rate` - Continuously compounded domestic risk-free rate as a decimal.
+/// * `div_yield` - Continuously compounded dividend yield or foreign-rate carry as a
 ///   decimal.
-/// * `t` - Remaining time to expiry in years.
+/// * `expiry` - Remaining time to expiry in years; must be strictly positive.
 /// * `option_type` - Call or put payoff convention to invert.
 /// * `target_price` - Observed per-unit option premium to match, excluding
 ///   any contract multiplier.
@@ -72,25 +72,28 @@ const MIN_VEGA: f64 = 1e-15;
 pub fn bs_implied_vol(
     spot: f64,
     strike: f64,
-    r: f64,
-    q: f64,
-    t: f64,
+    rate: f64,
+    div_yield: f64,
+    expiry: f64,
     option_type: OptionType,
     target_price: f64,
 ) -> Result<f64> {
     if !spot.is_finite()
         || !strike.is_finite()
-        || !r.is_finite()
-        || !q.is_finite()
-        || !t.is_finite()
+        || !rate.is_finite()
+        || !div_yield.is_finite()
+        || !expiry.is_finite()
         || !target_price.is_finite()
     {
         return Err(finstack_quant_core::Error::Validation(
             NON_FINITE_MSG.into(),
         ));
     }
-    if t <= 0.0 {
-        return Ok(0.0);
+    if expiry <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "implied vol requires a positive time to expiry, got {expiry}; an expired option \
+             has no implied volatility"
+        )));
     }
     if target_price <= 0.0 || spot <= 0.0 || strike <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(
@@ -100,20 +103,25 @@ pub fn bs_implied_vol(
 
     // Intrinsic lower bound (per unit) for continuous compounding.
     let intrinsic = match option_type {
-        OptionType::Call => (spot * (-q * t).exp() - strike * (-r * t).exp()).max(0.0),
-        OptionType::Put => (strike * (-r * t).exp() - spot * (-q * t).exp()).max(0.0),
+        OptionType::Call => {
+            (spot * (-div_yield * expiry).exp() - strike * (-rate * expiry).exp()).max(0.0)
+        }
+        OptionType::Put => {
+            (strike * (-rate * expiry).exp() - spot * (-div_yield * expiry).exp()).max(0.0)
+        }
     };
     if target_price <= intrinsic {
         return Err(finstack_quant_core::Error::Validation(format!(
             "Implied vol: target price {target_price:.6} is at or below intrinsic value \
-             {intrinsic:.6} for spot={spot}, strike={strike}, r={r}, q={q}, t={t}. \
+             {intrinsic:.6} for spot={spot}, strike={strike}, rate={rate}, div_yield={div_yield}, expiry={expiry}. \
              This is an arbitrage violation — the option cannot be worth less than its \
              intrinsic. Check the input price."
         )));
     }
 
-    let price_at =
-        |sigma: f64| -> f64 { bs_price_unchecked(spot, strike, r, q, sigma, t, option_type) };
+    let price_at = |sigma: f64| -> f64 {
+        bs_price_unchecked(spot, strike, rate, div_yield, sigma, expiry, option_type)
+    };
 
     // Bracket the solution (monotone increasing in sigma for vanilla options).
     let mut lo = MIN_VOL;
@@ -131,7 +139,7 @@ pub fn bs_implied_vol(
     if !f_hi.is_finite() {
         return Err(finstack_quant_core::Error::Validation(format!(
             "Implied vol: BS price became non-finite at upper bracket sigma={hi:.6} \
-             (target={target_price:.6}, spot={spot}, strike={strike}, t={t}). \
+             (target={target_price:.6}, spot={spot}, strike={strike}, expiry={expiry}). \
              Likely cause: numeric overflow at extreme moneyness; check input scale."
         )));
     }
@@ -140,14 +148,14 @@ pub fn bs_implied_vol(
         return Err(finstack_quant_core::Error::Validation(format!(
             "Implied vol: target price {target_price:.6} exceeds BS price at MAX_VOL \
              (sigma={MAX_VOL:.1}) which is {bs_at_max:.6} (spot={spot}, strike={strike}, \
-             t={t}). The implied volatility either exceeds {MAX_VOL:.1} or the input \
+             expiry={expiry}). The implied volatility either exceeds {MAX_VOL:.1} or the input \
              price violates arbitrage bounds. Verify the price quote."
         )));
     }
     if !f_lo.is_finite() {
         return Err(finstack_quant_core::Error::Validation(format!(
             "Implied vol: BS price became non-finite at lower bracket sigma={lo:.2e} \
-             (spot={spot}, strike={strike}, t={t})."
+             (spot={spot}, strike={strike}, expiry={expiry})."
         )));
     }
     if f_lo > 0.0 {
@@ -155,15 +163,16 @@ pub fn bs_implied_vol(
         // arbitrage violation (price below floor at MIN_VOL).
         return Err(finstack_quant_core::Error::Validation(format!(
             "Implied vol: target price {target_price:.6} is below the BS floor at \
-             sigma={lo:.2e} (spot={spot}, strike={strike}, t={t}). Likely an arbitrage \
+             sigma={lo:.2e} (spot={spot}, strike={strike}, expiry={expiry}). Likely an arbitrage \
              violation in the input quote."
         )));
     }
 
     // Newton-Raphson with bisection fallback.
     // bs_vega returns dPrice/dSigma scaled by 0.01, so multiply by 100 for raw vega.
-    let raw_vega_at =
-        |sigma: f64| -> f64 { bs_vega_unchecked(spot, strike, t, r, q, sigma) * 100.0 };
+    let raw_vega_at = |sigma: f64| -> f64 {
+        bs_vega_unchecked(spot, strike, expiry, rate, div_yield, sigma) * 100.0
+    };
 
     let mut mid = 0.5 * (lo + hi);
 
@@ -223,11 +232,11 @@ pub fn bs_implied_vol(
 /// Solve for Black-76 implied volatility (forward-based).
 ///
 /// Finds \(\sigma\) such that:
-/// `df * bs_price(forward, strike, 0, 0, sigma, t, option_type) == target_price`.
+/// `df * bs_price(forward, strike, 0, 0, sigma, expiry, option_type) == target_price`.
 ///
 /// - `target_price` is the **per-unit** option price (not contract-scaled).
-/// - Returns `Ok(0.0)` when `t <= 0` (expired; volatility is moot).
-/// - Returns `Err` for non-finite inputs, non-positive `forward`/`strike`/`df`/`target_price`,
+/// - Returns `Err` for non-finite inputs, non-positive `expiry` (an expired
+///   option has no implied volatility), non-positive `forward`/`strike`/`df`/`target_price`,
 ///   or when the target cannot be bracketed.
 ///
 /// # Arguments
@@ -235,29 +244,32 @@ pub fn bs_implied_vol(
 /// * `forward` - Forward price or rate at expiry in the option's quote units.
 /// * `strike` - Exercise price or rate in the same units as `forward`.
 /// * `df` - Discount factor from valuation date to expiry.
-/// * `t` - Remaining time to expiry in years.
+/// * `expiry` - Remaining time to expiry in years; must be strictly positive.
 /// * `option_type` - Call or put payoff convention to invert.
 /// * `target_price` - Observed discounted per-unit option premium to match.
 pub fn black76_implied_vol(
     forward: f64,
     strike: f64,
     df: f64,
-    t: f64,
+    expiry: f64,
     option_type: OptionType,
     target_price: f64,
 ) -> Result<f64> {
     if !forward.is_finite()
         || !strike.is_finite()
         || !df.is_finite()
-        || !t.is_finite()
+        || !expiry.is_finite()
         || !target_price.is_finite()
     {
         return Err(finstack_quant_core::Error::Validation(
             NON_FINITE_MSG.into(),
         ));
     }
-    if t <= 0.0 {
-        return Ok(0.0);
+    if expiry <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "implied vol requires a positive time to expiry, got {expiry}; an expired option \
+             has no implied volatility"
+        )));
     }
     if target_price <= 0.0 || forward <= 0.0 || strike <= 0.0 || df <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(
@@ -276,7 +288,7 @@ pub fn black76_implied_vol(
     }
 
     let price_at = |sigma: f64| -> f64 {
-        df * bs_price_unchecked(forward, strike, 0.0, 0.0, sigma, t, option_type)
+        df * bs_price_unchecked(forward, strike, 0.0, 0.0, sigma, expiry, option_type)
     };
 
     let mut lo = MIN_VOL;
@@ -302,9 +314,10 @@ pub fn black76_implied_vol(
     }
 
     // Newton-Raphson with bisection fallback.
-    // For Black-76: vega = df * d(bs_price(F,K,0,0,sigma,t))/d(sigma)
-    let raw_vega_at =
-        |sigma: f64| -> f64 { df * bs_vega_unchecked(forward, strike, t, 0.0, 0.0, sigma) * 100.0 };
+    // For Black-76: vega = df * d(bs_price(F,K,0,0,sigma,expiry))/d(sigma)
+    let raw_vega_at = |sigma: f64| -> f64 {
+        df * bs_vega_unchecked(forward, strike, expiry, 0.0, 0.0, sigma) * 100.0
+    };
 
     let mut mid = 0.5 * (lo + hi);
 

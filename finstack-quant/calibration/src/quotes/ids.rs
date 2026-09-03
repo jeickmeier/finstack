@@ -158,6 +158,27 @@ pub enum Pillar {
     ),
 }
 
+impl std::str::FromStr for Pillar {
+    type Err = finstack_quant_core::Error;
+
+    /// Parse a pillar from a tenor string (`"3M"`, `"5Y"`) or an ISO-8601
+    /// calendar date (`"2030-06-20"`).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let trimmed = s.trim();
+        if let Ok(tenor) = trimmed.parse::<Tenor>() {
+            return Ok(Pillar::Tenor(tenor));
+        }
+        let format = time::macros::format_description!("[year]-[month]-[day]");
+        Date::parse(trimmed, &format)
+            .map(Pillar::Date)
+            .map_err(|_| {
+                finstack_quant_core::Error::Validation(format!(
+                    "invalid pillar '{s}': expected a tenor such as '3M' or '5Y', or an ISO-8601 date"
+                ))
+            })
+    }
+}
+
 impl fmt::Display for Pillar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

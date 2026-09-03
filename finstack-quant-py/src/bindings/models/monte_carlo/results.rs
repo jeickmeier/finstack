@@ -269,6 +269,14 @@ pub struct PyEstimate {
     inner: finstack_quant_models::monte_carlo::estimate::Estimate,
 }
 
+impl PyEstimate {
+    pub(super) fn from_inner(
+        inner: finstack_quant_models::monte_carlo::estimate::Estimate,
+    ) -> Self {
+        Self { inner }
+    }
+}
+
 #[pymethods]
 impl PyEstimate {
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).

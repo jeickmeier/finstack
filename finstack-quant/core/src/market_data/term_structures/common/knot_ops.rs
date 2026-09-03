@@ -192,9 +192,10 @@ pub(crate) fn infer_spot_from_knots(knots: &[f64], values: &[f64]) -> Option<f64
 #[inline]
 pub(crate) fn validate_unit_range(value: f64, field_name: &str) -> crate::Result<()> {
     if !(0.0..=1.0).contains(&value) {
-        return Err(crate::error::InputError::Invalid.into());
+        return Err(crate::Error::Validation(format!(
+            "{field_name} must be a decimal fraction in [0, 1], got {value}"
+        )));
     }
-    let _ = field_name; // used in error context if needed in the future
     Ok(())
 }
 

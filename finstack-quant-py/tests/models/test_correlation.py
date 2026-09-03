@@ -210,3 +210,54 @@ class TestCholeskyDecompose:
         assert r00 == pytest.approx(1.0, abs=1e-8)
         assert r01 == pytest.approx(0.5, abs=1e-8)
         assert r11 == pytest.approx(1.0, abs=1e-8)
+
+
+def test_copula_spec_student_t_keyword_repr_and_pickle() -> None:
+    """``student_t`` mirrors the Rust field name and specs are value types."""
+    import pickle
+
+    from finstack_quant.models.correlation import CopulaSpec, RecoverySpec
+
+    spec = CopulaSpec.student_t(degrees_of_freedom=5.0)
+    assert spec == CopulaSpec.student_t(5.0)
+    assert repr(spec) == 'CopulaSpec(degrees_of_freedom=5.0, type="student_t")'
+    assert pickle.loads(pickle.dumps(spec)) == spec  # noqa: S301
+    recovery = RecoverySpec.constant(0.4)
+    assert repr(recovery) == 'RecoverySpec(rate=0.4, type="constant")'
+    assert RecoverySpec.from_json(recovery.to_json()) == recovery
+
+
+def test_matrix_helpers_accept_two_dimensional_input() -> None:
+    """2-D rows are accepted and shape mismatches name the rows found."""
+    import pytest
+
+    from finstack_quant.models.correlation import (
+        cholesky_decompose,
+        nearest_correlation,
+        validate_correlation_matrix,
+    )
+
+    rows = [[1.0, 0.3], [0.3, 1.0]]
+    assert validate_correlation_matrix(rows, 2) is None
+    assert cholesky_decompose(rows, 2) == cholesky_decompose([1.0, 0.3, 0.3, 1.0], 2)
+    assert nearest_correlation(rows, 2) == pytest.approx([1.0, 0.3, 0.3, 1.0])
+    with pytest.raises(ValueError, match="got 2 rows with widths"):
+        validate_correlation_matrix(rows, 3)
+    with pytest.raises(ValueError, match="requires 9"):
+        validate_correlation_matrix([1.0, 0.0, 0.0, 1.0], 3)
+
+
+def test_simulate_portfolio_loss_accepts_dataframe() -> None:
+    import pandas as pd
+
+    from finstack_quant.models.correlation import (
+        CopulaSpec,
+        CreditExposure,
+        PortfolioLossConfig,
+        simulate_portfolio_loss,
+    )
+
+    config = PortfolioLossConfig(100, 7, 0.95, CopulaSpec.gaussian())
+    typed = simulate_portfolio_loss([CreditExposure("A", 100.0, 0.05, 0.6, [0.3])], config)
+    frame = pd.DataFrame({"id": ["A"], "notional": [100.0], "pd": [0.05], "lgd": [0.6], "factor_loading": [0.3]})
+    assert simulate_portfolio_loss(frame, config).losses == typed.losses

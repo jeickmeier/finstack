@@ -9,8 +9,8 @@ use crate::bindings::core::currency::PyCurrency;
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::extract::{extract_instrument_json, extract_market};
 use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
-use crate::bindings::pandas_utils::ColumnSchema;
-use crate::errors::{core_to_py, display_to_py};
+use crate::bindings::pandas_utils::{serde_to_py, ColumnSchema};
+use crate::errors::core_to_py;
 use finstack_quant_core::types::InstrumentId;
 use finstack_quant_valuations::instruments::composite::{
     CompositeExposureReport, CompositeHistoryEngine, CompositeHistoryRow, CompositeInstrument,
@@ -82,6 +82,47 @@ fn composite_envelope_json(instrument: &CompositeInstrument) -> PyResult<String>
 
 fn parse_observations(json: &str, what: &str) -> PyResult<Vec<CompositeMarketObservation>> {
     parse_json(json, what)
+}
+
+/// Accept a ``CompositeMarketObservation`` array as a Python list of dicts,
+/// a JSON string, or ``None`` (no observations).
+fn observations_from_py(
+    py: Python<'_>,
+    obj: Option<&Bound<'_, PyAny>>,
+    what: &str,
+) -> PyResult<Vec<CompositeMarketObservation>> {
+    match obj {
+        None => Ok(Vec::new()),
+        Some(obj) if obj.is_none() => Ok(Vec::new()),
+        Some(obj) => {
+            let json = crate::bindings::module_utils::py_to_json_string(py, obj, what)?;
+            parse_observations(&json, what)
+        }
+    }
+}
+
+/// Render the fields of a serde object Python-style (``key='str'``, ``True``,
+/// ``None``) for ``__repr__`` implementations of serde-backed enums.
+fn py_style_fields(value: &serde_json::Value) -> String {
+    fn scalar(v: &serde_json::Value) -> String {
+        match v {
+            serde_json::Value::Null => "None".to_string(),
+            serde_json::Value::Bool(b) => {
+                crate::bindings::valuations::convert::bool_repr(*b).to_string()
+            }
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::String(s) => format!("{s:?}").replace('"', "'"),
+            other => other.to_string(),
+        }
+    }
+    match value {
+        serde_json::Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| format!("{k}={}", scalar(v)))
+            .collect::<Vec<_>>()
+            .join(", "),
+        other => scalar(other),
+    }
 }
 
 /// One self-contained composite leg definition.
@@ -213,6 +254,34 @@ impl PyCompositeLegSpec {
         to_json(
             &InstrumentEnvelope::new(self.inner.instrument.as_ref().clone()),
             "embedded instrument envelope",
+        )
+    }
+
+    /// Return the embedded instrument as a plain ``dict`` (canonical serde shape).
+    ///
+    /// Returns
+    /// -------
+    /// dict
+    ///     Tagged instrument object identical to ``json.loads(self.instrument_json)``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
+    fn instrument_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(
+            py,
+            &InstrumentEnvelope::new(self.inner.instrument.as_ref().clone()),
+        )
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "CompositeLegSpec(instrument_id='{}', instrument_type='{}', weight={})",
+            self.inner.instrument_id,
+            self.inner.instrument.type_tag(),
+            self.inner.weight
         )
     }
 }
@@ -466,6 +535,14 @@ impl PyWeightingMethod {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
+
+    /// Return ``repr(self)`` (``WeightingMethod(kind='dv01_neutral', anchor_leg_id='A', ...)``).
+    fn __repr__(&self) -> String {
+        let fields = serde_json::to_value(&self.inner)
+            .map(|v| py_style_fields(&v))
+            .unwrap_or_default();
+        format!("WeightingMethod({fields})")
+    }
 }
 
 /// Explicit or calendar-based composite rebalance schedule.
@@ -499,12 +576,13 @@ impl PyRebalanceRule {
         }
     }
 
-    /// Schedule rebalances on strictly increasing ISO dates.
+    /// Schedule rebalances on strictly increasing dates.
     ///
     /// Parameters
     /// ----------
-    /// dates : list[str]
-    ///     ISO-8601 dates; duplicates and descending dates are rejected.
+    /// dates : list[datetime.date | datetime.datetime | pandas.Timestamp | str]
+    ///     Rebalance dates (ISO-8601 strings or date-like objects); duplicates
+    ///     and descending dates are rejected.
     ///
     /// Returns
     /// -------
@@ -516,10 +594,10 @@ impl PyRebalanceRule {
     /// ValueError
     ///     If a date is invalid or the sequence is not strictly increasing.
     #[staticmethod]
-    fn dates(dates: Vec<String>) -> PyResult<Self> {
+    fn dates(dates: Vec<Bound<'_, PyAny>>) -> PyResult<Self> {
         let dates = dates
             .iter()
-            .map(|date| finstack_quant_core::dates::parse_iso_date(date).map_err(display_to_py))
+            .map(crate::bindings::date_utils::extract_date)
             .collect::<PyResult<Vec<_>>>()?;
         let inner = RebalanceRule::Dates { dates };
         inner.validate().map_err(core_to_py)?;
@@ -530,16 +608,16 @@ impl PyRebalanceRule {
     ///
     /// Parameters
     /// ----------
-    /// start : str
-    ///     ISO-8601 unadjusted schedule start date.
+    /// start : datetime.date | datetime.datetime | pandas.Timestamp | str
+    ///     Unadjusted schedule start date (date-like or ISO-8601 string).
     /// frequency : str
     ///     One of ``daily``, ``weekly``, ``monthly``, or ``quarterly``.
     /// calendar_id : str
-    ///     Registered calendar identifier such as ``weekends``.
+    ///     Registered calendar identifier such as ``weekends_only``.
     /// business_day_convention : str
     ///     Canonical convention such as ``following`` or ``modified_following``.
-    /// end : str | None
-    ///     Optional final ISO date; omit for an open-ended cadence.
+    /// end : datetime.date | datetime.datetime | pandas.Timestamp | str | None
+    ///     Optional final date; omit for an open-ended cadence.
     ///
     /// Returns
     /// -------
@@ -553,16 +631,17 @@ impl PyRebalanceRule {
     #[staticmethod]
     #[pyo3(signature = (start, frequency, calendar_id, business_day_convention, end=None))]
     fn calendar(
-        start: &str,
+        start: &Bound<'_, PyAny>,
         frequency: &str,
         calendar_id: &str,
         business_day_convention: &str,
-        end: Option<&str>,
+        end: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let inner = RebalanceRule::Calendar {
-            start: finstack_quant_core::dates::parse_iso_date(start).map_err(display_to_py)?,
+            start: crate::bindings::date_utils::extract_date(start)?,
             end: end
-                .map(|date| finstack_quant_core::dates::parse_iso_date(date).map_err(display_to_py))
+                .filter(|value| !value.is_none())
+                .map(crate::bindings::date_utils::extract_date)
                 .transpose()?,
             frequency: super::instruments::enum_from_str::<RebalanceFrequency>(
                 frequency,
@@ -620,6 +699,14 @@ impl PyRebalanceRule {
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
         let from_json = py.get_type::<Self>().getattr("from_json")?;
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Return ``repr(self)`` (``RebalanceRule(kind='manual')``).
+    fn __repr__(&self) -> String {
+        let fields = serde_json::to_value(&self.inner)
+            .map(|v| py_style_fields(&v))
+            .unwrap_or_default();
+        format!("RebalanceRule({fields})")
     }
 }
 
@@ -753,11 +840,64 @@ impl PyCompositeSpec {
         self.inner.reporting_currency.to_string()
     }
 
+    /// Return the capital denominator (``Money`` in the reporting currency).
+    #[getter]
+    fn capital(&self) -> PyMoney {
+        PyMoney {
+            inner: self.inner.capital,
+        }
+    }
+
+    /// Return the signed leg definitions in specification order.
+    #[getter]
+    fn legs(&self) -> Vec<PyCompositeLegSpec> {
+        self.inner
+            .legs
+            .iter()
+            .map(|leg| PyCompositeLegSpec { inner: leg.clone() })
+            .collect()
+    }
+
+    /// Return the weighting policy.
+    #[getter]
+    fn weighting_method(&self) -> PyWeightingMethod {
+        PyWeightingMethod {
+            inner: self.inner.weighting_method.clone(),
+        }
+    }
+
+    /// Return the rebalance rule.
+    #[getter]
+    fn rebalance_rule(&self) -> PyRebalanceRule {
+        PyRebalanceRule {
+            inner: self.inner.rebalance_rule.clone(),
+        }
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "CompositeSpec(id='{}', reporting_currency='{}', capital={}, legs={}, weighting_method={}, rebalance_rule={})",
+            self.inner.id,
+            self.inner.reporting_currency,
+            self.inner.capital.amount(),
+            self.inner.legs.len(),
+            PyWeightingMethod {
+                inner: self.inner.weighting_method.clone()
+            }
+            .__repr__(),
+            PyRebalanceRule {
+                inner: self.inner.rebalance_rule.clone()
+            }
+            .__repr__(),
+        )
+    }
+
     /// Resolve immutable quantities from information available through a date.
     ///
     /// There is no separate ``initialize_fixed`` binding. ``fixed_quantity``
     /// specs resolve through this method and do not require historical
-    /// observations. Volatility weighting requires ``history_json`` to end on
+    /// observations. Volatility weighting requires ``history`` to end on
     /// ``as_of``.
     ///
     /// Parameters
@@ -766,8 +906,9 @@ impl PyCompositeSpec {
     ///     Complete current market object or canonical market JSON.
     /// as_of : datetime.date | str
     ///     Effective date as a date-like value or ISO-8601 string.
-    /// history_json : str
-    ///     Strict chronological ``CompositeMarketObservation`` array JSON.
+    /// history : list[dict] | str | None
+    ///     Strict chronological ``CompositeMarketObservation`` array (list of
+    ///     dicts or JSON string). ``None`` means no history.
     ///
     /// Returns
     /// -------
@@ -778,17 +919,17 @@ impl PyCompositeSpec {
     /// ------
     /// ValueError
     ///     If validation, history, metric, notional, FX, or quantity resolution fails.
-    #[pyo3(signature = (market, as_of, history_json="[]"))]
+    #[pyo3(signature = (market, as_of, history=None))]
     fn initialize(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         as_of: &Bound<'_, PyAny>,
-        history_json: &str,
+        history: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyCompositeRebalanceResult> {
         let market = extract_market(py, market)?;
         let as_of = crate::bindings::date_utils::extract_date(as_of)?;
-        let history = parse_observations(history_json, "composite market history")?;
+        let history = observations_from_py(py, history, "composite market history")?;
         self.inner
             .initialize(&market, as_of, &history)
             .map(PyCompositeRebalanceResult::from_inner)
@@ -877,6 +1018,15 @@ impl PyCompositeState {
     /// Notes
     /// -----
     /// This accessor does not raise; it copies the validated resolved legs.
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "CompositeState(effective_date='{}', legs={})",
+            self.inner.effective_date,
+            self.inner.resolved_legs.len()
+        )
+    }
+
     #[getter]
     fn resolved_quantities(&self) -> std::collections::BTreeMap<String, f64> {
         self.inner
@@ -1006,8 +1156,9 @@ impl PyCompositeInstrument {
     ///     Complete rebalance-date market object or canonical JSON.
     /// as_of : datetime.date | str
     ///     Effective date for the new state.
-    /// history_json : str
-    ///     Strict chronological observation array available through ``as_of``.
+    /// history : list[dict] | str | None
+    ///     Strict chronological observation array (list of dicts or JSON
+    ///     string) available through ``as_of``; ``None`` means no history.
     ///
     /// Returns
     /// -------
@@ -1018,17 +1169,17 @@ impl PyCompositeInstrument {
     /// ------
     /// ValueError
     ///     If market/history inputs or quantity resolution are invalid.
-    #[pyo3(signature = (market, as_of, history_json="[]"))]
+    #[pyo3(signature = (market, as_of, history=None))]
     fn rebalance(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         as_of: &Bound<'_, PyAny>,
-        history_json: &str,
+        history: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyCompositeRebalanceResult> {
         let market = extract_market(py, market)?;
         let as_of = crate::bindings::date_utils::extract_date(as_of)?;
-        let history = parse_observations(history_json, "composite market history")?;
+        let history = observations_from_py(py, history, "composite market history")?;
         self.inner
             .rebalance(&market, as_of, &history)
             .map(PyCompositeRebalanceResult::from_inner)
@@ -1085,6 +1236,36 @@ impl PyCompositeInstrument {
     ///
     /// Returns
     /// -------
+    /// list[dict]
+    ///     One ``{"instrument_id", "instrument_type", "quantity_delta"}`` dict
+    ///     per primitive, with signed quantity deltas.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If either state is invalid or primitive definitions conflict.
+    #[pyo3(signature = (previous=None))]
+    fn execution_trades<'py>(
+        &self,
+        py: Python<'py>,
+        previous: Option<&PyCompositeInstrument>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let trades = self
+            .inner
+            .execution_trades(previous.map(|value| &value.inner))
+            .map_err(core_to_py)?;
+        serde_to_py(py, &trades)
+    }
+
+    /// JSON twin of ``execution_trades``.
+    ///
+    /// Parameters
+    /// ----------
+    /// previous : CompositeInstrument | None
+    ///     Prior resolved state, or ``None`` for establishment trades.
+    ///
+    /// Returns
+    /// -------
     /// str
     ///     JSON array of primitive identifiers, types, and signed quantity deltas.
     ///
@@ -1093,12 +1274,51 @@ impl PyCompositeInstrument {
     /// ValueError
     ///     If either state is invalid or primitive definitions conflict.
     #[pyo3(signature = (previous=None))]
-    fn execution_trades(&self, previous: Option<&PyCompositeInstrument>) -> PyResult<String> {
+    fn execution_trades_json(&self, previous: Option<&PyCompositeInstrument>) -> PyResult<String> {
         let trades = self
             .inner
             .execution_trades(previous.map(|value| &value.inner))
             .map_err(core_to_py)?;
         to_json(&trades, "composite execution trades")
+    }
+
+    /// ``execution_trades`` as a pandas ``DataFrame``.
+    ///
+    /// Parameters
+    /// ----------
+    /// previous : CompositeInstrument | None
+    ///     Prior resolved state, or ``None`` for establishment trades.
+    ///
+    /// Returns
+    /// -------
+    /// pandas.DataFrame
+    ///     Columns ``instrument_id``, ``instrument_type``, ``quantity_delta``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If either state is invalid or primitive definitions conflict.
+    #[pyo3(signature = (previous=None))]
+    fn execution_trades_dataframe<'py>(
+        &self,
+        py: Python<'py>,
+        previous: Option<&PyCompositeInstrument>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let trades = self
+            .inner
+            .execution_trades(previous.map(|value| &value.inner))
+            .map_err(core_to_py)?;
+        serde_rows_to_dataframe_with_schema(py, &trades, COMPOSITE_TRADE_COLUMNS)
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "CompositeInstrument(id='{}', effective_date='{}', legs={})",
+            self.inner.id(),
+            self.inner.state.effective_date,
+            self.inner.state.resolved_legs.len()
+        )
     }
 }
 
@@ -1176,6 +1396,22 @@ impl PyCompositeRebalanceResult {
     #[getter]
     fn trades_json(&self) -> PyResult<String> {
         to_json(&self.inner.trades, "composite rebalance trades")
+    }
+
+    /// Return net primitive quantity deltas as a list of dicts.
+    ///
+    /// Returns
+    /// -------
+    /// list[dict]
+    ///     ``{"instrument_id", "instrument_type", "quantity_delta"}`` per primitive.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
+    #[getter]
+    fn trades<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.trades)
     }
 
     /// Export primitive execution deltas as a pandas ``DataFrame``.
@@ -1476,9 +1712,10 @@ impl PyCompositeHistoryEngine {
     /// ----------
     /// spec : CompositeSpec
     ///     Unresolved definition initialized using only available warmup and first-date information.
-    /// observations_json : str
-    ///     Non-empty strictly increasing complete market-observation array.
-    /// warmup_json : str
+    /// observations : list[dict] | str
+    ///     Non-empty strictly increasing complete market-observation array
+    ///     (list of dicts or JSON string).
+    /// warmup : list[dict] | str | None
     ///     Optional strictly earlier complete observations used for weighting only.
     /// metrics : list[str] | None
     ///     Optional additive primitive metrics included on every output row.
@@ -1493,15 +1730,16 @@ impl PyCompositeHistoryEngine {
     /// ValueError
     ///     If observations, warmup, initialization, pricing, FX, or rebalancing fail.
     #[staticmethod]
-    #[pyo3(signature = (spec, observations_json, warmup_json="[]", metrics=None))]
+    #[pyo3(signature = (spec, observations, warmup=None, metrics=None))]
     fn run_from_spec(
+        py: Python<'_>,
         spec: &PyCompositeSpec,
-        observations_json: &str,
-        warmup_json: &str,
+        observations: &Bound<'_, PyAny>,
+        warmup: Option<&Bound<'_, PyAny>>,
         metrics: Option<Vec<String>>,
     ) -> PyResult<PyCompositeHistoryResult> {
-        let observations = parse_observations(observations_json, "composite observations")?;
-        let warmup = parse_observations(warmup_json, "composite warmup")?;
+        let observations = observations_from_py(py, Some(observations), "composite observations")?;
+        let warmup = observations_from_py(py, warmup, "composite warmup")?;
         let metrics = metrics
             .unwrap_or_default()
             .into_iter()
@@ -1521,8 +1759,9 @@ impl PyCompositeHistoryEngine {
     /// ----------
     /// instrument : CompositeInstrument
     ///     Immutable resolved state held from the first supplied observation.
-    /// observations_json : str
-    ///     Non-empty strictly increasing complete market-observation array.
+    /// observations : list[dict] | str
+    ///     Non-empty strictly increasing complete market-observation array
+    ///     (list of dicts or JSON string).
     /// metrics : list[str] | None
     ///     Optional additive primitive metrics included on every output row.
     ///
@@ -1536,13 +1775,14 @@ impl PyCompositeHistoryEngine {
     /// ValueError
     ///     If state, observations, market inputs, pricing, FX, or rebalancing fail.
     #[staticmethod]
-    #[pyo3(signature = (instrument, observations_json, metrics=None))]
+    #[pyo3(signature = (instrument, observations, metrics=None))]
     fn run(
+        py: Python<'_>,
         instrument: &PyCompositeInstrument,
-        observations_json: &str,
+        observations: &Bound<'_, PyAny>,
         metrics: Option<Vec<String>>,
     ) -> PyResult<PyCompositeHistoryResult> {
-        let observations = parse_observations(observations_json, "composite observations")?;
+        let observations = observations_from_py(py, Some(observations), "composite observations")?;
         let metrics = metrics
             .unwrap_or_default()
             .into_iter()

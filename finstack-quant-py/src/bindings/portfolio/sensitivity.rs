@@ -27,56 +27,64 @@ const DEFAULT_PNL_SCENARIO_POINTS: usize =
     skip_from_py_object
 )]
 #[derive(Clone)]
-struct PySensitivityMatrix {
-    position_ids: Vec<String>,
-    factor_ids: Vec<String>,
-    data: Vec<f64>,
-    n_factors: usize,
+pub(crate) struct PySensitivityMatrix {
+    pub(crate) inner: finstack_quant_portfolio::sensitivity::SensitivityMatrix,
 }
 
 impl PySensitivityMatrix {
-    fn from_inner(matrix: finstack_quant_portfolio::sensitivity::SensitivityMatrix) -> Self {
-        let position_ids = matrix.position_ids().to_vec();
-        let factor_ids = matrix
-            .factor_ids()
-            .iter()
-            .map(|id| id.to_string())
-            .collect();
-        let n_factors = matrix.n_factors();
-        let data = matrix.as_slice().to_vec();
-        Self {
-            position_ids,
-            factor_ids,
-            data,
-            n_factors,
-        }
+    fn from_inner(inner: finstack_quant_portfolio::sensitivity::SensitivityMatrix) -> Self {
+        Self { inner }
     }
 }
 
 #[pymethods]
 impl PySensitivityMatrix {
+    /// Support `pickle` via the same serde round-trip as ``to_json``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Parse from JSON (``{position_ids, factor_ids, data, n_factors}``).
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to compact JSON.
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
     /// Ordered position identifiers (row axis).
     #[getter]
     fn position_ids(&self) -> Vec<String> {
-        self.position_ids.clone()
+        self.inner.position_ids().to_vec()
     }
 
     /// Ordered factor identifiers (column axis).
     #[getter]
     fn factor_ids(&self) -> Vec<String> {
-        self.factor_ids.clone()
+        self.inner
+            .factor_ids()
+            .iter()
+            .map(ToString::to_string)
+            .collect()
     }
 
     /// Number of positions (rows).
     #[getter]
     fn n_positions(&self) -> usize {
-        self.position_ids.len()
+        self.inner.n_positions()
     }
 
     /// Number of factors (columns).
     #[getter]
     fn n_factors(&self) -> usize {
-        self.n_factors
+        self.inner.n_factors()
     }
 
     /// Read a single sensitivity element.
@@ -91,50 +99,48 @@ impl PySensitivityMatrix {
     /// Returns
     /// -------
     /// float
+    #[pyo3(text_signature = "(self, position_idx, factor_idx)")]
     fn delta(&self, position_idx: usize, factor_idx: usize) -> PyResult<f64> {
-        if position_idx >= self.position_ids.len() || factor_idx >= self.n_factors {
+        if position_idx >= self.inner.n_positions() || factor_idx >= self.inner.n_factors() {
             return Err(crate::errors::value_error("index out of bounds"));
         }
-        Ok(self.data[position_idx * self.n_factors + factor_idx])
+        Ok(self.inner.delta(position_idx, factor_idx))
     }
 
     /// Sensitivity row for a single position across all factors.
+    #[pyo3(text_signature = "(self, position_idx)")]
     fn position_deltas(&self, position_idx: usize) -> PyResult<Vec<f64>> {
-        if position_idx >= self.position_ids.len() {
+        if position_idx >= self.inner.n_positions() {
             return Err(crate::errors::value_error("position index out of bounds"));
         }
-        let start = position_idx * self.n_factors;
-        Ok(self.data[start..start + self.n_factors].to_vec())
+        Ok(self.inner.position_deltas(position_idx).to_vec())
     }
 
     /// Sensitivity column for a single factor across all positions.
+    #[pyo3(text_signature = "(self, factor_idx)")]
     fn factor_deltas(&self, factor_idx: usize) -> PyResult<Vec<f64>> {
-        if factor_idx >= self.n_factors {
+        if factor_idx >= self.inner.n_factors() {
             return Err(crate::errors::value_error("factor index out of bounds"));
         }
-        Ok((0..self.position_ids.len())
-            .map(|pos| self.data[pos * self.n_factors + factor_idx])
-            .collect())
+        Ok(self.inner.factor_deltas(factor_idx))
     }
 
     /// Export as a pandas ``DataFrame`` with positions as rows and factors as columns.
+    #[pyo3(text_signature = "(self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
-        for (fi, factor_id) in self.factor_ids.iter().enumerate() {
-            let column: Vec<f64> = (0..self.position_ids.len())
-                .map(|pi| self.data[pi * self.n_factors + fi])
-                .collect();
-            data.set_item(factor_id, column)?;
+        for (fi, factor_id) in self.inner.factor_ids().iter().enumerate() {
+            data.set_item(factor_id.to_string(), self.inner.factor_deltas(fi))?;
         }
-        let index = PyList::new(py, &self.position_ids)?;
+        let index = PyList::new(py, self.inner.position_ids())?;
         dict_to_dataframe(py, &data, Some(index.into_any()))
     }
 
     fn __repr__(&self) -> String {
         format!(
             "SensitivityMatrix(positions={}, factors={})",
-            self.position_ids.len(),
-            self.n_factors
+            self.inner.n_positions(),
+            self.inner.n_factors()
         )
     }
 
@@ -164,81 +170,85 @@ impl PySensitivityMatrix {
 )]
 #[derive(Clone)]
 struct PyFactorPnlProfile {
-    factor_id: String,
-    shifts: Vec<f64>,
-    position_pnls: Vec<Vec<f64>>,
+    inner: finstack_quant_portfolio::sensitivity::FactorPnlProfile,
 }
 
 impl PyFactorPnlProfile {
-    fn from_inner(profile: finstack_quant_portfolio::sensitivity::FactorPnlProfile) -> Self {
-        Self {
-            factor_id: profile.factor_id.to_string(),
-            shifts: profile.shifts,
-            position_pnls: profile.position_pnls,
-        }
+    fn from_inner(inner: finstack_quant_portfolio::sensitivity::FactorPnlProfile) -> Self {
+        Self { inner }
     }
 }
 
 #[pymethods]
 impl PyFactorPnlProfile {
+    /// Support `pickle` via the same serde round-trip as ``to_json``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Parse from JSON (``{factor_id, position_ids, shifts, position_pnls}``).
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to compact JSON.
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
     /// Factor identifier.
     #[getter]
-    fn factor_id(&self) -> &str {
-        &self.factor_id
+    fn factor_id(&self) -> String {
+        self.inner.factor_id.to_string()
+    }
+
+    /// Ordered position identifiers indexing the inner ``position_pnls`` axis.
+    #[getter]
+    fn position_ids(&self) -> Vec<String> {
+        self.inner.position_ids.clone()
     }
 
     /// Scenario shift coordinates (bump-size multiples).
     #[getter]
     fn shifts(&self) -> Vec<f64> {
-        self.shifts.clone()
+        self.inner.shifts.clone()
     }
 
     /// Per-shift P&L vectors indexed as ``[shift_idx][position_idx]``.
     #[getter]
     fn position_pnls(&self) -> Vec<Vec<f64>> {
-        self.position_pnls.clone()
+        self.inner.position_pnls.clone()
     }
 
-    /// Export as a pandas ``DataFrame`` with shifts as rows and positions as columns.
-    ///
-    /// Parameters
-    /// ----------
-    /// position_ids : list[str]
-    ///     Position identifiers to use as column names.  Must match the
-    ///     number of positions in the profile.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If ``len(position_ids)`` does not match the profile width.
-    fn to_dataframe<'py>(
-        &self,
-        py: Python<'py>,
-        position_ids: Vec<String>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let expected_width = self.position_pnls.first().map_or(0, Vec::len);
-        if position_ids.len() != expected_width {
-            return Err(crate::errors::value_error(format!(
-                "position_ids length ({}) does not match profile width ({})",
-                position_ids.len(),
-                expected_width,
-            )));
-        }
+    /// Export as a pandas ``DataFrame`` with shifts as rows and positions as
+    /// columns (column labels are the profile's own ``position_ids``).
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
-        for (pi, pid) in position_ids.iter().enumerate() {
-            let column: Vec<f64> = self.position_pnls.iter().map(|row| row[pi]).collect();
+        for (pi, pid) in self.inner.position_ids.iter().enumerate() {
+            let column: Vec<f64> = self
+                .inner
+                .position_pnls
+                .iter()
+                .map(|row| row.get(pi).copied().unwrap_or(f64::NAN))
+                .collect();
             data.set_item(pid, column)?;
         }
-        let index = PyList::new(py, &self.shifts)?;
+        let index = PyList::new(py, &self.inner.shifts)?;
         dict_to_dataframe(py, &data, Some(index.into_any()))
     }
 
     fn __repr__(&self) -> String {
         format!(
             "FactorPnlProfile(factor={:?}, shifts={}, positions={})",
-            self.factor_id,
-            self.shifts.len(),
-            self.position_pnls.first().map_or(0, std::vec::Vec::len),
+            self.inner.factor_id.as_str(),
+            self.inner.shifts.len(),
+            self.inner.position_ids.len(),
         )
     }
 }
@@ -249,10 +259,10 @@ impl PyFactorPnlProfile {
 ///
 /// Parameters
 /// ----------
-/// positions_json : str
+/// positions_json : str | dict | list | pandas.DataFrame
 ///     JSON array of position objects, each with ``id`` (str),
 ///     ``instrument`` (canonical v1 instrument envelope), and ``weight`` (float).
-/// factors_json : str
+/// factors_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``FactorDefinition`` objects.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON-serialized ``MarketContext``
@@ -272,12 +282,17 @@ impl PyFactorPnlProfile {
 #[pyo3(signature = (positions_json, factors_json, market, as_of, bump_config_json=None))]
 fn compute_factor_sensitivities(
     py: Python<'_>,
-    positions_json: &str,
-    factors_json: &str,
+    positions_json: &Bound<'_, PyAny>,
+    factors_json: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
     bump_config_json: Option<&str>,
 ) -> PyResult<PySensitivityMatrix> {
+    let positions_json =
+        crate::bindings::extract::extract_records_json(py, positions_json, "positions")?;
+    let positions_json: &str = &positions_json;
+    let factors_json = crate::bindings::extract::extract_records_json(py, factors_json, "factors")?;
+    let factors_json: &str = &factors_json;
     let market = extract_market(py, market)?;
     let date = crate::bindings::date_utils::extract_date(as_of)?;
     let positions_json = positions_json.to_owned();
@@ -303,10 +318,10 @@ fn compute_factor_sensitivities(
 ///
 /// Parameters
 /// ----------
-/// positions_json : str
+/// positions_json : str | dict | list | pandas.DataFrame
 ///     JSON array of position objects (same schema as
 ///     :func:`compute_factor_sensitivities`).
-/// factors_json : str
+/// factors_json : str | dict | list | pandas.DataFrame
 ///     JSON array of ``FactorDefinition`` objects.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON-serialized ``MarketContext``
@@ -324,16 +339,24 @@ fn compute_factor_sensitivities(
 /// list[FactorPnlProfile]
 ///     One profile per factor, each containing scenario P&L for every position.
 #[pyfunction]
-#[pyo3(signature = (positions_json, factors_json, market, as_of, bump_config_json=None, n_scenario_points=DEFAULT_PNL_SCENARIO_POINTS))]
+#[pyo3(
+    signature = (positions_json, factors_json, market, as_of, bump_config_json=None, n_scenario_points=DEFAULT_PNL_SCENARIO_POINTS),
+    text_signature = "(positions_json, factors_json, market, as_of, bump_config_json=None, n_scenario_points=5)"
+)]
 fn compute_pnl_profiles(
     py: Python<'_>,
-    positions_json: &str,
-    factors_json: &str,
+    positions_json: &Bound<'_, PyAny>,
+    factors_json: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
     bump_config_json: Option<&str>,
     n_scenario_points: usize,
 ) -> PyResult<Vec<PyFactorPnlProfile>> {
+    let positions_json =
+        crate::bindings::extract::extract_records_json(py, positions_json, "positions")?;
+    let positions_json: &str = &positions_json;
+    let factors_json = crate::bindings::extract::extract_records_json(py, factors_json, "factors")?;
+    let factors_json: &str = &factors_json;
     let market = extract_market(py, market)?;
     let date = crate::bindings::date_utils::extract_date(as_of)?;
     let positions_json = positions_json.to_owned();
@@ -373,6 +396,7 @@ fn compute_pnl_profiles(
 )]
 #[derive(Clone)]
 struct PyFactorRiskDecomposition {
+    inner: finstack_quant_models::factor::risk::RiskDecomposition,
     total_risk: f64,
     measure: String,
     residual_risk: f64,
@@ -459,13 +483,35 @@ impl PyFactorRiskDecomposition {
             pfc_position_ids,
             pfc_factor_ids,
             pfc_risk_contributions,
-            residual_contributions: decomp.position_residual_contributions,
+            residual_contributions: decomp.position_residual_contributions.clone(),
+            inner: decomp,
         }
     }
 }
 
 #[pymethods]
 impl PyFactorRiskDecomposition {
+    /// Support `pickle` via the same serde round-trip as ``to_json``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Parse from canonical ``RiskDecomposition`` JSON.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_models::factor::risk::RiskDecomposition =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self::from_inner(inner))
+    }
+
+    /// Serialize to canonical ``RiskDecomposition`` JSON.
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
     /// Total portfolio risk under the selected measure.
     #[getter]
     fn total_risk(&self) -> f64 {
@@ -596,7 +642,7 @@ impl PyFactorRiskDecomposition {
 /// sensitivities : SensitivityMatrix
 ///     Weighted position × factor sensitivity matrix, as returned by
 ///     :func:`compute_factor_sensitivities`.
-/// covariance_json : str
+/// covariance_json : str | dict | list | pandas.DataFrame
 ///     JSON-serialized ``FactorCovarianceMatrix``.  Must use the same factor
 ///     IDs and ordering as the sensitivity matrix.
 /// risk_measure : str | dict, optional
@@ -614,37 +660,22 @@ impl PyFactorRiskDecomposition {
 fn decompose_factor_risk(
     py: Python<'_>,
     sensitivities: &PySensitivityMatrix,
-    covariance_json: &str,
+    covariance_json: &Bound<'_, PyAny>,
     risk_measure: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyFactorRiskDecomposition> {
+    let covariance_json =
+        crate::bindings::extract::extract_records_json(py, covariance_json, "covariance")?;
+    let covariance_json: &str = &covariance_json;
     let measure: finstack_quant_models::factor::RiskMeasure = match risk_measure {
         Some(obj) => py_to_serde(py, obj, "risk_measure")?,
         None => finstack_quant_models::factor::RiskMeasure::Variance,
     };
 
-    py.detach(|| {
-        let factor_ids = sensitivities
-            .factor_ids
-            .iter()
-            .map(finstack_quant_models::factor::FactorId::new)
-            .collect();
-        let mut matrix = finstack_quant_portfolio::sensitivity::SensitivityMatrix::zeros(
-            sensitivities.position_ids.clone(),
-            factor_ids,
-        );
-        if sensitivities.n_factors > 0 {
-            for (i, chunk) in sensitivities
-                .data
-                .chunks_exact(sensitivities.n_factors)
-                .enumerate()
-            {
-                for (j, &value) in chunk.iter().enumerate() {
-                    matrix.set_delta(i, j, value);
-                }
-            }
-        }
+    let matrix = sensitivities.inner.clone();
+    let covariance_json = covariance_json.to_owned();
+    py.detach(move || {
         let covariance: finstack_quant_models::factor::FactorCovarianceMatrix =
-            serde_json::from_str(covariance_json).map_err(display_to_py)?;
+            serde_json::from_str(&covariance_json).map_err(display_to_py)?;
         let decomposer = finstack_quant_models::factor::risk::ParametricDecomposer;
         let result = decomposer
             .decompose(&matrix, &covariance, &measure)

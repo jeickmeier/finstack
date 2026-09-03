@@ -48,11 +48,24 @@ impl EuropeanPricer {
     ///
     /// Defaults are registry-backed seed and parallel settings (which quietly
     /// degrades to serial when the `parallel` feature is absent).
-    pub fn new(num_paths: usize) -> Self {
-        Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `num_paths` - Independent Monte Carlo path estimators; must be positive.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when `num_paths` is zero.
+    pub fn new(num_paths: usize) -> Result<Self> {
+        if num_paths == 0 {
+            return Err(finstack_quant_core::Error::Validation(
+                "EuropeanPricer num_paths must be positive".to_string(),
+            ));
+        }
+        Ok(Self {
             num_paths,
             ..Self::default()
-        }
+        })
     }
 
     /// Override the RNG seed.
@@ -119,7 +132,8 @@ impl EuropeanPricer {
     /// use finstack_quant_models::monte_carlo::pricer::european::EuropeanPricer;
     /// use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
     ///
-    /// let pricer = EuropeanPricer::new(25_000)
+    /// let pricer = EuropeanPricer::new(25_000).expect("positive path count")
+    ///     .expect("positive path count")
     ///     .with_seed(19)
     ///     .with_parallel(false);
     /// let process = GbmProcess::with_params(0.03, 0.01, 0.20).unwrap();
@@ -184,8 +198,8 @@ impl EuropeanPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -200,13 +214,14 @@ impl EuropeanPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
     ) -> Result<MoneyEstimate> {
-        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        crate::monte_carlo::require_positive_vol(vol)?;
+        let process = GbmProcess::with_params(rate, div_yield, vol)?;
         let payoff = EuropeanCall::new(strike, 1.0, num_steps);
         let discount_factor = (-rate * expiry).exp();
         self.price(
@@ -228,8 +243,8 @@ impl EuropeanPricer {
     /// * `spot` - Spot level at time `0`.
     /// * `strike` - Exercise price in the same units as `spot`.
     /// * `rate` - Continuously compounded risk-free rate (decimal, annualized).
-    /// * `dividend_yield` - Continuous dividend yield (decimal, annualized).
-    /// * `volatility` - Annualized GBM volatility (decimal).
+    /// * `div_yield` - Continuous dividend yield (decimal, annualized).
+    /// * `vol` - Annualized GBM volatility (decimal).
     /// * `expiry` - Time to expiry in years; also the uniform-grid horizon.
     /// * `num_steps` - Number of time-grid steps between `0` and `expiry`.
     /// * `currency` - Currency stamped on the returned estimate.
@@ -244,13 +259,14 @@ impl EuropeanPricer {
         spot: f64,
         strike: f64,
         rate: f64,
-        dividend_yield: f64,
-        volatility: f64,
+        div_yield: f64,
+        vol: f64,
         expiry: f64,
         num_steps: usize,
         currency: Currency,
     ) -> Result<MoneyEstimate> {
-        let process = GbmProcess::with_params(rate, dividend_yield, volatility)?;
+        crate::monte_carlo::require_positive_vol(vol)?;
+        let process = GbmProcess::with_params(rate, div_yield, vol)?;
         let payoff = EuropeanPut::new(strike, 1.0, num_steps);
         let discount_factor = (-rate * expiry).exp();
         self.price(
@@ -423,7 +439,10 @@ mod tests {
 
     #[test]
     fn test_european_pricer_basic() {
-        let pricer = EuropeanPricer::new(1000).with_seed(42).with_parallel(false);
+        let pricer = EuropeanPricer::new(1000)
+            .expect("positive path count")
+            .with_seed(42)
+            .with_parallel(false);
 
         let gbm = GbmProcess::new(GbmParams::new(0.05, 0.0, 0.2).unwrap());
         let call = EuropeanCall::new(100.0, 1.0, 10);
@@ -441,6 +460,7 @@ mod tests {
     #[test]
     fn test_european_pricer_atm_call() {
         let pricer = EuropeanPricer::new(10000)
+            .expect("positive path count")
             .with_seed(42)
             .with_parallel(false);
 
@@ -458,6 +478,7 @@ mod tests {
     #[test]
     fn test_european_pricer_deep_itm() {
         let pricer = EuropeanPricer::new(10000)
+            .expect("positive path count")
             .with_seed(42)
             .with_parallel(false);
 
@@ -507,8 +528,8 @@ mod tests {
             spot: f64,
             strike: f64,
             rate: f64,
-            dividend_yield: f64,
-            volatility: f64,
+            div_yield: f64,
+            vol: f64,
             expiry: f64,
         }
 
@@ -519,8 +540,8 @@ mod tests {
                 spot: 100.0,
                 strike: 100.0,
                 rate: 0.05,
-                dividend_yield: 0.02,
-                volatility: 0.20,
+                div_yield: 0.02,
+                vol: 0.20,
                 expiry: 1.0,
             },
             Case {
@@ -529,8 +550,8 @@ mod tests {
                 spot: 100.0,
                 strike: 100.0,
                 rate: 0.05,
-                dividend_yield: 0.02,
-                volatility: 0.20,
+                div_yield: 0.02,
+                vol: 0.20,
                 expiry: 1.0,
             },
             Case {
@@ -539,8 +560,8 @@ mod tests {
                 spot: 80.0,
                 strike: 100.0,
                 rate: 0.01,
-                dividend_yield: 0.0,
-                volatility: 0.30,
+                div_yield: 0.0,
+                vol: 0.30,
                 expiry: 0.25,
             },
             Case {
@@ -549,13 +570,14 @@ mod tests {
                 spot: 80.0,
                 strike: 100.0,
                 rate: 0.03,
-                dividend_yield: 0.01,
-                volatility: 0.35,
+                div_yield: 0.01,
+                vol: 0.35,
                 expiry: 3.0,
             },
         ];
 
         let pricer = EuropeanPricer::new(50_000)
+            .expect("positive path count")
             .with_seed(42)
             .with_parallel(false);
 
@@ -567,8 +589,8 @@ mod tests {
                             case.spot,
                             case.strike,
                             case.rate,
-                            case.dividend_yield,
-                            case.volatility,
+                            case.div_yield,
+                            case.vol,
                             case.expiry,
                             1,
                             Currency::USD,
@@ -578,8 +600,8 @@ mod tests {
                         case.spot,
                         case.strike,
                         case.rate,
-                        case.dividend_yield,
-                        case.volatility,
+                        case.div_yield,
+                        case.vol,
                         case.expiry,
                     ),
                 )
@@ -590,8 +612,8 @@ mod tests {
                             case.spot,
                             case.strike,
                             case.rate,
-                            case.dividend_yield,
-                            case.volatility,
+                            case.div_yield,
+                            case.vol,
                             case.expiry,
                             1,
                             Currency::USD,
@@ -601,8 +623,8 @@ mod tests {
                         case.spot,
                         case.strike,
                         case.rate,
-                        case.dividend_yield,
-                        case.volatility,
+                        case.div_yield,
+                        case.vol,
                         case.expiry,
                     ),
                 )

@@ -1,18 +1,105 @@
 //! Portfolio-level P&L attribution bindings.
 
+use crate::bindings::attribution::pnl_attribution::PyPnlAttribution;
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
 use crate::bindings::module_utils::py_to_json_string;
-use crate::bindings::pandas_utils::serde_object_to_single_row_dataframe_with_schema;
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema, serde_to_py,
+};
 use crate::errors::{display_to_py, portfolio_to_py, serde_json_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+/// Reconciliation of the portfolio factor buckets against ``total_pnl``.
+///
+/// Returned by :meth:`PortfolioAttribution.reconciliation_check`. The residual
+/// is ``total_pnl - (sum of factor buckets + fx_translation_pnl)`` in the
+/// portfolio base currency; ``is_reconciled`` is forced ``False`` when the
+/// attribution was flagged invalid, whatever the numeric residual.
+#[pyclass(
+    name = "ReconciliationReport",
+    module = "finstack_quant.portfolio",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(crate) struct PyReconciliationReport {
+    pub(crate) inner: finstack_quant_portfolio::attribution::ReconciliationReport,
+}
+
+#[pymethods]
+impl PyReconciliationReport {
+    /// Unexplained base-currency amount after all buckets are summed.
+    #[getter]
+    fn total_residual(&self) -> f64 {
+        self.inner.total_residual
+    }
+
+    /// Whether ``abs(total_residual) <= tolerance`` and the attribution is valid.
+    #[getter]
+    fn is_reconciled(&self) -> bool {
+        self.inner.is_reconciled
+    }
+
+    /// Absolute base-currency tolerance used for the check.
+    #[getter]
+    fn tolerance(&self) -> f64 {
+        self.inner.tolerance
+    }
+
+    /// Single-row :class:`pandas.DataFrame` view of the report.
+    ///
+    /// Columns: ``total_residual``, ``is_reconciled``, ``tolerance``.
+    #[pyo3(text_signature = "(self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &self.inner,
+            &["total_residual", "is_reconciled", "tolerance"],
+        )
+    }
+
+    /// Serialize to a compact JSON string.
+    #[pyo3(text_signature = "(self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Deserialize from JSON produced by :meth:`to_json`.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Support `pickle` via the same serde round-trip as ``to_json``.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ReconciliationReport(total_residual={}, is_reconciled={}, tolerance={})",
+            self.inner.total_residual,
+            if self.inner.is_reconciled {
+                "True"
+            } else {
+                "False"
+            },
+            self.inner.tolerance,
+        )
+    }
+}
+
 /// Portfolio-level P&L attribution result.
 ///
 /// Aggregate fields are currency-tagged :class:`~finstack_quant.core.money.Money`
-/// values computed by Rust. Per-position and detailed breakdowns remain available
-/// through the canonical nested JSON payload.
+/// values computed by Rust. Per-position attributions are typed
+/// ``PnlAttribution`` objects (:attr:`by_position`); the aggregate detail
+/// blocks are exposed through the ``*_detail`` getters.
 #[pyclass(
     name = "PortfolioAttribution",
     module = "finstack_quant.portfolio",
@@ -49,17 +136,162 @@ impl PyPortfolioAttribution {
     }
 
     /// Check that aggregate factor P&L reconciles to total P&L.
-    fn reconciliation_check<'py>(
-        &self,
-        py: Python<'py>,
-        tolerance: f64,
-    ) -> PyResult<Bound<'py, PyDict>> {
-        let report = self.inner.reconciliation_check(tolerance);
-        let result = PyDict::new(py);
-        result.set_item("total_residual", report.total_residual)?;
-        result.set_item("is_reconciled", report.is_reconciled)?;
-        result.set_item("tolerance", report.tolerance)?;
-        Ok(result)
+    ///
+    /// Parameters
+    /// ----------
+    /// tolerance : float
+    ///     Absolute tolerance in base-currency units (``0.01`` for one cent).
+    ///
+    /// Returns
+    /// -------
+    /// ReconciliationReport
+    ///     Typed report with ``total_residual``, ``is_reconciled`` and
+    ///     ``tolerance``.
+    #[pyo3(text_signature = "(self, tolerance)")]
+    fn reconciliation_check(&self, tolerance: f64) -> PyReconciliationReport {
+        PyReconciliationReport {
+            inner: self.inner.reconciliation_check(tolerance),
+        }
+    }
+
+    /// Per-position attributions in each instrument's native currency, keyed
+    /// by position id in canonical order.
+    ///
+    /// Values are typed :class:`~finstack_quant.attribution.PnlAttribution`
+    /// objects; they exclude FX translation, so they do not sum to the
+    /// base-currency portfolio aggregates.
+    #[getter]
+    fn by_position<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (id, attribution) in &self.inner.by_position {
+            out.set_item(
+                id.as_str(),
+                PyPnlAttribution {
+                    inner: attribution.clone(),
+                },
+            )?;
+        }
+        Ok(out)
+    }
+
+    /// Export the per-position native-currency attributions as a pandas
+    /// ``DataFrame``, one row per position.
+    ///
+    /// Columns: ``position_id``, ``currency`` (native), ``total_pnl``,
+    /// ``carry``, ``rates_curves_pnl``, ``credit_curves_pnl``,
+    /// ``inflation_curves_pnl``, ``correlations_pnl``, ``fx_pnl``,
+    /// ``cross_factor_pnl``, ``vol_pnl``, ``model_params_pnl``,
+    /// ``market_scalars_pnl``, ``residual``, ``result_invalid``.
+    #[pyo3(text_signature = "(self)")]
+    fn to_position_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = &self.inner.by_position;
+        let data = PyDict::new(py);
+        let ids: Vec<&str> = rows.keys().map(|id| id.as_str()).collect();
+        data.set_item("position_id", ids)?;
+        let currencies: Vec<String> = rows
+            .values()
+            .map(|a| a.total_pnl.currency().to_string())
+            .collect();
+        data.set_item("currency", currencies)?;
+        macro_rules! money_column {
+            ($name:literal, $field:ident) => {
+                let values: Vec<f64> = rows.values().map(|a| a.$field.amount()).collect();
+                data.set_item($name, values)?;
+            };
+        }
+        money_column!("total_pnl", total_pnl);
+        money_column!("carry", carry);
+        money_column!("rates_curves_pnl", rates_curves_pnl);
+        money_column!("credit_curves_pnl", credit_curves_pnl);
+        money_column!("inflation_curves_pnl", inflation_curves_pnl);
+        money_column!("correlations_pnl", correlations_pnl);
+        money_column!("fx_pnl", fx_pnl);
+        money_column!("cross_factor_pnl", cross_factor_pnl);
+        money_column!("vol_pnl", vol_pnl);
+        money_column!("model_params_pnl", model_params_pnl);
+        money_column!("market_scalars_pnl", market_scalars_pnl);
+        money_column!("residual", residual);
+        let invalid: Vec<bool> = rows.values().map(|a| a.result_invalid).collect();
+        data.set_item("result_invalid", invalid)?;
+        dict_to_dataframe(py, &data, None)
+    }
+
+    /// Human-readable explanation tree of the portfolio-level buckets with
+    /// each bucket's share of ``total_pnl`` (mirrors the Rust ``explain``).
+    #[pyo3(text_signature = "(self)")]
+    fn explain(&self) -> String {
+        self.inner.explain()
+    }
+
+    /// Aggregate rates-curve detail (per-curve breakdown) as a JSON-shaped
+    /// ``dict``, or ``None`` when the method did not produce it.
+    #[getter]
+    fn rates_detail<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .rates_detail
+            .as_ref()
+            .map(|d| serde_to_py(py, d))
+            .transpose()
+    }
+
+    /// Aggregate credit-curve detail as a JSON-shaped ``dict`` or ``None``.
+    #[getter]
+    fn credit_detail<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .credit_detail
+            .as_ref()
+            .map(|d| serde_to_py(py, d))
+            .transpose()
+    }
+
+    /// Aggregate inflation-curve detail as a JSON-shaped ``dict`` or ``None``.
+    #[getter]
+    fn inflation_detail<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .inflation_detail
+            .as_ref()
+            .map(|d| serde_to_py(py, d))
+            .transpose()
+    }
+
+    /// Aggregate correlation detail as a JSON-shaped ``dict`` or ``None``.
+    #[getter]
+    fn correlations_detail<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .correlations_detail
+            .as_ref()
+            .map(|d| serde_to_py(py, d))
+            .transpose()
+    }
+
+    /// Aggregate FX detail as a JSON-shaped ``dict`` or ``None``.
+    #[getter]
+    fn fx_detail<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .fx_detail
+            .as_ref()
+            .map(|d| serde_to_py(py, d))
+            .transpose()
+    }
+
+    /// Aggregate volatility detail as a JSON-shaped ``dict`` or ``None``.
+    #[getter]
+    fn vol_detail<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .vol_detail
+            .as_ref()
+            .map(|d| serde_to_py(py, d))
+            .transpose()
+    }
+
+    /// Aggregate market-scalar detail as a JSON-shaped ``dict`` or ``None``.
+    #[getter]
+    fn scalars_detail<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .scalars_detail
+            .as_ref()
+            .map(|d| serde_to_py(py, d))
+            .transpose()
     }
 
     /// Export the portfolio-level factor totals as a single-row pandas ``DataFrame``.
@@ -326,6 +558,7 @@ fn attribute_portfolio_pnl(
 
 pub fn register(_py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPortfolioAttribution>()?;
+    module.add_class::<PyReconciliationReport>()?;
     module.add_function(pyo3::wrap_pyfunction!(attribute_portfolio_pnl, module)?)?;
     Ok(())
 }

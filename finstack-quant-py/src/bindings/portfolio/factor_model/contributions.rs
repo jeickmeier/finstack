@@ -9,10 +9,18 @@ use finstack_quant_models::factor::risk::{
     ResidualContributionSource, RiskDecomposition,
 };
 
-use crate::bindings::pandas_utils::{dict_to_dataframe, serde_object_to_single_row_dataframe};
+use crate::bindings::pandas_utils::{
+    dict_to_dataframe, serde_object_to_single_row_dataframe, serde_to_py,
+};
+use crate::bindings::repr_support::repr_from_serde;
 
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::config::decomposition_method_label;
+
+/// Python-style rendering of an optional float (`None` or the number).
+fn py_opt(value: Option<f64>) -> String {
+    value.map_or_else(|| "None".to_owned(), |v| v.to_string())
+}
 
 /// Aggregate contribution of a single factor to portfolio risk.
 #[pyclass(
@@ -85,14 +93,17 @@ impl PyFactorContribution {
         self.inner.marginal_risk
     }
 
+    /// Export this contribution as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``factor_id``, ``absolute_risk``, ``relative_risk``,
+    /// ``marginal_risk``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
     fn __repr__(&self) -> String {
-        format!(
-            "FactorContribution(factor_id={:?}, absolute_risk={}, relative_risk={}, marginal_risk={})",
-            self.inner.factor_id.as_str(),
-            self.inner.absolute_risk,
-            self.inner.relative_risk,
-            self.inner.marginal_risk,
-        )
+        repr_from_serde("FactorContribution", &self.inner)
     }
 }
 
@@ -159,13 +170,16 @@ impl PyPositionFactorContribution {
         self.inner.risk_contribution
     }
 
+    /// Export this contribution as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``factor_id``, ``risk_contribution``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
     fn __repr__(&self) -> String {
-        format!(
-            "PositionFactorContribution(position_id={:?}, factor_id={:?}, risk_contribution={})",
-            self.inner.position_id.as_str(),
-            self.inner.factor_id.as_str(),
-            self.inner.risk_contribution,
-        )
+        repr_from_serde("PositionFactorContribution", &self.inner)
     }
 }
 
@@ -247,12 +261,29 @@ impl PyPositionResidualContribution {
         }
     }
 
+    /// Export this contribution as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``residual_variance``, ``source_kind``,
+    /// ``source_issuer_id`` (``None`` unless ``source_kind`` is
+    /// ``"from_credit_model"``).
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("position_id", vec![self.inner.position_id.as_str()])?;
+        data.set_item("residual_variance", vec![self.inner.residual_variance])?;
+        data.set_item("source_kind", vec![self.source_kind()])?;
+        data.set_item("source_issuer_id", vec![self.source_issuer_id()])?;
+        dict_to_dataframe(py, &data, None)
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "PositionResidualContribution(position_id={:?}, residual_variance={}, source_kind={:?})",
+            "PositionResidualContribution(position_id={:?}, residual_variance={}, source_kind={:?}, source_issuer_id={})",
             self.inner.position_id.as_str(),
             self.inner.residual_variance,
             self.source_kind(),
+            self.source_issuer_id()
+                .map_or_else(|| "None".to_owned(), |id| format!("{id:?}")),
         )
     }
 }
@@ -314,7 +345,16 @@ impl PyRiskDecomposition {
         self.inner.total_risk
     }
 
-    /// Risk measure used for aggregation (serialized as a JSON-compatible string).
+    /// Risk measure used for aggregation, as its canonical Python value:
+    /// ``"variance"``, ``"volatility"``, ``{"var": {"confidence": c}}`` or
+    /// ``{"expected_shortfall": {"confidence": c}}`` — the same shape as
+    /// ``FactorModelConfig.risk_measure``.
+    #[getter]
+    fn measure<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.measure)
+    }
+
+    /// Risk measure used for aggregation (serialized as a JSON string).
     #[getter]
     fn measure_json(&self) -> PyResult<String> {
         serialize_json(&self.inner.measure)
@@ -573,12 +613,12 @@ impl PyPositionVarContribution {
 
     fn __repr__(&self) -> String {
         format!(
-            "PositionVarContribution(position_id={:?}, component_var={}, relative_var={}, marginal_var={:?}, incremental_var={:?})",
+            "PositionVarContribution(position_id={:?}, component_var={}, relative_var={}, marginal_var={}, incremental_var={})",
             self.inner.position_id.as_str(),
             self.inner.component_var,
             self.inner.relative_var,
-            self.inner.marginal_var,
-            self.inner.incremental_var,
+            py_opt(self.inner.marginal_var),
+            py_opt(self.inner.incremental_var),
         )
     }
 
@@ -664,13 +704,22 @@ impl PyPositionEsContribution {
         self.inner.marginal_es
     }
 
+    /// Export this contribution as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``position_id``, ``component_es``, ``relative_es``,
+    /// ``marginal_es``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_object_to_single_row_dataframe(py, &self.inner)
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "PositionEsContribution(position_id={:?}, component_es={}, relative_es={}, marginal_es={:?})",
+            "PositionEsContribution(position_id={:?}, component_es={}, relative_es={}, marginal_es={})",
             self.inner.position_id.as_str(),
             self.inner.component_es,
             self.inner.relative_es,
-            self.inner.marginal_es,
+            py_opt(self.inner.marginal_es),
         )
     }
 }
@@ -849,12 +898,13 @@ impl PyPositionRiskDecomposition {
 
     fn __repr__(&self) -> String {
         format!(
-            "PositionRiskDecomposition(portfolio_var={}, portfolio_es={}, confidence={}, n_positions={}, method={:?})",
+            "PositionRiskDecomposition(portfolio_var={}, portfolio_es={}, confidence={}, n_positions={}, method={:?}, euler_residual={})",
             self.inner.portfolio_var,
             self.inner.portfolio_es,
             self.inner.confidence,
             self.inner.n_positions,
             decomposition_method_label(self.inner.method).unwrap_or_else(|_| "?".to_string()),
+            py_opt(self.inner.euler_residual),
         )
     }
 

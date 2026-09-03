@@ -34,7 +34,7 @@ fn scaling_value_at_risk(c: &mut Criterion) {
         let perf = perf_from_returns(n, 42);
         group.throughput(Throughput::Elements(n as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| black_box(perf.value_at_risk(0.95)));
+            b.iter(|| black_box(perf.value_at_risk(0.95).expect("valid confidence")));
         });
     }
     group.finish();
@@ -46,7 +46,7 @@ fn scaling_expected_shortfall(c: &mut Criterion) {
         let perf = perf_from_returns(n, 43);
         group.throughput(Throughput::Elements(n as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| black_box(perf.expected_shortfall(0.95)));
+            b.iter(|| black_box(perf.expected_shortfall(0.95).expect("valid confidence")));
         });
     }
     group.finish();

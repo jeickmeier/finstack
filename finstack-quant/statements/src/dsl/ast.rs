@@ -113,6 +113,109 @@ pub enum UnaryOp {
     Not,
 }
 
+/// Binding strength used when rendering an expression back to source text.
+///
+/// Higher binds tighter. Mirrors the parser's precedence ladder so the
+/// rendered text re-parses to an identical AST.
+fn precedence(expr: &StmtExpr) -> u8 {
+    match expr {
+        StmtExpr::BinOp { op, .. } => match op {
+            BinOp::Or => 1,
+            BinOp::And => 2,
+            BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => 3,
+            BinOp::Add | BinOp::Sub => 4,
+            BinOp::Mul | BinOp::Div | BinOp::Mod => 5,
+        },
+        StmtExpr::UnaryOp { .. } => 6,
+        StmtExpr::Literal(_)
+        | StmtExpr::NodeRef(_)
+        | StmtExpr::Call { .. }
+        | StmtExpr::IfThenElse { .. }
+        | StmtExpr::CsRef { .. } => 7,
+    }
+}
+
+impl std::fmt::Display for BinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Add => "+",
+            Self::Sub => "-",
+            Self::Mul => "*",
+            Self::Div => "/",
+            Self::Mod => "%",
+            Self::Eq => "==",
+            Self::Ne => "!=",
+            Self::Lt => "<",
+            Self::Le => "<=",
+            Self::Gt => ">",
+            Self::Ge => ">=",
+            Self::And => "and",
+            Self::Or => "or",
+        })
+    }
+}
+
+/// Render the expression as canonical DSL source text.
+///
+/// Parentheses are emitted only where the operator precedence requires them,
+/// so `parse_formula(expr.to_string())` yields an AST equal to `expr`. This
+/// is the stable, host-facing rendering of a parsed formula (the `Debug`
+/// form is not a contract).
+impl std::fmt::Display for StmtExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn child(
+            f: &mut std::fmt::Formatter<'_>,
+            expr: &StmtExpr,
+            needs_parens: bool,
+        ) -> std::fmt::Result {
+            if needs_parens {
+                write!(f, "({expr})")
+            } else {
+                write!(f, "{expr}")
+            }
+        }
+
+        match self {
+            Self::Literal(value) => write!(f, "{value}"),
+            Self::NodeRef(id) => f.write_str(id.as_str()),
+            Self::BinOp { op, left, right } => {
+                let level = precedence(self);
+                child(f, left, precedence(left) < level)?;
+                write!(f, " {op} ")?;
+                // Left-associative: a right operand at the same level needs
+                // parentheses to preserve `a - (b - c)`.
+                child(f, right, precedence(right) <= level)
+            }
+            Self::UnaryOp { op, operand } => {
+                match op {
+                    UnaryOp::Neg => f.write_str("-")?,
+                    UnaryOp::Not => f.write_str("not ")?,
+                }
+                child(f, operand, precedence(operand) < precedence(self))
+            }
+            Self::Call { func, args } => {
+                write!(f, "{func}(")?;
+                for (index, arg) in args.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{arg}")?;
+                }
+                f.write_str(")")
+            }
+            Self::IfThenElse {
+                condition,
+                then_expr,
+                else_expr,
+            } => write!(f, "if({condition}, {then_expr}, {else_expr})"),
+            Self::CsRef {
+                component,
+                instrument_or_total,
+            } => write!(f, "cs.{component}.{instrument_or_total}"),
+        }
+    }
+}
+
 impl StmtExpr {
     /// Create a literal expression.
     pub fn literal(value: f64) -> Self {
@@ -190,6 +293,35 @@ mod tests {
         match expr {
             StmtExpr::BinOp { op, .. } => assert_eq!(op, BinOp::Add),
             _ => panic!("Expected BinOp"),
+        }
+    }
+
+    /// The canonical rendering must re-parse to the same AST, with
+    /// parentheses only where precedence demands them.
+    #[test]
+    fn display_round_trips_through_parser() {
+        for (source, expected) in [
+            ("revenue - cogs", "revenue - cogs"),
+            ("(revenue - cogs) / revenue", "(revenue - cogs) / revenue"),
+            ("a - (b - c)", "a - (b - c)"),
+            ("a - b - c", "a - b - c"),
+            ("a * (b + c)", "a * (b + c)"),
+            ("-(a + b)", "-(a + b)"),
+            ("not (a > 1) and b <= 2", "not (a > 1) and b <= 2"),
+            ("if(a > 0, a, 0)", "if(a > 0, a, 0)"),
+            ("lag(revenue, 1) * 1.05", "lag(revenue, 1) * 1.05"),
+            (
+                "cs.interest_expense.total / ebitda",
+                "cs.interest_expense.total / ebitda",
+            ),
+            ("a or b and c", "a or b and c"),
+            ("(a or b) and c", "(a or b) and c"),
+        ] {
+            let ast = crate::dsl::parse_formula(source).expect("valid source");
+            let rendered = ast.to_string();
+            assert_eq!(rendered, expected, "rendering of {source:?}");
+            let reparsed = crate::dsl::parse_formula(&rendered).expect("rendered text re-parses");
+            assert_eq!(reparsed, ast, "round trip of {source:?}");
         }
     }
 

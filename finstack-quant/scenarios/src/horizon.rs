@@ -51,7 +51,7 @@
 //! let analyzer = HorizonAnalysis::default();
 //! let result = analyzer.compute(&instrument, &market, as_of, &scenario)?;
 //!
-//! println!("Total return: {:.2}%", result.total_return_pct() * 100.0);
+//! println!("Total return: {:.2}%", result.total_return() * 100.0);
 //! println!("Carry: {}", result.attribution.carry);
 //! println!("Credit P&L: {}", result.attribution.credit_curves_pnl);
 //! # Ok(())
@@ -71,6 +71,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CalendarId;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::PricingOptions;
+use finstack_quant_valuations::recalibration::RecalibrationProvider;
 
 use crate::engine::ApplicationReport;
 use crate::{ExecutionContext, OperationSpec, ScenarioEngine, ScenarioSpec};
@@ -205,6 +206,32 @@ impl HorizonAnalysis {
     pub fn with_calendar_id(mut self, calendar_id: impl Into<CalendarId>) -> Self {
         self.calendar_id = Some(calendar_id.into());
         self
+    }
+
+    /// Attach a quote-recalibration provider to the internal scenario engine.
+    ///
+    /// The same provider is threaded into the [`PricingOptions`] used by the
+    /// metrics-based attribution path, so quote-replay operations and the
+    /// pricing they feed share one cache for the whole horizon computation.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - Shared recalibration service used by quote-replay
+    ///   scenario operations and by instrument pricing during attribution.
+    #[must_use]
+    pub fn with_recalibration_provider(mut self, provider: Arc<dyn RecalibrationProvider>) -> Self {
+        self.engine = self.engine.with_recalibration_provider(provider);
+        self
+    }
+
+    /// Pricing options carrying this analyzer's configuration and, when one
+    /// was attached, the engine's recalibration provider.
+    fn pricing_options(&self) -> PricingOptions {
+        let mut options = PricingOptions::default().with_config(&self.config);
+        if let Some(provider) = self.engine.recalibration_provider() {
+            options = options.with_recalibration_provider(Arc::clone(provider));
+        }
+        options
     }
 
     /// Resolve [`Self::calendar_id`] against core's built-in calendar registry.
@@ -358,13 +385,13 @@ impl HorizonAnalysis {
                     market_t0,
                     as_of_t0,
                     &metrics,
-                    PricingOptions::default(),
+                    self.pricing_options(),
                 )?;
                 let val_t1 = instrument.price_with_metrics(
                     market_t1,
                     as_of_t1,
                     &metrics,
-                    PricingOptions::default(),
+                    self.pricing_options(),
                 )?;
                 attribute_pnl_metrics_based(
                     instrument, market_t0, market_t1, &val_t0, &val_t1, as_of_t0, as_of_t1,
@@ -388,7 +415,7 @@ impl HorizonResult {
     ///   defined by this ratio: dividing by a negative denominator inverts the
     ///   sign, so a profitable horizon would report as a loss. Compute a return
     ///   on notional or on an explicit capital base instead.
-    pub fn total_return_pct(&self) -> f64 {
+    pub fn total_return(&self) -> f64 {
         if self.initial_value.currency() != self.attribution.total_pnl.currency() {
             return f64::NAN;
         }
@@ -404,7 +431,7 @@ impl HorizonResult {
 
     /// Annualized total return.
     ///
-    /// Uses `(1 + total_return_pct)^(365 / horizon_days) - 1`.
+    /// Uses `(1 + total_return)^(365 / horizon_days) - 1`.
     ///
     /// Returns `None` when there is no time-roll in the scenario, when total
     /// return is not finite (e.g. multi-currency result), or when the
@@ -416,7 +443,7 @@ impl HorizonResult {
         if days <= 0.0 {
             return None;
         }
-        let tr = self.total_return_pct();
+        let tr = self.total_return();
         if !tr.is_finite() {
             return None;
         }
@@ -431,7 +458,7 @@ impl HorizonResult {
     ///
     /// Returns `0.0` if initial value is zero, and [`f64::NAN`] if the factor
     /// P&L currency does not match the initial value currency or if initial
-    /// value is negative (see [`total_return_pct`](Self::total_return_pct) for
+    /// value is negative (see [`total_return`](Self::total_return) for
     /// why a negative denominator is rejected rather than divided through).
     pub fn factor_contribution(&self, factor: &AttributionFactor) -> f64 {
         let factor_money = match factor {
@@ -456,6 +483,32 @@ impl HorizonResult {
             return 0.0;
         }
         factor_money.amount() / iv
+    }
+}
+
+impl std::fmt::Display for HorizonResult {
+    /// Multi-line human-readable summary: total and annualized return,
+    /// horizon length, initial/terminal values, and the carry / rates /
+    /// credit / residual legs of the attribution.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Horizon Total Return: {:.4}%",
+            self.total_return() * 100.0
+        )?;
+        if let Some(ann) = self.annualized_return() {
+            writeln!(f, "Annualized: {:.4}%", ann * 100.0)?;
+        }
+        if let Some(days) = self.horizon_days {
+            writeln!(f, "Horizon: {days} days")?;
+        }
+        writeln!(f, "Initial Value: {}", self.initial_value)?;
+        writeln!(f, "Terminal Value: {}", self.terminal_value)?;
+        writeln!(f, "Total P&L: {}", self.attribution.total_pnl)?;
+        writeln!(f, "  Carry: {}", self.attribution.carry)?;
+        writeln!(f, "  Rates: {}", self.attribution.rates_curves_pnl)?;
+        writeln!(f, "  Credit: {}", self.attribution.credit_curves_pnl)?;
+        writeln!(f, "  Residual: {}", self.attribution.residual)
     }
 }
 
@@ -530,7 +583,7 @@ mod tests {
         );
         assert!(result.horizon_days.is_none());
         assert!(result.annualized_return().is_none());
-        assert!((result.total_return_pct()).abs() < 1e-10);
+        assert!((result.total_return()).abs() < 1e-10);
         Ok(())
     }
 
@@ -726,7 +779,7 @@ mod tests {
     }
 
     #[test]
-    fn total_return_pct_matches_pnl_over_initial() -> crate::Result<()> {
+    fn total_return_matches_pnl_over_initial() -> crate::Result<()> {
         let as_of = date!(2025 - 01 - 15);
         let instrument = test_bond(as_of)?;
         let market = test_market(as_of)?;
@@ -751,8 +804,8 @@ mod tests {
 
         let expected_pct = result.attribution.total_pnl.amount() / result.initial_value.amount();
         assert!(
-            (result.total_return_pct() - expected_pct).abs() < 1e-12,
-            "total_return_pct() should match manual calculation"
+            (result.total_return() - expected_pct).abs() < 1e-12,
+            "total_return() should match manual calculation"
         );
         Ok(())
     }
@@ -795,10 +848,10 @@ mod tests {
     /// Currency mismatch between initial value and total P&L must surface as
     /// NaN rather than a silently wrong ratio.
     #[test]
-    fn total_return_pct_currency_mismatch_returns_nan() {
+    fn total_return_currency_mismatch_returns_nan() {
         let result = synthetic_result(Currency::USD, 100.0, Currency::EUR, 10.0, 30);
 
-        assert!(result.total_return_pct().is_nan());
+        assert!(result.total_return().is_nan());
         assert!(result.annualized_return().is_none());
         assert!(result
             .factor_contribution(&AttributionFactor::Carry)
@@ -815,7 +868,7 @@ mod tests {
         let gain_on_liability = synthetic_result(Currency::USD, -100.0, Currency::USD, 5.0, 30);
 
         assert!(
-            gain_on_liability.total_return_pct().is_nan(),
+            gain_on_liability.total_return().is_nan(),
             "return on a negative mark is undefined, must not report -5%"
         );
         assert!(
@@ -933,7 +986,7 @@ mod tests {
     #[test]
     fn annualized_return_total_loss_returns_minus_one() {
         let total_loss = synthetic_result(Currency::USD, 100.0, Currency::USD, -100.0, 30);
-        assert_eq!(total_loss.total_return_pct(), -1.0);
+        assert_eq!(total_loss.total_return(), -1.0);
         assert_eq!(total_loss.annualized_return(), Some(-1.0));
 
         // Worse-than-total-loss (e.g. short book reported as -120%) must also

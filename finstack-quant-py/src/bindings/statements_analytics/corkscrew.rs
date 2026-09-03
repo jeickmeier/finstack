@@ -35,7 +35,8 @@ const VALIDATION_COLUMNS: [ColumnSchema<'static>; 5] = [
     frozen,
     from_py_object
 )]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PyAccountType {
     Asset,
     Liability,
@@ -47,14 +48,12 @@ impl PyAccountType {
     /// Parse an exact snake_case identifier (``"asset"``, ``"liability"``, or ``"equity"``).
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
-        finstack_quant_core::wire::serde_parse::<rust_corkscrew::AccountType>(value)
-            .map(Self::from_rust)
-            .map_err(crate::errors::core_to_py)
+        finstack_quant_core::wire::serde_parse::<Self>(value).map_err(crate::errors::core_to_py)
     }
 
     /// String identifier used in JSON (``"asset"``, ``"liability"``, ``"equity"``).
     fn value(&self) -> PyResult<String> {
-        finstack_quant_core::wire::serde_label(&self.to_rust()).map_err(crate::errors::core_to_py)
+        finstack_quant_core::wire::serde_label(self).map_err(crate::errors::core_to_py)
     }
 
     fn __repr__(&self) -> String {
@@ -66,20 +65,12 @@ impl PyAccountType {
 }
 
 impl PyAccountType {
-    fn to_rust(self) -> rust_corkscrew::AccountType {
-        match self {
-            PyAccountType::Asset => rust_corkscrew::AccountType::Asset,
-            PyAccountType::Liability => rust_corkscrew::AccountType::Liability,
-            PyAccountType::Equity => rust_corkscrew::AccountType::Equity,
-        }
+    fn to_rust(self) -> PyResult<rust_corkscrew::AccountType> {
+        crate::bindings::statements_analytics::enum_convert(&self)
     }
 
-    fn from_rust(value: rust_corkscrew::AccountType) -> Self {
-        match value {
-            rust_corkscrew::AccountType::Asset => PyAccountType::Asset,
-            rust_corkscrew::AccountType::Liability => PyAccountType::Liability,
-            rust_corkscrew::AccountType::Equity => PyAccountType::Equity,
-        }
+    fn from_rust(value: rust_corkscrew::AccountType) -> PyResult<Self> {
+        crate::bindings::statements_analytics::enum_convert(&value)
     }
 }
 
@@ -119,16 +110,16 @@ impl PyCorkscrewAccount {
         changes: Vec<String>,
         decreases: Vec<String>,
         beginning_balance_node: Option<&str>,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        Ok(Self {
             inner: rust_corkscrew::CorkscrewAccount {
                 node_id: node_id.to_string(),
-                account_type: account_type.to_rust(),
+                account_type: account_type.to_rust()?,
                 changes,
                 decreases,
                 beginning_balance_node: beginning_balance_node.map(str::to_string),
             },
-        }
+        })
     }
 
     /// Node id of the balance account being rolled forward.
@@ -139,7 +130,7 @@ impl PyCorkscrewAccount {
 
     /// Balance-sheet classifier: asset, liability, or equity.
     #[getter]
-    fn account_type(&self) -> PyAccountType {
+    fn account_type(&self) -> PyResult<PyAccountType> {
         PyAccountType::from_rust(self.inner.account_type)
     }
 
@@ -337,7 +328,14 @@ impl PyCorkscrewReport {
         self.inner.errors.clone()
     }
 
-    /// Return the structured data payload as a JSON string.
+    /// Structured data payload as a dict (per-account validations).
+    #[getter]
+    fn data<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::bindings::pandas_utils::serde_to_py(py, &self.inner.data)
+    }
+
+    /// Return the structured data payload as a JSON string (the wire form of
+    /// ``data``).
     fn data_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner.data).map_err(display_to_py)
     }

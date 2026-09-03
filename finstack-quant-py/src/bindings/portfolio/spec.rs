@@ -3,11 +3,11 @@
 //! These entry points complement the typed :class:`Portfolio`,
 //! :class:`PortfolioValuation`, and :class:`PortfolioResult` classes (see
 //! ``types.rs``). Pipeline functions use the typed objects directly and skip
-//! JSON round-trips.
+//! JSON round-trips; scalar reads of a result go through the
+//! ``PortfolioResult`` methods (``total_value``, ``get_metric``).
 
-use crate::bindings::extract::{
-    extract_market_ref, extract_portfolio_result_ref, extract_valuation_ref,
-};
+use crate::bindings::core::currency::extract_currency;
+use crate::bindings::extract::{extract_market_ref, extract_valuation_ref};
 use crate::errors::{display_to_py, portfolio_to_py};
 use pyo3::prelude::*;
 
@@ -41,41 +41,16 @@ pub fn build_portfolio_from_spec_json(py: Python<'_>, spec_json: &str) -> PyResu
         .map_err(display_to_py)
 }
 
-/// Extract total portfolio value from a ``PortfolioResult``.
-///
-/// Accepts either a :class:`PortfolioResult` object (no parse) or a JSON
-/// string. The typed path is O(1); the JSON path parses the full result.
-#[pyfunction]
-pub fn portfolio_result_total_value(py: Python<'_>, result: &Bound<'_, PyAny>) -> PyResult<f64> {
-    let result = extract_portfolio_result_ref(py, result)?;
-    Ok(result.total_value().amount())
-}
-
-/// Extract a specific metric from a ``PortfolioResult``.
-///
-/// Accepts either a :class:`PortfolioResult` object (no parse) or a JSON
-/// string.
-#[pyfunction]
-pub fn portfolio_result_get_metric(
-    py: Python<'_>,
-    result: &Bound<'_, PyAny>,
-    metric_id: &str,
-) -> PyResult<Option<f64>> {
-    let result = extract_portfolio_result_ref(py, result)?;
-    Ok(result.get_metric(metric_id))
-}
-
 /// Run the canonical Rust metric aggregation for both entry points.
 fn run_aggregate_metrics(
     py: Python<'_>,
     valuation: &Bound<'_, PyAny>,
-    base_currency: &str,
+    base_currency: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
 ) -> PyResult<finstack_quant_portfolio::metrics::PortfolioMetrics> {
     let valuation = extract_valuation_ref(py, valuation)?;
-    let ccy: finstack_quant_core::currency::Currency =
-        base_currency.parse().map_err(display_to_py)?;
+    let ccy = extract_currency(base_currency)?;
     let market = extract_market_ref(py, market)?;
     let date = crate::bindings::date_utils::extract_date(as_of)?;
     let valuation_ref: &finstack_quant_portfolio::valuation::PortfolioValuation = &valuation;
@@ -92,8 +67,9 @@ fn run_aggregate_metrics(
 /// ----------
 /// valuation : PortfolioValuation | str
 ///     A :class:`PortfolioValuation` object (fast path) or JSON string.
-/// base_currency : str
-///     Base currency code.
+/// base_currency : Currency | str
+///     Base currency (``Currency`` or ISO-4217 code); an unknown code raises
+///     ``ValueError``.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// as_of : datetime.date | str
@@ -110,7 +86,7 @@ fn run_aggregate_metrics(
 pub fn aggregate_metrics(
     py: Python<'_>,
     valuation: &Bound<'_, PyAny>,
-    base_currency: &str,
+    base_currency: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
 ) -> PyResult<crate::bindings::portfolio::types::PyPortfolioMetrics> {
@@ -131,7 +107,7 @@ pub fn aggregate_metrics(
 pub fn aggregate_metrics_json(
     py: Python<'_>,
     valuation: &Bound<'_, PyAny>,
-    base_currency: &str,
+    base_currency: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
@@ -144,8 +120,6 @@ pub fn aggregate_metrics_json(
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(parse_portfolio_spec_json, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(build_portfolio_from_spec_json, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(portfolio_result_total_value, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(portfolio_result_get_metric, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(aggregate_metrics, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(aggregate_metrics_json, m)?)?;
     Ok(())

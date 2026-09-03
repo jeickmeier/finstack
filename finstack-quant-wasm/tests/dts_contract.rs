@@ -161,7 +161,7 @@ fn analytics_dts_matches_runtime_hotspots() {
         "weekly",
         "monthly",
         "quarterly",
-        "semiannual",
+        "semi_annual",
         "annual",
     ] {
         assert!(periodic_returns_docs.contains(token));
@@ -254,7 +254,7 @@ fn periodic_returns_has_one_exact_frequency_param_description() {
 
     assert_eq!(docs.matches("@param frequency").count(), 1);
     assert!(docs.contains(
-        "@param frequency - Optional calendar frequency token: `\"daily\"`, `\"weekly\"`, `\"monthly\"`, `\"quarterly\"`, `\"semiannual\"`, or `\"annual\"`; defaults to `\"monthly\"`."
+        "@param frequency - Optional calendar frequency token: `\"daily\"`, `\"weekly\"`, `\"monthly\"`, `\"quarterly\"`, `\"semi_annual\"`, or `\"annual\"` (pandas offset aliases `D`/`B`, `W`, `M`, `Q`, `A`/`Y` are accepted too); defaults to `\"monthly\"`."
     ));
 }
 
@@ -704,7 +704,7 @@ fn models_liquidity_dts_requires_reference_price_for_kyle_lambda() {
 
     assert!(contains_signature(
         liquidity,
-        "kyleLambda(volumesJson: string, returnsJson: string, referencePrice: number): number | undefined;",
+        "kyleLambda(returnsJson: string, volumesJson: string, referencePrice: number): number | undefined;",
     ));
     assert!(!interface_block(&dts, "PortfolioNamespace").contains("kyleLambda("));
 }
@@ -879,7 +879,7 @@ fn statements_analytics_dts_matches_runtime_exports() {
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "creditAssessment(resultsJson: string, asOf: string): Record<string, unknown>;",
+        "creditAssessment(resultsJson: string, period: string): Record<string, unknown>;",
     ));
     assert!(dts.contains("export interface DcfSensitivityResult"));
     // dcfSensitivity carries the same optional mid-year-convention and market
@@ -976,13 +976,11 @@ fn models_monte_carlo_dts_matches_pricing_surface() {
     let monte_carlo = interface_block(&dts, "MonteCarloNamespace");
 
     assert!(dts.contains("export interface MonteCarloNamespace"));
-    // The four facade exports pinned under [wasm_models_subset].
-    for name in [
-        "priceHestonCall(",
-        "priceHestonPut(",
-        "blackScholesCall(",
-        "blackScholesPut(",
-    ] {
+    // The facade exports pinned under [wasm_models_subset]; the closed-form
+    // Black-Scholes references live at `models.bsPrice`, not here.
+    assert!(!monte_carlo.contains("blackScholesCall("));
+    assert!(!monte_carlo.contains("blackScholesPut("));
+    for name in ["priceHestonCall(", "priceHestonPut("] {
         assert!(
             monte_carlo.contains(name),
             "MonteCarloNamespace is missing `{name}`"

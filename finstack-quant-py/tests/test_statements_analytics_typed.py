@@ -11,7 +11,6 @@ from finstack_quant.statements import (
     ModelBuilder,
     MonteCarloConfig,
     MonteCarloResults,
-    run_monte_carlo,
 )
 from finstack_quant.statements_analytics import (
     BridgeChart,
@@ -152,8 +151,8 @@ def test_analysis_functions_retain_json_config_input() -> None:
 def test_statement_monte_carlo_result_is_typed_and_deterministic() -> None:
     model = _model()
     config = MonteCarloConfig(4, 123, [0.5])
-    first = run_monte_carlo(model, config)
-    second = run_monte_carlo(model, config.to_json())
+    first = Evaluator().evaluate_monte_carlo(model, config)
+    second = Evaluator().evaluate_monte_carlo(model, config.to_json())
     assert isinstance(first, MonteCarloResults)
     assert first.n_paths == 4
     assert first.percentiles == [0.5]
@@ -172,7 +171,7 @@ def test_statement_monte_carlo_percentile_series_preserves_period_order() -> Non
     )
     model = builder.build()
 
-    results = run_monte_carlo(model, MonteCarloConfig(2, 7, [0.5]))
+    results = Evaluator().evaluate_monte_carlo(model, MonteCarloConfig(2, 7, [0.5]))
     series = results.percentile_by_period("revenue", 0.5)
 
     assert series is not None

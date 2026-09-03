@@ -183,7 +183,8 @@
           "type": "integer"
         },
         "reset_lag_days": {
-          "description": "Reset lag in business days for floating rate fixing.\n\n- **0**: Spot reset (fixing on accrual start date).\n- **Positive** (e.g., 2): T-2 fixing (2 business days before accrual start).\n- **Negative** (e.g., -1): Sentinel meaning \"use convention default from\n  `ConventionRegistry`\".",
+          "default": 0,
+          "description": "Reset lag in business days for floating rate fixing (default: 0).\n\n- **0** (default): fixing on the accrual start date. A swap whose first\n  accrual period starts on or after the valuation date then prices off\n  the forward curve without historical fixings.\n- **Positive** (e.g., 2): T-2 fixing (2 business days before accrual\n  start). Use `RateIndexConventions::default_reset_lag_days` (or\n  `InterestRateSwap::from_conventions`) for the market default of a\n  given index.\n- **Negative** (e.g., -1): resolved at pricing time to the registered\n  index convention default; rejected when the forward curve id is not a\n  registered rate index.",
           "format": "int32",
           "type": "integer"
         },
@@ -207,7 +208,6 @@
         "spread_bp",
         "frequency",
         "day_count",
-        "reset_lag_days",
         "start",
         "end"
       ],

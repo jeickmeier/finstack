@@ -237,6 +237,51 @@ pub enum ComparisonOp {
     Ge,
 }
 
+impl std::str::FromStr for ComparisonOp {
+    type Err = crate::error::Error;
+
+    /// Parse a comparison operator from its serde name or symbol alias.
+    ///
+    /// Accepts the canonical snake_case serde names (`eq`, `ne`, `lt`, `le`,
+    /// `gt`, `ge`) and the symbolic aliases (`==`, `!=`, `<`, `<=`, `>`, `>=`),
+    /// so every host binding agrees on one spelling table.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - Operator text; matching is exact (no trimming, no case folding).
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-input error naming the unrecognised text.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "eq" | "==" => Ok(Self::Eq),
+            "ne" | "!=" => Ok(Self::Ne),
+            "lt" | "<" => Ok(Self::Lt),
+            "le" | "<=" => Ok(Self::Le),
+            "gt" | ">" => Ok(Self::Gt),
+            "ge" | ">=" => Ok(Self::Ge),
+            other => Err(crate::error::Error::invalid_input(format!(
+                "Unknown comparison operator {other:?}; expected one of eq/ne/lt/le/gt/ge \
+                 or ==/!=/</<=/>/>="
+            ))),
+        }
+    }
+}
+
+impl fmt::Display for ComparisonOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Eq => "eq",
+            Self::Ne => "ne",
+            Self::Lt => "lt",
+            Self::Le => "le",
+            Self::Gt => "gt",
+            Self::Ge => "ge",
+        })
+    }
+}
+
 /// Predicate that tests a single position attribute against a value.
 ///
 /// Reusable building block for [`crate::optimization::PositionFilter::ByAttribute`]
@@ -322,6 +367,28 @@ mod tests {
         assert_eq!(entity.id.as_str(), "ACME_CORP");
         assert_eq!(entity.name, Some("Acme Corporation".to_string()));
         assert_eq!(entity.tags.get("sector"), Some(&"Technology".to_string()));
+    }
+
+    #[test]
+    fn comparison_op_parses_names_and_symbols() {
+        for (text, op) in [
+            ("eq", ComparisonOp::Eq),
+            ("==", ComparisonOp::Eq),
+            ("ne", ComparisonOp::Ne),
+            ("!=", ComparisonOp::Ne),
+            ("lt", ComparisonOp::Lt),
+            ("<", ComparisonOp::Lt),
+            ("le", ComparisonOp::Le),
+            ("<=", ComparisonOp::Le),
+            ("gt", ComparisonOp::Gt),
+            (">", ComparisonOp::Gt),
+            ("ge", ComparisonOp::Ge),
+            (">=", ComparisonOp::Ge),
+        ] {
+            assert_eq!(text.parse::<ComparisonOp>().unwrap(), op);
+        }
+        assert!("=>".parse::<ComparisonOp>().is_err());
+        assert_eq!(ComparisonOp::Le.to_string(), "le");
     }
 
     #[test]

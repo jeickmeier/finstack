@@ -11,17 +11,12 @@ def test_surface_report_keys_match_stub_contract() -> None:
         forward_prices=[100.0],
     )
 
-    assert set(report) == {
-        "total_violations",
-        "passed",
-        "by_severity",
-        "by_type",
-        "violations",
-        "elapsed_us",
-    }
-    assert set(report["by_severity"]) == {"negligible", "minor", "major", "critical"}
+    assert report.passed is True
+    assert report.total_violations == 0
+    assert isinstance(report.elapsed_us, int)
+    assert set(report.by_severity) == {"negligible", "minor", "major", "critical"}
     # Every `ArbitrageType` variant is reported, including the SVI checks.
-    assert set(report["by_type"]) == {
+    assert set(report.by_type) == {
         "butterfly",
         "calendar_spread",
         "local_vol_density",
@@ -37,6 +32,8 @@ def test_surface_report_keys_match_stub_contract() -> None:
         "severity",
         "magnitude",
         "description",
-        "suggested_adjustment",
+        "suggested_fix",
     }
-    assert all(set(violation) == expected_violation_keys for violation in report["violations"])
+    assert all(set(violation) == expected_violation_keys for violation in report.violations)
+    assert report.to_dataframe().empty
+    assert type(report).from_json(report.to_json()).passed is True

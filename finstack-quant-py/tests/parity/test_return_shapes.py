@@ -44,8 +44,6 @@ ENTRY_SHAPES: list[tuple[str, str, str]] = [
     ("finstack_quant.statements", "normalize", "list"),
     ("finstack_quant.statements", "normalize_json", "json"),
     # scenarios
-    ("finstack_quant.scenarios", "parse_scenario_spec", "wrapper"),
-    ("finstack_quant.scenarios", "build_scenario_spec", "wrapper"),
     ("finstack_quant.scenarios", "compose_scenarios", "wrapper"),
     ("finstack_quant.scenarios", "build_from_template", "wrapper"),
     ("finstack_quant.scenarios", "build_template_component", "wrapper"),

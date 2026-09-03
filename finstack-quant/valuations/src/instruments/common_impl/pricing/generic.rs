@@ -72,9 +72,12 @@ where
         // Compute the base (unshocked) present value; scenario shocks are
         // applied by the registry lifecycle exactly once. The registry has
         // already resolved the effective valuation date passed as `as_of`.
+        // Preserve the core error kind: a missing curve stays `MissingMarketData`
+        // (host `KeyError`), a validation failure stays `InvalidInput` (host
+        // `ValueError`); only calibration/internal failures become `ModelFailure`.
         let pv = typed_instrument.base_value(market, as_of).map_err(|e| {
-            PricingError::model_failure_with_context(
-                e.to_string(),
+            PricingError::from_core(
+                e,
                 PricingErrorContext::from_instrument(typed_instrument).model(self.model_key),
             )
         })?;
@@ -94,8 +97,8 @@ where
     ) -> std::result::Result<f64, PricingError> {
         let typed_instrument = expect_inst::<I>(instrument, self.instrument_type)?;
         typed_instrument.base_value_raw(market, as_of).map_err(|e| {
-            PricingError::model_failure_with_context(
-                e.to_string(),
+            PricingError::from_core(
+                e,
                 PricingErrorContext::from_instrument(typed_instrument).model(self.model_key),
             )
         })
@@ -162,13 +165,24 @@ mod tests {
             .expect_err("missing discount curve must fail");
 
         match err {
-            PricingError::ModelFailure { context, .. } => {
+            PricingError::MissingMarketData {
+                missing_id,
+                context,
+            } => {
+                assert_eq!(missing_id, "USD-OIS");
                 assert_eq!(context.instrument_id.as_deref(), Some("GENERIC-CTX"));
                 assert_eq!(context.instrument_type, Some(InstrumentType::Bond));
                 assert_eq!(context.model, Some(ModelKey::Discounting));
             }
-            other => panic!("expected model failure, got {other:?}"),
+            other => panic!("expected missing market data, got {other:?}"),
         }
+        // The kind survives the lossy conversion into the core error: a host
+        // binding maps `NotFound` to `KeyError`, not `RuntimeError`.
+        let core: finstack_quant_core::Error = pricer
+            .price_dyn(&bond, &MarketContext::new(), date!(2025 - 01 - 01))
+            .expect_err("missing discount curve must fail")
+            .into();
+        assert_eq!(core.kind(), finstack_quant_core::error::ErrorKind::NotFound);
     }
 
     #[test]
@@ -191,12 +205,12 @@ mod tests {
             .expect_err("missing discount curve must fail");
 
         match err {
-            PricingError::ModelFailure { context, .. } => {
+            PricingError::MissingMarketData { context, .. } => {
                 assert_eq!(context.instrument_id.as_deref(), Some("GENERIC-RAW-CTX"));
                 assert_eq!(context.instrument_type, Some(InstrumentType::Bond));
                 assert_eq!(context.model, Some(ModelKey::Discounting));
             }
-            other => panic!("expected model failure, got {other:?}"),
+            other => panic!("expected missing market data, got {other:?}"),
         }
     }
 }

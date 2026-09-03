@@ -7,16 +7,12 @@
 
 use crate::utils::{date_to_iso, to_js_err};
 use finstack_quant_analytics as fa;
-use finstack_quant_core::dates::{
-    calendar_by_id, DayCount, FiscalConfig, HolidayCalendar, PeriodKind,
-};
+use finstack_quant_core::dates::{calendar_by_id, FiscalConfig, HolidayCalendar, PeriodKind};
 use js_sys::{Array, Float64Array, Reflect};
 use wasm_bindgen::prelude::*;
 
 use super::support::{parse_f64_matrix, parse_f64_vec, parse_iso_date, parse_iso_dates};
 
-const DEFAULT_FISCAL_START_MONTH: u8 = 1;
-const DEFAULT_FISCAL_START_DAY: u8 = 1;
 const DEFAULT_FREQ: &str = "daily";
 const DEFAULT_ROLLING_WINDOW: usize = 63;
 const DEFAULT_CONFIDENCE: f64 = 0.95;
@@ -28,21 +24,30 @@ struct PanelInputs {
     frequency: PeriodKind,
 }
 
+/// Parse a frequency token (`daily`, `weekly`, `monthly`, `quarterly`,
+/// `semi_annual`, `annual` or a pandas offset alias `D`/`B`, `W`, `M`, `Q`,
+/// `A`/`Y`); the descriptive error comes from core.
 fn parse_frequency(frequency: &str) -> Result<PeriodKind, JsValue> {
-    frequency.parse::<PeriodKind>().map_err(|_| {
-        to_js_err(format!(
-            "Unknown frequency {frequency:?}; expected one of: \
-             daily, weekly, monthly, quarterly, semiannual, annual"
-        ))
-    })
+    frequency.parse::<PeriodKind>().map_err(to_js_err)
 }
 
-fn make_fiscal_config(month: Option<u8>, day: Option<u8>) -> Result<FiscalConfig, JsValue> {
-    FiscalConfig::new(
-        month.unwrap_or(DEFAULT_FISCAL_START_MONTH),
-        day.unwrap_or(DEFAULT_FISCAL_START_DAY),
-    )
-    .map_err(to_js_err)
+/// `None` when both parts are omitted so the Rust default (calendar year)
+/// applies; a partial start fills the other half with `1`.
+fn make_fiscal_config(month: Option<u8>, day: Option<u8>) -> Result<Option<FiscalConfig>, JsValue> {
+    if month.is_none() && day.is_none() {
+        return Ok(None);
+    }
+    FiscalConfig::new(month.unwrap_or(1), day.unwrap_or(1))
+        .map(Some)
+        .map_err(to_js_err)
+}
+
+/// Lookback returns always need a fiscal config: default January 1.
+fn lookback_fiscal_config(month: Option<u8>, day: Option<u8>) -> Result<FiscalConfig, JsValue> {
+    match make_fiscal_config(month, day)? {
+        Some(config) => Ok(config),
+        None => FiscalConfig::new(1, 1).map_err(to_js_err),
+    }
 }
 
 fn resolve_fiscal_calendar(calendar_id: &str) -> Result<&'static dyn HolidayCalendar, JsValue> {
@@ -52,11 +57,8 @@ fn resolve_fiscal_calendar(calendar_id: &str) -> Result<&'static dyn HolidayCale
 
 fn parse_cagr_day_count(day_count: Option<&str>) -> Result<fa::CagrDayCount, JsValue> {
     match day_count {
-        None | Some("act365_25" | "act_365_25" | "act/365.25") => Ok(fa::CagrDayCount::Act365_25),
-        Some(other) => other
-            .parse::<DayCount>()
-            .map(fa::CagrDayCount::DayCount)
-            .map_err(to_js_err),
+        None => Ok(fa::CagrDayCount::Act365_25),
+        Some(label) => label.parse::<fa::CagrDayCount>().map_err(to_js_err),
     }
 }
 
@@ -70,15 +72,11 @@ fn parse_return_kind(
     return_kind: Option<&str>,
     risk_free_rate: Option<f64>,
 ) -> Result<fa::ReturnKind, JsValue> {
-    match return_kind.unwrap_or("excess") {
-        "excess" => Ok(fa::ReturnKind::Excess),
-        "total" => Ok(fa::ReturnKind::Total {
-            risk_free_rate: risk_free_rate.unwrap_or(0.0),
-        }),
-        other => Err(to_js_err(format!(
-            "Unknown returnKind {other:?}; expected \"excess\" or \"total\""
-        ))),
-    }
+    return_kind
+        .unwrap_or("excess")
+        .parse::<fa::ReturnKind>()
+        .map(|kind| kind.with_risk_free_rate(risk_free_rate.unwrap_or(0.0)))
+        .map_err(to_js_err)
 }
 
 fn parse_dates(dates: JsValue) -> Result<Vec<time::Date>, JsValue> {
@@ -471,11 +469,11 @@ impl JsPerformance {
     /// Historical value-at-risk per asset at the given confidence level.
     /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+    /// @throws Error - Rejects a `confidence` outside the open interval (0, 1).
     #[wasm_bindgen(js_name = valueAtRisk)]
-    pub fn value_at_risk(&self, confidence: Option<f64>) -> JsValue {
-        vec_f64_to_js(
-            &self
-                .inner
+    pub fn value_at_risk(&self, confidence: Option<f64>) -> Result<JsValue, JsValue> {
+        result_vec_f64_to_js(
+            self.inner
                 .value_at_risk(confidence.unwrap_or(DEFAULT_CONFIDENCE)),
         )
     }
@@ -483,11 +481,11 @@ impl JsPerformance {
     /// Expected shortfall (CVaR) per asset at the given confidence level.
     /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+    /// @throws Error - Rejects a `confidence` outside the open interval (0, 1).
     #[wasm_bindgen(js_name = expectedShortfall)]
-    pub fn expected_shortfall(&self, confidence: Option<f64>) -> JsValue {
-        vec_f64_to_js(
-            &self
-                .inner
+    pub fn expected_shortfall(&self, confidence: Option<f64>) -> Result<JsValue, JsValue> {
+        result_vec_f64_to_js(
+            self.inner
                 .expected_shortfall(confidence.unwrap_or(DEFAULT_CONFIDENCE)),
         )
     }
@@ -637,11 +635,11 @@ impl JsPerformance {
     /// Tail ratio of upper to lower return quantiles per asset.
     /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+    /// @throws Error - Rejects a `confidence` outside the open interval (0, 1).
     #[wasm_bindgen(js_name = tailRatio)]
-    pub fn tail_ratio(&self, confidence: Option<f64>) -> JsValue {
-        vec_f64_to_js(
-            &self
-                .inner
+    pub fn tail_ratio(&self, confidence: Option<f64>) -> Result<JsValue, JsValue> {
+        result_vec_f64_to_js(
+            self.inner
                 .tail_ratio(confidence.unwrap_or(DEFAULT_CONFIDENCE)),
         )
     }
@@ -667,11 +665,15 @@ impl JsPerformance {
     /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
     /// @param horizon_periods - Optional horizon in observation periods; omitted is one-period VaR.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+    /// @throws Error - Rejects a `confidence` outside the open interval (0, 1).
     #[wasm_bindgen(js_name = parametricVar)]
-    pub fn parametric_var(&self, confidence: Option<f64>, horizon_periods: Option<f64>) -> JsValue {
-        vec_f64_to_js(
-            &self
-                .inner
+    pub fn parametric_var(
+        &self,
+        confidence: Option<f64>,
+        horizon_periods: Option<f64>,
+    ) -> Result<JsValue, JsValue> {
+        result_vec_f64_to_js(
+            self.inner
                 .parametric_var(confidence.unwrap_or(DEFAULT_CONFIDENCE), horizon_periods),
         )
     }
@@ -683,15 +685,15 @@ impl JsPerformance {
     /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
     /// @param horizon_periods - Optional horizon in observation periods; omitted is one-period VaR.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+    /// @throws Error - Rejects a `confidence` outside the open interval (0, 1).
     #[wasm_bindgen(js_name = cornishFisherVar)]
     pub fn cornish_fisher_var(
         &self,
         confidence: Option<f64>,
         horizon_periods: Option<f64>,
-    ) -> JsValue {
-        vec_f64_to_js(
-            &self
-                .inner
+    ) -> Result<JsValue, JsValue> {
+        result_vec_f64_to_js(
+            self.inner
                 .cornish_fisher_var(confidence.unwrap_or(DEFAULT_CONFIDENCE), horizon_periods),
         )
     }
@@ -699,8 +701,9 @@ impl JsPerformance {
     /// Conditional drawdown-at-risk per asset at the given confidence level.
     /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
-    pub fn cdar(&self, confidence: Option<f64>) -> JsValue {
-        vec_f64_to_js(&self.inner.cdar(confidence.unwrap_or(DEFAULT_CONFIDENCE)))
+    /// @throws Error - Rejects a `confidence` outside the open interval (0, 1).
+    pub fn cdar(&self, confidence: Option<f64>) -> Result<JsValue, JsValue> {
+        result_vec_f64_to_js(self.inner.cdar(confidence.unwrap_or(DEFAULT_CONFIDENCE)))
     }
 
     /// M-squared (Modigliani) risk-adjusted return per asset.
@@ -723,9 +726,14 @@ impl JsPerformance {
     /// @param confidence - Annual-horizon tail confidence as a decimal
     /// probability; defaults to 0.95.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
+    /// @throws Error - Rejects a `confidence` outside the open interval (0, 1).
     #[wasm_bindgen(js_name = modifiedSharpe)]
-    pub fn modified_sharpe(&self, risk_free_rate: Option<f64>, confidence: Option<f64>) -> JsValue {
-        vec_f64_to_js(&self.inner.modified_sharpe(
+    pub fn modified_sharpe(
+        &self,
+        risk_free_rate: Option<f64>,
+        confidence: Option<f64>,
+    ) -> Result<JsValue, JsValue> {
+        result_vec_f64_to_js(self.inner.modified_sharpe(
             risk_free_rate.unwrap_or(0.0),
             confidence.unwrap_or(DEFAULT_CONFIDENCE),
         ))
@@ -852,7 +860,7 @@ impl JsPerformance {
     /// # Arguments
     ///
     /// * `frequency` - Optional calendar frequency token: `"daily"`,
-    ///   `"weekly"`, `"monthly"`, `"quarterly"`, `"semiannual"`, or
+    ///   `"weekly"`, `"monthly"`, `"quarterly"`, `"semi_annual"`, or
     ///   `"annual"`; defaults to `"monthly"`.
     ///
     /// # Errors
@@ -888,6 +896,23 @@ impl JsPerformance {
     pub fn correlation_matrix(&self) -> Result<JsValue, JsValue> {
         let matrix = self.inner.correlation_matrix().map_err(to_js_err)?;
         Ok(matrix_f64_to_js(&matrix))
+    }
+
+    /// `true` when `correlationMatrix()` had to be Higham-repaired to the
+    /// nearest valid correlation matrix (ragged panels can yield a raw
+    /// pairwise estimate that is not positive semi-definite).
+    ///
+    /// # Errors
+    ///
+    /// Rejects the same degenerate-pair conditions as `correlationMatrix`.
+    /// @returns `true` when the estimate was projected to the nearest correlation matrix.
+    /// @throws Error - Rejects when a ticker pair is degenerate or Higham repair fails.
+    #[wasm_bindgen(js_name = correlationMatrixRepaired)]
+    pub fn correlation_matrix_repaired(&self) -> Result<bool, JsValue> {
+        self.inner
+            .correlation_matrix_with_repair_flag()
+            .map(|(_, repaired)| repaired)
+            .map_err(to_js_err)
     }
 
     /// Cumulative outperformance versus the benchmark per asset.
@@ -1164,7 +1189,7 @@ impl JsPerformance {
         fiscal_year_start_day: Option<u8>,
     ) -> Result<JsValue, JsValue> {
         let d = parse_iso_date(ref_date)?;
-        let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
+        let fc = lookback_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
         to_js(&self.inner.lookback_returns(d, fc))
     }
 
@@ -1192,7 +1217,7 @@ impl JsPerformance {
         let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
         let stats = self
             .inner
-            .period_stats(ticker_idx, pk, Some(fc))
+            .period_stats(ticker_idx, pk, fc)
             .map_err(to_js_err)?;
         let js = to_js(&stats)?;
         restore_non_finite_ratios(&js, &stats)?;

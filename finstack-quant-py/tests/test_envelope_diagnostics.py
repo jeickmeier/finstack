@@ -30,9 +30,10 @@ def _empty_envelope() -> dict:
 
 
 def test_dry_run_returns_json_report() -> None:
-    report = json.loads(dry_run(json.dumps(_empty_envelope())))
-    assert report["errors"] == []
-    assert "dependency_graph" in report
+    report = dry_run(json.dumps(_empty_envelope()))
+    assert report.errors == []
+    assert report.is_valid
+    assert "dependency_graph" in json.loads(report.to_json())
 
 
 def test_calibration_result_pickles_through_top_level_module() -> None:
@@ -55,7 +56,7 @@ def test_dry_run_surfaces_undefined_quote_set_with_suggestion() -> None:
             "base_date": "2026-05-08",
         }
     ]
-    report = json.loads(dry_run(json.dumps(envelope)))
+    report = json.loads(dry_run(json.dumps(envelope)).to_json())
     undef = next(
         (e for e in report["errors"] if e["kind"] == "undefined_quote_set"),
         None,
@@ -124,6 +125,7 @@ def test_all_calibration_entry_points_expose_execution_error_details(
         "solver_diagnostics",
         "cause",
         "envelope_error",
+        "diagnostics",
     }
     assert payload["category"] == exc.kind
     assert payload["stage"] == exc.stage

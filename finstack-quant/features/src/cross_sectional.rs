@@ -1,8 +1,8 @@
 //! Cross-sectional panel transforms partitioned by timestamp.
 
 use crate::types::{
-    f64_param, finite, mean, op_from_str, population_std, quantile_cont, usize_param,
-    validate_lengths, ZERO_TOLERANCE,
+    f64_param, finite, mean, op_from_str, population_std, quantile_cont, reject_unknown_params,
+    usize_param, validate_lengths, ZERO_TOLERANCE,
 };
 use finstack_quant_core::math::standard_normal_inv_cdf;
 use finstack_quant_core::{Error, Result};
@@ -54,7 +54,63 @@ impl FromStr for CrossSectionalOp {
     type Err = Error;
 
     fn from_str(op: &str) -> Result<Self> {
-        op_from_str(op, "cross-sectional")
+        op_from_str(op, "cross-sectional", &Self::names())
+    }
+}
+
+impl CrossSectionalOp {
+    /// Every operation, in declaration order.
+    pub const ALL: &'static [Self] = &[
+        Self::Zscore,
+        Self::Rank,
+        Self::PercentileRank,
+        Self::QuantileBucket,
+        Self::Demean,
+        Self::RobustZscore,
+        Self::MinmaxScale,
+        Self::Clip,
+        Self::ClipBySigma,
+        Self::NormalScoreTransform,
+        Self::LongShortWeights,
+        Self::CapWeights,
+        Self::FillMissing,
+        Self::IsFinite,
+        Self::NanMask,
+        Self::Winsorize,
+    ];
+
+    /// Canonical snake_case name accepted by [`transform_cross_sectional`].
+    #[must_use]
+    pub fn name(self) -> String {
+        crate::types::op_name(&self)
+    }
+
+    /// Canonical names of every operation, in [`Self::ALL`] order.
+    #[must_use]
+    pub fn names() -> Vec<String> {
+        Self::ALL.iter().map(|op| op.name()).collect()
+    }
+
+    /// JSON parameter keys this operation reads; any other key is rejected.
+    #[must_use]
+    pub fn param_keys(self) -> &'static [&'static str] {
+        match self {
+            Self::QuantileBucket => &["buckets"],
+            Self::Clip | Self::Winsorize => &["lower", "upper"],
+            Self::ClipBySigma => &["sigma"],
+            Self::CapWeights => &["max_abs"],
+            Self::FillMissing => &["value"],
+            Self::Zscore
+            | Self::Rank
+            | Self::PercentileRank
+            | Self::Demean
+            | Self::RobustZscore
+            | Self::MinmaxScale
+            | Self::NormalScoreTransform
+            | Self::LongShortWeights
+            | Self::IsFinite
+            | Self::NanMask => &[],
+        }
     }
 }
 
@@ -107,6 +163,7 @@ pub fn transform_cross_sectional_with_op(
     params: Option<&Value>,
 ) -> Result<Vec<Option<f64>>> {
     validate_lengths(values.len(), &[("time_key", time_key.len())])?;
+    reject_unknown_params(params, &op.name(), op.param_keys())?;
     let partitions = crate::index::partition_by_key(time_key);
 
     let mut output = vec![None; values.len()];

@@ -66,7 +66,9 @@ impl std::str::FromStr for SeriesInterpolation {
         match s {
             "step" => Ok(Self::Step),
             "linear" => Ok(Self::Linear),
-            _ => Err(crate::error::InputError::Invalid.into()),
+            other => Err(crate::Error::Validation(format!(
+                "unknown series interpolation {other:?}; expected \"step\" or \"linear\""
+            ))),
         }
     }
 }

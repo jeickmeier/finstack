@@ -1,26 +1,37 @@
-//! Python wrappers for statements analytics functions.
+//! Python wrappers for statement analysis functions.
 //!
-//! Covers: sensitivity, variance, scenario sets, backtesting, goal seek,
-//! introspection (dependency tracing, formula explanation), DCF valuation,
-//! credit analysis, and reports.
+//! Covers: sensitivity, variance, scenario sets, backtesting, goal seek, and
+//! introspection (dependency tracing, formula explanation). DCF/LBO live in
+//! `valuation.rs`, check suites in `checks.rs`, reports in `reports.rs`.
 //!
 //! All functions that accept a financial model or statement result support
 //! both JSON strings and typed Python objects (`FinancialModelSpec`,
 //! `StatementResult`) for zero-overhead calls when the caller already has
-//! a parsed object.
+//! a parsed object. Errors from the `finstack-quant-statements` crate map to
+//! `KeyError` for missing nodes, `RuntimeError` for capital-structure
+//! failures and `ValueError` otherwise.
 
-use crate::bindings::extract::{extract_market_opt, extract_model_ref, extract_results_ref};
-use crate::bindings::pandas_utils::serde_to_py;
-use crate::bindings::statements::checks::PyCheckReport;
-use crate::bindings::statements::evaluator::PyStatementResult;
+use crate::bindings::extract::{extract_model_ref, extract_results_ref};
+use crate::bindings::pandas_utils::{
+    labeled_values_to_series, serde_rows_to_dataframe_with_schema, ColumnSchema,
+};
 use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::bindings::statements_analytics::typed::{
     PyBridgeChart, PyScenarioDiff, PyScenarioResults, PyScenarioSet, PySensitivityConfig,
     PySensitivityResult, PyTornadoEntry, PyVarianceConfig, PyVarianceReport,
 };
-use crate::errors::{display_to_py, statements_to_py};
+use crate::errors::{display_to_py, serde_json_to_py, statements_to_py};
+use finstack_quant_statements_analytics::analysis::{
+    Explanation, ExplanationStep, ForecastMetrics,
+};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+
+/// Column schema for `Explanation.to_dataframe`.
+const EXPLANATION_COLUMNS: [ColumnSchema<'static>; 3] = [
+    ("component", "str"),
+    ("value", "float64"),
+    ("operation", "str"),
+];
 
 fn extract_sensitivity_config(
     value: &Bound<'_, PyAny>,
@@ -28,7 +39,8 @@ fn extract_sensitivity_config(
     if let Ok(config) = value.extract::<PyRef<'_, PySensitivityConfig>>() {
         return Ok(config.inner.clone());
     }
-    serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
+    serde_json::from_str(value.extract::<&str>()?)
+        .map_err(|e| serde_json_to_py(e, "invalid SensitivityConfig JSON"))
 }
 
 fn extract_sensitivity_result(
@@ -37,7 +49,8 @@ fn extract_sensitivity_result(
     if let Ok(result) = value.extract::<PyRef<'_, PySensitivityResult>>() {
         return Ok(result.inner.clone());
     }
-    serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
+    serde_json::from_str(value.extract::<&str>()?)
+        .map_err(|e| serde_json_to_py(e, "invalid SensitivityResult JSON"))
 }
 
 fn extract_variance_config(
@@ -46,7 +59,8 @@ fn extract_variance_config(
     if let Ok(config) = value.extract::<PyRef<'_, PyVarianceConfig>>() {
         return Ok(config.inner.clone());
     }
-    serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
+    serde_json::from_str(value.extract::<&str>()?)
+        .map_err(|e| serde_json_to_py(e, "invalid VarianceConfig JSON"))
 }
 
 fn extract_scenario_set(
@@ -55,7 +69,8 @@ fn extract_scenario_set(
     if let Ok(scenario_set) = value.extract::<PyRef<'_, PyScenarioSet>>() {
         return Ok(scenario_set.inner.clone());
     }
-    serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
+    serde_json::from_str(value.extract::<&str>()?)
+        .map_err(|e| serde_json_to_py(e, "invalid ScenarioSet JSON"))
 }
 
 /// Run sensitivity analysis on a financial model.
@@ -70,7 +85,25 @@ fn extract_scenario_set(
 /// Returns
 /// -------
 /// SensitivityResult
-///     Typed sensitivity result with JSON serialization support.
+///     Typed sensitivity result with per-scenario outputs, ``baseline`` and
+///     DataFrame exits.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the configuration is malformed or a scenario fails to evaluate.
+/// KeyError
+///     If a perturbed parameter or target metric is missing from the model.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import ParameterSpec, SensitivityConfig, run_sensitivity
+/// >>> b = ModelBuilder("m"); b.periods("2025Q1..Q2", None)
+/// >>> b.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)]); b.compute("profit", "revenue * 0.5")
+/// >>> cfg = SensitivityConfig("diagonal", [ParameterSpec.with_percentages("revenue", "2025Q2", 110.0, [-10.0, 10.0])], ["profit"])
+/// >>> len(run_sensitivity(b.build(), cfg))
+/// 2
 #[pyfunction]
 fn run_sensitivity(
     py: Python<'_>,
@@ -82,7 +115,7 @@ fn run_sensitivity(
     py.detach(move || {
         let analyzer =
             finstack_quant_statements_analytics::analysis::SensitivityAnalyzer::new(&model);
-        let inner = analyzer.run(&config).map_err(display_to_py)?;
+        let inner = analyzer.run(&config).map_err(statements_to_py)?;
         Ok(PySensitivityResult { inner })
     })
 }
@@ -102,6 +135,17 @@ fn run_sensitivity(
 /// -------
 /// list[TornadoEntry]
 ///     Typed entries sorted by descending absolute swing.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``period`` does not parse or ``result`` is malformed JSON.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import generate_tornado_entries
+/// >>> callable(generate_tornado_entries)
+/// True
 #[pyfunction]
 #[pyo3(signature = (result, metric_node, period=None))]
 fn generate_tornado_entries(
@@ -135,6 +179,24 @@ fn generate_tornado_entries(
 ///     A ``StatementResult`` object or a JSON string.
 /// config : VarianceConfig | str
 ///     A typed configuration or its JSON serialization.
+///
+/// Returns
+/// -------
+/// VarianceReport
+///     Per-metric, per-period rows including ``driver_contribution``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the configuration is malformed.
+/// KeyError
+///     If a configured metric is missing at a configured period.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import run_variance
+/// >>> callable(run_variance)
+/// True
 #[pyfunction]
 fn run_variance(
     py: Python<'_>,
@@ -150,7 +212,7 @@ fn run_variance(
             &base,
             &comparison,
         );
-        let inner = analyzer.compute(&config).map_err(display_to_py)?;
+        let inner = analyzer.compute(&config).map_err(statements_to_py)?;
         Ok(PyVarianceReport { inner })
     })
 }
@@ -168,6 +230,23 @@ fn run_variance(
 /// -------
 /// ScenarioResults
 ///     Typed mapping of scenario names to statement results.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the set is empty, a parent chain cycles, an override is
+///     incompatible with its node, or evaluation fails.
+/// KeyError
+///     If an override names a node missing from the model.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import ScenarioSet, evaluate_scenario_set
+/// >>> b = ModelBuilder("m"); b.periods("2025Q1..Q2", None); b.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
+/// >>> results = evaluate_scenario_set(b.build(), ScenarioSet({"base": {}, "down": {"revenue": 90.0}}))
+/// >>> results.names
+/// ['base', 'down']
 #[pyfunction]
 fn evaluate_scenario_set(
     py: Python<'_>,
@@ -177,7 +256,9 @@ fn evaluate_scenario_set(
     let model = extract_model_ref(model)?.into_owned();
     let scenario_set = extract_scenario_set(scenario_set)?;
     py.detach(move || {
-        let inner = scenario_set.evaluate_all(&model).map_err(display_to_py)?;
+        let inner = scenario_set
+            .evaluate_all(&model)
+            .map_err(statements_to_py)?;
         Ok(PyScenarioResults { inner })
     })
 }
@@ -189,7 +270,7 @@ fn evaluate_scenario_set(
 /// scenario_set : ScenarioSet | str
 ///     A typed scenario set or its JSON serialization.
 /// results : ScenarioResults
-///     Output of :func:`evaluate_scenario_set` for the same scenario set.
+///     Output of ``evaluate_scenario_set`` for the same scenario set.
 /// baseline : str
 ///     Name of the scenario to treat as the baseline.
 /// comparison : str
@@ -207,8 +288,16 @@ fn evaluate_scenario_set(
 /// Raises
 /// ------
 /// ValueError
-///     If `metrics` or `periods` is empty, a scenario name is unknown, or a
-///     period fails to parse.
+///     If ``metrics`` or ``periods`` is empty, a scenario name is unknown, or
+///     a period fails to parse.
+/// KeyError
+///     If a metric is missing at a period in either scenario.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import scenario_diff
+/// >>> callable(scenario_diff)
+/// True
 #[pyfunction]
 #[pyo3(text_signature = "(scenario_set, results, baseline, comparison, metrics, periods)")]
 fn scenario_diff(
@@ -240,8 +329,7 @@ fn scenario_diff(
 ///
 /// Driver contributions are raw deltas in *driver* units rather than
 /// sensitivities of the target metric, so they generally do not sum to the
-/// target variance. The gap is reported in ``BridgeChart.unexplained`` rather
-/// than left implicit.
+/// target variance. The gap is reported in ``BridgeChart.unexplained``.
 ///
 /// Parameters
 /// ----------
@@ -268,8 +356,15 @@ fn scenario_diff(
 /// Raises
 /// ------
 /// ValueError
-///     If the period fails to parse, or the target or any driver is missing
-///     from either result at `period`.
+///     If the period fails to parse.
+/// KeyError
+///     If the target or any driver is missing from either result at ``period``.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import variance_bridge
+/// >>> callable(variance_bridge)
+/// True
 #[pyfunction]
 #[pyo3(
     text_signature = "(base, comparison, target_metric, period, drivers, baseline_label, comparison_label)"
@@ -305,25 +400,206 @@ fn variance_bridge(
                 &baseline_label,
                 &comparison_label,
             )
-            .map_err(display_to_py)?;
+            .map_err(statements_to_py)?;
         Ok(PyBridgeChart { inner })
     })
 }
 
+/// Forecast accuracy metrics (MAE, MAPE, sMAPE, RMSE).
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import backtest_forecast
+/// >>> metrics = backtest_forecast([100.0, 110.0], [98.0, 112.0])
+/// >>> metrics.n, metrics.mae
+/// (2, 2.0)
+#[pyclass(
+    name = "ForecastMetrics",
+    module = "finstack_quant.statements_analytics",
+    eq,
+    frozen,
+    from_py_object
+)]
+#[derive(Clone, PartialEq)]
+pub struct PyForecastMetrics {
+    pub(crate) inner: ForecastMetrics,
+}
+
+#[pymethods]
+impl PyForecastMetrics {
+    /// Mean absolute error in data units.
+    #[getter]
+    fn mae(&self) -> f64 {
+        self.inner.mae
+    }
+
+    /// Mean absolute percentage error in percent (``5.0`` = 5%); ``NaN``
+    /// when every actual is zero.
+    #[getter]
+    fn mape(&self) -> f64 {
+        self.inner.mape
+    }
+
+    /// Number of observations with a non-zero actual used by ``mape``.
+    #[getter]
+    fn mape_effective_n(&self) -> usize {
+        self.inner.mape_effective_n
+    }
+
+    /// Symmetric MAPE in percent.
+    #[getter]
+    fn smape(&self) -> f64 {
+        self.inner.smape
+    }
+
+    /// Root mean squared error in data units.
+    #[getter]
+    fn rmse(&self) -> f64 {
+        self.inner.rmse
+    }
+
+    /// Number of observations.
+    #[getter]
+    fn n(&self) -> usize {
+        self.inner.n
+    }
+
+    /// One-line human-readable summary (Rust ``ForecastMetrics::summary``).
+    fn summary(&self) -> String {
+        self.inner.summary()
+    }
+
+    /// Export as a pandas ``Series`` indexed by metric name.
+    ///
+    /// Index: ``mae``, ``mape``, ``mape_effective_n``, ``smape``, ``rmse``,
+    /// ``n``; counts are cast to float.
+    fn to_series<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let labels: Vec<String> = ["mae", "mape", "mape_effective_n", "smape", "rmse", "n"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let values = vec![
+            self.inner.mae,
+            self.inner.mape,
+            self.inner.mape_effective_n as f64,
+            self.inner.smape,
+            self.inner.rmse,
+            self.inner.n as f64,
+        ];
+        labeled_values_to_series(py, &labels, values, "forecast_metrics")
+    }
+
+    /// Serialize to canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(|e| serde_json_to_py(e, "ForecastMetrics"))
+    }
+
+    /// Deserialize from canonical JSON.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``json`` is not a valid ``ForecastMetrics`` document.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid ForecastMetrics JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Support ``pickle`` through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("ForecastMetrics", &self.inner)
+    }
+}
+
 /// Compute forecast accuracy metrics (MAE, MAPE, sMAPE, RMSE).
 ///
-/// Returns the serde form of the Rust ``ForecastMetrics`` (``mae``, ``mape``,
-/// ``mape_effective_n``, ``smape``, ``rmse``, ``n``).
+/// Parameters
+/// ----------
+/// actual : list[float]
+///     Observed values.
+/// forecast : list[float]
+///     Forecast values; same length as ``actual``.
+///
+/// Returns
+/// -------
+/// ForecastMetrics
+///     Typed metrics with ``summary()`` and ``to_series()``.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If the sequences are empty or of different lengths.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import backtest_forecast
+/// >>> backtest_forecast([1.0, 2.0], [1.0, 2.5]).n
+/// 2
 #[pyfunction]
-fn backtest_forecast<'py>(
-    py: Python<'py>,
-    actual: Vec<f64>,
-    forecast: Vec<f64>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let metrics =
+#[pyo3(text_signature = "(actual, forecast)")]
+fn backtest_forecast(actual: Vec<f64>, forecast: Vec<f64>) -> PyResult<PyForecastMetrics> {
+    let inner =
         finstack_quant_statements_analytics::analysis::backtest_forecast(&actual, &forecast)
-            .map_err(display_to_py)?;
-    serde_to_py(py, &metrics)
+            .map_err(statements_to_py)?;
+    Ok(PyForecastMetrics { inner })
+}
+
+/// Result of a goal-seek solve.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import GoalSeekResult
+/// >>> callable(GoalSeekResult)
+/// True
+#[pyclass(
+    name = "GoalSeekResult",
+    module = "finstack_quant.statements_analytics",
+    frozen,
+    from_py_object
+)]
+#[derive(Clone)]
+pub struct PyGoalSeekResult {
+    solved_value: f64,
+    model: Option<finstack_quant_statements::FinancialModelSpec>,
+}
+
+#[pymethods]
+impl PyGoalSeekResult {
+    /// Driver value that reaches the target.
+    #[getter]
+    fn solved_value(&self) -> f64 {
+        self.solved_value
+    }
+
+    /// Model with the solved driver written in, or ``None`` when
+    /// ``update_model=False``.
+    #[getter]
+    fn model(&self) -> Option<PyFinancialModelSpec> {
+        self.model.clone().map(PyFinancialModelSpec::from_inner)
+    }
+
+    fn __float__(&self) -> f64 {
+        self.solved_value
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "GoalSeekResult(solved_value={}, model={})",
+            self.solved_value,
+            if self.model.is_some() {
+                "FinancialModelSpec(...)"
+            } else {
+                "None"
+            }
+        )
+    }
 }
 
 /// Find the driver value that makes a target node reach a target value.
@@ -333,7 +609,7 @@ fn backtest_forecast<'py>(
 /// model : FinancialModelSpec | str
 ///     A ``FinancialModelSpec`` object or a JSON string.
 /// target_node : str
-///     Node to optimize towards ``target_value``.
+///     Node to drive towards ``target_value``.
 /// target_period : str
 ///     Period string for the target (e.g. ``"2025Q4"``).
 /// target_value : float
@@ -343,15 +619,33 @@ fn backtest_forecast<'py>(
 /// driver_period : str
 ///     Period string for the driver.
 /// update_model : bool
-///     If ``True``, the solved value is written back into the model JSON.
+///     If ``True``, the solved value is written back into the returned model.
+///     Default ``True``.
 /// bounds : tuple[float, float] | None
-///     Optional search bounds (lo, hi). Bisection is used when set.
+///     Optional search bounds ``(lo, hi)``; bisection is used when set.
 ///
 /// Returns
 /// -------
-/// tuple[float, FinancialModelSpec | None]
-///     ``(solved_driver_value, updated_model)``. The updated model is
-///     ``None`` when ``update_model`` is ``False``.
+/// GoalSeekResult
+///     ``solved_value`` plus ``model`` (the updated ``FinancialModelSpec`` or
+///     ``None``). ``float(result)`` yields the solved value.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If a period does not parse, the solver fails to converge, or the
+///     bracket does not contain a root.
+/// KeyError
+///     If ``target_node`` or ``driver_node`` is missing from the model.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import goal_seek
+/// >>> b = ModelBuilder("m"); b.periods("2025Q1..Q1", None); b.value("revenue", [("2025Q1", 100.0)])
+/// >>> b.compute("profit", "revenue * 0.5")
+/// >>> round(goal_seek(b.build(), "profit", "2025Q1", 60.0, "revenue", "2025Q1").solved_value, 6)
+/// 120.0
 #[pyfunction]
 #[pyo3(signature = (model, target_node, target_period, target_value, driver_node, driver_period, update_model=true, bounds=None))]
 #[allow(clippy::too_many_arguments)]
@@ -365,7 +659,7 @@ fn goal_seek(
     driver_period: &str,
     update_model: bool,
     bounds: Option<(f64, f64)>,
-) -> PyResult<(f64, Option<PyFinancialModelSpec>)> {
+) -> PyResult<PyGoalSeekResult> {
     let mut model = extract_model_ref(model)?.into_owned();
     let tp: finstack_quant_core::dates::PeriodId = target_period.parse().map_err(display_to_py)?;
     let dp: finstack_quant_core::dates::PeriodId = driver_period.parse().map_err(display_to_py)?;
@@ -373,7 +667,7 @@ fn goal_seek(
     let driver_node = driver_node.to_owned();
 
     py.detach(move || {
-        let result = finstack_quant_statements_analytics::analysis::goal_seek(
+        let solved_value = finstack_quant_statements_analytics::analysis::goal_seek(
             &mut model,
             &target_node,
             tp,
@@ -383,657 +677,13 @@ fn goal_seek(
             update_model,
             bounds,
         )
-        .map_err(display_to_py)?;
+        .map_err(statements_to_py)?;
 
-        let updated = update_model.then(|| PyFinancialModelSpec::from_inner(model));
-        Ok((result, updated))
+        Ok(PyGoalSeekResult {
+            solved_value,
+            model: update_model.then_some(model),
+        })
     })
-}
-
-/// Evaluate DCF valuation on a financial model.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A ``FinancialModelSpec`` object or a JSON string. Metadata must
-///     contain a ``"currency"`` key.
-/// wacc : float
-///     Weighted average cost of capital in decimal form (``0.10`` = 10%).
-/// terminal_value_json : str
-///     JSON-serialized ``TerminalValueSpec`` (tagged enum, e.g.
-///     ``{"type": "gordon_growth", "growth_rate": 0.02}``).
-/// ufcf_node : str
-///     Node ID containing unlevered free cash flow.
-/// net_debt_override : float | None
-///     Optional flat net-debt amount.
-/// mid_year_convention : bool
-///     Enable mid-year discounting convention. Default ``False`` (year-end).
-/// max_stable_growth_rate : float | None
-///     Maximum perpetual growth rate accepted for Gordon Growth or H-Model
-///     stable growth. ``None`` uses the canonical 5% default.
-/// shares_outstanding : float | None
-///     Basic shares outstanding for per-share equity value.
-/// equity_bridge_json : str | None
-///     Optional JSON ``EquityBridge`` for structured bridge.
-/// valuation_discounts_json : str | None
-///     Optional JSON ``ValuationDiscounts`` (DLOM, DLOC).
-/// market : MarketContext | str | None
-///     Optional ``MarketContext`` object or JSON string used for
-///     **statement evaluation** (for example capital-structure curve
-///     lookups). DCF discounting stays WACC-only and does not read
-///     discount curves from ``market``. When ``market`` is supplied,
-///     ``as_of`` is required.
-/// as_of : datetime.date | str | None
-///     DCF valuation date and, when ``market`` is supplied, the statement
-///     visibility and market-data date. Accepts a date-like object or ISO 8601
-///     string. Required with ``market``; otherwise the first forecast boundary
-///     is used when omitted.
-/// exit_multiple_metric_node : str | None
-///     Statement node whose last-forecast-period value supplies the
-///     exit-multiple terminal metric. When set, that value replaces
-///     ``terminal_metric`` on an ``ExitMultiple`` spec. Ignored for
-///     Gordon Growth and H-Model terminals.
-///
-/// Returns
-/// -------
-/// dict
-///     Serde form of the Rust ``CorporateValuationResult``: ``equity_value``,
-///     ``enterprise_value``, ``net_debt`` and ``terminal_value_pv`` are
-///     ``Money`` wire objects (``{"amount": "<decimal string>", "currency":
-///     "USD"}``); ``equity_value_per_share`` and ``diluted_shares`` are floats
-///     or ``None``.
-///
-/// Raises
-/// ------
-/// ValueError
-///     If ``market`` is set without ``as_of``, a JSON payload is
-///     malformed, or the model, cash-flow node, exit-multiple metric
-///     node, or DCF inputs are invalid.
-#[pyfunction]
-#[pyo3(signature = (
-    model,
-    wacc,
-    terminal_value_json,
-    ufcf_node="ufcf",
-    net_debt_override=None,
-    mid_year_convention=false,
-    max_stable_growth_rate=None,
-    shares_outstanding=None,
-    equity_bridge_json=None,
-    valuation_discounts_json=None,
-    market=None,
-    as_of=None,
-    exit_multiple_metric_node=None,
-))]
-#[allow(clippy::too_many_arguments)]
-fn evaluate_dcf<'py>(
-    py: Python<'py>,
-    model: &Bound<'py, PyAny>,
-    wacc: f64,
-    terminal_value_json: &str,
-    ufcf_node: &str,
-    net_debt_override: Option<f64>,
-    mid_year_convention: bool,
-    max_stable_growth_rate: Option<f64>,
-    shares_outstanding: Option<f64>,
-    equity_bridge_json: Option<&str>,
-    valuation_discounts_json: Option<&str>,
-    market: Option<&Bound<'py, PyAny>>,
-    as_of: Option<&Bound<'py, PyAny>>,
-    exit_multiple_metric_node: Option<&str>,
-) -> PyResult<Bound<'py, PyAny>> {
-    use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
-
-    let model = extract_model_ref(model)?.into_owned();
-    let terminal_value: TerminalValueSpec =
-        serde_json::from_str(terminal_value_json).map_err(display_to_py)?;
-    let ufcf_node = ufcf_node.to_owned();
-
-    let equity_bridge = equity_bridge_json
-        .map(|j| serde_json::from_str(j).map_err(display_to_py))
-        .transpose()?;
-    let valuation_discounts = valuation_discounts_json
-        .map(|j| serde_json::from_str(j).map_err(display_to_py))
-        .transpose()?;
-
-    let options = finstack_quant_statements_analytics::analysis::DcfOptions {
-        mid_year_convention,
-        max_stable_growth_rate: max_stable_growth_rate.unwrap_or_else(|| {
-            finstack_quant_statements_analytics::analysis::DcfOptions::default()
-                .max_stable_growth_rate
-        }),
-        equity_bridge,
-        shares_outstanding,
-        valuation_discounts,
-        exit_multiple_metric_node: exit_multiple_metric_node.map(str::to_owned),
-        ..Default::default()
-    };
-
-    let market = extract_market_opt(py, market)?;
-    let as_of = as_of
-        .map(crate::bindings::date_utils::extract_date)
-        .transpose()?;
-
-    let result = py
-        .detach(move || {
-            finstack_quant_statements_analytics::analysis::evaluate_dcf_with_market(
-                &model,
-                wacc,
-                terminal_value,
-                &ufcf_node,
-                net_debt_override,
-                &options,
-                market.as_ref(),
-                as_of,
-            )
-        })
-        .map_err(display_to_py)?;
-
-    serde_to_py(py, &result)
-}
-
-/// Rank the headline DCF assumptions by enterprise-value impact.
-///
-/// The statement model is evaluated once; each shocked point re-runs only the
-/// DCF. Entries are returned as deltas versus the baseline enterprise value,
-/// sorted by descending absolute swing.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A ``FinancialModelSpec`` object or a JSON string; metadata must include
-///     a ``"currency"`` key.
-/// wacc : float
-///     Baseline weighted average cost of capital in decimal form (``0.10`` = 10%).
-/// terminal_value_json : str
-///     JSON-serialized ``TerminalValueSpec`` (tagged enum, e.g.
-///     ``{"type": "gordon_growth", "growth_rate": 0.02}``); selects whether the
-///     terminal growth rate or the exit multiple is shocked.
-/// ufcf_node : str
-///     Node ID containing unlevered free cash flow for the forecast periods.
-/// net_debt_override : float | None
-///     Optional flat net-debt amount used instead of the model-derived bridge.
-/// wacc_sensitivity_bump : float | None
-///     Absolute shock applied to WACC and to the terminal growth rate, in
-///     decimal (``0.01`` = +/-100 bp). ``None`` uses the canonical Rust
-///     ``DcfOptions`` default.
-/// wacc_denominator_epsilon : float | None
-///     Minimum spread preserved between WACC and the terminal growth rate so
-///     ``1/(wacc - g)`` stays defined, in decimal (``0.005`` = 50 bp).
-///     ``None`` uses the canonical Rust ``DcfOptions`` default.
-/// max_stable_growth_rate : float | None
-///     Maximum perpetual stable growth rate. ``None`` uses the canonical 5%
-///     default.
-/// exit_multiple_bump : float | None
-///     Absolute shock applied to an exit multiple, in turns (``1.0`` =
-///     +/-1.0x). ``None`` uses the canonical Rust ``DcfOptions`` default.
-/// mid_year_convention : bool
-///     Enable mid-year discounting convention for every re-run.
-///     Year-end (``False``) is the default.
-/// market : MarketContext | str | None
-///     Optional ``MarketContext`` object or JSON string used for
-///     statement evaluation, not WACC discounting.
-/// exit_multiple_metric_node : str | None
-///     Statement node whose last-forecast-period value supplies the
-///     exit-multiple terminal metric when the spec is
-///     ``ExitMultiple``. ``None`` keeps the spec's explicit
-///     ``terminal_metric``.
-///
-/// Returns
-/// -------
-/// dict
-///     Serde form of the Rust ``DcfSensitivityResult``:
-///     ``baseline_enterprise_value`` (``Money`` wire object), ``entries``
-///     (list of ``TornadoEntry`` dicts: ``{"parameter_id", "downside",
-///     "upside"}``), ``wacc_down``, ``wacc_down_clamped``,
-///     ``terminal_growth_up``, ``terminal_growth_up_clamped``.
-#[pyfunction]
-#[pyo3(signature = (
-    model,
-    wacc,
-    terminal_value_json,
-    ufcf_node="ufcf",
-    net_debt_override=None,
-    wacc_sensitivity_bump=None,
-    wacc_denominator_epsilon=None,
-    max_stable_growth_rate=None,
-    exit_multiple_bump=None,
-    mid_year_convention=false,
-    market=None,
-    exit_multiple_metric_node=None,
-))]
-#[allow(clippy::too_many_arguments)]
-fn dcf_sensitivity<'py>(
-    py: Python<'py>,
-    model: &Bound<'py, PyAny>,
-    wacc: f64,
-    terminal_value_json: &str,
-    ufcf_node: &str,
-    net_debt_override: Option<f64>,
-    wacc_sensitivity_bump: Option<f64>,
-    wacc_denominator_epsilon: Option<f64>,
-    max_stable_growth_rate: Option<f64>,
-    exit_multiple_bump: Option<f64>,
-    mid_year_convention: bool,
-    market: Option<&Bound<'py, PyAny>>,
-    exit_multiple_metric_node: Option<&str>,
-) -> PyResult<Bound<'py, PyAny>> {
-    use finstack_quant_statements_analytics::analysis::{DcfOptions, ExitMultipleBump};
-    use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
-
-    let model = extract_model_ref(model)?.into_owned();
-    let terminal_value: TerminalValueSpec =
-        serde_json::from_str(terminal_value_json).map_err(display_to_py)?;
-    let ufcf_node = ufcf_node.to_owned();
-    let market = extract_market_opt(py, market)?;
-
-    // Defaults come from the canonical Rust `DcfOptions` at runtime rather
-    // than duplicated signature literals, so a Rust default change flows
-    // through without a binding edit (the WASM twin reads them the same way).
-    let defaults = DcfOptions::default();
-    let options = DcfOptions {
-        mid_year_convention,
-        wacc_sensitivity_bump: wacc_sensitivity_bump.unwrap_or(defaults.wacc_sensitivity_bump),
-        wacc_denominator_epsilon: wacc_denominator_epsilon
-            .unwrap_or(defaults.wacc_denominator_epsilon),
-        max_stable_growth_rate: max_stable_growth_rate.unwrap_or(defaults.max_stable_growth_rate),
-        exit_multiple_bump: exit_multiple_bump
-            .map_or(defaults.exit_multiple_bump, ExitMultipleBump::Absolute),
-        exit_multiple_metric_node: exit_multiple_metric_node.map(str::to_owned),
-        ..DcfOptions::default()
-    };
-
-    let result = py
-        .detach(move || {
-            finstack_quant_statements_analytics::analysis::dcf_sensitivity(
-                &model,
-                wacc,
-                terminal_value,
-                &ufcf_node,
-                net_debt_override,
-                &options,
-                market.as_ref(),
-            )
-        })
-        .map_err(display_to_py)?;
-
-    serde_to_py(py, &result)
-}
-
-/// Evaluate a leveraged-buyout transaction against a statement model.
-///
-/// Entry enterprise value is priced at the model's first period, the sponsor
-/// equity check is solved as the sources-and-uses residual, and exit proceeds
-/// are the exit enterprise value less the modelled net debt at ``exit_period``.
-/// IRR is out of scope: pair ``exit_equity_proceeds`` with the equity outflow
-/// at close and call ``finstack_quant.portfolio.mwr_xirr``.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A ``FinancialModelSpec`` object or a JSON string; metadata must include
-///     a ``"currency"`` key.
-/// entry_multiple : float
-///     Entry valuation multiple applied to the entry metric (``8.5`` = 8.5x).
-/// entry_metric_node : str
-///     Node ID supplying the entry valuation metric, read at the model's first
-///     period (typically ``"ebitda"``).
-/// exit_multiple : float
-///     Exit valuation multiple applied to the exit metric (``9.5`` = 9.5x).
-/// exit_metric_node : str
-///     Node ID supplying the exit valuation metric, read at ``exit_period``.
-/// exit_net_debt_node : str
-///     Node ID supplying net debt outstanding at ``exit_period``; this is where
-///     a modelled tranche amortisation schedule lands.
-/// exit_period : str
-///     Period label at which the sponsor exits, e.g. ``"2029"`` or ``"2029Q4"``.
-/// sources : list[tuple[str, float]]
-///     Funded debt tranches at close as ``(name, amount)`` pairs in the model
-///     currency; the sponsor equity check is the residual that balances them
-///     against uses.
-/// transaction_fees : float
-///     Transaction fees and expenses funded at close, in the model currency.
-///
-/// Returns
-/// -------
-/// dict
-///     Dict with ``entry_enterprise_value``, ``entry_metric``, ``debt_total``,
-///     ``equity_check``, ``sources_total``, ``uses_total``,
-///     ``sources_uses_balanced`` (bool), ``exit_enterprise_value``,
-///     ``exit_metric``, ``exit_net_debt``, ``exit_equity_proceeds``, ``moic``,
-///     and ``currency`` (str).
-#[pyfunction]
-#[pyo3(signature = (
-    model,
-    entry_multiple,
-    entry_metric_node,
-    exit_multiple,
-    exit_metric_node,
-    exit_net_debt_node,
-    exit_period,
-    sources,
-    transaction_fees=0.0,
-))]
-#[allow(clippy::too_many_arguments)]
-fn evaluate_lbo<'py>(
-    py: Python<'py>,
-    model: &Bound<'py, PyAny>,
-    entry_multiple: f64,
-    entry_metric_node: &str,
-    exit_multiple: f64,
-    exit_metric_node: &str,
-    exit_net_debt_node: &str,
-    exit_period: &str,
-    sources: Vec<(String, f64)>,
-    transaction_fees: f64,
-) -> PyResult<Bound<'py, PyAny>> {
-    use finstack_quant_statements_analytics::analysis::{LboConfig, LboTranche};
-
-    let model = extract_model_ref(model)?.into_owned();
-    let exit_period: finstack_quant_core::dates::PeriodId =
-        exit_period.parse().map_err(display_to_py)?;
-
-    let config = LboConfig {
-        entry_multiple,
-        entry_metric_node: entry_metric_node.to_owned(),
-        transaction_fees,
-        sources: sources
-            .into_iter()
-            .map(|(name, amount)| LboTranche { name, amount })
-            .collect(),
-        exit_multiple,
-        exit_metric_node: exit_metric_node.to_owned(),
-        exit_net_debt_node: exit_net_debt_node.to_owned(),
-        exit_period,
-        check_mappings: None,
-    };
-
-    let result = py
-        .detach(move || {
-            finstack_quant_statements_analytics::analysis::evaluate_lbo(&model, &config)
-        })
-        .map_err(display_to_py)?;
-
-    serde_to_py(py, &result)
-}
-
-/// Weighted-average cost of capital (WACC).
-///
-/// Blends the required return on equity with the after-tax cost of debt:
-/// ``WACC = w_E * r_E + w_D * r_D * (1 - T)``.
-///
-/// Parameters
-/// ----------
-/// equity_weight : float
-///     Equity share of total capital as a decimal fraction (``0.6`` = 60%
-///     equity-funded); must be non-negative.
-/// cost_of_equity : float
-///     Required return on equity in decimal form, typically from CAPM
-///     (``0.115`` = 11.5%).
-/// debt_weight : float
-///     Debt share of total capital as a decimal fraction (``0.4`` = 40%
-///     debt-funded); must be non-negative and sum with ``equity_weight`` to 1.0.
-/// cost_of_debt : float
-///     Pre-tax marginal borrowing yield in decimal form, before the interest
-///     tax shield (``0.06`` = 6%).
-/// tax_rate : float
-///     Marginal corporate tax rate as a decimal fraction in ``[0, 1]``
-///     (``0.25`` = 25%).
-///
-/// Returns
-/// -------
-/// float
-///     Blended discount rate as a decimal fraction.
-#[pyfunction]
-#[pyo3(signature = (equity_weight, cost_of_equity, debt_weight, cost_of_debt, tax_rate))]
-fn wacc(
-    equity_weight: f64,
-    cost_of_equity: f64,
-    debt_weight: f64,
-    cost_of_debt: f64,
-    tax_rate: f64,
-) -> PyResult<f64> {
-    finstack_quant_statements_analytics::analysis::wacc(
-        equity_weight,
-        cost_of_equity,
-        debt_weight,
-        cost_of_debt,
-        tax_rate,
-    )
-    .map_err(display_to_py)
-}
-
-/// Run the full corporate analysis pipeline.
-///
-/// This uses ``CorporateAnalysisBuilder`` under the hood to evaluate
-/// statements and optionally run DCF equity valuation plus credit context.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A ``FinancialModelSpec`` object or a JSON string.
-/// wacc : float | None
-///     If set, enables DCF valuation at this discount rate (decimal).
-/// terminal_value_json : str | None
-///     JSON ``TerminalValueSpec`` (required when ``wacc`` is set).
-/// net_debt_override : float | None
-///     Optional flat net-debt for equity bridge.
-/// cfads_node : str | None
-///     Required CFADS numerator when the model has capital-structure credit
-///     analytics. No EBITDA fallback is applied.
-/// interest_coverage_node : str
-///     EBITDA, EBIT, or another earnings numerator used only for interest
-///     coverage (default: ``"ebitda"``).
-/// check_suite_json : str | None
-///     JSON-serialized ``CheckSuiteSpec`` required for DCF or credit analysis.
-///     The suite must include ``NonFiniteCheck``.
-/// market : MarketContext | str | None
-///     Optional ``MarketContext`` object or JSON string used for
-///     statement evaluation (not WACC discounting).
-/// as_of : datetime.date | str | None
-///     Optional valuation date, either a date-like object (``datetime.date``,
-///     ``pandas.Timestamp``) or an ISO 8601 string. Required when
-///     ``market`` is set.
-/// ltv_value_node : str | None
-///     Optional statement node supplying a per-period LTV denominator.
-///     When set, each period's node value is used when present; a missing
-///     period skips LTV for that period only. When omitted, a positive DCF
-///     enterprise value is broadcast as a constant-denominator path
-///     (current valuation versus forward debt, not a rolled EV).
-///
-/// Returns
-/// -------
-/// dict
-///     Dict with ``statement`` (typed ``StatementResult``), ``equity``
-///     (serde dict of the Rust ``CorporateValuationResult`` with ``Money``
-///     wire objects, or ``None`` when no DCF was configured), and ``credit``
-///     (dict mapping instrument_id to the serde ``CreditContextMetrics``
-///     dict, including ``dscr_incl_fees`` / ``dscr_incl_fees_min``).
-///     ``ev_suppressed_non_positive`` reports whether a non-positive DCF
-///     enterprise value was excluded from LTV metrics.
-#[pyfunction]
-#[pyo3(signature = (
-    model,
-    wacc=None,
-    terminal_value_json=None,
-    net_debt_override=None,
-    cfads_node=None,
-    interest_coverage_node="ebitda",
-    check_suite_json=None,
-    market=None,
-    as_of=None,
-    ltv_value_node=None,
-))]
-#[allow(clippy::too_many_arguments)]
-fn run_corporate_analysis<'py>(
-    py: Python<'py>,
-    model: &Bound<'py, PyAny>,
-    wacc: Option<f64>,
-    terminal_value_json: Option<&str>,
-    net_debt_override: Option<f64>,
-    cfads_node: Option<&str>,
-    interest_coverage_node: &str,
-    check_suite_json: Option<&str>,
-    market: Option<&Bound<'py, PyAny>>,
-    as_of: Option<&Bound<'py, PyAny>>,
-    ltv_value_node: Option<&str>,
-) -> PyResult<Bound<'py, PyDict>> {
-    use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
-
-    let model = extract_model_ref(model)?.into_owned();
-    let mut builder =
-        finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder::new(model)
-            .interest_coverage_node(interest_coverage_node);
-    if let Some(node) = cfads_node {
-        builder = builder.cfads_node(node);
-    }
-    if let Some(json) = check_suite_json {
-        let spec: finstack_quant_statements::checks::CheckSuiteSpec =
-            serde_json::from_str(json).map_err(display_to_py)?;
-        builder = builder.checks(spec.resolve().map_err(display_to_py)?);
-    }
-
-    if let Some(w) = wacc {
-        let tv_json = terminal_value_json.ok_or_else(|| {
-            crate::errors::value_error("terminal_value_json required when wacc is set")
-        })?;
-        let tv: TerminalValueSpec = serde_json::from_str(tv_json).map_err(display_to_py)?;
-        builder = builder.dcf(w, tv);
-        if let Some(nd) = net_debt_override {
-            builder = builder.net_debt_override(nd);
-        }
-    }
-
-    if let Some(mkt) = extract_market_opt(py, market)? {
-        builder = builder.market(mkt);
-    }
-
-    if let Some(as_of) = as_of {
-        let date = crate::bindings::date_utils::extract_date(as_of)?;
-        builder = builder.as_of(date);
-    }
-
-    if let Some(node) = ltv_value_node {
-        builder = builder.ltv_value_node(node);
-    }
-
-    let analysis = py
-        .detach(move || builder.analyze())
-        .map_err(display_to_py)?;
-
-    let dict = PyDict::new(py);
-    dict.set_item(
-        "statement",
-        PyStatementResult {
-            inner: analysis.statement,
-        },
-    )?;
-    dict.set_item(
-        "equity",
-        analysis
-            .equity
-            .as_ref()
-            .map(|equity| serde_to_py(py, equity))
-            .transpose()?,
-    )?;
-    dict.set_item("credit", serde_to_py(py, &analysis.credit)?)?;
-    dict.set_item(
-        "ev_suppressed_non_positive",
-        analysis.ev_suppressed_non_positive,
-    )?;
-
-    Ok(dict)
-}
-
-/// Generate a P&L summary report as formatted text.
-///
-/// Parameters
-/// ----------
-/// results : StatementResult | str
-///     A ``StatementResult`` object or a JSON string.
-/// line_items : list[str]
-///     Node IDs to include as rows in the report.
-/// periods : list[str]
-///     Period strings for columns (e.g. ``["2025Q1", "2025Q2"]``).
-///
-/// Returns
-/// -------
-/// str
-///     Formatted P&L summary report text.
-#[pyfunction]
-fn pl_summary_report_text(
-    results: &Bound<'_, PyAny>,
-    line_items: Vec<String>,
-    periods: Vec<String>,
-) -> PyResult<String> {
-    let results = extract_results_ref(results)?;
-    let period_ids: Vec<finstack_quant_core::dates::PeriodId> = periods
-        .iter()
-        .map(|p| p.parse().map_err(display_to_py))
-        .collect::<PyResult<Vec<_>>>()?;
-    let report = finstack_quant_statements_analytics::analysis::PLSummaryReport::new(
-        &results, line_items, period_ids,
-    );
-    Ok(report.to_string())
-}
-
-/// Generate a credit assessment report as formatted text.
-///
-/// Parameters
-/// ----------
-/// results : StatementResult | str
-///     A ``StatementResult`` object or a JSON string.
-/// as_of : str
-///     Period identifier for the assessment (e.g. ``"2025Q1"``, ``"2025M03"``,
-///     ``"FY2025"``). Unlike the ``as_of`` valuation dates elsewhere in the
-///     bindings, this is a ``PeriodId``, not a date: ``datetime.date`` and
-///     ISO 8601 strings such as ``"2025-03-31"`` are rejected.
-///
-/// Returns
-/// -------
-/// str
-///     Formatted credit assessment report text.
-#[pyfunction]
-fn credit_assessment_report_text(results: &Bound<'_, PyAny>, as_of: &str) -> PyResult<String> {
-    let results = extract_results_ref(results)?;
-    let period: finstack_quant_core::dates::PeriodId = as_of.parse().map_err(display_to_py)?;
-    let report = finstack_quant_statements_analytics::analysis::CreditAssessmentReport::new(
-        &results, period,
-    );
-    Ok(report.to_string())
-}
-
-/// Compute a structured credit assessment (leverage, interest coverage, FCF).
-///
-/// Parameters
-/// ----------
-/// results : StatementResult | str
-///     A ``StatementResult`` object or a JSON string.
-/// as_of : str
-///     Period identifier for the assessment (e.g. ``"2025Q4"``, ``"2025M03"``,
-///     ``"FY2025"``). Unlike the ``as_of`` valuation dates elsewhere in the
-///     bindings, this is a ``PeriodId``, not a date: ``datetime.date`` and
-///     ISO 8601 strings such as ``"2025-12-31"`` are rejected.
-///
-/// Returns
-/// -------
-/// dict
-///     The canonical serde form of the Rust ``CreditAssessment``: ``as_of``
-///     (str), ``leverage_ratio``, ``interest_coverage``, ``free_cash_flow``
-///     (float | None), and ``series`` (list of per-period dicts). Matches
-///     the WASM ``creditAssessment`` output, and new Rust fields flow
-///     through without a binding edit.
-#[pyfunction]
-fn credit_assessment<'py>(
-    py: Python<'py>,
-    results: &Bound<'py, PyAny>,
-    as_of: &str,
-) -> PyResult<Bound<'py, PyAny>> {
-    let results = extract_results_ref(results)?;
-    let period: finstack_quant_core::dates::PeriodId = as_of.parse().map_err(display_to_py)?;
-    let assessment =
-        finstack_quant_statements_analytics::analysis::CreditAssessment::compute(&results, period);
-    serde_to_py(py, &assessment)
 }
 
 /// Cached dependency tracer that builds the model graph once.
@@ -1043,12 +693,12 @@ fn credit_assessment<'py>(
 ///
 /// Examples
 /// --------
-/// ::
-///
-///     tracer = DependencyTracer(model)
-///     tree = tracer.dependency_tree("gross_profit")
-///     deps = tracer.direct_dependencies("gross_profit")
-///     all_ = tracer.all_dependencies("gross_profit")
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import DependencyTracer
+/// >>> b = ModelBuilder("m"); b.periods("2025Q1..Q1", None); b.value("revenue", [("2025Q1", 100.0)])
+/// >>> b.compute("profit", "revenue * 0.5")
+/// >>> DependencyTracer(b.build()).direct_dependencies("profit")
+/// ['revenue']
 #[pyclass(
     name = "DependencyTracer",
     module = "finstack_quant.statements_analytics",
@@ -1062,15 +712,25 @@ struct PyDependencyTracer {
 #[pymethods]
 impl PyDependencyTracer {
     /// Build a tracer from a model (typed object or JSON string).
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the model JSON is malformed or the graph contains a cycle.
     #[new]
     fn new(model: &Bound<'_, PyAny>) -> PyResult<Self> {
         let model = extract_model_ref(model)?.into_owned();
         let graph = finstack_quant_statements::evaluator::DependencyGraph::from_model(&model)
-            .map_err(display_to_py)?;
+            .map_err(statements_to_py)?;
         Ok(Self { model, graph })
     }
 
     /// ASCII-formatted dependency tree for a node.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If ``node_id`` is not in the model.
     fn dependency_tree(&self, node_id: &str) -> PyResult<String> {
         let tracer = finstack_quant_statements_analytics::analysis::DependencyTracer::new(
             &self.model,
@@ -1081,6 +741,13 @@ impl PyDependencyTracer {
     }
 
     /// ASCII tree with node values for a given period.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If ``node_id`` is not in the model.
+    /// ValueError
+    ///     If ``period`` does not parse.
     fn dependency_tree_detailed(
         &self,
         results: &Bound<'_, PyAny>,
@@ -1102,6 +769,11 @@ impl PyDependencyTracer {
     }
 
     /// Direct dependency node IDs.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If ``node_id`` is not in the model.
     fn direct_dependencies(&self, node_id: &str) -> PyResult<Vec<String>> {
         let tracer = finstack_quant_statements_analytics::analysis::DependencyTracer::new(
             &self.model,
@@ -1114,6 +786,11 @@ impl PyDependencyTracer {
     }
 
     /// All transitive dependency node IDs in dependency order.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If ``node_id`` is not in the model.
     fn all_dependencies(&self, node_id: &str) -> PyResult<Vec<String>> {
         let tracer = finstack_quant_statements_analytics::analysis::DependencyTracer::new(
             &self.model,
@@ -1123,6 +800,11 @@ impl PyDependencyTracer {
     }
 
     /// Node IDs that depend on this node.
+    ///
+    /// Raises
+    /// ------
+    /// KeyError
+    ///     If ``node_id`` is not in the model.
     fn dependents(&self, node_id: &str) -> PyResult<Vec<String>> {
         let tracer = finstack_quant_statements_analytics::analysis::DependencyTracer::new(
             &self.model,
@@ -1134,6 +816,166 @@ impl PyDependencyTracer {
 
     fn __repr__(&self) -> String {
         format!("DependencyTracer(nodes={})", self.model.nodes.len())
+    }
+}
+
+/// One component of a formula explanation.
+#[pyclass(
+    name = "ExplanationStep",
+    module = "finstack_quant.statements_analytics",
+    frozen,
+    from_py_object
+)]
+#[derive(Clone)]
+pub struct PyExplanationStep {
+    pub(crate) inner: ExplanationStep,
+}
+
+#[pymethods]
+impl PyExplanationStep {
+    /// Component node id or literal text.
+    #[getter]
+    fn component(&self) -> &str {
+        &self.inner.component
+    }
+
+    /// Component value at the explained period.
+    #[getter]
+    fn value(&self) -> f64 {
+        self.inner.value
+    }
+
+    /// Operation applied to the component (``"+"``, ``"*"``, ...), or ``None``.
+    #[getter]
+    fn operation(&self) -> Option<&str> {
+        self.inner.operation.as_deref()
+    }
+
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("ExplanationStep", &self.inner)
+    }
+}
+
+/// Explanation of how a node's value was derived at one period.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import Explanation
+/// >>> e = Explanation.from_json('{"node_id":"profit","period_id":"2025Q1","final_value":50.0,'
+/// ...     '"node_type":"calculated","formula_text":"revenue * 0.5","breakdown":[]}')
+/// >>> e.node_id, e.final_value
+/// ('profit', 50.0)
+#[pyclass(
+    name = "Explanation",
+    module = "finstack_quant.statements_analytics",
+    from_py_object
+)]
+#[derive(Clone)]
+pub struct PyExplanation {
+    pub(crate) inner: Explanation,
+}
+
+#[pymethods]
+impl PyExplanation {
+    /// Explained node id.
+    #[getter]
+    fn node_id(&self) -> &str {
+        &self.inner.node_id
+    }
+
+    /// Period-id string of the explanation.
+    #[getter]
+    fn period_id(&self) -> String {
+        self.inner.period_id.to_string()
+    }
+
+    /// Node value at the period.
+    #[getter]
+    fn final_value(&self) -> f64 {
+        self.inner.final_value
+    }
+
+    /// Node type serde name (e.g. ``"calculated"``, ``"input"``).
+    #[getter]
+    fn node_type(&self) -> PyResult<String> {
+        finstack_quant_core::wire::serde_label(&self.inner.node_type)
+            .map_err(crate::errors::core_to_py)
+    }
+
+    /// Formula text, or ``None`` for non-formula nodes.
+    #[getter]
+    fn formula_text(&self) -> Option<&str> {
+        self.inner.formula_text.as_deref()
+    }
+
+    /// Component breakdown in evaluation order.
+    #[getter]
+    fn breakdown(&self) -> Vec<PyExplanationStep> {
+        self.inner
+            .breakdown
+            .iter()
+            .cloned()
+            .map(|inner| PyExplanationStep { inner })
+            .collect()
+    }
+
+    /// Human-readable multi-line explanation.
+    fn to_text(&self) -> String {
+        self.inner.to_string_detailed()
+    }
+
+    /// Export the breakdown as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``component``, ``value``, ``operation`` (``None`` when absent).
+    /// One row per breakdown step in evaluation order.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .breakdown
+            .iter()
+            .map(|step| {
+                serde_json::json!({
+                    "component": step.component,
+                    "value": step.value,
+                    "operation": step.operation,
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, &EXPLANATION_COLUMNS)
+    }
+
+    /// Serialize to canonical JSON (identical to the WASM ``explainFormula`` output).
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(|e| serde_json_to_py(e, "Explanation"))
+    }
+
+    /// Deserialize from canonical JSON.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``json`` is not a valid ``Explanation`` document.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json)
+            .map_err(|e| serde_json_to_py(e, "invalid Explanation JSON"))?;
+        Ok(Self { inner })
+    }
+
+    /// Support ``pickle`` through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        crate::bindings::repr_support::repr_from_serde("Explanation", &self.inner)
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
 }
 
@@ -1152,33 +994,41 @@ impl PyDependencyTracer {
 ///
 /// Returns
 /// -------
-/// dict
-///     The canonical serde form of the Rust ``Explanation``: ``node_id``,
-///     ``period_id``, ``final_value``, ``node_type`` (snake_case
-///     discriminant, e.g. ``"calculated"``), ``formula_text``, and
-///     ``breakdown`` (list of ``ExplanationStep`` dicts whose ``operation``
-///     key is omitted when absent). Matches the WASM ``explainFormula``
-///     output exactly.
+/// Explanation
+///     Typed explanation with ``breakdown`` steps, ``to_text()`` and
+///     ``to_dataframe()``; ``to_json()`` matches the WASM ``explainFormula``.
+///
+/// Raises
+/// ------
+/// KeyError
+///     If ``node_id`` is not in the model or has no value at ``period``.
+/// ValueError
+///     If ``period`` does not parse or a payload is malformed JSON.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements import ModelBuilder, Evaluator
+/// >>> from finstack_quant.statements_analytics import explain_formula
+/// >>> b = ModelBuilder("m"); b.periods("2025Q1..Q1", None); b.value("revenue", [("2025Q1", 100.0)])
+/// >>> b.compute("profit", "revenue * 0.5")
+/// >>> model = b.build()
+/// >>> explain_formula(model, Evaluator().evaluate(model), "profit", "2025Q1").final_value
+/// 50.0
 #[pyfunction]
-fn explain_formula<'py>(
-    py: Python<'py>,
-    model: &Bound<'py, PyAny>,
-    results: &Bound<'py, PyAny>,
+fn explain_formula(
+    model: &Bound<'_, PyAny>,
+    results: &Bound<'_, PyAny>,
     node_id: &str,
     period: &str,
-) -> PyResult<Bound<'py, PyAny>> {
+) -> PyResult<PyExplanation> {
     let model = extract_model_ref(model)?;
     let results = extract_results_ref(results)?;
     let pid: finstack_quant_core::dates::PeriodId = period.parse().map_err(display_to_py)?;
 
     let explainer =
         finstack_quant_statements_analytics::analysis::FormulaExplainer::new(&model, &results);
-    let explanation = explainer.explain(node_id, &pid).map_err(statements_to_py)?;
-
-    // Canonical serde form — identical to the WASM twin, so node_type casing
-    // and the optional `operation` key cannot drift between hosts, and new
-    // Rust fields flow through without a hand-mapping edit.
-    serde_to_py(py, &explanation)
+    let inner = explainer.explain(node_id, &pid).map_err(statements_to_py)?;
+    Ok(PyExplanation { inner })
 }
 
 /// Get a detailed text explanation for a formula.
@@ -1197,7 +1047,20 @@ fn explain_formula<'py>(
 /// Returns
 /// -------
 /// str
-///     Human-readable multi-line explanation.
+///     Human-readable multi-line explanation (``explain_formula(...).to_text()``).
+///
+/// Raises
+/// ------
+/// KeyError
+///     If ``node_id`` is not in the model or has no value at ``period``.
+/// ValueError
+///     If ``period`` does not parse or a payload is malformed JSON.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import explain_formula_text
+/// >>> callable(explain_formula_text)
+/// True
 #[pyfunction]
 fn explain_formula_text(
     model: &Bound<'_, PyAny>,
@@ -1205,175 +1068,16 @@ fn explain_formula_text(
     node_id: &str,
     period: &str,
 ) -> PyResult<String> {
-    let model = extract_model_ref(model)?;
-    let results = extract_results_ref(results)?;
-    let pid: finstack_quant_core::dates::PeriodId = period.parse().map_err(display_to_py)?;
-
-    let explainer =
-        finstack_quant_statements_analytics::analysis::FormulaExplainer::new(&model, &results);
-    let explanation = explainer.explain(node_id, &pid).map_err(statements_to_py)?;
-    Ok(explanation.to_string_detailed())
-}
-
-fn run_check_suite(
-    py: Python<'_>,
-    model: finstack_quant_statements::FinancialModelSpec,
-    suite: finstack_quant_statements::checks::CheckSuite,
-    results: Option<finstack_quant_statements::evaluator::StatementResult>,
-) -> PyResult<PyCheckReport> {
-    py.detach(move || {
-        suite
-            .run_model(&model, results.as_ref())
-            .map(PyCheckReport::from_inner)
-            .map_err(display_to_py)
-    })
-}
-
-/// Run checks from a suite spec against a model.
-///
-/// Resolves both built-in and formula checks from the spec, evaluates the
-/// model, and returns a full check report.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///   A ``FinancialModelSpec`` object or a JSON string.
-/// suite_spec_json : str
-///   JSON-serialized ``CheckSuiteSpec``.
-/// results : StatementResult | str | None
-///   Pre-computed evaluation results.  When provided the model is not
-///   re-evaluated, avoiding redundant work.
-///
-/// Returns
-/// -------
-/// CheckReport
-///   Typed report with summary, findings, JSON, and DataFrame accessors.
-#[pyfunction]
-#[pyo3(signature = (model, suite_spec_json, results=None))]
-fn run_checks(
-    py: Python<'_>,
-    model: &Bound<'_, PyAny>,
-    suite_spec_json: &str,
-    results: Option<&Bound<'_, PyAny>>,
-) -> PyResult<PyCheckReport> {
-    let model = extract_model_ref(model)?.into_owned();
-    let spec: finstack_quant_statements::checks::CheckSuiteSpec =
-        serde_json::from_str(suite_spec_json).map_err(display_to_py)?;
-    let suite = spec.resolve().map_err(display_to_py)?;
-    let results = results
-        .map(extract_results_ref)
-        .transpose()?
-        .map(|results| results.into_owned());
-    run_check_suite(py, model, suite, results)
-}
-
-/// Run three-statement checks using a JSON node mapping.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///   A ``FinancialModelSpec`` object or a JSON string.
-/// mapping_json : str
-///   JSON-serialized ``ThreeStatementMapping``.
-/// results : StatementResult | str | None
-///   Pre-computed evaluation results.  Skips re-evaluation when provided.
-///
-/// Returns
-/// -------
-/// CheckReport
-///   Typed report with summary, findings, JSON, and DataFrame accessors.
-#[pyfunction]
-#[pyo3(signature = (model, mapping_json, results=None))]
-fn run_three_statement_checks(
-    py: Python<'_>,
-    model: &Bound<'_, PyAny>,
-    mapping_json: &str,
-    results: Option<&Bound<'_, PyAny>>,
-) -> PyResult<PyCheckReport> {
-    let model = extract_model_ref(model)?.into_owned();
-    let mapping: finstack_quant_statements_analytics::analysis::ThreeStatementMapping =
-        serde_json::from_str(mapping_json).map_err(display_to_py)?;
-    let suite = finstack_quant_statements_analytics::analysis::three_statement_checks(mapping);
-    let results = results
-        .map(extract_results_ref)
-        .transpose()?
-        .map(|results| results.into_owned());
-    run_check_suite(py, model, suite, results)
-}
-
-/// Run credit underwriting checks using a JSON node mapping.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///   A ``FinancialModelSpec`` object or a JSON string.
-/// mapping_json : str
-///   JSON-serialized ``CreditMapping``.
-/// results : StatementResult | str | None
-///   Pre-computed evaluation results.  Skips re-evaluation when provided.
-///
-/// Returns
-/// -------
-/// CheckReport
-///   Typed report with summary, findings, JSON, and DataFrame accessors.
-#[pyfunction]
-#[pyo3(signature = (model, mapping_json, results=None))]
-fn run_credit_underwriting_checks(
-    py: Python<'_>,
-    model: &Bound<'_, PyAny>,
-    mapping_json: &str,
-    results: Option<&Bound<'_, PyAny>>,
-) -> PyResult<PyCheckReport> {
-    let model = extract_model_ref(model)?.into_owned();
-    let mapping: finstack_quant_statements_analytics::analysis::CreditMapping =
-        serde_json::from_str(mapping_json).map_err(display_to_py)?;
-    let suite = finstack_quant_statements_analytics::analysis::credit_underwriting_checks(mapping);
-    let results = results
-        .map(extract_results_ref)
-        .transpose()?
-        .map(|results| results.into_owned());
-    run_check_suite(py, model, suite, results)
-}
-
-/// Render a check report as plain text.
-///
-/// Parameters
-/// ----------
-/// report_json : str
-///   JSON-serialized ``CheckReport``.
-///
-/// Returns
-/// -------
-/// str
-///   Human-readable plain-text report.
-#[pyfunction]
-fn render_check_report_text(report_json: &str) -> PyResult<String> {
-    let report: finstack_quant_statements::checks::CheckReport =
-        serde_json::from_str(report_json).map_err(display_to_py)?;
-    Ok(finstack_quant_statements_analytics::analysis::CheckReportRenderer::render_text(&report))
-}
-
-/// Render a check report as HTML with inline styles.
-///
-/// Parameters
-/// ----------
-/// report_json : str
-///   JSON-serialized ``CheckReport``.
-///
-/// Returns
-/// -------
-/// str
-///   HTML-formatted report suitable for Jupyter notebooks.
-#[pyfunction]
-fn render_check_report_html(report_json: &str) -> PyResult<String> {
-    let report: finstack_quant_statements::checks::CheckReport =
-        serde_json::from_str(report_json).map_err(display_to_py)?;
-    Ok(finstack_quant_statements_analytics::analysis::CheckReportRenderer::render_html(&report))
+    Ok(explain_formula(model, results, node_id, period)?.to_text())
 }
 
 /// Register analysis functions and classes.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDependencyTracer>()?;
+    m.add_class::<PyForecastMetrics>()?;
+    m.add_class::<PyGoalSeekResult>()?;
+    m.add_class::<PyExplanationStep>()?;
+    m.add_class::<PyExplanation>()?;
     m.add_function(pyo3::wrap_pyfunction!(run_sensitivity, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(generate_tornado_entries, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_variance, m)?)?;
@@ -1382,20 +1086,7 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(variance_bridge, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(backtest_forecast, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(goal_seek, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(evaluate_dcf, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(dcf_sensitivity, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(evaluate_lbo, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(wacc, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(run_corporate_analysis, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(pl_summary_report_text, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(credit_assessment_report_text, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(credit_assessment, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(explain_formula, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(explain_formula_text, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(run_checks, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(run_three_statement_checks, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(run_credit_underwriting_checks, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(render_check_report_text, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(render_check_report_html, m)?)?;
     Ok(())
 }

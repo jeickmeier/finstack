@@ -110,13 +110,15 @@ pub mod json;
 #[cfg(feature = "json-schema")]
 pub mod schema;
 
-mod serde_defaults;
+/// Serde default helpers shared by the spec types and host bindings.
+pub mod serde_defaults;
 
 // Canonical flow aliases (deduplicated across the cashflow module)
 
 pub use accrual::{
     accrued_interest_amount, AccrualConfig, AccrualIndex, AccrualMethod, ExCouponRule,
 };
+pub use aggregation::PeriodAggregation;
 pub use builder::CashFlowBuilder;
 // Prepayment/default rate-convention conversions, re-exported at the crate
 // root so host bindings can expose them flat beside the JSON bridge while the

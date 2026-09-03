@@ -25,9 +25,11 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+from typing import Any
 
 import pandas as pd
 
+from finstack_quant.cashflows.aggregation import PeriodAggregation
 from finstack_quant.cashflows.primitives import CashFlow, CFKind
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import BusinessDayConvention, DayCount, Period, StubKind, Tenor
@@ -213,6 +215,153 @@ class AmortizationSpec:
         >>> spec = AmortizationSpec.custom_principal([(datetime.date(2026, 1, 1), Money(50_000.0, "USD"))])
         >>> spec is not None
         True
+        """
+        ...
+
+    @property
+    def kind(self) -> str:
+        """
+        Variant label: ``"none"``, ``"linear_to"``, ``"step_remaining"``, ``"percent_of_original_per_period"`` or ``"custom_principal"``.
+
+        Returns
+        -------
+        str
+            Variant label: ``"none"``, ``"linear_to"``, ``"step_remaining"``, ``"percent_of_original_per_period"`` or ``"custom_principal"``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def final_notional(self) -> Money | None:
+        """
+        Target notional for ``linear_to``, else ``None``.
+
+        Returns
+        -------
+        Money | None
+            Target notional for ``linear_to``, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def schedule(self) -> list[tuple[datetime.date, Money]] | None:
+        """
+        ``(date, remaining)`` pairs for ``step_remaining``, else ``None``.
+
+        Returns
+        -------
+        list[tuple[datetime.date, Money]] | None
+            ``(date, remaining)`` pairs for ``step_remaining``, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def pct(self) -> float | None:
+        """
+        Per-period percentage for ``percent_of_original_per_period``, else ``None``.
+
+        Returns
+        -------
+        float | None
+            Per-period percentage for ``percent_of_original_per_period``, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def items(self) -> list[tuple[datetime.date, Money]] | None:
+        """
+        ``(date, amount)`` pairs for ``custom_principal``, else ``None``.
+
+        Returns
+        -------
+        list[tuple[datetime.date, Money]] | None
+            ``(date, amount)`` pairs for ``custom_principal``, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import AmortizationSpec
+        >>> isinstance(AmortizationSpec.NONE.to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> AmortizationSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        AmortizationSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import AmortizationSpec
+        >>> value = AmortizationSpec.NONE
+        >>> AmortizationSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
         """
         ...
 
@@ -691,28 +840,53 @@ class CashFlowBuilder:
 
 class CashFlowMeta:
     """
-    Metadata shared by an entire cashflow schedule.
-
-    Tracks the schedule's representation label, referenced calendar IDs,
-    optional facility limit, and instrument issue/maturity dates. Obtained
-    via :meth:`CashFlowSchedule.get_meta`; there is no public constructor.
+    Schedule-level metadata: representation, calendars, facility limit, horizon.
 
     Examples
     --------
-    >>> import datetime
-    >>> from decimal import Decimal
-    >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
-    >>> from finstack_quant.core.money import Money
-    >>> schedule = (
-    ...     CashFlowSchedule
-    ...     .builder()
-    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
-    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360()))
-    ...     .build()
-    ... )
-    >>> schedule.get_meta().issue_date
-    datetime.date(2025, 1, 15)
+    >>> from finstack_quant.cashflows.builder import CashFlowMeta
+    >>> CashFlowMeta(calendar_ids=["usny"]).calendar_ids
+    ['usny']
     """
+
+    def __init__(
+        self,
+        representation: str = "contractual",
+        calendar_ids: list[str] | None = None,
+        facility_limit: Money | None = None,
+        issue_date: datetime.date | str | None = None,
+        maturity_date: datetime.date | str | None = None,
+    ) -> None:
+        """
+        Construct schedule metadata.
+
+        Parameters
+        ----------
+        representation : str
+            One of ``"contractual"``, ``"projected"``, ``"placeholder"``,
+            ``"no_residual"``.
+        calendar_ids : list[str], optional
+            Holiday calendar identifiers used by the schedule.
+        facility_limit : Money, optional
+            Facility limit / commitment for revolving structures.
+        issue_date : datetime.date or str, optional
+            Instrument issue date.
+        maturity_date : datetime.date or str, optional
+            Contractual maturity date.
+
+        Raises
+        ------
+        ValueError
+            If ``representation`` is not an accepted label or a date cannot
+            be parsed.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import CashFlowMeta
+        >>> CashFlowMeta("projected").representation
+        'projected'
+        """
+        ...
 
     @property
     def representation(self) -> str:
@@ -799,6 +973,72 @@ class CashFlowMeta:
         ...
 
     def __repr__(self) -> str: ...
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import CashFlowMeta
+        >>> isinstance(CashFlowMeta().to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> CashFlowMeta:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        CashFlowMeta
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import CashFlowMeta
+        >>> value = CashFlowMeta()
+        >>> CashFlowMeta.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
 
 class CashFlowSchedule:
     """
@@ -1028,7 +1268,7 @@ class CashFlowSchedule:
         base: datetime.date,
         day_count: DayCount | None = None,
         hazard_curve_id: str | None = None,
-    ) -> dict[str, dict[str, Money]]:
+    ) -> PeriodAggregation:
         """
         Periodized present values resolved from a market context.
 
@@ -1067,10 +1307,9 @@ class CashFlowSchedule:
 
         Notes
         -----
-        This is the host binding of Rust
-        ``CashFlowSchedule.pv_by_period_with_market``. The richer Rust
-        ``pv_by_period`` that takes ``PvDiscountSource`` is not
-        host-facing.
+        Binds Rust ``CashFlowSchedule::pv_by_period`` (market-resolved). The
+        borrowed-handle variant ``pv_by_period_with_discounting`` that takes
+        ``PvDiscountSource`` is Rust-only.
         """
         ...
 
@@ -1133,20 +1372,197 @@ class CashFlowSchedule:
         """
         ...
 
-    def to_dataframe(self) -> pd.DataFrame:
+    def to_dataframe(self, outstanding: bool = False) -> pd.DataFrame:
         """
         Flows as a pandas DataFrame.
+
+        Parameters
+        ----------
+        outstanding : bool, default False
+            Append an ``outstanding`` column with the principal balance (float,
+            flow currency) after the last principal event on or before each
+            flow date.
 
         Returns
         -------
         pandas.DataFrame
-            One row per flow with columns ``date``, ``kind``, ``amount``,
-            ``currency``, in schedule order.
+            One row per flow, in schedule order, with columns ``date``
+            (``datetime64``), ``reset_date`` (``datetime64``, ``NaT`` when
+            absent), ``kind``, ``amount`` (float), ``currency``,
+            ``accrual_factor``, ``rate`` (``NaN`` when absent) and optionally
+            ``outstanding``.
 
         Raises
         ------
         ValueError
-            If the result cannot be serialized into a pandas object.
+            If ``outstanding=True`` and principal flows mix currencies.
+        """
+        ...
+
+    def _repr_html_(self) -> str | None:
+        """
+        HTML table for Jupyter, delegating to ``to_dataframe()``.
+
+        Returns
+        -------
+        str or None
+            pandas HTML rendering, or ``None`` to fall back to ``__repr__``.
+        """
+        ...
+
+    def calendar_year_ladder(self, pvs: list[float]) -> pd.DataFrame:
+        """
+        Calendar-year non-principal / principal / PV ladder of this schedule.
+
+        Parameters
+        ----------
+        pvs : list[float]
+            Present value of each flow in ``get_flows()`` order, in the flow's
+            currency units; must be finite.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``year``, ``non_principal``, ``principal``, ``pv`` sorted
+            by year.
+
+        Raises
+        ------
+        ValueError
+            If ``pvs`` does not have one entry per flow or contains a
+            non-finite value.
+        """
+        ...
+
+    def with_representation(self, representation: str) -> CashFlowSchedule:
+        """
+        Copy with the metadata representation label replaced.
+
+        Parameters
+        ----------
+        representation : str
+            One of ``"contractual"``, ``"projected"``, ``"placeholder"``,
+            ``"no_residual"``.
+
+        Returns
+        -------
+        CashFlowSchedule
+            New schedule sharing the flows.
+
+        Raises
+        ------
+        ValueError
+            If the label is not an accepted representation.
+        """
+        ...
+
+    def with_notional(self, notional: Notional) -> CashFlowSchedule:
+        """
+        Copy with the representative notional replaced (flows unchanged).
+
+        Parameters
+        ----------
+        notional : Notional
+            New representative notional.
+
+        Returns
+        -------
+        CashFlowSchedule
+            New schedule with the replaced notional.
+
+        Notes
+        -----
+        This method does not raise.
+        """
+        ...
+
+    @staticmethod
+    def from_parts(
+        flows: list[CashFlow],
+        notional: Notional,
+        day_count: DayCount,
+        meta: CashFlowMeta,
+    ) -> CashFlowSchedule:
+        """
+        Build a schedule from explicit rows, notional, day count and metadata.
+
+        Parameters
+        ----------
+        flows : list[CashFlow]
+            Classified rows in any order (sorted canonically).
+        notional : Notional
+            Representative notional stamped on the schedule.
+        day_count : DayCount
+            Representative day-count convention.
+        meta : CashFlowMeta
+            Schedule-level metadata.
+
+        Returns
+        -------
+        CashFlowSchedule
+            Canonical schedule holding the sorted rows.
+
+        Raises
+        ------
+        TypeError
+            If ``flows`` is not a list of ``CashFlow``.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import CashFlowMeta, CashFlowSchedule, Notional
+        >>> from finstack_quant.core.dates import DayCount
+        >>> len(CashFlowSchedule.from_parts([], Notional.par(1.0, "USD"), DayCount.ACT_360, CashFlowMeta()).get_flows())
+        0
+        """
+        ...
+
+    @staticmethod
+    def from_flows(
+        flows: list[CashFlow] | pd.DataFrame,
+        notional: Notional,
+        day_count: DayCount,
+        meta: CashFlowMeta | None = None,
+    ) -> CashFlowSchedule:
+        """
+        Build a schedule from ``CashFlow`` rows or a pandas DataFrame.
+
+        Parameters
+        ----------
+        flows : list[CashFlow] or pandas.DataFrame
+            Typed rows, or a frame with columns ``date``, ``amount`` (float,
+            native currency units), ``currency`` (ISO code), ``kind``
+            (``CFKind`` label) and optional ``reset_date``,
+            ``accrual_factor``, ``rate`` (``NaN`` / ``None`` = absent).
+        notional : Notional
+            Representative notional stamped on the schedule.
+        day_count : DayCount
+            Representative day-count convention.
+        meta : CashFlowMeta, optional
+            Schedule metadata (default contractual, no calendars).
+
+        Returns
+        -------
+        CashFlowSchedule
+            Canonical schedule holding the sorted rows.
+
+        Raises
+        ------
+        ValueError
+            If a required frame column is missing, or a currency code, kind
+            label or date cannot be parsed.
+        TypeError
+            If ``flows`` is neither a list of ``CashFlow`` nor a DataFrame.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.cashflows.builder import CashFlowSchedule, Notional
+        >>> from finstack_quant.cashflows.primitives import CashFlow, CFKind
+        >>> from finstack_quant.core.dates import DayCount
+        >>> from finstack_quant.core.money import Money
+        >>> flow = CashFlow(datetime.date(2025, 6, 15), Money(100.0, "USD"), CFKind.FIXED)
+        >>> CashFlowSchedule.from_flows([flow], Notional.par(1_000.0, "USD"), DayCount.ACT_360).get_flows()[0].kind.name
+        'fixed'
         """
         ...
 
@@ -1205,6 +1621,38 @@ class CouponType:
         >>> from finstack_quant.cashflows.builder import CouponType
         >>> CouponType.split(Decimal("0.5"), Decimal("0.5")) is not None
         True
+        """
+        ...
+
+    @property
+    def cash_pct(self) -> Decimal:
+        """
+        Cash fraction: ``1`` for CASH, ``0`` for PIK, the split value otherwise.
+
+        Returns
+        -------
+        Decimal
+            Cash fraction: ``1`` for CASH, ``0`` for PIK, the split value otherwise.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def pik_pct(self) -> Decimal:
+        """
+        PIK fraction: ``0`` for CASH, ``1`` for PIK, the split value otherwise.
+
+        Returns
+        -------
+        Decimal
+            PIK fraction: ``0`` for CASH, ``1`` for PIK, the split value otherwise.
+
+        Notes
+        -----
+        This accessor does not raise.
         """
         ...
 
@@ -1338,6 +1786,89 @@ class DefaultModelSpec:
         """
         ...
 
+    @property
+    def curve(self) -> Any:
+        """
+        Seasoning curve in its JSON wire form or ``None``.
+
+        Returns
+        -------
+        Any
+            Seasoning curve in its JSON wire form or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import DefaultModelSpec
+        >>> isinstance(DefaultModelSpec.cdr_2pct().to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> DefaultModelSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        DefaultModelSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import DefaultModelSpec
+        >>> value = DefaultModelSpec.cdr_2pct()
+        >>> DefaultModelSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class FeeAccrualBasis:
     """
     Controls how the outstanding balance is sampled during fee accrual.
@@ -1402,6 +1933,105 @@ class FeeBase:
         """
         ...
 
+    @property
+    def kind(self) -> str:
+        """
+        Variant label: ``"drawn"`` or ``"undrawn"``.
+
+        Returns
+        -------
+        str
+            Variant label: ``"drawn"`` or ``"undrawn"``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def facility_limit(self) -> Money | None:
+        """
+        Facility limit for ``undrawn`` bases, else ``None``.
+
+        Returns
+        -------
+        Money | None
+            Facility limit for ``undrawn`` bases, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FeeBase
+        >>> isinstance(FeeBase.DRAWN.to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FeeBase:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        FeeBase
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FeeBase
+        >>> value = FeeBase.DRAWN
+        >>> FeeBase.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class FeeSpec:
     """
     Fee specification: a one-time fixed fee or a periodic basis-point fee.
@@ -1457,11 +2087,11 @@ class FeeSpec:
     @staticmethod
     def periodic_bp(
         base: FeeBase,
-        bp: Decimal | float,
+        bp: Decimal | float | str,
         frequency: Tenor | str,
         day_count: DayCount,
-        business_day_convention: BusinessDayConvention | str,
         calendar_id: str,
+        business_day_convention: BusinessDayConvention | str | None = None,
         stub: StubKind | None = None,
         accrual_basis: FeeAccrualBasis | None = None,
     ) -> FeeSpec:
@@ -1478,10 +2108,11 @@ class FeeSpec:
             Accrual and payment frequency for the fee schedule.
         day_count : DayCount
             Day-count convention used to annualize the fee accrual.
-        business_day_convention : BusinessDayConvention | str
-            Business-day convention applied to generated fee dates.
         calendar_id : str
             Holiday calendar id used with *business_day_convention*.
+        business_day_convention : BusinessDayConvention | str, optional
+            Business-day convention applied to generated fee dates (default
+            Modified Following, the Rust wire default).
         stub : StubKind, optional
             Stub-handling rule for irregular periods (default short-front).
         accrual_basis : FeeAccrualBasis, optional
@@ -1517,6 +2148,251 @@ class FeeSpec:
         ... )
         >>> spec is not None
         True
+        """
+        ...
+
+    @property
+    def kind(self) -> str:
+        """
+        Variant label: ``"fixed"`` or ``"periodic_bp"``.
+
+        Returns
+        -------
+        str
+            Variant label: ``"fixed"`` or ``"periodic_bp"``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def date(self) -> datetime.date | None:
+        """
+        Payment date of a fixed fee, else ``None``.
+
+        Returns
+        -------
+        datetime.date | None
+            Payment date of a fixed fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def amount(self) -> Money | None:
+        """
+        Amount of a fixed fee, else ``None``.
+
+        Returns
+        -------
+        Money | None
+            Amount of a fixed fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def base(self) -> FeeBase | None:
+        """
+        Fee base of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        FeeBase | None
+            Fee base of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def bp(self) -> Decimal | None:
+        """
+        Basis-point quote of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        Decimal | None
+            Basis-point quote of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def frequency(self) -> Tenor | None:
+        """
+        Accrual frequency of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        Tenor | None
+            Accrual frequency of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def day_count(self) -> DayCount | None:
+        """
+        Day count of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        DayCount | None
+            Day count of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def business_day_convention(self) -> BusinessDayConvention | None:
+        """
+        Business-day convention of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        BusinessDayConvention | None
+            Business-day convention of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def calendar_id(self) -> str | None:
+        """
+        Calendar id of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        str | None
+            Calendar id of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def stub(self) -> StubKind | None:
+        """
+        Stub rule of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        StubKind | None
+            Stub rule of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def accrual_basis(self) -> FeeAccrualBasis | None:
+        """
+        Balance-sampling basis of a periodic fee, else ``None``.
+
+        Returns
+        -------
+        FeeAccrualBasis | None
+            Balance-sampling basis of a periodic fee, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FeeBase, FeeSpec
+        >>> from finstack_quant.core.dates import DayCount
+        >>> isinstance(FeeSpec.periodic_bp(FeeBase.DRAWN, 25, "3M", DayCount.ACT_360, "weekends_only").to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FeeSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        FeeSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FeeBase, FeeSpec
+        >>> from finstack_quant.core.dates import DayCount
+        >>> value = FeeSpec.periodic_bp(FeeBase.DRAWN, 25, "3M", DayCount.ACT_360, "weekends_only")
+        >>> FeeSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
         """
         ...
 
@@ -1584,6 +2460,73 @@ class FixedWindow:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FixedWindow, ScheduleParams
+        >>> isinstance(FixedWindow(0.05, ScheduleParams.quarterly_act360()).to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FixedWindow:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        FixedWindow
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FixedWindow, ScheduleParams
+        >>> value = FixedWindow(0.05, ScheduleParams.quarterly_act360())
+        >>> FixedWindow.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
         """
         ...
 
@@ -1660,6 +2603,89 @@ class FixedCouponSpec:
         """
         ...
 
+    @property
+    def coupon_type(self) -> CouponType:
+        """
+        Cash / PIK / split settlement.
+
+        Returns
+        -------
+        CouponType
+            Cash / PIK / split settlement.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FixedCouponSpec, ScheduleParams
+        >>> isinstance(FixedCouponSpec(0.05, ScheduleParams.quarterly_act360()).to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FixedCouponSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        FixedCouponSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FixedCouponSpec, ScheduleParams
+        >>> value = FixedCouponSpec(0.05, ScheduleParams.quarterly_act360())
+        >>> FixedCouponSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class FloatingCouponSpec:
     """
     Floating coupon specification composing a :class:`FloatingRateSpec`.
@@ -1721,6 +2747,105 @@ class FloatingCouponSpec:
         """
         ...
 
+    @property
+    def schedule(self) -> ScheduleParams:
+        """
+        Schedule conventions.
+
+        Returns
+        -------
+        ScheduleParams
+            Schedule conventions.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def coupon_type(self) -> CouponType:
+        """
+        Cash / PIK / split settlement.
+
+        Returns
+        -------
+        CouponType
+            Cash / PIK / split settlement.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FloatingCouponSpec, FloatingRateSpec, ScheduleParams
+        >>> isinstance(FloatingCouponSpec(FloatingRateSpec.sofr(50), ScheduleParams.usd_sofr_swap()).to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FloatingCouponSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        FloatingCouponSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FloatingCouponSpec, FloatingRateSpec, ScheduleParams
+        >>> value = FloatingCouponSpec(FloatingRateSpec.sofr(50), ScheduleParams.usd_sofr_swap())
+        >>> FloatingCouponSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class FloatingRateFallback:
     """
     Policy for handling floating rate projection failures.
@@ -1768,6 +2893,22 @@ class FloatingRateFallback:
         >>> from finstack_quant.cashflows.builder import FloatingRateFallback
         >>> FloatingRateFallback.fixed_rate(0.045) is not None
         True
+        """
+        ...
+
+    @property
+    def rate(self) -> Decimal | None:
+        """
+        Fixed decimal index rate for ``fixed_rate`` fallbacks, else ``None``.
+
+        Returns
+        -------
+        Decimal | None
+            Fixed decimal index rate for ``fixed_rate`` fallbacks, else ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
         """
         ...
 
@@ -1910,6 +3051,384 @@ class FloatingRateSpec:
         """
         ...
 
+    @property
+    def gearing(self) -> Decimal:
+        """
+        Gearing multiplier applied to the index.
+
+        Returns
+        -------
+        Decimal
+            Gearing multiplier applied to the index.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def gearing_includes_spread(self) -> bool:
+        """
+        Whether gearing also scales the spread.
+
+        Returns
+        -------
+        bool
+            Whether gearing also scales the spread.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def index_floor_bp(self) -> Decimal | None:
+        """
+        Index floor in basis points, if any.
+
+        Returns
+        -------
+        Decimal | None
+            Index floor in basis points, if any.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def all_in_floor_bp(self) -> Decimal | None:
+        """
+        All-in floor in basis points, if any.
+
+        Returns
+        -------
+        Decimal | None
+            All-in floor in basis points, if any.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def all_in_cap_bp(self) -> Decimal | None:
+        """
+        All-in cap in basis points, if any.
+
+        Returns
+        -------
+        Decimal | None
+            All-in cap in basis points, if any.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def index_cap_bp(self) -> Decimal | None:
+        """
+        Index cap in basis points, if any.
+
+        Returns
+        -------
+        Decimal | None
+            Index cap in basis points, if any.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def overnight_index_constraints(self) -> OvernightIndexConstraintApplication:
+        """
+        Where index floors/caps apply on overnight legs.
+
+        Returns
+        -------
+        OvernightIndexConstraintApplication
+            Where index floors/caps apply on overnight legs.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def reset_frequency(self) -> Tenor:
+        """
+        Reset frequency.
+
+        Returns
+        -------
+        Tenor
+            Reset frequency.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def index_tenor(self) -> Tenor | None:
+        """
+        Explicit index tenor, if set.
+
+        Returns
+        -------
+        Tenor | None
+            Explicit index tenor, if set.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def reset_lag_days(self) -> int:
+        """
+        Fixing lag in business days.
+
+        Returns
+        -------
+        int
+            Fixing lag in business days.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def fixing_calendar_id(self) -> str | None:
+        """
+        Fixing calendar identifier, if set.
+
+        Returns
+        -------
+        str | None
+            Fixing calendar identifier, if set.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def overnight_compounding(self) -> OvernightCompoundingMethod | None:
+        """
+        Overnight compounding method, if set.
+
+        Returns
+        -------
+        OvernightCompoundingMethod | None
+            Overnight compounding method, if set.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def overnight_basis(self) -> DayCount | None:
+        """
+        Overnight compounding day count, if set.
+
+        Returns
+        -------
+        DayCount | None
+            Overnight compounding day count, if set.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def fallback(self) -> FloatingRateFallback:
+        """
+        Missing-curve fallback policy.
+
+        Returns
+        -------
+        FloatingRateFallback
+            Missing-curve fallback policy.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @staticmethod
+    def sofr(spread_bp: Decimal | float | str) -> FloatingRateSpec:
+        """
+        USD SOFR compounded in arrears (ARRC / ISDA 2021): quarterly resets, Act/360 daily compounding, no reset lag, USNY fixings.
+
+        Parameters
+        ----------
+        spread_bp : Decimal, float or str
+            Spread over the index in basis points (``50`` means +50 bp per annum).
+
+        Returns
+        -------
+        FloatingRateSpec
+            Spec with ``index_id`` ``"USD-SOFR"``, unit gearing, no floors or caps
+            and ``FloatingRateFallback.ERROR``.
+
+        Raises
+        ------
+        ValueError
+            If ``spread_bp`` cannot be represented as a ``Decimal``.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FloatingRateSpec
+        >>> FloatingRateSpec.sofr(50).index_id
+        'USD-SOFR'
+        """
+        ...
+
+    @staticmethod
+    def sonia(spread_bp: Decimal | float | str) -> FloatingRateSpec:
+        """
+        GBP SONIA compounded in arrears: annual resets, Act/365F daily compounding, no reset lag, GBLO fixings.
+
+        Parameters
+        ----------
+        spread_bp : Decimal, float or str
+            Spread over the index in basis points (``50`` means +50 bp per annum).
+
+        Returns
+        -------
+        FloatingRateSpec
+            Spec with ``index_id`` ``"GBP-SONIA"``, unit gearing, no floors or caps
+            and ``FloatingRateFallback.ERROR``.
+
+        Raises
+        ------
+        ValueError
+            If ``spread_bp`` cannot be represented as a ``Decimal``.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FloatingRateSpec
+        >>> FloatingRateSpec.sonia(50).index_id
+        'GBP-SONIA'
+        """
+        ...
+
+    @staticmethod
+    def euribor_3m(spread_bp: Decimal | float | str) -> FloatingRateSpec:
+        """
+        EUR 3M EURIBOR term rate: quarterly resets fixed in advance with a 2-business-day TARGET2 lag and an explicit 3M index tenor.
+
+        Parameters
+        ----------
+        spread_bp : Decimal, float or str
+            Spread over the index in basis points (``50`` means +50 bp per annum).
+
+        Returns
+        -------
+        FloatingRateSpec
+            Spec with ``index_id`` ``"EUR-EURIBOR-3M"``, unit gearing, no floors or caps
+            and ``FloatingRateFallback.ERROR``.
+
+        Raises
+        ------
+        ValueError
+            If ``spread_bp`` cannot be represented as a ``Decimal``.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FloatingRateSpec
+        >>> FloatingRateSpec.euribor_3m(50).index_id
+        'EUR-EURIBOR-3M'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FloatingRateSpec
+        >>> isinstance(FloatingRateSpec.sofr(50).to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FloatingRateSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        FloatingRateSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import FloatingRateSpec
+        >>> value = FloatingRateSpec.sofr(50)
+        >>> FloatingRateSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class Notional:
     """
     Notional amount with an optional amortization rule.
@@ -1947,8 +3466,8 @@ class Notional:
         """
         ...
 
-    @classmethod
-    def par(cls, amount: float, currency: Currency | str) -> Notional:
+    @staticmethod
+    def par(amount: float, currency: Currency | str) -> Notional:
         """
         Plain (non-amortising) notional helper.
 
@@ -2020,6 +3539,89 @@ class Notional:
             If the amortization schedule is inconsistent with the initial
             notional, such as a currency mismatch or a target above the
             initial amount.
+        """
+        ...
+
+    @property
+    def amort(self) -> AmortizationSpec:
+        """
+        Amortization rule.
+
+        Returns
+        -------
+        AmortizationSpec
+            Amortization rule.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import Notional
+        >>> isinstance(Notional.par(1.0, "USD").to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> Notional:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        Notional
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import Notional
+        >>> value = Notional.par(1.0, "USD")
+        >>> Notional.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
         """
         ...
 
@@ -2309,6 +3911,89 @@ class PrepaymentModelSpec:
         """
         ...
 
+    @property
+    def curve(self) -> Any:
+        """
+        Seasoning curve in its JSON wire form (``"constant"``, ``{"psa": ...}``, ``{"cmbs_lockout": ...}``) or ``None``.
+
+        Returns
+        -------
+        Any
+            Seasoning curve in its JSON wire form (``"constant"``, ``{"psa": ...}``, ``{"cmbs_lockout": ...}``) or ``None``.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import PrepaymentModelSpec
+        >>> isinstance(PrepaymentModelSpec.psa_100().to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> PrepaymentModelSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        PrepaymentModelSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import PrepaymentModelSpec
+        >>> value = PrepaymentModelSpec.psa_100()
+        >>> PrepaymentModelSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class PrincipalEvent:
     """
     Principal event applied during schedule build (a draw or a repayment).
@@ -2503,6 +4188,73 @@ class RecoveryModelSpec:
         ------
         ValueError
             If the rate is not finite or falls outside ``[0.0, 1.0]``.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import RecoveryModelSpec
+        >>> isinstance(RecoveryModelSpec(0.4, 12).to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> RecoveryModelSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        RecoveryModelSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import RecoveryModelSpec
+        >>> value = RecoveryModelSpec(0.4, 12)
+        >>> RecoveryModelSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
         """
         ...
 
@@ -2932,6 +4684,137 @@ class ScheduleParams:
         """
         ...
 
+    @property
+    def business_day_convention(self) -> BusinessDayConvention:
+        """
+        Payment-date rolling convention.
+
+        Returns
+        -------
+        BusinessDayConvention
+            Payment-date rolling convention.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def stub(self) -> StubKind:
+        """
+        Stub-handling rule.
+
+        Returns
+        -------
+        StubKind
+            Stub-handling rule.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def roll_rule(self) -> RollRule:
+        """
+        Roll-date rule (IMM / CDS-IMM grid or none).
+
+        Returns
+        -------
+        RollRule
+            Roll-date rule (IMM / CDS-IMM grid or none).
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Fail-fast validation: known calendar id and non-negative payment lag.
+
+        Raises
+        ------
+        ValueError
+            If ``calendar_id`` is unknown or ``payment_lag_days`` is negative.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import ScheduleParams
+        >>> ScheduleParams.usd_sofr_swap().validate()
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import ScheduleParams
+        >>> isinstance(ScheduleParams.quarterly_act360().to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ScheduleParams:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        ScheduleParams
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import ScheduleParams
+        >>> value = ScheduleParams.quarterly_act360()
+        >>> ScheduleParams.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
+        """
+        ...
+
 class StepUpCouponSpec:
     """
     Step-up/step-down coupon specification.
@@ -2984,6 +4867,137 @@ class StepUpCouponSpec:
         ValueError
             If a rate is not representable as a finite ``Decimal`` or a
             step date contains invalid calendar fields.
+        """
+        ...
+
+    @property
+    def initial_rate(self) -> Decimal:
+        """
+        Rate until the first step date (decimal).
+
+        Returns
+        -------
+        Decimal
+            Rate until the first step date (decimal).
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def step_schedule(self) -> list[tuple[datetime.date, Decimal]]:
+        """
+        ``(effective_date, new_rate)`` pairs.
+
+        Returns
+        -------
+        list[tuple[datetime.date, Decimal]]
+            ``(effective_date, new_rate)`` pairs.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def schedule(self) -> ScheduleParams:
+        """
+        Schedule conventions.
+
+        Returns
+        -------
+        ScheduleParams
+            Schedule conventions.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    @property
+    def coupon_type(self) -> CouponType:
+        """
+        Cash / PIK / split settlement.
+
+        Returns
+        -------
+        CouponType
+            Cash / PIK / split settlement.
+
+        Notes
+        -----
+        This accessor does not raise.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to the canonical JSON wire form.
+
+        Returns
+        -------
+        str
+            Strict-serde JSON document; round-trips through :meth:`from_json`.
+
+        Raises
+        ------
+        ValueError
+            If a field cannot be represented in JSON (non-finite float).
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import ScheduleParams, StepUpCouponSpec
+        >>> isinstance(StepUpCouponSpec(0.05, [], ScheduleParams.quarterly_act360()).to_json(), str)
+        True
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> StepUpCouponSpec:
+        """
+        Deserialize from the canonical JSON wire form (strict field names).
+
+        Parameters
+        ----------
+        json : str
+            JSON document produced by :meth:`to_json`.
+
+        Returns
+        -------
+        StepUpCouponSpec
+            Reconstructed value.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed or carries unknown fields.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import ScheduleParams, StepUpCouponSpec
+        >>> value = StepUpCouponSpec(0.05, [], ScheduleParams.quarterly_act360())
+        >>> StepUpCouponSpec.from_json(value.to_json()).to_json() == value.to_json()
+        True
+        """
+        ...
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """
+        Pickle support via the JSON wire form (``from_json``, ``(to_json(),)``).
+
+        Returns
+        -------
+        tuple
+            ``(from_json, (json,))`` reconstructor pair.
+
+        Raises
+        ------
+        ValueError
+            If the value holds a non-finite float that JSON cannot carry.
         """
         ...
 

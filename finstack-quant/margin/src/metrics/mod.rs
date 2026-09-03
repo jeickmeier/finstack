@@ -37,7 +37,7 @@ fn ensure_same_currency(what: &str, left: Money, right: Money) -> Result<()> {
 /// Margin utilization result.
 ///
 /// Ratio of posted margin to required margin.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MarginUtilization {
     /// Posted margin amount
     pub posted: Money,
@@ -119,7 +119,7 @@ impl MarginUtilization {
 /// Excess collateral result.
 ///
 /// Amount of collateral above the required level.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ExcessCollateral {
     /// Collateral value
     pub collateral_value: Money,
@@ -203,7 +203,7 @@ impl ExcessCollateral {
 /// Margin funding cost result.
 ///
 /// Cost of funding posted margin collateral.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MarginFundingCost {
     /// Posted margin amount
     pub margin_posted: Money,
@@ -250,7 +250,7 @@ impl MarginFundingCost {
 /// Haircut sensitivity (Haircut01) result.
 ///
 /// Change in PV for a 1bp change in haircut.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Haircut01 {
     /// Collateral value
     pub collateral_value: Money,

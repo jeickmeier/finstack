@@ -39,6 +39,70 @@ macro_rules! amount_maps {
     (@scale $s:ident, $factor:ident; $($f:ident),*) => {
         $( for v in $s.$f.values_mut() { *v *= $factor; } )*
     };
+    (non_finite $s:ident) => { amount_maps!(@fields @non_finite $s) };
+    (@non_finite $s:ident; $($f:ident),*) => {
+        None::<&'static str>
+            $( .or_else(|| (!$s.$f.values().all(|v| v.is_finite())).then_some(stringify!($f))) )*
+    };
+}
+
+/// ISDA SIMM tenor bucket labels, in ascending maturity order.
+///
+/// Every interest-rate, credit-qualifying and credit-non-qualifying tenor
+/// key must be one of these labels; [`SimmSensitivities::validate`] rejects
+/// anything else so a mistyped tenor cannot silently price to zero margin.
+/// The registry-backed SIMM parameter tables are keyed on exactly this set.
+pub const SIMM_TENORS: &[&str] = &[
+    "2W", "1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y", "10Y", "15Y", "20Y", "30Y",
+];
+
+/// Number of ISDA SIMM commodity buckets (bucket ids `1..=17`).
+pub const SIMM_COMMODITY_BUCKET_COUNT: u8 = 17;
+
+/// Resolve a SIMM commodity bucket label to its 1-based bucket id.
+///
+/// Accepts the numeric id (`"3"`) or the ISDA bucket name in any
+/// punctuation/case (`"Light Ends"`, `"light_ends"`); returns `None` for an
+/// unknown label.
+///
+/// # Arguments
+///
+/// * `bucket` - Commodity bucket label as supplied to
+///   [`SimmSensitivities::add_commodity_delta`]; surrounding whitespace is
+///   ignored.
+#[must_use]
+pub fn commodity_bucket_id(bucket: &str) -> Option<u8> {
+    let trimmed = bucket.trim();
+    if let Ok(value) = trimmed.parse::<u8>() {
+        return (1..=SIMM_COMMODITY_BUCKET_COUNT)
+            .contains(&value)
+            .then_some(value);
+    }
+    let normalized: String = trimmed
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    match normalized.as_str() {
+        "coal" => Some(1),
+        "crude" => Some(2),
+        "lightends" => Some(3),
+        "middledistillates" => Some(4),
+        "heavydistillates" => Some(5),
+        "northamericannaturalgas" => Some(6),
+        "europeannaturalgas" => Some(7),
+        "northamericanpowerandcarbon" => Some(8),
+        "europeanpowerandcarbon" => Some(9),
+        "freight" => Some(10),
+        "basemetals" => Some(11),
+        "preciousmetals" => Some(12),
+        "grainsandoilseed" => Some(13),
+        "softsandotheragriculturals" => Some(14),
+        "livestockanddairy" => Some(15),
+        "other" => Some(16),
+        "indexes" | "indices" => Some(17),
+        _ => None,
+    }
 }
 
 fn merge_into<K>(target: &mut HashMap<K, f64>, source: &HashMap<K, f64>)
@@ -416,9 +480,9 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
 ///   rates or basis-point quote moves.
 /// - For rate and credit buckets, callers should provide DV01/CS01-style
 ///   amounts in currency per 1bp move before loading them into this struct.
-/// - Tenor labels should match the registry-backed SIMM tenor set used by the
-///   calculator, such as `2W`, `1M`, `3M`, `6M`, `1Y`, `2Y`, `3Y`, `5Y`,
-///   `10Y`, `15Y`, `20Y`, and `30Y`.
+/// - Tenor labels must be one of [`SIMM_TENORS`] (`2W`, `1M`, `3M`, `6M`,
+///   `1Y`, `2Y`, `3Y`, `5Y`, `10Y`, `15Y`, `20Y`, `30Y`); [`Self::validate`]
+///   rejects anything else and the calculator runs it before pricing.
 /// - Signs are preserved on input so netting and offsetting can occur before
 ///   SIMM applies absolute-value or quadratic aggregation steps.
 /// - `base_currency` identifies the currency in which the sensitivity set was
@@ -694,6 +758,84 @@ impl SimmSensitivities {
     /// Add a curvature contribution for a SIMM risk class.
     pub fn add_curvature(&mut self, risk_class: SimmRiskClass, amount: f64) {
         *self.curvature.entry(risk_class).or_insert(0.0) += amount;
+    }
+
+    /// Validate tenor labels, commodity buckets, identifiers and amounts.
+    ///
+    /// The SIMM calculator looks every tenor and commodity bucket up in its
+    /// registry tables and silently skips keys it does not know, so an
+    /// unvalidated typo (`"7Y"`, `"bucket 18"`) under-states margin without
+    /// any signal. [`crate::SimmCalculator::calculate_from_sensitivities`]
+    /// calls this before pricing; call it directly to check a container
+    /// built from external data.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error naming the offending map when a tenor is
+    /// not in [`SIMM_TENORS`], a commodity bucket is not one of the 17 ISDA
+    /// buckets (see [`commodity_bucket_id`]), an issuer/underlier identifier
+    /// is empty, or any amount is non-finite.
+    pub fn validate(&self) -> finstack_quant_core::Result<()> {
+        fn tenor(field: &str, label: &str) -> finstack_quant_core::Result<()> {
+            if SIMM_TENORS.contains(&label) {
+                Ok(())
+            } else {
+                Err(finstack_quant_core::Error::Validation(format!(
+                    "SIMM sensitivity {field} has unknown tenor '{label}'; expected one of {}",
+                    SIMM_TENORS.join(", ")
+                )))
+            }
+        }
+        fn identifier(field: &str, value: &str) -> finstack_quant_core::Result<()> {
+            if value.trim().is_empty() {
+                Err(finstack_quant_core::Error::Validation(format!(
+                    "SIMM sensitivity {field} must not be empty"
+                )))
+            } else {
+                Ok(())
+            }
+        }
+
+        if let Some(field) = amount_maps!(non_finite self) {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "SIMM sensitivity {field} contains a non-finite amount"
+            )));
+        }
+        for (currency, label) in self.ir_delta.keys().chain(self.ir_vega.keys()) {
+            tenor(&format!("ir ({currency})"), label)?;
+        }
+        for (_, name, label) in self
+            .credit_qualifying_delta
+            .keys()
+            .chain(self.credit_qualifying_vega.keys())
+        {
+            identifier("credit_qualifying.name", name)?;
+            tenor("credit_qualifying", label)?;
+        }
+        for (name, label) in self
+            .credit_non_qualifying_delta
+            .keys()
+            .chain(self.credit_non_qualifying_vega.keys())
+        {
+            identifier("credit_non_qualifying.name", name)?;
+            tenor("credit_non_qualifying", label)?;
+        }
+        for underlier in self.equity_delta.keys().chain(self.equity_vega.keys()) {
+            identifier("equity.underlier", underlier)?;
+        }
+        for bucket in self
+            .commodity_delta
+            .keys()
+            .chain(self.commodity_vega.keys())
+        {
+            if commodity_bucket_id(bucket).is_none() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "SIMM sensitivity commodity has unknown bucket '{bucket}'; expected a bucket id \
+                     1..={SIMM_COMMODITY_BUCKET_COUNT} or an ISDA SIMM commodity bucket name"
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// Construct sensitivities from the canonical JSON representation.
@@ -1007,6 +1149,50 @@ mod tests {
         assert_eq!(sens.fx_vega[&(Currency::EUR, Currency::USD)], 1_000.0);
         assert_eq!(sens.commodity_delta["energy"], 2_000.0);
         assert_eq!(sens.curvature[&SimmRiskClass::Equity], 3_000.0);
+    }
+
+    #[test]
+    fn validate_rejects_unknown_tenor_instead_of_pricing_zero() {
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_ir_delta(Currency::USD, "7Y", 50_000.0);
+        let err = sens.validate().expect_err("7Y is not a SIMM tenor");
+        assert!(err.to_string().contains("'7Y'"), "{err}");
+
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_credit_qualifying_delta(SimmCreditSector::Financial, "BANK", "4Y", 1.0);
+        assert!(sens.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_unknown_commodity_bucket_and_non_finite_amounts() {
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_commodity_delta("bucket 18", 1_000.0);
+        assert!(sens.validate().is_err());
+
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_equity_delta("AAPL", f64::NAN);
+        let err = sens.validate().expect_err("NaN amount");
+        assert!(err.to_string().contains("equity_delta"), "{err}");
+
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_equity_delta("", 1.0);
+        assert!(sens.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_every_simm_tenor_and_commodity_bucket_spelling() {
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        for tenor in SIMM_TENORS {
+            sens.add_ir_delta(Currency::USD, *tenor, 1.0);
+            sens.add_credit_non_qualifying_delta("RMBS", *tenor, 1.0);
+        }
+        sens.add_commodity_delta("Crude", 1.0);
+        sens.add_commodity_delta("light_ends", 1.0);
+        sens.add_commodity_delta("17", 1.0);
+        sens.add_curvature(SimmRiskClass::Equity, 1.0);
+        sens.validate().expect("canonical labels validate");
+        assert_eq!(commodity_bucket_id(" Precious Metals "), Some(12));
+        assert_eq!(commodity_bucket_id("0"), None);
     }
 
     #[test]

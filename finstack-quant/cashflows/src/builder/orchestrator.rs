@@ -404,6 +404,44 @@ pub struct CashFlowBuilder {
     pub(super) pending_error: Option<finstack_quant_core::Error>,
 }
 
+impl CashFlowBuilder {
+    /// Principal notional set through [`Self::principal`], if any.
+    #[must_use]
+    pub fn principal_notional(&self) -> Option<&Notional> {
+        self.notional.as_ref()
+    }
+
+    /// Issue date set through [`Self::principal`], if any.
+    #[must_use]
+    pub fn issue_date(&self) -> Option<Date> {
+        self.issue
+    }
+
+    /// Maturity date set through [`Self::principal`], if any.
+    #[must_use]
+    pub fn maturity_date(&self) -> Option<Date> {
+        self.maturity
+    }
+
+    /// Number of coupon-program pieces (full-horizon legs and windows) added so far.
+    #[must_use]
+    pub fn coupon_leg_count(&self) -> usize {
+        self.coupon_program.len()
+    }
+
+    /// Number of fee specifications added so far.
+    #[must_use]
+    pub fn fee_count(&self) -> usize {
+        self.fees.len()
+    }
+
+    /// Number of explicit principal events added so far.
+    #[must_use]
+    pub fn principal_event_count(&self) -> usize {
+        self.principal_events.len()
+    }
+}
+
 impl Default for CashFlowBuilder {
     fn default() -> Self {
         Self {
