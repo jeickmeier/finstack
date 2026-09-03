@@ -178,7 +178,7 @@ impl AsianOptionHestonMcPricer {
                     )
                 } else {
                     AsianCall::new(inst.strike, inst.notional.amount(), averaging, fixing_steps)
-                };
+                }?;
                 let result = engine.price(
                     &rng,
                     &process,
@@ -203,7 +203,7 @@ impl AsianOptionHestonMcPricer {
                     )
                 } else {
                     AsianPut::new(inst.strike, inst.notional.amount(), averaging, fixing_steps)
-                };
+                }?;
                 let result = engine.price(
                     &rng,
                     &process,

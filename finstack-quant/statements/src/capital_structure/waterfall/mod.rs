@@ -218,9 +218,9 @@ fn size_named_prepay(
             - s.scheduled_principal.amount()
             - already)
             .max(0.0)
-    });
+    })?;
     for (s, allocated) in staged.iter_mut().zip(allocations) {
-        *field(s) = Money::new(allocated, currency);
+        *field(s) = Money::try_new(allocated, currency)?;
     }
     Ok(())
 }
@@ -262,7 +262,8 @@ fn size_named_prepay(
 /// # Errors
 ///
 /// Returns an error if required statement nodes are missing, if the waterfall
-/// references inconsistent currencies, or if sweep / PIK calculations fail.
+/// references inconsistent currencies, if sweep / PIK calculations fail, or if
+/// computed allocations or balances cannot be represented as monetary values.
 ///
 /// # References
 ///
@@ -501,13 +502,13 @@ pub fn execute_waterfall(
         // carried principal shortfalls can push the claim above the balance;
         // paying more principal than is owed would destroy cash that should
         // have flowed to equity).
-        let scheduled_principal = Money::new(
+        let scheduled_principal = Money::try_new(
             staged_breakdown
                 .principal_payment
                 .amount()
                 .clamp(0.0, payable_balance),
             currency,
-        );
+        )?;
         staged_breakdown.principal_payment = scheduled_principal;
         let class_rank = class_rank_for(waterfall_spec, instrument_id)?;
         staged.push(StagedInstrumentFlow {
@@ -550,10 +551,10 @@ pub fn execute_waterfall(
             }
         }
         (s.opening_balance.amount() - s.scheduled_principal.amount()).max(0.0)
-    });
+    })?;
     for (s, allocated) in staged.iter_mut().zip(sweep_allocations) {
         let currency = s.breakdown.interest_expense_cash.currency();
-        s.sweep_principal = Money::new(allocated, currency);
+        s.sweep_principal = Money::try_new(allocated, currency)?;
     }
 
     size_named_prepay(
@@ -630,7 +631,7 @@ pub fn execute_waterfall(
                         CapitalStructureClaimCategory::Fees,
                         &mut warnings,
                         |s| &mut s.breakdown.fees,
-                    );
+                    )?;
                 }
                 PaymentPriority::Interest => {
                     apply_cash_cap_to_category(
@@ -640,41 +641,42 @@ pub fn execute_waterfall(
                         CapitalStructureClaimCategory::Interest,
                         &mut warnings,
                         |s| &mut s.breakdown.interest_expense_cash,
-                    );
+                    )?;
                 }
                 PaymentPriority::Amortization => {
                     let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
                         s.scheduled_principal.amount().max(0.0)
-                    });
+                    })?;
                     for (s, allocated) in staged.iter_mut().zip(allocations) {
                         s.scheduled_principal =
-                            Money::new(allocated, s.scheduled_principal.currency());
+                            Money::try_new(allocated, s.scheduled_principal.currency())?;
                     }
                 }
                 PaymentPriority::MandatoryPrepayment => {
                     let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
                         s.mandatory_principal.amount().max(0.0)
-                    });
+                    })?;
                     for (s, allocated) in staged.iter_mut().zip(allocations) {
                         s.mandatory_principal =
-                            Money::new(allocated, s.mandatory_principal.currency());
+                            Money::try_new(allocated, s.mandatory_principal.currency())?;
                     }
                 }
                 PaymentPriority::Sweep => {
                     let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
                         s.sweep_principal.amount().max(0.0)
-                    });
+                    })?;
                     for (s, allocated) in staged.iter_mut().zip(allocations) {
-                        s.sweep_principal = Money::new(allocated, s.sweep_principal.currency());
+                        s.sweep_principal =
+                            Money::try_new(allocated, s.sweep_principal.currency())?;
                     }
                 }
                 PaymentPriority::VoluntaryPrepayment => {
                     let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
                         s.voluntary_principal.amount().max(0.0)
-                    });
+                    })?;
                     for (s, allocated) in staged.iter_mut().zip(allocations) {
                         s.voluntary_principal =
-                            Money::new(allocated, s.voluntary_principal.currency());
+                            Money::try_new(allocated, s.voluntary_principal.currency())?;
                     }
                 }
                 PaymentPriority::Equity => {}
@@ -693,7 +695,7 @@ pub fn execute_waterfall(
                 let currency = s.breakdown.interest_expense_cash.currency();
                 shortfalls.insert(
                     s.instrument_id.clone(),
-                    Money::new(unpaid_interest, currency),
+                    Money::try_new(unpaid_interest, currency)?,
                 );
                 warnings.push(EvalWarning::CapitalStructure {
                     period: *_period_id,
@@ -716,7 +718,7 @@ pub fn execute_waterfall(
                 let currency = s.breakdown.fees.currency();
                 shortfalls.insert(
                     format!("fees::{}", s.instrument_id),
-                    Money::new(unpaid_fees, currency),
+                    Money::try_new(unpaid_fees, currency)?,
                 );
                 warnings.push(EvalWarning::CapitalStructure {
                     period: *_period_id,
@@ -740,7 +742,7 @@ pub fn execute_waterfall(
                 let currency = s.scheduled_principal.currency();
                 shortfalls.insert(
                     format!("principal::{}", s.instrument_id),
-                    Money::new(unpaid_principal, currency),
+                    Money::try_new(unpaid_principal, currency)?,
                 );
                 warnings.push(EvalWarning::CapitalStructure {
                     period: *_period_id,
@@ -815,7 +817,7 @@ pub fn execute_waterfall(
             .checked_add(voluntary_principal)?;
         let desired = scheduled_principal.checked_add(extra_principal)?;
         let principal_payment = if desired.amount() > payable_balance {
-            Money::new(payable_balance, currency)
+            Money::try_new(payable_balance, currency)?
         } else {
             desired
         };
@@ -842,7 +844,7 @@ pub fn execute_waterfall(
         let post_sweep_balance = if post_pay_amount.abs() < 0.005 {
             Money::new(0.0, currency)
         } else {
-            Money::new(post_pay_amount, currency)
+            Money::try_new(post_pay_amount, currency)?
         };
         let fully_paid = post_sweep_balance.amount() == 0.0;
 
@@ -1298,6 +1300,45 @@ mod tests {
         assert!(
             msg.contains("1e30") || msg.contains("Decimal") || msg.contains("representable"),
             "error must describe the out-of-range amount, not an unrelated spec problem: {msg}"
+        );
+    }
+
+    #[test]
+    fn period_close_rejects_computed_balance_beyond_decimal_range() {
+        let period = PeriodId::quarter(2025, 1);
+        let context = build_context(period, &[("cash", 0.0)]);
+        let contractual_flows = IndexMap::from([(
+            "TL-1".to_string(),
+            CashflowBreakdown::with_currency(Currency::USD),
+        )]);
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("TL-1".to_string(), Money::new(6e28, Currency::USD));
+        state
+            .period_new_funding
+            .insert("TL-1".to_string(), Money::new(6e28, Currency::USD));
+        let waterfall = WaterfallSpec {
+            available_cash_node: "cash".into(),
+            ..Default::default()
+        };
+
+        let error = execute_waterfall(
+            &period,
+            &context,
+            &waterfall,
+            &mut state,
+            &contractual_flows,
+        )
+        .expect_err("the sum of representable balances may still overflow Money");
+        assert!(
+            matches!(
+                error,
+                crate::error::Error::Core(finstack_quant_core::Error::Input(
+                    finstack_quant_core::InputError::ConversionOverflow
+                ))
+            ),
+            "expected a monetary conversion error, got {error}"
         );
     }
 

@@ -275,7 +275,7 @@ impl PathDependentPricerConfig {
 ///     1.0,
 ///     AveragingMethod::Arithmetic,
 ///     (1..=252).collect(),
-/// );
+/// ).expect("nonempty fixing schedule");
 ///
 /// let result = pricer
 ///     .price(
@@ -680,7 +680,7 @@ impl PathDependentPricer {
         let discount_factor = flat_discount_factor(rate, expiry)?;
         let fixing_steps = default_fixing_steps(num_steps);
         if is_call {
-            let payoff = AsianCall::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+            let payoff = AsianCall::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps)?;
             self.price(
                 &process,
                 spot,
@@ -691,7 +691,7 @@ impl PathDependentPricer {
                 discount_factor,
             )
         } else {
-            let payoff = AsianPut::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+            let payoff = AsianPut::new(strike, 1.0, AveragingMethod::Arithmetic, fixing_steps)?;
             self.price(
                 &process,
                 spot,
@@ -1153,7 +1153,7 @@ mod tests {
     }
 
     use crate::monte_carlo::paths::PathSamplingMethod;
-    use crate::monte_carlo::payoff::asian::{AsianCall, AveragingMethod};
+    use crate::monte_carlo::payoff::asian::{AsianCall, AsianPut, AveragingMethod};
     use crate::monte_carlo::payoff::vanilla::EuropeanCall;
     use crate::monte_carlo::process::gbm::{GbmParams, GbmProcess};
     use crate::monte_carlo::rng::sobol::MAX_SOBOL_DIMENSION;
@@ -1173,7 +1173,8 @@ mod tests {
 
         // Monthly fixings
         let fixing_steps: Vec<usize> = (0..=12).map(|i| i * 21).collect();
-        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         let result = pricer
             .price(&gbm, 100.0, 1.0, 252, &asian, Currency::USD, 1.0)
@@ -1182,6 +1183,51 @@ mod tests {
         // Should get reasonable Asian option value
         assert!(result.mean.amount() > 0.0);
         assert!(result.mean.amount() < 20.0);
+    }
+
+    #[test]
+    fn test_fully_observed_asian_call_and_put() {
+        let pricer = PathDependentPricer::new(
+            PathDependentPricerConfig::new(16)
+                .with_seed(42)
+                .with_parallel(false),
+        );
+        let gbm = GbmProcess::with_params(0.05, 0.0, 0.2).expect("valid GBM parameters");
+
+        for averaging in [AveragingMethod::Arithmetic, AveragingMethod::Geometric] {
+            let call = AsianCall::with_history(
+                100.0,
+                2.0,
+                averaging,
+                Vec::new(),
+                220.0,
+                2.0 * 110.0_f64.ln(),
+                2,
+            )
+            .expect("fully observed call");
+            let put = AsianPut::with_history(
+                120.0,
+                2.0,
+                averaging,
+                Vec::new(),
+                220.0,
+                2.0 * 110.0_f64.ln(),
+                2,
+            )
+            .expect("fully observed put");
+
+            let call_value = pricer
+                .price(&gbm, 150.0, 1.0, 2, &call, Currency::USD, 0.95)
+                .expect("price from historical call fixings");
+            let put_value = pricer
+                .price(&gbm, 150.0, 1.0, 2, &put, Currency::USD, 0.95)
+                .expect("price from historical put fixings");
+
+            // Every path retains the historical average of 110 through reset;
+            // simulated spot levels do not enter an already fixed contract.
+            assert!((call_value.mean.amount() - 19.0).abs() < 1e-10);
+            assert!((put_value.mean.amount() - 19.0).abs() < 1e-10);
+        }
     }
 
     #[test]
@@ -1241,7 +1287,8 @@ mod tests {
             .with_parallel(false);
         let pricer = PathDependentPricer::new(config);
         let gbm = GbmProcess::new(GbmParams::new(r, q, sigma).unwrap());
-        let payoff = AsianCall::new(k, 1.0, AveragingMethod::Arithmetic, vec![fixing_step]);
+        let payoff = AsianCall::new(k, 1.0, AveragingMethod::Arithmetic, vec![fixing_step])
+            .expect("nonempty fixing schedule");
 
         let df = (-r * t).exp();
         let (_, greeks) = pricer
@@ -1346,7 +1393,8 @@ mod tests {
         let gbm = GbmProcess::new(GbmParams::new(0.05, 0.0, 0.2).unwrap());
         let time_grid = TimeGrid::uniform(1.0, 4).expect("grid should build");
         let fixing_steps = vec![1, 2, 3, 4];
-        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         let result = pricer
             .price_with_grid(&gbm, 100.0, time_grid, &asian, Currency::USD, 1.0)
@@ -1377,7 +1425,8 @@ mod tests {
         let pricer = PathDependentPricer::new(config);
         let gbm = GbmProcess::new(GbmParams::new(0.05, 0.0, 0.2).unwrap());
         let fixing_steps = vec![1, 2, 3, 4];
-        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         let first = pricer
             .price_with_paths(&gbm, 100.0, 1.0, 4, &asian, Currency::USD, 1.0)
@@ -1442,7 +1491,8 @@ mod tests {
         let gbm = GbmProcess::new(GbmParams::new(0.05, 0.0, 0.2).unwrap());
         let time_grid = TimeGrid::from_times(vec![0.0, 0.2, 0.55, 1.0]).expect("grid should build");
         let fixing_steps = vec![1, 2, 3];
-        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         let result = pricer
             .price_with_grid(&gbm, 100.0, time_grid, &asian, Currency::USD, 1.0)
@@ -1461,7 +1511,8 @@ mod tests {
         let pricer = PathDependentPricer::new(config);
         let gbm = GbmProcess::new(GbmParams::new(0.05, 0.0, 0.2).unwrap());
         let fixing_steps = vec![MAX_SOBOL_DIMENSION + 1];
-        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
+        let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps)
+            .expect("nonempty fixing schedule");
 
         let err = pricer
             .price(

@@ -267,9 +267,9 @@ pub(crate) struct TaylorAttributionResult {
     /// `PnlAttribution::meta.notes` by `attribute_pnl_taylor`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
-    /// True when a factor backed by a declared market dependency failed to
-    /// compute — part of the risk decomposition is missing, so downstream
-    /// consumers must not trust the residual split.
+    /// True when a factor backed by a declared market dependency or the theta
+    /// calculation failed. Part of the risk decomposition or period cash income
+    /// is missing, so downstream consumers must not trust the residual split.
     #[serde(default)]
     pub result_invalid: bool,
 }
@@ -644,6 +644,7 @@ fn compute_taylor_result(
             notes.push(format!(
                 "Taylor theta factor failed: {e}; actual_pnl excludes period coupon income"
             ));
+            result_invalid = true;
         }
     }
 
@@ -777,7 +778,7 @@ pub(crate) fn attribute_pnl_taylor(
 
     // Surface the factor-level diagnostics collected during computation
     // (failed factors, surface-averaged vol moves, missing T0 FX) and
-    // propagate the invalid flag when a dependency-backed factor failed.
+    // propagate the invalid flag when a dependency-backed factor or theta failed.
     attribution.meta.notes.extend(taylor.notes.iter().cloned());
     if taylor.result_invalid {
         attribution.result_invalid = true;
@@ -1504,8 +1505,7 @@ fn compute_theta_factor(
         as_of_t0,
         as_of_t1,
         pv_t0.currency(),
-    )
-    .unwrap_or(0.0);
+    )?;
 
     let theta_pnl = pv_diff + coupon_income;
     let theta_per_day = if days.abs() > 0.0 {
@@ -2049,8 +2049,10 @@ mod tests {
         expiry: Option<Date>,
         /// `(measure key, value)` pairs surfaced through `price_with_metrics`.
         keyrate_measures: Vec<(String, f64)>,
-        /// Optional fixed coupon `(date, USD amount)` for the theta window.
-        coupon: Option<(Date, f64)>,
+        /// Optional fixed coupon for the theta window.
+        coupon: Option<(Date, Money)>,
+        /// Optional schedule-construction failure independent of pricing.
+        cashflow_error: Option<&'static str>,
         /// Optional CPR used by [`MockPayoff::ModelCpr`] and the model-param hooks.
         model_cpr: Option<f64>,
     }
@@ -2067,6 +2069,7 @@ mod tests {
                 expiry: None,
                 keyrate_measures: Vec::new(),
                 coupon: None,
+                cashflow_error: None,
                 model_cpr: None,
             }
         }
@@ -2083,19 +2086,13 @@ mod tests {
             _as_of: Date,
         ) -> Result<finstack_quant_cashflows::builder::CashFlowSchedule> {
             use finstack_quant_core::cashflow::{CFKind, CashFlow};
+            if let Some(error) = self.cashflow_error {
+                return Err(finstack_quant_core::Error::Validation(error.to_string()));
+            }
             let flows: Vec<CashFlow> = self
                 .coupon
                 .iter()
-                .map(|(date, amount)| {
-                    CashFlow::new(
-                        *date,
-                        None,
-                        Money::new(*amount, Currency::USD),
-                        CFKind::Fixed,
-                        0.0,
-                        None,
-                    )
-                })
+                .map(|(date, amount)| CashFlow::new(*date, None, *amount, CFKind::Fixed, 0.0, None))
                 .collect();
             Ok(
                 finstack_quant_cashflows::traits::schedule_from_classified_flows(
@@ -2806,7 +2803,7 @@ mod tests {
         let as_of_t1 = date!(2025 - 02 - 15);
 
         let mut mock = MockInstrument::new("COUPON-001", MockPayoff::Constant(1_000_000.0));
-        mock.coupon = Some((date!(2025 - 02 - 01), 5_000.0));
+        mock.coupon = Some((date!(2025 - 02 - 01), Money::new(5_000.0, Currency::USD)));
         let instrument: Arc<dyn Instrument> = Arc::new(mock);
 
         let result = compute_taylor_result(
@@ -2824,6 +2821,8 @@ mod tests {
         )
         .expect("taylor attribution should succeed");
 
+        assert!(!result.result_invalid);
+        assert_eq!(result.theta_coupon_income, Some(5_000.0));
         assert!(
             (result.actual_pnl - 5_000.0).abs() < 1e-6,
             "actual_pnl must include the period coupon (total-return basis), got {}",
@@ -2834,6 +2833,79 @@ mod tests {
             "coupon income must not bias unexplained, got {}",
             result.unexplained
         );
+    }
+
+    #[test]
+    fn theta_cashflow_failures_are_recorded_without_a_successful_theta() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 02 - 15);
+        let market = MarketContext::new();
+        let config = TaylorAttributionConfig::default();
+        let finstack_config = finstack_quant_core::config::FinstackConfig::default();
+
+        for (cashflow_error, coupon_currency, expected_error) in [
+            (
+                Some("coupon schedule unavailable"),
+                Currency::USD,
+                "coupon schedule unavailable",
+            ),
+            (None, Currency::EUR, "Theta cashflow currency mismatch"),
+        ] {
+            let mut mock = MockInstrument::new("FAILED-COUPON", MockPayoff::Constant(1_000_000.0));
+            mock.coupon = Some((date!(2025 - 02 - 01), Money::new(5_000.0, coupon_currency)));
+            mock.cashflow_error = cashflow_error;
+            let instrument: Arc<dyn Instrument> = Arc::new(mock);
+
+            let result = compute_taylor_result(
+                &instrument,
+                &market,
+                &market,
+                as_of_t0,
+                as_of_t1,
+                &config,
+                TaylorExecution {
+                    policy: ExecutionPolicy::Serial,
+                    prepared_endpoints: None,
+                },
+                None,
+            )
+            .expect("failed period cashflow collection should retain diagnostic attribution");
+
+            assert!(result.result_invalid);
+            assert_eq!(result.theta_coupon_income, None);
+            assert!(result
+                .factors
+                .iter()
+                .all(|factor| factor.factor_name != "Theta"));
+            assert!(result.notes.iter().any(|note| {
+                note.contains(expected_error)
+                    && note.contains("actual_pnl excludes period coupon income")
+            }));
+
+            let attribution = crate::attribute_pnl(
+                &AttributionMethod::Taylor(config.clone()),
+                &crate::AttributionRequest {
+                    execution_policy: ExecutionPolicy::Serial,
+                    ..crate::AttributionRequest::new(
+                        &instrument,
+                        &market,
+                        &market,
+                        as_of_t0,
+                        as_of_t1,
+                        &finstack_config,
+                    )
+                },
+            )
+            .expect("public attribution should preserve the failed-factor diagnostics");
+
+            assert!(attribution.result_invalid);
+            assert!(attribution.carry_detail.is_none());
+            assert!(attribution
+                .meta
+                .notes
+                .iter()
+                .any(|note| note.contains(expected_error)));
+        }
     }
 
     /// The FX-exposure factor must run when either side carries an FX matrix;

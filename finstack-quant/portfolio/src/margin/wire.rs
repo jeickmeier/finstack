@@ -5,15 +5,15 @@
 //! [`super::results`]. They are an internal implementation detail: the public
 //! `serde::Serialize`/`Deserialize` impls for [`NettingSetMargin`] and
 //! [`PortfolioMarginResult`] delegate to the corresponding wire type so that
-//! `HashMap`-backed fields serialize in a stable order.
+//! `HashMap`-backed fields serialize in a stable order. Nested SIMM sensitivities
+//! use the margin crate's canonical [`SimmSensitivitiesJson`] tuple-array shape.
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::HashMap;
-use finstack_quant_margin::{
-    ImMethodology, NettingSetId, SimmCreditSector, SimmRiskClass, SimmSensitivities,
-};
+use finstack_quant_margin::types::SimmSensitivitiesJson;
+use finstack_quant_margin::{ImMethodology, NettingSetId, SimmSensitivities};
 use std::collections::BTreeMap;
 
 use crate::types::PositionId;
@@ -27,338 +27,6 @@ fn amounts_close(lhs: f64, rhs: f64) -> bool {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct CurrencyTenorEntry {
-    currency: Currency,
-    tenor_bucket: String,
-    value: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct LabelTenorEntry {
-    label: String,
-    tenor_bucket: String,
-    value: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct LabelEntry {
-    name: String,
-    value: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct CurrencyEntry {
-    currency: Currency,
-    value: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct CurrencyPairEntry {
-    base: Currency,
-    quote: Currency,
-    value: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct CurvatureEntry {
-    risk_class: SimmRiskClass,
-    value: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct BucketedCreditEntry {
-    sector: SimmCreditSector,
-    name: String,
-    tenor_bucket: String,
-    value: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct SimmSensitivitiesWire {
-    base_currency: Currency,
-    ir_delta: Vec<CurrencyTenorEntry>,
-    ir_vega: Vec<CurrencyTenorEntry>,
-    credit_qualifying_delta: Vec<BucketedCreditEntry>,
-    credit_qualifying_vega: Vec<BucketedCreditEntry>,
-    credit_non_qualifying_delta: Vec<LabelTenorEntry>,
-    credit_non_qualifying_vega: Vec<LabelTenorEntry>,
-    equity_delta: Vec<LabelEntry>,
-    equity_vega: Vec<LabelEntry>,
-    fx_delta: Vec<CurrencyEntry>,
-    fx_vega: Vec<CurrencyPairEntry>,
-    commodity_delta: Vec<LabelEntry>,
-    commodity_vega: Vec<LabelEntry>,
-    curvature: Vec<CurvatureEntry>,
-}
-
-impl From<&SimmSensitivities> for SimmSensitivitiesWire {
-    fn from(s: &SimmSensitivities) -> Self {
-        let mut ir_delta: Vec<CurrencyTenorEntry> = s
-            .ir_delta
-            .iter()
-            .map(|((ccy, tenor), &v)| CurrencyTenorEntry {
-                currency: *ccy,
-                tenor_bucket: tenor.clone(),
-                value: v,
-            })
-            .collect();
-        ir_delta.sort_by(|a, b| {
-            a.currency
-                .cmp(&b.currency)
-                .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
-        });
-
-        let mut ir_vega: Vec<CurrencyTenorEntry> = s
-            .ir_vega
-            .iter()
-            .map(|((ccy, tenor), &v)| CurrencyTenorEntry {
-                currency: *ccy,
-                tenor_bucket: tenor.clone(),
-                value: v,
-            })
-            .collect();
-        ir_vega.sort_by(|a, b| {
-            a.currency
-                .cmp(&b.currency)
-                .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
-        });
-
-        let mut credit_qualifying_delta: Vec<BucketedCreditEntry> = s
-            .credit_qualifying_delta
-            .iter()
-            .map(|((sector, name, tenor), &value)| BucketedCreditEntry {
-                sector: *sector,
-                name: name.clone(),
-                tenor_bucket: tenor.clone(),
-                value,
-            })
-            .collect();
-        credit_qualifying_delta.sort_by(|left, right| {
-            simm_credit_sector_key(left.sector)
-                .cmp(&simm_credit_sector_key(right.sector))
-                .then_with(|| left.name.cmp(&right.name))
-                .then_with(|| left.tenor_bucket.cmp(&right.tenor_bucket))
-        });
-
-        let mut credit_non_qualifying_delta: Vec<LabelTenorEntry> = s
-            .credit_non_qualifying_delta
-            .iter()
-            .map(|((label, tenor), &v)| LabelTenorEntry {
-                label: label.clone(),
-                tenor_bucket: tenor.clone(),
-                value: v,
-            })
-            .collect();
-        credit_non_qualifying_delta.sort_by(|a, b| {
-            a.label
-                .cmp(&b.label)
-                .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
-        });
-
-        let mut credit_qualifying_vega: Vec<BucketedCreditEntry> = s
-            .credit_qualifying_vega
-            .iter()
-            .map(|((sector, name, tenor), &value)| BucketedCreditEntry {
-                sector: *sector,
-                name: name.clone(),
-                tenor_bucket: tenor.clone(),
-                value,
-            })
-            .collect();
-        credit_qualifying_vega.sort_by(|left, right| {
-            simm_credit_sector_key(left.sector)
-                .cmp(&simm_credit_sector_key(right.sector))
-                .then_with(|| left.name.cmp(&right.name))
-                .then_with(|| left.tenor_bucket.cmp(&right.tenor_bucket))
-        });
-
-        let mut credit_non_qualifying_vega: Vec<LabelTenorEntry> = s
-            .credit_non_qualifying_vega
-            .iter()
-            .map(|((label, tenor), &v)| LabelTenorEntry {
-                label: label.clone(),
-                tenor_bucket: tenor.clone(),
-                value: v,
-            })
-            .collect();
-        credit_non_qualifying_vega.sort_by(|a, b| {
-            a.label
-                .cmp(&b.label)
-                .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
-        });
-
-        let mut equity_delta: Vec<LabelEntry> = s
-            .equity_delta
-            .iter()
-            .map(|(name, &v)| LabelEntry {
-                name: name.clone(),
-                value: v,
-            })
-            .collect();
-        equity_delta.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let mut equity_vega: Vec<LabelEntry> = s
-            .equity_vega
-            .iter()
-            .map(|(name, &v)| LabelEntry {
-                name: name.clone(),
-                value: v,
-            })
-            .collect();
-        equity_vega.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let mut fx_delta: Vec<CurrencyEntry> = s
-            .fx_delta
-            .iter()
-            .map(|(ccy, &v)| CurrencyEntry {
-                currency: *ccy,
-                value: v,
-            })
-            .collect();
-        fx_delta.sort_by_key(|entry| entry.currency);
-
-        let mut fx_vega: Vec<CurrencyPairEntry> = s
-            .fx_vega
-            .iter()
-            .map(|((base, quote), &v)| CurrencyPairEntry {
-                base: *base,
-                quote: *quote,
-                value: v,
-            })
-            .collect();
-        fx_vega.sort_by(|a, b| a.base.cmp(&b.base).then_with(|| a.quote.cmp(&b.quote)));
-
-        let mut commodity_delta: Vec<LabelEntry> = s
-            .commodity_delta
-            .iter()
-            .map(|(name, &v)| LabelEntry {
-                name: name.clone(),
-                value: v,
-            })
-            .collect();
-        commodity_delta.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let mut commodity_vega: Vec<LabelEntry> = s
-            .commodity_vega
-            .iter()
-            .map(|(name, &v)| LabelEntry {
-                name: name.clone(),
-                value: v,
-            })
-            .collect();
-        commodity_vega.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let mut curvature: Vec<CurvatureEntry> = s
-            .curvature
-            .iter()
-            .map(|(rc, &v)| CurvatureEntry {
-                risk_class: *rc,
-                value: v,
-            })
-            .collect();
-        curvature.sort_by_key(|entry| simm_risk_class_key(entry.risk_class));
-
-        Self {
-            base_currency: s.base_currency,
-            ir_delta,
-            ir_vega,
-            credit_qualifying_delta,
-            credit_qualifying_vega,
-            credit_non_qualifying_delta,
-            credit_non_qualifying_vega,
-            equity_delta,
-            equity_vega,
-            fx_delta,
-            fx_vega,
-            commodity_delta,
-            commodity_vega,
-            curvature,
-        }
-    }
-}
-
-impl From<SimmSensitivitiesWire> for SimmSensitivities {
-    fn from(w: SimmSensitivitiesWire) -> Self {
-        let mut s = SimmSensitivities::new(w.base_currency);
-        for e in w.ir_delta {
-            s.ir_delta.insert((e.currency, e.tenor_bucket), e.value);
-        }
-        for e in w.ir_vega {
-            s.ir_vega.insert((e.currency, e.tenor_bucket), e.value);
-        }
-        for entry in w.credit_qualifying_delta {
-            s.credit_qualifying_delta
-                .insert((entry.sector, entry.name, entry.tenor_bucket), entry.value);
-        }
-        for e in w.credit_non_qualifying_delta {
-            s.credit_non_qualifying_delta
-                .insert((e.label, e.tenor_bucket), e.value);
-        }
-        for entry in w.credit_qualifying_vega {
-            s.credit_qualifying_vega
-                .insert((entry.sector, entry.name, entry.tenor_bucket), entry.value);
-        }
-        for e in w.credit_non_qualifying_vega {
-            s.credit_non_qualifying_vega
-                .insert((e.label, e.tenor_bucket), e.value);
-        }
-        for e in w.equity_delta {
-            s.equity_delta.insert(e.name, e.value);
-        }
-        for e in w.equity_vega {
-            s.equity_vega.insert(e.name, e.value);
-        }
-        for e in w.fx_delta {
-            s.fx_delta.insert(e.currency, e.value);
-        }
-        for e in w.fx_vega {
-            s.fx_vega.insert((e.base, e.quote), e.value);
-        }
-        for e in w.commodity_delta {
-            s.commodity_delta.insert(e.name, e.value);
-        }
-        for e in w.commodity_vega {
-            s.commodity_vega.insert(e.name, e.value);
-        }
-        for e in w.curvature {
-            s.curvature.insert(e.risk_class, e.value);
-        }
-        s
-    }
-}
-
-const fn simm_risk_class_key(risk_class: SimmRiskClass) -> u8 {
-    match risk_class {
-        SimmRiskClass::InterestRate => 0,
-        SimmRiskClass::CreditQualifying => 1,
-        SimmRiskClass::CreditNonQualifying => 2,
-        SimmRiskClass::Equity => 3,
-        SimmRiskClass::Commodity => 4,
-        SimmRiskClass::Fx => 5,
-        _ => u8::MAX,
-    }
-}
-
-const fn simm_credit_sector_key(sector: SimmCreditSector) -> u8 {
-    match sector {
-        SimmCreditSector::Sovereign => 0,
-        SimmCreditSector::Financial => 1,
-        SimmCreditSector::BasicMaterials => 2,
-        SimmCreditSector::ConsumerGoods => 3,
-        SimmCreditSector::TechnologyMedia => 4,
-        SimmCreditSector::HealthCare => 5,
-        SimmCreditSector::HighYieldSovereign => 6,
-        SimmCreditSector::HighYieldFinancial => 7,
-        SimmCreditSector::HighYieldBasicMaterials => 8,
-        SimmCreditSector::HighYieldConsumerGoods => 9,
-        SimmCreditSector::HighYieldTechnologyMedia => 10,
-        SimmCreditSector::HighYieldHealthCare => 11,
-        SimmCreditSector::Residual => 12,
-        _ => u8::MAX,
-    }
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
 struct NettingSetMarginWire {
     netting_set_id: NettingSetId,
     as_of: Date,
@@ -367,7 +35,7 @@ struct NettingSetMarginWire {
     total_margin: Money,
     position_count: usize,
     im_methodology: ImMethodology,
-    sensitivities: Option<SimmSensitivitiesWire>,
+    sensitivities: Option<SimmSensitivitiesJson>,
     im_breakdown: BTreeMap<String, Money>,
 }
 
@@ -381,7 +49,7 @@ impl From<&NettingSetMargin> for NettingSetMarginWire {
             total_margin: m.total_margin,
             position_count: m.position_count,
             im_methodology: m.im_methodology,
-            sensitivities: m.sensitivities.as_ref().map(SimmSensitivitiesWire::from),
+            sensitivities: m.sensitivities.as_ref().map(SimmSensitivitiesJson::from),
             im_breakdown: m
                 .im_breakdown
                 .iter()

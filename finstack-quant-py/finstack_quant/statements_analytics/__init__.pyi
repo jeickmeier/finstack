@@ -3738,8 +3738,8 @@ class CorporateAnalysis:
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_corporate_analysis
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2024Q1..Q2", None)
-    ... _ = b.value("revenue", [("2024Q1", 1.0), ("2024Q2", 2.0)])
+    >>> _ = b.periods("2024Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2024Q1", 1.0), ("2024Q2", 2.0)])
     >>> analysis = run_corporate_analysis(b.build())
     >>> analysis.equity is None, analysis.ev_suppressed_non_positive
     (True, False)
@@ -6064,8 +6064,8 @@ class PLSummaryReport:
     >>> from finstack_quant.statements import ModelBuilder, Evaluator
     >>> from finstack_quant.statements_analytics import pl_summary_report
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q2", None)
-    ... _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
+    >>> _ = b.periods("2025Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
     >>> report = pl_summary_report(Evaluator().evaluate(b.build()), ["revenue"], ["2025Q1", "2025Q2"])
     >>> list(report.to_dataframe()["value"])
     [1.0, 2.0]
@@ -10078,7 +10078,7 @@ def credit_assessment(results: Any, period: str) -> CreditAssessment:
     >>> from finstack_quant.statements import ModelBuilder, Evaluator
     >>> from finstack_quant.statements_analytics import credit_assessment
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q4", None)
+    >>> _ = b.periods("2025Q1..Q4", None)
     >>> _ = b.value("ebitda", [(f"2025Q{q}", 25.0) for q in range(1, 5)])
     >>> _ = b.value("total_debt", [(f"2025Q{q}", 300.0) for q in range(1, 5)])
     >>> credit_assessment(Evaluator().evaluate(b.build()), "2025Q4").leverage_ratio
@@ -10111,8 +10111,8 @@ def credit_assessment_report_text(results: Any, period: str) -> str:
     >>> from finstack_quant.statements import ModelBuilder, Evaluator
     >>> from finstack_quant.statements_analytics import credit_assessment_report_text
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q2", None)
-    ... _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
+    >>> _ = b.periods("2025Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
     >>> credit_assessment_report_text(Evaluator().evaluate(b.build()), "2025Q2").startswith("Credit Assessment")
     True
     """
@@ -10187,7 +10187,7 @@ def dcf_sensitivity(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import TerminalValueSpec, dcf_sensitivity
     >>> b = ModelBuilder("dcf")
-    ... _ = b.periods("2025..2026")
+    >>> _ = b.periods("2025..2026")
     >>> _ = b.value_money("ufcf", [("2025", Money(100.0, "USD")), ("2026", Money(110.0, "USD"))])
     >>> _ = b.with_meta("currency", '"USD"')
     >>> sens = dcf_sensitivity(b.build(), 0.10, TerminalValueSpec.gordon_growth(0.02), net_debt_override=0.0)
@@ -10267,7 +10267,7 @@ def evaluate_dcf(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import TerminalValueSpec, evaluate_dcf
     >>> b = ModelBuilder("dcf")
-    ... _ = b.periods("2025..2026")
+    >>> _ = b.periods("2025..2026")
     >>> _ = b.value_money("ufcf", [("2025", Money(100.0, "USD")), ("2026", Money(110.0, "USD"))])
     >>> _ = b.with_meta("currency", '"USD"')
     >>> result = evaluate_dcf(b.build(), 0.10, TerminalValueSpec.gordon_growth(0.02), net_debt_override=0.0)
@@ -10370,8 +10370,8 @@ def evaluate_scenario_set(model: Any, scenario_set: Any) -> ScenarioResults:
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import ScenarioSet, evaluate_scenario_set
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q2", None)
-    ... _ = b.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
+    >>> _ = b.periods("2025Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
     >>> results = evaluate_scenario_set(b.build(), ScenarioSet({"base": {}, "down": {"revenue": 90.0}}))
     >>> results.names
     ['base', 'down']
@@ -10409,8 +10409,8 @@ def explain_formula(model: Any, results: Any, node_id: str, period: str) -> Expl
     >>> from finstack_quant.statements import ModelBuilder, Evaluator
     >>> from finstack_quant.statements_analytics import explain_formula
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q1", None)
-    ... _ = b.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = b.periods("2025Q1..Q1", None)
+    >>> _ = b.value("revenue", [("2025Q1", 100.0)])
     >>> _ = b.compute("profit", "revenue * 0.5")
     >>> model = b.build()
     >>> explain_formula(model, Evaluator().evaluate(model), "profit", "2025Q1").final_value
@@ -10532,8 +10532,8 @@ def goal_seek(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import goal_seek
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q1", None)
-    ... _ = b.value("revenue", [("2025Q1", 100.0)])
+    >>> _ = b.periods("2025Q1..Q1", None)
+    >>> _ = b.value("revenue", [("2025Q1", 100.0)])
     >>> _ = b.compute("profit", "revenue * 0.5")
     >>> round(goal_seek(b.build(), "profit", "2025Q1", 60.0, "revenue", "2025Q1").solved_value, 6)
     120.0
@@ -10616,8 +10616,8 @@ def pl_summary_report(results: Any, line_items: list[str], periods: list[str]) -
     >>> from finstack_quant.statements import ModelBuilder, Evaluator
     >>> from finstack_quant.statements_analytics import pl_summary_report
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q2", None)
-    ... _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
+    >>> _ = b.periods("2025Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
     >>> pl_summary_report(Evaluator().evaluate(b.build()), ["revenue"], ["2025Q1"]).periods
     ['2025Q1']
     """
@@ -10650,8 +10650,8 @@ def pl_summary_report_text(results: Any, line_items: list[str], periods: list[st
     >>> from finstack_quant.statements import ModelBuilder, Evaluator
     >>> from finstack_quant.statements_analytics import pl_summary_report_text
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q2", None)
-    ... _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
+    >>> _ = b.periods("2025Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2025Q1", 1.0), ("2025Q2", 2.0)])
     >>> pl_summary_report_text(Evaluator().evaluate(b.build()), ["revenue"], ["2025Q1"]).startswith("P&L Summary")
     True
     """
@@ -10777,8 +10777,8 @@ def run_checks(model: Any, spec: Any, results: Any | None = None) -> CheckReport
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_checks
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2024Q1..Q2", None)
-    ... _ = b.value("revenue", [("2024Q1", 1.0), ("2024Q2", 2.0)])
+    >>> _ = b.periods("2024Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2024Q1", 1.0), ("2024Q2", 2.0)])
     >>> spec = {
     ...     "name": "s",
     ...     "builtin_checks": [],
@@ -10860,8 +10860,8 @@ def run_corporate_analysis(
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_corporate_analysis
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2024Q1..Q2", None)
-    ... _ = b.value("revenue", [("2024Q1", 1.0), ("2024Q2", 2.0)])
+    >>> _ = b.periods("2024Q1..Q2", None)
+    >>> _ = b.value("revenue", [("2024Q1", 1.0), ("2024Q2", 2.0)])
     >>> run_corporate_analysis(b.build()).statement.node_count
     1
     """
@@ -10926,9 +10926,9 @@ def run_sensitivity(model: Any, config: Any) -> SensitivityResult:
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import ParameterSpec, SensitivityConfig, run_sensitivity
     >>> b = ModelBuilder("m")
-    ... _ = b.periods("2025Q1..Q2", None)
+    >>> _ = b.periods("2025Q1..Q2", None)
     >>> _ = b.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
-    ... _ = b.compute("profit", "revenue * 0.5")
+    >>> _ = b.compute("profit", "revenue * 0.5")
     >>> cfg = SensitivityConfig(
     ...     "diagonal", [ParameterSpec.with_percentages("revenue", "2025Q2", 110.0, [-10.0, 10.0])], ["profit"]
     ... )

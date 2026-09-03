@@ -57,6 +57,12 @@ come from `finstack-quant-margin`.
   and collects positionally, so the downstream merge order matches the serial
   path. `NettingSetMargin` and `PortfolioMarginResult` serialize through
   internal `*Wire` types so `HashMap`-backed fields emit in a stable order.
+- **Shared sensitivity JSON.** Nested `sensitivities` use the margin crate's
+  `SimmSensitivitiesJson` contract: sorted tuple arrays, such as
+  `"ir_delta": [["USD", "5Y", 12500.0]]` and
+  `"credit_qualifying_delta": [["financial", "BANK_A", "5Y", 725.0]]`.
+  This is also the shape returned by `SimmSensitivities::to_json()`. Credit
+  qualifying tuples require a sector before the reference name and tenor.
 
 ## Example
 

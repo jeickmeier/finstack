@@ -22,19 +22,11 @@
   "sensitivities": {
     "base_currency": "USD",
     "ir_delta": [
-      {
-        "currency": "USD",
-        "tenor_bucket": "5Y",
-        "value": 1000.0
-      }
+      ["USD", "5Y", 1000.0]
     ],
     "ir_vega": [],
     "credit_qualifying_delta": [
-      {
-        "label": "CDX.NA.IG",
-        "tenor_bucket": "5Y",
-        "value": 1000.0
-      }
+      ["CDX.NA.IG", "5Y", 1000.0]
     ],
     "credit_non_qualifying_delta": [],
     "equity_delta": [],

@@ -82,6 +82,7 @@ pub fn asian_call(num_steps: usize) -> AsianCall {
         AveragingMethod::Arithmetic,
         default_fixing_steps(num_steps),
     )
+    .expect("benchmark fixing schedule must be nonempty")
 }
 
 pub fn lookback_call(num_steps: usize) -> Lookback {

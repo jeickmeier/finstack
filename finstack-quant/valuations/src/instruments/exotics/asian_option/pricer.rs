@@ -465,7 +465,7 @@ impl AsianOptionMcPricer {
                     hist_sum,
                     hist_prod_log,
                     hist_count,
-                );
+                )?;
                 let arith_full = pricer_cap.price_with_paths(
                     &process,
                     spot,
@@ -485,7 +485,7 @@ impl AsianOptionMcPricer {
                     hist_sum,
                     hist_prod_log,
                     hist_count,
-                );
+                )?;
                 let geom_full = pricer_cap.price_with_paths(
                     &process,
                     spot,
@@ -591,7 +591,7 @@ impl AsianOptionMcPricer {
                     hist_sum,
                     hist_prod_log,
                     hist_count,
-                );
+                )?;
                 let arith_full = pricer_cap.price_with_paths(
                     &process,
                     spot,
@@ -610,7 +610,7 @@ impl AsianOptionMcPricer {
                     hist_sum,
                     hist_prod_log,
                     hist_count,
-                );
+                )?;
                 let geom_full = pricer_cap.price_with_paths(
                     &process,
                     spot,
@@ -696,7 +696,7 @@ impl AsianOptionMcPricer {
                             hist_sum,
                             hist_prod_log,
                             hist_count,
-                        );
+                        )?;
                         pricer
                             .price(
                                 &process,
@@ -718,7 +718,7 @@ impl AsianOptionMcPricer {
                             hist_sum,
                             hist_prod_log,
                             hist_count,
-                        );
+                        )?;
                         pricer
                             .price(
                                 &process,
