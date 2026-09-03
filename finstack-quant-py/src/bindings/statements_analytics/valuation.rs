@@ -1395,9 +1395,16 @@ fn dcf_sensitivity<'py>(
 ///
 /// Examples
 /// --------
+/// >>> from finstack_quant.statements import ModelBuilder
 /// >>> from finstack_quant.statements_analytics import evaluate_lbo
-/// >>> callable(evaluate_lbo)
-/// True
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..2026Q1", None)
+/// >>> _ = b.with_meta("currency", "USD")
+/// >>> _ = b.value("ebitda", [("2025Q1", 100.0), ("2025Q2", 100.0), ("2025Q3", 100.0), ("2025Q4", 100.0), ("2026Q1", 120.0)])
+/// >>> _ = b.value("net_debt", [("2025Q1", 300.0), ("2025Q2", 300.0), ("2025Q3", 300.0), ("2025Q4", 300.0), ("2026Q1", 200.0)])
+/// >>> lbo = evaluate_lbo(b.build(), 8.0, "ebitda", 9.0, "ebitda", "net_debt", "2026Q1", [("debt", 500.0)])
+/// >>> round(lbo.moic, 4)
+/// 2.9333
 #[pyfunction]
 #[pyo3(signature = (
     model,

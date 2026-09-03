@@ -542,6 +542,8 @@ impl PySabrParameterData {
     /// ------
     /// ValueError
     ///     If serialization fails.
+    // PyO3 `#[pymethods]` cannot take `self` by value.
+    #[allow(clippy::wrong_self_convention)]
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(|e| {
             crate::errors::value_error(format!("failed to serialize SabrParameterData: {e}"))

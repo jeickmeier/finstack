@@ -28,6 +28,9 @@ use crate::bindings::pandas_utils::serde_to_py;
 use crate::bindings::repr_support::repr_from_serde;
 use crate::errors::core_to_py;
 
+/// `(date, amount)` rows as returned to Python: Python date objects paired with `Money`.
+type DateMoneyRows<'py> = Vec<(Bound<'py, PyAny>, PyMoney)>;
+
 /// Extract a `rust_decimal::Decimal` from `decimal.Decimal`, `float`, `int`,
 /// or a numeric `str` (parsed losslessly, e.g. ``"0.05"``).
 pub(crate) fn decimal_from_any(obj: &Bound<'_, PyAny>) -> PyResult<Decimal> {
@@ -1471,10 +1474,7 @@ impl PyAmortizationSpec {
 
     /// ``(date, remaining)`` pairs for ``step_remaining``, else ``None``.
     #[getter]
-    fn schedule<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> PyResult<Option<Vec<(Bound<'py, PyAny>, PyMoney)>>> {
+    fn schedule<'py>(&self, py: Python<'py>) -> PyResult<Option<DateMoneyRows<'py>>> {
         match &self.inner {
             AmortizationSpec::StepRemaining { schedule } => {
                 date_money_to_py(py, schedule).map(Some)
@@ -1494,7 +1494,7 @@ impl PyAmortizationSpec {
 
     /// ``(date, amount)`` pairs for ``custom_principal``, else ``None``.
     #[getter]
-    fn items<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<(Bound<'py, PyAny>, PyMoney)>>> {
+    fn items<'py>(&self, py: Python<'py>) -> PyResult<Option<DateMoneyRows<'py>>> {
         match &self.inner {
             AmortizationSpec::CustomPrincipal { items } => date_money_to_py(py, items).map(Some),
             _ => Ok(None),

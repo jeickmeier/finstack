@@ -65,6 +65,9 @@ impl PyCandidatePosition {
         signature = (id, entity_id, instrument, unit=None, max_weight=1.0, min_weight=0.0, attributes=None),
         text_signature = "(id, entity_id, instrument, unit=None, max_weight=1.0, min_weight=0.0, attributes=None)"
     )]
+    // Arity is fixed by the documented Python keyword signature; grouping into a
+    // params struct would change the public API.
+    #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
         id: &str,

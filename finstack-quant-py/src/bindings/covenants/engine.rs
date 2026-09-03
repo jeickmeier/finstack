@@ -12,6 +12,9 @@ use indexmap::IndexMap;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+/// Date-indexed metric rows: one `(date, [(metric_id, value)])` entry per row.
+type MetricFrameRows = Vec<(time::Date, Vec<(String, f64)>)>;
+
 /// Accept a ``dict[str, float]`` or a JSON-object string of metric values.
 ///
 /// Every value must be a real number; ``bool`` is rejected so a stray
@@ -88,9 +91,7 @@ const SERIES_COLUMNS: [ColumnSchema<'static>; 8] = [
 /// ``NaN`` cells are dropped so a metric that is genuinely missing for a date
 /// surfaces as the engine's ``KeyError`` (or as an uncovered period in the
 /// forecast batch) rather than as a silent breach.
-pub(crate) fn extract_metric_frame(
-    frame: &Bound<'_, PyAny>,
-) -> PyResult<Vec<(time::Date, Vec<(String, f64)>)>> {
+pub(crate) fn extract_metric_frame(frame: &Bound<'_, PyAny>) -> PyResult<MetricFrameRows> {
     let columns: Vec<String> = frame
         .getattr("columns")?
         .call_method0("tolist")?

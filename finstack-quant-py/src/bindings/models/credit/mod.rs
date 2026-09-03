@@ -1717,9 +1717,8 @@ fn variant_repr<T: serde::Serialize>(type_name: &str, value: &T) -> String {
     match serde_json::to_value(value) {
         Ok(serde_json::Value::String(tag)) => format!("{type_name}.{tag}()"),
         Ok(serde_json::Value::Object(map)) if map.len() == 1 => {
-            let (tag, fields) = match map.iter().next() {
-                Some(entry) => entry,
-                None => return format!("{type_name}(...)"),
+            let Some((tag, fields)) = map.iter().next() else {
+                return format!("{type_name}(...)");
             };
             let inner = crate::bindings::repr_support::repr_from_serde("", fields);
             format!("{type_name}.{tag}{inner}")

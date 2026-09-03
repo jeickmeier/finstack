@@ -69,6 +69,9 @@ use super::extract::{extract_config, extract_scenario_spec, recalibration_provid
 /// computations run.
 #[pyfunction]
 #[pyo3(signature = (instrument, market, as_of, scenario, method = "parallel", config = None, calendar_id = None))]
+// Arity is fixed by the documented Python keyword signature; grouping into a
+// params struct would change the public API.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn compute_horizon_return<'py>(
     py: Python<'py>,
     instrument: &Bound<'py, PyAny>,

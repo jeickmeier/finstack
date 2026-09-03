@@ -13,6 +13,17 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use std::sync::Arc;
 
+/// `__reduce__` payload for the swaption calibration config: callable plus its
+/// `(frequency, fixed_kappa, initial_guess)` constructor arguments.
+type SwaptionConfigReduce<'py> = (
+    Bound<'py, PyAny>,
+    (String, Option<f64>, Option<PyHullWhiteCalibrationParams>),
+);
+
+/// `__reduce__` payload for the cap/floor calibration config: callable plus its
+/// `(fixed_kappa, sigma_min, sigma_max, frequency)` constructor arguments.
+type CapFloorConfigReduce<'py> = (Bound<'py, PyAny>, (f64, f64, f64, String));
+
 /// Docstring for the `finstack_quant.calibration.hull_white` namespace.
 const MODULE_DOC: &str = "Direct Hull-White one-factor calibrators (swaptions, caps/floors, piecewise sigma).\n\nThese take a calibrated DiscountCurve and year-fraction quotes; the plan-level\nequivalents are the `hull_white` / `cap_floor_hull_white` calibration steps.\n\nExamples\n--------\n>>> from finstack_quant.calibration.hull_white import SwaptionQuote\n>>> SwaptionQuote(1.0, 5.0, 0.0065).expiry\n1.0\n";
 
@@ -533,13 +544,7 @@ impl PyCapFloorCalibrationConfig {
     }
 
     /// Pickle support through the constructor arguments.
-    fn __reduce__<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> PyResult<(
-        Bound<'py, PyAny>,
-        (String, Option<f64>, Option<PyHullWhiteCalibrationParams>),
-    )> {
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<SwaptionConfigReduce<'py>> {
         Ok((
             py.get_type::<Self>().into_any(),
             (self.frequency(), self.fixed_kappa(), self.initial_guess()),
@@ -637,10 +642,7 @@ impl PyPiecewiseSigmaCalibrationConfig {
     }
 
     /// Pickle support through the constructor arguments.
-    fn __reduce__<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> PyResult<(Bound<'py, PyAny>, (f64, f64, f64, String))> {
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<CapFloorConfigReduce<'py>> {
         Ok((
             py.get_type::<Self>().into_any(),
             (
@@ -663,7 +665,7 @@ impl PyPiecewiseSigmaCalibrationConfig {
 fn curve_of(curve: &Bound<'_, PyAny>, label: &str) -> PyResult<Arc<DiscountCurve>> {
     curve
         .cast::<PyDiscountCurve>()
-        .map(|c| c.borrow().inner.clone())
+        .map(|c| Arc::clone(&c.borrow().inner))
         .map_err(|_| value_error(format!("{label} must be a core.market_data.DiscountCurve")))
 }
 

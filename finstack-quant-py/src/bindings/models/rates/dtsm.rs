@@ -144,10 +144,7 @@ impl PyYieldPanel {
             })
             .collect::<PyResult<Vec<f64>>>()?;
         let index_values = df.getattr("index")?.call_method0("tolist")?;
-        let dates = match extract_dates(Some(&index_values)) {
-            Ok(dates) => dates,
-            Err(_) => None,
-        };
+        let dates = extract_dates(Some(&index_values)).unwrap_or_default();
         let kwargs = PyDict::new(py);
         kwargs.set_item("dtype", "float64")?;
         let yields: Vec<Vec<f64>> = df

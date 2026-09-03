@@ -854,6 +854,8 @@ impl PyCreditRating {
 
     /// Moody's-style label (``"Baa1"`` for BBB+).
     #[pyo3(text_signature = "(self)")]
+    // PyO3 `#[pymethods]` cannot take `self` by value.
+    #[allow(clippy::wrong_self_convention)]
     fn to_moodys_string(&self) -> &'static str {
         self.inner.to_moodys_string()
     }

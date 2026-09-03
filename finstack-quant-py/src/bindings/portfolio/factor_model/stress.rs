@@ -317,14 +317,11 @@ impl PyTailScenarioBreakdown {
         py: Python<'py>,
         position_ids: Option<Vec<String>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let position_ids = match position_ids.or_else(|| self.position_ids.clone()) {
-            Some(ids) => ids,
-            None => {
-                return Err(value_error(
-                    "position_ids is required: this TailScenarioBreakdown carries no parent \
-                     StressAttribution ordering",
-                ))
-            }
+        let Some(position_ids) = position_ids.or_else(|| self.position_ids.clone()) else {
+            return Err(value_error(
+                "position_ids is required: this TailScenarioBreakdown carries no parent \
+                 StressAttribution ordering",
+            ));
         };
         let expected = self.inner.position_pnls.len();
         if position_ids.len() != expected {

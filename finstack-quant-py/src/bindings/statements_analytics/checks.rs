@@ -691,9 +691,17 @@ fn run_checks(
 ///
 /// Examples
 /// --------
+/// >>> from finstack_quant.statements import ModelBuilder
 /// >>> from finstack_quant.statements_analytics import ThreeStatementMapping, run_three_statement_checks
-/// >>> mapping = ThreeStatementMapping("cash", "retained_earnings", "net_income")
-/// >>> callable(run_three_statement_checks)
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q1", None)
+/// >>> _ = b.value("cash", [("2025Q1", 100.0)])
+/// >>> _ = b.value("debt", [("2025Q1", 40.0)])
+/// >>> _ = b.value("equity", [("2025Q1", 60.0)])
+/// >>> _ = b.value("retained_earnings", [("2025Q1", 60.0)])
+/// >>> _ = b.value("net_income", [("2025Q1", 0.0)])
+/// >>> mapping = ThreeStatementMapping("cash", "retained_earnings", "net_income", ["cash"], ["debt"], ["equity"])
+/// >>> run_three_statement_checks(b.build(), mapping).passed
 /// True
 #[pyfunction]
 #[pyo3(signature = (model, mapping, results=None))]
@@ -735,10 +743,16 @@ fn run_three_statement_checks(
 ///
 /// Examples
 /// --------
+/// >>> from finstack_quant.statements import ModelBuilder
 /// >>> from finstack_quant.statements_analytics import CreditMapping, run_credit_underwriting_checks
-/// >>> mapping = CreditMapping("total_debt", "ebitda", "interest_expense")
-/// >>> callable(run_credit_underwriting_checks)
-/// True
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q1", None)
+/// >>> _ = b.value("total_debt", [("2025Q1", 100.0)])
+/// >>> _ = b.value("ebitda", [("2025Q1", 40.0)])
+/// >>> _ = b.value("interest_expense", [("2025Q1", 10.0)])
+/// >>> report = run_credit_underwriting_checks(b.build(), CreditMapping("total_debt", "ebitda", "interest_expense"))
+/// >>> report.passed, report.total_findings
+/// (True, 0)
 #[pyfunction]
 #[pyo3(signature = (model, mapping, results=None))]
 fn run_credit_underwriting_checks(
@@ -773,9 +787,16 @@ fn run_credit_underwriting_checks(
 ///
 /// Examples
 /// --------
-/// >>> from finstack_quant.statements_analytics import render_check_report_text
-/// >>> callable(render_check_report_text)
-/// True
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import CreditMapping, render_check_report_text, run_credit_underwriting_checks
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q1", None)
+/// >>> _ = b.value("total_debt", [("2025Q1", 100.0)])
+/// >>> _ = b.value("ebitda", [("2025Q1", 40.0)])
+/// >>> _ = b.value("interest_expense", [("2025Q1", 10.0)])
+/// >>> report = run_credit_underwriting_checks(b.build(), CreditMapping("total_debt", "ebitda", "interest_expense"))
+/// >>> render_check_report_text(report).splitlines()[0]
+/// '══ Check Report ══'
 #[pyfunction]
 fn render_check_report_text(py: Python<'_>, report: &Bound<'_, PyAny>) -> PyResult<String> {
     let report = extract_check_report(py, report)?;
@@ -801,8 +822,15 @@ fn render_check_report_text(py: Python<'_>, report: &Bound<'_, PyAny>) -> PyResu
 ///
 /// Examples
 /// --------
-/// >>> from finstack_quant.statements_analytics import render_check_report_html
-/// >>> callable(render_check_report_html)
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import CreditMapping, render_check_report_html, run_credit_underwriting_checks
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q1", None)
+/// >>> _ = b.value("total_debt", [("2025Q1", 100.0)])
+/// >>> _ = b.value("ebitda", [("2025Q1", 40.0)])
+/// >>> _ = b.value("interest_expense", [("2025Q1", 10.0)])
+/// >>> report = run_credit_underwriting_checks(b.build(), CreditMapping("total_debt", "ebitda", "interest_expense"))
+/// >>> render_check_report_html(report).startswith("<div")
 /// True
 #[pyfunction]
 fn render_check_report_html(py: Python<'_>, report: &Bound<'_, PyAny>) -> PyResult<String> {

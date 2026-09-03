@@ -106,7 +106,7 @@ impl PySolverConfig {
     fn new(tolerance: Option<f64>, max_iterations: Option<usize>) -> PyResult<Self> {
         let mut inner = SolverConfig::default();
         if let Some(tolerance) = tolerance {
-            if !(tolerance > 0.0) || !tolerance.is_finite() {
+            if !tolerance.is_finite() || tolerance <= 0.0 {
                 return Err(value_error(format!(
                     "solver tolerance must be a positive finite number, got {tolerance}"
                 )));

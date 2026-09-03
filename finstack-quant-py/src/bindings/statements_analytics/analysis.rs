@@ -143,9 +143,16 @@ fn run_sensitivity(
 ///
 /// Examples
 /// --------
-/// >>> from finstack_quant.statements_analytics import generate_tornado_entries
-/// >>> callable(generate_tornado_entries)
-/// True
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import ParameterSpec, SensitivityConfig, generate_tornado_entries, run_sensitivity
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q2", None)
+/// >>> _ = b.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
+/// >>> _ = b.compute("profit", "revenue * 0.5")
+/// >>> cfg = SensitivityConfig("diagonal", [ParameterSpec.with_percentages("revenue", "2025Q2", 110.0, [-10.0, 10.0])], ["profit"])
+/// >>> entries = generate_tornado_entries(run_sensitivity(b.build(), cfg), "profit", "2025Q2")
+/// >>> [entry.parameter_id for entry in entries]
+/// ['revenue']
 #[pyfunction]
 #[pyo3(signature = (result, metric_node, period=None))]
 fn generate_tornado_entries(
@@ -194,9 +201,15 @@ fn generate_tornado_entries(
 ///
 /// Examples
 /// --------
-/// >>> from finstack_quant.statements_analytics import run_variance
-/// >>> callable(run_variance)
-/// True
+/// >>> from finstack_quant.statements import Evaluator, ModelBuilder
+/// >>> from finstack_quant.statements_analytics import VarianceConfig, run_variance
+/// >>> def model(revenue):
+/// ...     b = ModelBuilder("m"); b.periods("2025Q1..Q1", None)
+/// ...     b.value("revenue", [("2025Q1", revenue)]); b.compute("profit", "revenue * 0.5")
+/// ...     return Evaluator().evaluate(b.build())
+/// >>> cfg = VarianceConfig("base", "actual", ["profit"], ["2025Q1"])
+/// >>> run_variance(model(100.0), model(120.0), cfg).rows[0].abs_var
+/// 10.0
 #[pyfunction]
 fn run_variance(
     py: Python<'_>,
@@ -295,9 +308,17 @@ fn evaluate_scenario_set(
 ///
 /// Examples
 /// --------
-/// >>> from finstack_quant.statements_analytics import scenario_diff
-/// >>> callable(scenario_diff)
-/// True
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import ScenarioSet, evaluate_scenario_set, scenario_diff
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q1", None)
+/// >>> _ = b.value("revenue", [("2025Q1", 100.0)])
+/// >>> _ = b.compute("profit", "revenue * 0.5")
+/// >>> model = b.build()
+/// >>> scenarios = ScenarioSet({"base": {}, "down": {"revenue": 90.0}})
+/// >>> results = evaluate_scenario_set(model, scenarios)
+/// >>> scenario_diff(scenarios, results, "base", "down", ["profit"], ["2025Q1"]).variance.rows[0].abs_var
+/// -5.0
 #[pyfunction]
 #[pyo3(text_signature = "(scenario_set, results, baseline, comparison, metrics, periods)")]
 fn scenario_diff(
@@ -362,9 +383,15 @@ fn scenario_diff(
 ///
 /// Examples
 /// --------
+/// >>> from finstack_quant.statements import Evaluator, ModelBuilder
 /// >>> from finstack_quant.statements_analytics import variance_bridge
-/// >>> callable(variance_bridge)
-/// True
+/// >>> def model(revenue):
+/// ...     b = ModelBuilder("m"); b.periods("2025Q1..Q1", None)
+/// ...     b.value("revenue", [("2025Q1", revenue)]); b.compute("profit", "revenue * 0.5")
+/// ...     return Evaluator().evaluate(b.build())
+/// >>> chart = variance_bridge(model(100.0), model(120.0), "profit", "2025Q1", ["revenue"], "base", "actual")
+/// >>> [(step.driver, step.contribution) for step in chart.steps], chart.unexplained
+/// ([('revenue', 20.0)], -10.0)
 #[pyfunction]
 #[pyo3(
     text_signature = "(base, comparison, target_metric, period, drivers, baseline_label, comparison_label)"
@@ -555,9 +582,15 @@ fn backtest_forecast(actual: Vec<f64>, forecast: Vec<f64>) -> PyResult<PyForecas
 ///
 /// Examples
 /// --------
-/// >>> from finstack_quant.statements_analytics import GoalSeekResult
-/// >>> callable(GoalSeekResult)
-/// True
+/// >>> from finstack_quant.statements import ModelBuilder
+/// >>> from finstack_quant.statements_analytics import goal_seek
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q1", None)
+/// >>> _ = b.value("revenue", [("2025Q1", 100.0)])
+/// >>> _ = b.compute("profit", "revenue * 0.5")
+/// >>> result = goal_seek(b.build(), "profit", "2025Q1", 60.0, "revenue", "2025Q1")
+/// >>> round(result.solved_value, 6), result.model is None
+/// (120.0, False)
 #[pyclass(
     name = "GoalSeekResult",
     module = "finstack_quant.statements_analytics",
@@ -1058,9 +1091,15 @@ fn explain_formula(
 ///
 /// Examples
 /// --------
+/// >>> from finstack_quant.statements import Evaluator, ModelBuilder
 /// >>> from finstack_quant.statements_analytics import explain_formula_text
-/// >>> callable(explain_formula_text)
-/// True
+/// >>> b = ModelBuilder("m")
+/// >>> _ = b.periods("2025Q1..Q1", None)
+/// >>> _ = b.value("revenue", [("2025Q1", 100.0)])
+/// >>> _ = b.compute("profit", "revenue * 0.5")
+/// >>> model = b.build()
+/// >>> explain_formula_text(model, Evaluator().evaluate(model), "profit", "2025Q1").splitlines()[0]
+/// 'profit [2025Q1] = 50.00'
 #[pyfunction]
 fn explain_formula_text(
     model: &Bound<'_, PyAny>,
